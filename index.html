@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lanmou Divan — Mix Vibz</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♡</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,500;1,400&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+--bg:#0a0a0f;--bg2:#12121a;--bg3:#1a1a26;--bg4:#22222f;
+--text:#e8e6f0;--text2:#a8a4b8;--text3:#6e6a80;
+--accent-dja:#8b5cf6;--accent-dja2:#a78bfa;--accent-dja-bg:rgba(139,92,246,.1);--accent-dja-border:rgba(139,92,246,.25);
+--accent-liika:#f472b6;--accent-liika2:#f9a8d4;--accent-liika-bg:rgba(244,114,182,.1);--accent-liika-border:rgba(244,114,182,.25);
+--accent-couple:#fbbf24;--accent-couple-bg:rgba(251,191,36,.1);--accent-couple-border:rgba(251,191,36,.25);
+--success:#34d399;--success-bg:rgba(52,211,153,.12);
+--border:rgba(255,255,255,.06);--border2:rgba(255,255,255,.1);
+--radius:12px;--radius-sm:8px;--radius-xs:6px;
+}
+html,body,#root{height:100%;font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
+body{overflow-x:hidden}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
+@keyframes slideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useCallback}=React;
+
+// ─── Data ───
+const defaultData={
+dja:{
+  name:"Negus Dja",
+  role:"Directeur artistique & Dev",
+  location:"Guadeloupe",
+  color:"dja",
+  objectives:[
+    {id:"d1",cat:"Carriere",title:"Lancer la suite d'apps pour createurs TDAH",desc:"MVP, beta testeurs, premiers abonnes",progress:15,done:false},
+    {id:"d2",cat:"Carriere",title:"Identite visuelle caribeenne dans la tech",desc:"Se positionner comme DA de reference antillais",progress:20,done:false},
+    {id:"d3",cat:"Sante",title:"Routine alimentaire vegetalienne stable",desc:"Batch cooking hebdo, produits locaux",progress:30,done:false},
+    {id:"d4",cat:"Sante",title:"Systemes adaptes au TDAH",desc:"Micro-taches, automatisations, outils perso",progress:25,done:false},
+    {id:"d5",cat:"Finances",title:"Atteindre l'independance financiere",desc:"40% SaaS, 30% DA, 20% contenu, 10% autres",progress:10,done:false},
+    {id:"d6",cat:"Finances",title:"Monetiser la cuisine vegetale",desc:"Ateliers, contenu video, recettes",progress:5,done:false},
+  ],
+  actions:[
+    {id:"da1",text:"Definir le MVP de la premiere app",cat:"Carriere",done:false},
+    {id:"da2",text:"Lister 10 painpoints TDAH du workflow creatif",cat:"Sante",done:false},
+    {id:"da3",text:"Creer un planning batch cooking hebdo",cat:"Sante",done:false},
+    {id:"da4",text:"Calculer le revenu minimum pour quitter le freelance",cat:"Finances",done:false},
+    {id:"da5",text:"Prototyper l'interface principale",cat:"Carriere",done:false},
+    {id:"da6",text:"Tester 3 recettes vegetales guadeloupeennes",cat:"Sante",done:false},
+  ]
+},
+liika:{
+  name:"Liika",
+  role:"Independante transport PL",
+  location:"",
+  color:"liika",
+  objectives:[
+    {id:"l1",cat:"Carriere",title:"Stabiliser le CA et fideliser les clients",desc:"Optimiser les tournees, negocier de meilleurs contrats",progress:30,done:false},
+    {id:"l2",cat:"Carriere",title:"Trouver sa niche de specialisation",desc:"Frigorifique, exceptionnel, evenementiel",progress:10,done:false},
+    {id:"l3",cat:"Carriere",title:"Passer de conductrice a cheffe de flotte",desc:"Second vehicule, recrutement, gestion",progress:5,done:false},
+    {id:"l4",cat:"Sante",title:"Routine sante adaptee a la route",desc:"Etirements, repas prepares, hydratation, sommeil",progress:20,done:false},
+    {id:"l5",cat:"Perso",title:"Equilibre route / maison",desc:"Choisir ses tournees, moins de nuits dehors",progress:15,done:false},
+    {id:"l6",cat:"Perso",title:"Construire a deux avec Dja",desc:"Temps de qualite, projets communs, logement",progress:20,done:false},
+  ],
+  actions:[
+    {id:"la1",text:"Bilan financier des 12 derniers mois",cat:"Carriere",done:false},
+    {id:"la2",text:"Identifier 3 niches de specialisation",cat:"Carriere",done:false},
+    {id:"la3",text:"Mettre en place un kit repas sains pour la route",cat:"Sante",done:false},
+    {id:"la4",text:"Routine etirements de 10 min aux pauses",cat:"Sante",done:false},
+    {id:"la5",text:"Planifier un week-end deconnexion avec Dja",cat:"Perso",done:false},
+    {id:"la6",text:"Se renseigner sur les formations capacitaire",cat:"Carriere",done:false},
+  ]
+},
+couple:{
+  objectives:[
+    {id:"c1",cat:"Couple",title:"Definir les objectifs communs 2027",desc:"Logement, voyages, finances partagees",progress:10,done:false},
+    {id:"c2",cat:"Couple",title:"Synchroniser les rythmes de vie",desc:"Adapter les plannings malgre deux metiers differents",progress:15,done:false},
+    {id:"c3",cat:"Couple",title:"Investir dans un logement",desc:"Creer un cocon solide a deux",progress:5,done:false},
+  ],
+  actions:[
+    {id:"ca1",text:"Planifier une soiree objectifs couple",cat:"Couple",done:false},
+    {id:"ca2",text:"Ouvrir un compte commun projets",cat:"Couple",done:false},
+    {id:"ca3",text:"Choisir une destination vacances 2027",cat:"Couple",done:false},
+  ]
+}
+};
+
+function loadData(){
+try{const d=localStorage.getItem('dja-liika-goals');return d?JSON.parse(d):defaultData}catch(e){return defaultData}
+}
+function saveData(d){localStorage.setItem('dja-liika-goals',JSON.stringify(d))}
+
+// ─── Components ───
+
+function ProgressRing({pct,size=48,stroke=4,color}){
+const r=(size-stroke)/2;const circ=2*Math.PI*r;const off=circ-pct/100*circ;
+return <svg width={size} height={size} style={{transform:'rotate(-90deg)'}}>
+<circle cx={size/2} cy={size/2} r={r} fill="none" stroke="var(--border2)" strokeWidth={stroke}/>
+<circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke} strokeDasharray={circ} strokeDashoffset={off} strokeLinecap="round" style={{transition:'stroke-dashoffset .5s ease'}}/>
+</svg>
+}
+
+function StatCard({label,value,color,icon}){
+return <div style={{background:'var(--bg3)',borderRadius:'var(--radius)',padding:'16px 20px',display:'flex',alignItems:'center',gap:14}}>
+<div style={{width:40,height:40,borderRadius:10,background:color==='dja'?'var(--accent-dja-bg)':color==='liika'?'var(--accent-liika-bg)':'var(--accent-couple-bg)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18}}>{icon}</div>
+<div><div style={{fontSize:13,color:'var(--text3)',marginBottom:2}}>{label}</div>
+<div style={{fontSize:22,fontWeight:600}}>{value}</div></div>
+</div>
+}
+
+function ObjectiveCard({obj,color,onToggle,onProgress,onDelete}){
+const accentVar=color==='dja'?'var(--accent-dja)':color==='liika'?'var(--accent-liika)':'var(--accent-couple)';
+const bgVar=color==='dja'?'var(--accent-dja-bg)':color==='liika'?'var(--accent-liika-bg)':'var(--accent-couple-bg)';
+return <div style={{background:'var(--bg3)',borderRadius:'var(--radius)',padding:'16px 20px',borderLeft:`3px solid ${obj.done?'var(--success)':accentVar}`,animation:'fadeUp .4s ease both',opacity:obj.done?.6:1,transition:'opacity .3s'}}>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
+<div style={{flex:1}}>
+<div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
+<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:bgVar,color:accentVar,fontWeight:500}}>{obj.cat}</span>
+{obj.done&&<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:'var(--success-bg)',color:'var(--success)',fontWeight:500}}>Fait</span>}
+</div>
+<div style={{fontSize:15,fontWeight:500,marginBottom:4,textDecoration:obj.done?'line-through':'none'}}>{obj.title}</div>
+<div style={{fontSize:13,color:'var(--text3)'}}>{obj.desc}</div>
+</div>
+<div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
+<ProgressRing pct={obj.progress} color={obj.done?'var(--success)':accentVar}/>
+<span style={{fontSize:11,fontWeight:500,color:obj.done?'var(--success)':accentVar}}>{obj.progress}%</span>
+</div>
+</div>
+<div style={{marginTop:12,display:'flex',alignItems:'center',gap:8}}>
+<input type="range" min="0" max="100" step="5" value={obj.progress}
+  onChange={e=>onProgress(obj.id,parseInt(e.target.value))}
+  style={{flex:1,height:4,accentColor:accentVar,cursor:'pointer'}}/>
+<button onClick={()=>onToggle(obj.id)} style={{background:obj.done?'var(--success-bg)':'var(--bg4)',border:'none',borderRadius:'var(--radius-xs)',padding:'6px 12px',fontSize:12,color:obj.done?'var(--success)':'var(--text2)',cursor:'pointer',whiteSpace:'nowrap'}}>
+{obj.done?'Reactivar':'Valider'}</button>
+<button onClick={()=>onDelete(obj.id)} style={{background:'none',border:'none',fontSize:14,color:'var(--text3)',cursor:'pointer',padding:'6px'}}>✕</button>
+</div>
+</div>
+}
+
+function ActionItem({action,color,onToggle}){
+const accentVar=color==='dja'?'var(--accent-dja)':color==='liika'?'var(--accent-liika)':'var(--accent-couple)';
+return <div style={{display:'flex',alignItems:'center',gap:12,padding:'12px 16px',background:'var(--bg3)',borderRadius:'var(--radius-sm)',cursor:'pointer',transition:'all .15s',animation:'slideIn .3s ease both'}} onClick={()=>onToggle(action.id)}>
+<div style={{width:20,height:20,minWidth:20,borderRadius:6,border:action.done?'none':`2px solid var(--border2)`,background:action.done?'var(--success)':'transparent',display:'flex',alignItems:'center',justifyContent:'center',transition:'all .2s'}}>
+{action.done&&<span style={{color:'var(--bg)',fontSize:12,fontWeight:700}}>✓</span>}
+</div>
+<span style={{flex:1,fontSize:14,color:action.done?'var(--text3)':'var(--text)',textDecoration:action.done?'line-through':'none',transition:'all .2s'}}>{action.text}</span>
+<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:color==='dja'?'var(--accent-dja-bg)':color==='liika'?'var(--accent-liika-bg)':'var(--accent-couple-bg)',color:accentVar,fontWeight:500}}>{action.cat}</span>
+</div>
+}
+
+function AddModal({show,onClose,onAdd,type,color}){
+const [title,setTitle]=useState('');
+const [desc,setDesc]=useState('');
+const [cat,setCat]=useState('Carriere');
+if(!show)return null;
+const accentVar=color==='dja'?'var(--accent-dja)':color==='liika'?'var(--accent-liika)':'var(--accent-couple)';
+const cats=color==='couple'?['Couple']:['Carriere','Sante','Finances','Perso'];
+return <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.7)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:100,padding:20}} onClick={onClose}>
+<div style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:28,maxWidth:440,width:'100%',border:'1px solid var(--border2)'}} onClick={e=>e.stopPropagation()}>
+<h3 style={{fontSize:18,fontWeight:500,marginBottom:20}}>{type==='objective'?'Nouvel objectif':'Nouvelle action'}</h3>
+<input placeholder={type==='objective'?'Titre de l\'objectif':'Action a realiser'} value={title} onChange={e=>setTitle(e.target.value)}
+  style={{width:'100%',padding:'10px 14px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'var(--bg3)',color:'var(--text)',fontSize:14,marginBottom:12,outline:'none'}}/>
+{type==='objective'&&<input placeholder="Description" value={desc} onChange={e=>setDesc(e.target.value)}
+  style={{width:'100%',padding:'10px 14px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'var(--bg3)',color:'var(--text)',fontSize:14,marginBottom:12,outline:'none'}}/>}
+<div style={{display:'flex',gap:8,marginBottom:20,flexWrap:'wrap'}}>
+{cats.map(c=><button key={c} onClick={()=>setCat(c)} style={{padding:'6px 14px',borderRadius:20,border:cat===c?`2px solid ${accentVar}`:'1px solid var(--border2)',background:cat===c?'var(--bg4)':'transparent',color:cat===c?'var(--text)':'var(--text3)',fontSize:13,cursor:'pointer'}}>{c}</button>)}
+</div>
+<div style={{display:'flex',gap:10,justifyContent:'flex-end'}}>
+<button onClick={onClose} style={{padding:'10px 20px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'transparent',color:'var(--text2)',cursor:'pointer',fontSize:14}}>Annuler</button>
+<button onClick={()=>{if(title.trim()){onAdd(title,desc,cat);setTitle('');setDesc('');onClose()}}} style={{padding:'10px 20px',borderRadius:'var(--radius-sm)',border:'none',background:accentVar,color:'#fff',cursor:'pointer',fontSize:14,fontWeight:500}}>Ajouter</button>
+</div>
+</div>
+</div>
+}
+
+function ChartPanel({data}){
+const canvasRef=useRef(null);
+const chartRef=useRef(null);
+useEffect(()=>{
+if(!canvasRef.current)return;
+if(chartRef.current)chartRef.current.destroy();
+const all=[...data.dja.objectives,...data.liika.objectives,...data.couple.objectives];
+const cats=[...new Set(all.map(o=>o.cat))];
+const avgByCat=cats.map(c=>{const items=all.filter(o=>o.cat===c);return Math.round(items.reduce((s,i)=>s+i.progress,0)/items.length)});
+chartRef.current=new Chart(canvasRef.current,{
+type:'bar',
+data:{labels:cats,datasets:[{data:avgByCat,backgroundColor:['#8b5cf6','#34d399','#fbbf24','#f472b6','#60a5fa'],borderRadius:8,barPercentage:.6}]},
+options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{
+y:{beginAtZero:true,max:100,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#6e6a80',font:{family:'Outfit'}}},
+x:{grid:{display:false},ticks:{color:'#a8a4b8',font:{family:'Outfit',weight:500}}}
+}}
+});
+return ()=>{if(chartRef.current)chartRef.current.destroy()};
+},[data]);
+return <div style={{position:'relative',height:260}}><canvas ref={canvasRef}/></div>
+}
+
+function DoughnutPanel({data,who}){
+const canvasRef=useRef(null);
+const chartRef=useRef(null);
+useEffect(()=>{
+if(!canvasRef.current)return;
+if(chartRef.current)chartRef.current.destroy();
+const src=who==='couple'?data.couple.objectives:data[who].objectives;
+const done=src.filter(o=>o.done).length;
+const inProgress=src.filter(o=>!o.done&&o.progress>0).length;
+const notStarted=src.filter(o=>!o.done&&o.progress===0).length;
+chartRef.current=new Chart(canvasRef.current,{
+type:'doughnut',
+data:{labels:['Termines','En cours','A faire'],datasets:[{data:[done,inProgress,notStarted],backgroundColor:['#34d399','#8b5cf6','#2a2a3a'],borderWidth:0}]},
+options:{responsive:true,maintainAspectRatio:false,cutout:'70%',plugins:{legend:{display:false}}}
+});
+return ()=>{if(chartRef.current)chartRef.current.destroy()};
+},[data,who]);
+return <div style={{position:'relative',height:200}}><canvas ref={canvasRef}/></div>
+}
+
+// ─── Main App ───
+function App(){
+const [data,setData]=useState(loadData);
+const [view,setView]=useState('dashboard');
+const [modal,setModal]=useState(null);
+
+useEffect(()=>saveData(data),[data]);
+
+const updateObj=(who,id,updates)=>{
+setData(prev=>{
+const next=JSON.parse(JSON.stringify(prev));
+const list=who==='couple'?next.couple.objectives:next[who].objectives;
+const idx=list.findIndex(o=>o.id===id);
+if(idx>=0)Object.assign(list[idx],updates);
+return next;
+});
+};
+const toggleAction=(who,id)=>{
+setData(prev=>{
+const next=JSON.parse(JSON.stringify(prev));
+const list=who==='couple'?next.couple.actions:next[who].actions;
+const idx=list.findIndex(a=>a.id===id);
+if(idx>=0)list[idx].done=!list[idx].done;
+return next;
+});
+};
+const deleteObj=(who,id)=>{
+setData(prev=>{
+const next=JSON.parse(JSON.stringify(prev));
+if(who==='couple')next.couple.objectives=next.couple.objectives.filter(o=>o.id!==id);
+else next[who].objectives=next[who].objectives.filter(o=>o.id!==id);
+return next;
+});
+};
+const addObjective=(who,title,desc,cat)=>{
+setData(prev=>{
+const next=JSON.parse(JSON.stringify(prev));
+const obj={id:Date.now().toString(),cat,title,desc,progress:0,done:false};
+if(who==='couple')next.couple.objectives.push(obj);
+else next[who].objectives.push(obj);
+return next;
+});
+};
+const addAction=(who,text,_,cat)=>{
+setData(prev=>{
+const next=JSON.parse(JSON.stringify(prev));
+const act={id:Date.now().toString(),text,cat,done:false};
+if(who==='couple')next.couple.actions.push(act);
+else next[who].actions.push(act);
+return next;
+});
+};
+
+const totalObj=[...data.dja.objectives,...data.liika.objectives,...data.couple.objectives];
+const totalDone=totalObj.filter(o=>o.done).length;
+const avgProgress=totalObj.length?Math.round(totalObj.reduce((s,o)=>s+o.progress,0)/totalObj.length):0;
+const totalActions=[...data.dja.actions,...data.liika.actions,...data.couple.actions];
+const actionsDone=totalActions.filter(a=>a.done).length;
+
+const navItems=[
+{id:'dashboard',label:'Dashboard',icon:'◈'},
+{id:'dja',label:'Dja',icon:'◆'},
+{id:'liika',label:'Liika',icon:'◇'},
+{id:'couple',label:'Couple',icon:'♡'},
+{id:'charts',label:'Stats',icon:'▤'},
+];
+
+const renderPerson=(who)=>{
+const person=data[who];
+const color=who;
+return <div>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24,flexWrap:'wrap',gap:12}}>
+<div>
+<h2 style={{fontSize:22,fontWeight:600,fontFamily:"'Playfair Display',serif"}}>{person.name}</h2>
+<p style={{fontSize:14,color:'var(--text3)',marginTop:2}}>{person.role}{person.location?` — ${person.location}`:''}</p>
+</div>
+<div style={{display:'flex',gap:8}}>
+<button onClick={()=>setModal({type:'objective',who})} style={{padding:'8px 16px',borderRadius:'var(--radius-sm)',border:'none',background:who==='dja'?'var(--accent-dja)':'var(--accent-liika)',color:'#fff',cursor:'pointer',fontSize:13,fontWeight:500}}>+ Objectif</button>
+<button onClick={()=>setModal({type:'action',who})} style={{padding:'8px 16px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'transparent',color:'var(--text2)',cursor:'pointer',fontSize:13}}>+ Action</button>
+</div>
+</div>
+<div style={{display:'grid',gap:12,marginBottom:28}}>
+{person.objectives.map(o=><ObjectiveCard key={o.id} obj={o} color={color}
+  onToggle={id=>updateObj(who,id,{done:!o.done,progress:!o.done?100:o.progress})}
+  onProgress={(id,p)=>updateObj(who,id,{progress:p,done:p>=100})}
+  onDelete={id=>deleteObj(who,id)}/>)}
+</div>
+<h3 style={{fontSize:16,fontWeight:500,marginBottom:12,color:'var(--text2)'}}>Actions</h3>
+<div style={{display:'grid',gap:8}}>
+{person.actions.map(a=><ActionItem key={a.id} action={a} color={color} onToggle={id=>toggleAction(who,id)}/>)}
+</div>
+</div>
+};
+
+const renderCouple=()=>{
+return <div>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24,flexWrap:'wrap',gap:12}}>
+<div>
+<h2 style={{fontSize:22,fontWeight:600,fontFamily:"'Playfair Display',serif"}}>Dja & Liika</h2>
+<p style={{fontSize:14,color:'var(--text3)',marginTop:2}}>Lanmou Divan — Vision commune</p>
+</div>
+<div style={{display:'flex',gap:8}}>
+<button onClick={()=>setModal({type:'objective',who:'couple'})} style={{padding:'8px 16px',borderRadius:'var(--radius-sm)',border:'none',background:'var(--accent-couple)',color:'var(--bg)',cursor:'pointer',fontSize:13,fontWeight:500}}>+ Objectif</button>
+<button onClick={()=>setModal({type:'action',who:'couple'})} style={{padding:'8px 16px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'transparent',color:'var(--text2)',cursor:'pointer',fontSize:13}}>+ Action</button>
+</div>
+</div>
+<div style={{display:'grid',gap:12,marginBottom:28}}>
+{data.couple.objectives.map(o=><ObjectiveCard key={o.id} obj={o} color="couple"
+  onToggle={id=>updateObj('couple',id,{done:!o.done,progress:!o.done?100:o.progress})}
+  onProgress={(id,p)=>updateObj('couple',id,{progress:p,done:p>=100})}
+  onDelete={id=>deleteObj('couple',id)}/>)}
+</div>
+<h3 style={{fontSize:16,fontWeight:500,marginBottom:12,color:'var(--text2)'}}>Actions</h3>
+<div style={{display:'grid',gap:8}}>
+{data.couple.actions.map(a=><ActionItem key={a.id} action={a} color="couple" onToggle={id=>toggleAction('couple',id)}/>)}
+</div>
+</div>
+};
+
+const renderDashboard=()=>{
+return <div>
+<div style={{marginBottom:28}}>
+<h2 style={{fontSize:26,fontWeight:600,fontFamily:"'Playfair Display',serif",marginBottom:4}}>Tableau de bord</h2>
+<p style={{fontSize:14,color:'var(--text3)'}}>Vue d'ensemble — Vision 2026-2036</p>
+</div>
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:12,marginBottom:28}}>
+<StatCard label="Progression moyenne" value={`${avgProgress}%`} color="dja" icon="◈"/>
+<StatCard label="Objectifs termines" value={`${totalDone}/${totalObj.length}`} color="liika" icon="✓"/>
+<StatCard label="Actions faites" value={`${actionsDone}/${totalActions.length}`} color="couple" icon="▸"/>
+</div>
+
+<h3 style={{fontSize:16,fontWeight:500,marginBottom:16,color:'var(--text2)'}}>Cote a cote</h3>
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:16,marginBottom:28}}>
+{['dja','liika'].map(who=>{
+const p=data[who];const col=who;
+const avg=p.objectives.length?Math.round(p.objectives.reduce((s,o)=>s+o.progress,0)/p.objectives.length):0;
+const done=p.objectives.filter(o=>o.done).length;
+const accentVar=who==='dja'?'var(--accent-dja)':'var(--accent-liika)';
+return <div key={who} style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:20,border:`1px solid ${who==='dja'?'var(--accent-dja-border)':'var(--accent-liika-border)'}`}}>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+<div>
+<div style={{fontSize:16,fontWeight:600}}>{p.name}</div>
+<div style={{fontSize:12,color:'var(--text3)'}}>{p.role}</div>
+</div>
+<div style={{position:'relative',display:'flex',alignItems:'center',justifyContent:'center'}}>
+<ProgressRing pct={avg} size={56} stroke={5} color={accentVar}/>
+<span style={{position:'absolute',fontSize:13,fontWeight:600}}>{avg}%</span>
+</div>
+</div>
+{p.objectives.slice(0,3).map(o=><div key={o.id} style={{display:'flex',alignItems:'center',gap:10,marginBottom:8}}>
+<div style={{width:6,height:6,borderRadius:3,background:o.done?'var(--success)':accentVar,minWidth:6}}/>
+<span style={{fontSize:13,color:o.done?'var(--text3)':'var(--text)',flex:1,textDecoration:o.done?'line-through':'none'}}>{o.title}</span>
+<span style={{fontSize:11,color:'var(--text3)'}}>{o.progress}%</span>
+</div>)}
+<button onClick={()=>setView(who)} style={{marginTop:12,width:'100%',padding:'8px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'transparent',color:'var(--text2)',cursor:'pointer',fontSize:13}}>Voir tout →</button>
+</div>})}
+</div>
+
+<div style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:20,border:'1px solid var(--accent-couple-border)',marginBottom:28}}>
+<div style={{fontSize:16,fontWeight:600,marginBottom:4}}>Objectifs couple</div>
+<div style={{fontSize:12,color:'var(--text3)',marginBottom:16}}>Lanmou Divan — projets communs</div>
+{data.couple.objectives.map(o=><div key={o.id} style={{display:'flex',alignItems:'center',gap:10,marginBottom:8}}>
+<div style={{width:6,height:6,borderRadius:3,background:o.done?'var(--success)':'var(--accent-couple)',minWidth:6}}/>
+<span style={{fontSize:13,color:o.done?'var(--text3)':'var(--text)',flex:1}}>{o.title}</span>
+<span style={{fontSize:11,color:'var(--text3)'}}>{o.progress}%</span>
+</div>)}
+<button onClick={()=>setView('couple')} style={{marginTop:12,width:'100%',padding:'8px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'transparent',color:'var(--text2)',cursor:'pointer',fontSize:13}}>Voir tout →</button>
+</div>
+</div>
+};
+
+const renderCharts=()=>{
+return <div>
+<h2 style={{fontSize:22,fontWeight:600,fontFamily:"'Playfair Display',serif",marginBottom:4}}>Statistiques</h2>
+<p style={{fontSize:14,color:'var(--text3)',marginBottom:24}}>Progression par categorie et par personne</p>
+<div style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:20,marginBottom:20,border:'1px solid var(--border)'}}>
+<h3 style={{fontSize:15,fontWeight:500,marginBottom:16}}>Progression moyenne par categorie</h3>
+<ChartPanel data={data}/>
+</div>
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(250px,1fr))',gap:16}}>
+{['dja','liika','couple'].map(who=>{
+const label=who==='dja'?'Dja':who==='liika'?'Liika':'Couple';
+const col=who==='dja'?'var(--accent-dja)':who==='liika'?'var(--accent-liika)':'var(--accent-couple)';
+return <div key={who} style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:20,border:'1px solid var(--border)'}}>
+<h3 style={{fontSize:15,fontWeight:500,marginBottom:16}}>{label}</h3>
+<DoughnutPanel data={data} who={who}/>
+<div style={{display:'flex',justifyContent:'center',gap:16,marginTop:12,fontSize:12,color:'var(--text3)'}}>
+<span style={{display:'flex',alignItems:'center',gap:4}}><span style={{width:8,height:8,borderRadius:2,background:'#34d399',display:'inline-block'}}/> Fait</span>
+<span style={{display:'flex',alignItems:'center',gap:4}}><span style={{width:8,height:8,borderRadius:2,background:'#8b5cf6',display:'inline-block'}}/> En cours</span>
+<span style={{display:'flex',alignItems:'center',gap:4}}><span style={{width:8,height:8,borderRadius:2,background:'#2a2a3a',display:'inline-block'}}/> A faire</span>
+</div>
+</div>})}
+</div>
+</div>
+};
+
+return <div style={{display:'flex',minHeight:'100vh'}}>
+{/* Sidebar */}
+<nav style={{width:220,minWidth:220,background:'var(--bg2)',borderRight:'1px solid var(--border)',padding:'24px 0',display:'flex',flexDirection:'column',position:'sticky',top:0,height:'100vh'}}>
+<div style={{padding:'0 20px',marginBottom:32}}>
+<div style={{fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:600,letterSpacing:'-0.02em'}}>
+<span style={{color:'var(--accent-dja)'}}>Lanmou</span> <span style={{color:'var(--accent-liika)'}}>Divan</span>
+</div>
+<div style={{fontSize:11,color:'var(--text3)',marginTop:4,letterSpacing:'.05em',textTransform:'uppercase'}}>Mix Vibz</div>
+</div>
+<div style={{flex:1}}>
+{navItems.map(n=><button key={n.id} onClick={()=>setView(n.id)}
+style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 20px',border:'none',background:view===n.id?'var(--bg3)':'transparent',color:view===n.id?'var(--text)':'var(--text3)',fontSize:14,fontWeight:view===n.id?500:400,cursor:'pointer',borderLeft:view===n.id?'2px solid var(--accent-dja)':'2px solid transparent',transition:'all .15s'}}>
+<span style={{fontSize:16,width:20,textAlign:'center'}}>{n.icon}</span>{n.label}
+</button>)}
+</div>
+<div style={{padding:'0 20px'}}>
+<button onClick={()=>{if(confirm('Reinitialiser toutes les donnees ?')){localStorage.removeItem('dja-liika-goals');setData(defaultData)}}}
+style={{width:'100%',padding:'8px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'transparent',color:'var(--text3)',cursor:'pointer',fontSize:12}}>Reinitialiser</button>
+</div>
+</nav>
+
+{/* Mobile nav */}
+<div className="mobile-nav" style={{display:'none',position:'fixed',bottom:0,left:0,right:0,background:'var(--bg2)',borderTop:'1px solid var(--border)',padding:'8px 0',zIndex:50}}>
+<div style={{display:'flex',justifyContent:'space-around'}}>
+{navItems.map(n=><button key={n.id} onClick={()=>setView(n.id)}
+style={{display:'flex',flexDirection:'column',alignItems:'center',gap:2,border:'none',background:'transparent',color:view===n.id?'var(--accent-dja)':'var(--text3)',cursor:'pointer',padding:'4px 8px',fontSize:10}}>
+<span style={{fontSize:18}}>{n.icon}</span>{n.label}
+</button>)}
+</div>
+</div>
+
+{/* Main */}
+<main style={{flex:1,padding:'32px 40px',maxWidth:900,minWidth:0}}>
+{view==='dashboard'&&renderDashboard()}
+{view==='dja'&&renderPerson('dja')}
+{view==='liika'&&renderPerson('liika')}
+{view==='couple'&&renderCouple()}
+{view==='charts'&&renderCharts()}
+</main>
+
+<AddModal show={!!modal} onClose={()=>setModal(null)} type={modal?.type} color={modal?.who}
+  onAdd={(t,d,c)=>{
+    if(modal.type==='objective')addObjective(modal.who,t,d,c);
+    else addAction(modal.who,t,d,c);
+  }}/>
+
+<style>{`
+@media(max-width:768px){
+nav{display:none!important}
+.mobile-nav{display:block!important}
+main{padding:20px 16px 80px!important}
+}
+`}</style>
+</div>
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
