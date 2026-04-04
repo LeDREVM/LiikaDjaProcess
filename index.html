@@ -57,7 +57,8 @@ dja:{
     {id:"da4",text:"Calculer le revenu minimum pour quitter le freelance",cat:"Finances",done:false},
     {id:"da5",text:"Prototyper l'interface principale",cat:"Carriere",done:false},
     {id:"da6",text:"Tester 3 recettes vegetales guadeloupeennes",cat:"Sante",done:false},
-  ]
+  ],
+  notes:[]
 },
 liika:{
   name:"Liika",
@@ -79,7 +80,8 @@ liika:{
     {id:"la4",text:"Routine etirements de 10 min aux pauses",cat:"Sante",done:false},
     {id:"la5",text:"Planifier un week-end deconnexion avec Dja",cat:"Perso",done:false},
     {id:"la6",text:"Se renseigner sur les formations capacitaire",cat:"Carriere",done:false},
-  ]
+  ],
+  notes:[]
 },
 couple:{
   objectives:[
@@ -91,7 +93,8 @@ couple:{
     {id:"ca1",text:"Planifier une soiree objectifs couple",cat:"Couple",done:false},
     {id:"ca2",text:"Ouvrir un compte commun projets",cat:"Couple",done:false},
     {id:"ca3",text:"Choisir une destination vacances 2027",cat:"Couple",done:false},
-  ]
+  ],
+  notes:[]
 }
 };
 
@@ -334,6 +337,24 @@ else next[who].actions.push(act);
 return next;
 });
 };
+const addNote=(who,text)=>{
+if(!text.trim())return;
+setData(prev=>{
+const next=JSON.parse(JSON.stringify(prev));
+const note={id:Date.now().toString(),text:text.trim(),date:new Date().toISOString()};
+if(who==='couple')next.couple.notes=[note,...(next.couple.notes||[])];
+else next[who].notes=[note,...(next[who].notes||[])];
+return next;
+});
+};
+const deleteNote=(who,id)=>{
+setData(prev=>{
+const next=JSON.parse(JSON.stringify(prev));
+if(who==='couple')next.couple.notes=(next.couple.notes||[]).filter(n=>n.id!==id);
+else next[who].notes=(next[who].notes||[]).filter(n=>n.id!==id);
+return next;
+});
+};
 
 const totalObj=[...data.dja.objectives,...data.liika.objectives,...data.couple.objectives];
 const totalDone=totalObj.filter(o=>o.done).length;
@@ -348,6 +369,35 @@ const navItems=[
 {id:'couple',label:'Couple',icon:'♡'},
 {id:'charts',label:'Stats',icon:'▤'},
 ];
+
+const NotesPanel=({who,notes,accentVar,borderVar})=>{
+const [draft,setDraft]=useState('');
+const fmt=iso=>{const d=new Date(iso);return d.toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'})+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});};
+return <div style={{marginTop:32}}>
+<h3 style={{fontSize:16,fontWeight:500,marginBottom:14,color:'var(--text2)'}}>Notes</h3>
+<div style={{display:'flex',gap:8,marginBottom:16}}>
+<textarea value={draft} onChange={e=>setDraft(e.target.value)}
+  onKeyDown={e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){addNote(who,draft);setDraft('');}}}
+  placeholder="Nouvelle note… (Ctrl+Entrée pour valider)"
+  rows={3}
+  style={{flex:1,background:'var(--bg3)',border:`1px solid ${borderVar}`,borderRadius:'var(--radius-sm)',padding:'10px 12px',color:'var(--text)',fontSize:13,resize:'vertical',outline:'none',fontFamily:'inherit',lineHeight:1.5}}/>
+<button onClick={()=>{addNote(who,draft);setDraft('');}}
+  style={{alignSelf:'flex-end',padding:'8px 14px',borderRadius:'var(--radius-sm)',border:'none',background:accentVar,color:'#fff',cursor:'pointer',fontSize:13,fontWeight:500,whiteSpace:'nowrap'}}>
+  + Ajouter
+</button>
+</div>
+{(notes||[]).length===0&&<p style={{fontSize:13,color:'var(--text3)',textAlign:'center',padding:'20px 0'}}>Aucune note pour l'instant.</p>}
+<div style={{display:'flex',flexDirection:'column',gap:10}}>
+{(notes||[]).map(n=><div key={n.id} style={{background:'var(--bg2)',border:`1px solid ${borderVar}`,borderRadius:'var(--radius-sm)',padding:'12px 14px',position:'relative'}}>
+  <p style={{fontSize:13,color:'var(--text)',lineHeight:1.6,whiteSpace:'pre-wrap',marginBottom:6}}>{n.text}</p>
+  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+    <span style={{fontSize:11,color:'var(--text3)'}}>{fmt(n.date)}</span>
+    <button onClick={()=>deleteNote(who,n.id)} style={{background:'none',border:'none',color:'var(--text3)',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 2px'}} title="Supprimer">×</button>
+  </div>
+</div>)}
+</div>
+</div>;
+};
 
 const renderPerson=(who)=>{
 const person=data[who];
@@ -373,6 +423,7 @@ return <div>
 <div style={{display:'grid',gap:8}}>
 {person.actions.map(a=><ActionItem key={a.id} action={a} color={color} onToggle={id=>toggleAction(who,id)}/>)}
 </div>
+<NotesPanel who={who} notes={person.notes} accentVar={who==='dja'?'var(--accent-dja)':'var(--accent-liika)'} borderVar={who==='dja'?'var(--accent-dja-border)':'var(--accent-liika-border)'}/>
 </div>
 };
 
@@ -398,6 +449,7 @@ return <div>
 <div style={{display:'grid',gap:8}}>
 {data.couple.actions.map(a=><ActionItem key={a.id} action={a} color="couple" onToggle={id=>toggleAction('couple',id)}/>)}
 </div>
+<NotesPanel who="couple" notes={data.couple.notes} accentVar="var(--accent-couple)" borderVar="var(--accent-couple-border)"/>
 </div>
 };
 
