@@ -166,6 +166,31 @@ couple:{
   vision:"Un foyer à nous, un voyage par an, des projets créatifs communs. Construire ensemble une vie entre la Guadeloupe et la route — Lanmou Douvan pour toujours."
 }
 };
+const defaultUI={activeProfile:'dja'};
+
+// ─── Supabase ───
+const SB_URL='https://mvtwotbyphuxdkcwgime.supabase.co';
+const SB_KEY='sb_publishable_3GTu11_-nrnYDyFY2Rl7eQ_bndRXVAz';
+const sb=supabase.createClient(SB_URL,SB_KEY);
+async function sbLoad(){
+try{
+  const {data,error}=await sb.from('app_state').select('data').eq('id','main').single();
+  if(error&&error.code==='PGRST116')return null; // no row yet
+  if(error)throw error;
+  const payload=data?.data||null;
+  if(!payload)return null;
+  if(payload.appData)return payload;
+  return {appData:payload,ui:null};
+}catch(e){console.warn('[Supabase] load error:',e);return null}
+}
+async function sbSave(d,ui){
+try{
+  const payload={appData:d,ui};
+  const {error}=await sb.from('app_state').upsert({id:'main',data:payload,updated_at:new Date().toISOString()});
+  if(error)throw error;
+  return true;
+}catch(e){console.warn('[Supabase] save error:',e);return false}
+}
 
 // ─── Supabase ───
 const SB_URL='https://mvtwotbyphuxdkcwgime.supabase.co';
@@ -191,6 +216,10 @@ function loadData(){
 try{const d=localStorage.getItem('dja-liika-goals');return d?JSON.parse(d):defaultData}catch(e){return defaultData}
 }
 function saveData(d){localStorage.setItem('dja-liika-goals',JSON.stringify(d))}
+function loadUI(){
+try{const u=localStorage.getItem('dja-liika-ui');return u?{...defaultUI,...JSON.parse(u)}:defaultUI}catch(e){return defaultUI}
+}
+function saveUI(u){localStorage.setItem('dja-liika-ui',JSON.stringify(u))}
 
 // ─── Components ───
 
@@ -212,7 +241,7 @@ return <div style={{background:'var(--bg3)',borderRadius:'var(--radius)',padding
 
 function ObjectiveCard({obj,color,onToggle,onProgress,onDelete}){
 const av=accent[color];const bv=accentBg[color];
-return <div style={{background:'var(--bg3)',borderRadius:'var(--radius)',padding:'16px 20px',borderLeft:`3px solid ${obj.done?'var(--success)':av}`,animation:'fadeUp .4s ease both',opacity:obj.done?.6:1,transition:'opacity .3s'}}>
+return <div style={{background:'var(--bg3)',borderRadius:'var(--radius)',padding:'16px 20px',borderLeft:`3px solid ${obj.done?'var(--success)':av}`,animation:'fadeUp .4s ease both',opacity:obj.done?0.6:1,transition:'opacity .3s'}}>
 <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
 <div style={{flex:1}}>
 <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
@@ -350,28 +379,38 @@ return <div style={{position:'relative',height:200}}><canvas ref={canvasRef}/></
 // ─── Main App ───
 function App(){
 const [data,setData]=useState(loadData);
+const [ui,setUI]=useState(loadUI);
 const [view,setView]=useState('dashboard');
 const [modal,setModal]=useState(null);
 const [syncStatus,setSyncStatus]=useState('idle'); // idle | syncing | ok | error
+const activeProfile=ui?.activeProfile||'dja';
+const profileLabel=activeProfile==='dja'?'Dja':activeProfile==='liika'?'Liika':'Couple';
+const setActiveProfile=useCallback((who)=>setUI(prev=>({...prev,activeProfile:who})),[]);
 
 // Sync to Supabase on data change (debounced 1.2s)
 const syncTimer=useRef(null);
 useEffect(()=>{
   saveData(data);
+  saveUI(ui);
   clearTimeout(syncTimer.current);
   syncTimer.current=setTimeout(async()=>{
     setSyncStatus('syncing');
-    const ok=await sbSave(data);
+    const ok=await sbSave(data,ui);
     setSyncStatus(ok?'ok':'error');
     if(ok)setTimeout(()=>setSyncStatus('idle'),2000);
   },1200);
-},[data]);
+},[data,ui]);
 
 // Load from Supabase on mount
 useEffect(()=>{
   setSyncStatus('syncing');
-  sbLoad().then(d=>{
-    if(d){setData(d);setSyncStatus('ok');setTimeout(()=>setSyncStatus('idle'),2000);}
+  sbLoad().then(bundle=>{
+    if(bundle?.appData){
+      setData(bundle.appData);
+      if(bundle.ui)setUI(prev=>({...prev,...bundle.ui}));
+      setSyncStatus('ok');
+      setTimeout(()=>setSyncStatus('idle'),2000);
+    }
     else setSyncStatus('idle');
   }).catch(()=>setSyncStatus('error'));
 },[]);
@@ -556,6 +595,223 @@ return <div>
 </div>
 <NotesPanel who="couple" notes={data.couple.notes} onAdd={addNote} onDelete={deleteNote}/>
 </div>
+};
+
+const JOURS=['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
+const TYPES=['Matin','Midi','Soir'];
+
+const renderRepas=()=>{
+const who=activeProfile;
+const [editId,setEditId]=useState(null);
+const [editVal,setEditVal]=useState('');
+const meals=who==='couple'?data.couple.meals:data[who].meals;
+const av=accent[who]||accent.dja;
+const getMeal=(jour,type)=>meals.find(m=>m.jour===jour&&m.type===type);
+return <div>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24,flexWrap:'wrap',gap:12}}>
+<div>
+<h2 style={{fontSize:22,fontWeight:600,fontFamily:"'Playfair Display',serif",marginBottom:4}}>Plans de repas</h2>
+<p style={{fontSize:14,color:'var(--text3)'}}>Organisation alimentaire de la semaine</p>
+<p style={{fontSize:12,color:av,marginTop:6,fontWeight:600}}>Profil actif: {profileLabel}</p>
+</div>
+<div style={{display:'flex',gap:6}}>
+{['dja','liika','couple'].map(w=><button key={w} onClick={()=>setActiveProfile(w)}
+  style={{padding:'6px 14px',borderRadius:20,border:who===w?`2px solid ${accent[w]}`:'1px solid var(--border2)',background:who===w?accentBg[w]:'transparent',color:who===w?accent[w]:'var(--text3)',fontSize:13,cursor:'pointer'}}>
+  {w==='dja'?'Dja':w==='liika'?'Liika':'Couple'}
+</button>)}
+</div>
+</div>
+<div style={{overflowX:'auto'}}>
+<table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+<thead>
+<tr>
+<th style={{padding:'8px 12px',textAlign:'left',color:'var(--text3)',fontWeight:500,borderBottom:'1px solid var(--border)'}}>Jour</th>
+{TYPES.map(t=><th key={t} style={{padding:'8px 12px',textAlign:'left',color:'var(--text3)',fontWeight:500,borderBottom:'1px solid var(--border)'}}>{t}</th>)}
+</tr>
+</thead>
+<tbody>
+{JOURS.map(jour=><tr key={jour} style={{borderBottom:'1px solid var(--border)'}}>
+<td style={{padding:'10px 12px',fontWeight:500,color:av,whiteSpace:'nowrap'}}>{jour}</td>
+{TYPES.map(type=>{
+  const meal=getMeal(jour,type);
+  const cellId=(meal?.id)||`${jour}-${type}`;
+  return <td key={type} style={{padding:'6px 8px',minWidth:160}}>
+  {editId===cellId
+    ?<div style={{display:'flex',gap:6}}>
+      <input autoFocus value={editVal} onChange={e=>setEditVal(e.target.value)}
+        onKeyDown={e=>{
+          if(e.key==='Enter'){
+            if(editVal.trim()){upsertMeal(who,{id:meal?.id||Date.now().toString(),jour,type,plat:editVal.trim(),note:meal?.note||''});}
+            else if(meal){deleteMeal(who,meal.id);}
+            setEditId(null);
+          }
+          if(e.key==='Escape')setEditId(null);
+        }}
+        style={{flex:1,background:'var(--bg4)',border:`1px solid ${av}`,borderRadius:'var(--radius-xs)',padding:'4px 8px',color:'var(--text)',fontSize:12,outline:'none'}}/>
+      <button onClick={()=>{
+        if(editVal.trim()){upsertMeal(who,{id:meal?.id||Date.now().toString(),jour,type,plat:editVal.trim(),note:meal?.note||''});}
+        else if(meal){deleteMeal(who,meal.id);}
+        setEditId(null);
+      }} style={{padding:'4px 8px',borderRadius:'var(--radius-xs)',border:'none',background:av,color:'#fff',cursor:'pointer',fontSize:11}}>✓</button>
+    </div>
+    :<div onClick={()=>{setEditId(cellId);setEditVal(meal?.plat||'');}}
+      style={{padding:'6px 8px',borderRadius:'var(--radius-xs)',background:meal?'var(--bg3)':'transparent',border:`1px dashed ${meal?'transparent':'var(--border2)'}`,cursor:'text',color:meal?'var(--text)':'var(--text3)',minHeight:32,display:'flex',alignItems:'center'}}>
+      {meal?meal.plat:<span style={{fontSize:11}}>+ Ajouter</span>}
+    </div>}
+  </td>;
+})}
+</tr>)}
+</tbody>
+</table>
+</div>
+<p style={{fontSize:11,color:'var(--text3)',marginTop:12}}>Cliquer sur une cellule pour modifier — Entrée pour valider, Échap pour annuler</p>
+</div>;
+};
+
+const renderBudget=()=>{
+const who=activeProfile;
+const [editLine,setEditLine]=useState(null); // {type,id}
+const [form,setForm]=useState({label:'',montant:'',cat:''});
+const budget=who==='couple'?data.couple.budget:data[who].budget;
+const revenus=budget?.revenus||[];
+const depenses=budget?.depenses||[];
+const totalRev=revenus.reduce((s,r)=>s+Number(r.montant),0);
+const totalDep=depenses.reduce((s,d)=>s+Number(d.montant),0);
+const balance=totalRev-totalDep;
+const av=accent[who]||accent.dja;
+const cats=['Logement','Vie','Transport','Tech','Pro','Projets','Épargne','Autre'];
+const saveEditedLine=()=>{
+if(!editLine)return;
+const label=form.label.trim();
+const montant=Number(form.montant);
+if(!label||Number.isNaN(montant))return;
+upsertBudgetLine(who,editLine.type,{id:editLine.id,label,montant,cat:editLine.type==='depenses'?(form.cat||'Autre'):undefined});
+setEditLine(null);
+setForm({label:'',montant:'',cat:'Autre'});
+};
+const LineRow=({line,type})=>(
+<div style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',borderBottom:'1px solid var(--border)'}}>
+<div style={{flex:1}}>
+  <div style={{fontSize:13,color:'var(--text)'}}>{line.label}</div>
+  {line.cat&&<div style={{fontSize:11,color:'var(--text3)'}}>{line.cat}</div>}
+</div>
+<div style={{fontSize:14,fontWeight:600,color:type==='revenus'?'var(--success)':'var(--text)',minWidth:80,textAlign:'right'}}>{type==='revenus'?'+':'-'}{Number(line.montant).toLocaleString('fr-FR')} €</div>
+<button onClick={()=>{setEditLine({type,id:line.id});setForm({label:line.label,montant:String(line.montant),cat:line.cat||'Autre'});}}
+  style={{background:'none',border:'none',color:'var(--text3)',cursor:'pointer',fontSize:12,padding:'2px 6px'}}>✎</button>
+<button onClick={()=>deleteBudgetLine(who,type,line.id)}
+  style={{background:'none',border:'none',color:'var(--text3)',cursor:'pointer',fontSize:14,padding:'2px 4px'}}>×</button>
+</div>);
+const AddForm=({type})=>{
+const [open,setOpen]=useState(false);
+const [f,setF]=useState({label:'',montant:'',cat:'Autre'});
+if(!open)return <button onClick={()=>setOpen(true)} style={{marginTop:8,padding:'6px 12px',borderRadius:'var(--radius-xs)',border:`1px dashed ${av}`,background:'transparent',color:av,cursor:'pointer',fontSize:12,width:'100%'}}>+ Ajouter</button>;
+return <div style={{marginTop:8,display:'flex',gap:6,flexWrap:'wrap'}}>
+<input placeholder="Libellé" value={f.label} onChange={e=>setF(p=>({...p,label:e.target.value}))}
+  style={{flex:2,minWidth:100,padding:'6px 8px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:12,outline:'none'}}/>
+<input type="number" placeholder="Montant" value={f.montant} onChange={e=>setF(p=>({...p,montant:e.target.value}))}
+  style={{width:90,padding:'6px 8px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:12,outline:'none'}}/>
+{type==='depenses'&&<select value={f.cat} onChange={e=>setF(p=>({...p,cat:e.target.value}))}
+  style={{padding:'6px 8px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:12,outline:'none'}}>
+  {cats.map(c=><option key={c}>{c}</option>)}
+</select>}
+<button onClick={()=>{if(f.label&&f.montant){upsertBudgetLine(who,type,{id:Date.now().toString(),label:f.label,montant:Number(f.montant),cat:f.cat});setOpen(false);setF({label:'',montant:'',cat:'Autre'});}}}
+  style={{padding:'6px 10px',borderRadius:'var(--radius-xs)',border:'none',background:av,color:'#fff',cursor:'pointer',fontSize:12}}>✓</button>
+<button onClick={()=>setOpen(false)} style={{padding:'6px 10px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'transparent',color:'var(--text3)',cursor:'pointer',fontSize:12}}>✕</button>
+</div>;};
+return <div>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24,flexWrap:'wrap',gap:12}}>
+<div>
+<h2 style={{fontSize:22,fontWeight:600,fontFamily:"'Playfair Display',serif",marginBottom:4}}>Budget</h2>
+<p style={{fontSize:14,color:'var(--text3)'}}>Revenus, dépenses et balance mensuelle</p>
+<p style={{fontSize:12,color:av,marginTop:6,fontWeight:600}}>Profil actif: {profileLabel}</p>
+</div>
+<div style={{display:'flex',gap:6}}>
+{['dja','liika','couple'].map(w=><button key={w} onClick={()=>setActiveProfile(w)}
+  style={{padding:'6px 14px',borderRadius:20,border:who===w?`2px solid ${accent[w]}`:'1px solid var(--border2)',background:who===w?accentBg[w]:'transparent',color:who===w?accent[w]:'var(--text3)',fontSize:13,cursor:'pointer'}}>
+  {w==='dja'?'Dja':w==='liika'?'Liika':'Couple'}
+</button>)}
+</div>
+</div>
+{editLine&&<div style={{background:'var(--bg2)',border:'1px solid var(--border2)',borderRadius:'var(--radius-sm)',padding:'12px',display:'flex',gap:8,flexWrap:'wrap',marginBottom:16}}>
+<input placeholder="Libellé" value={form.label} onChange={e=>setForm(p=>({...p,label:e.target.value}))}
+  style={{flex:2,minWidth:160,padding:'8px 10px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:12,outline:'none'}}/>
+<input type="number" placeholder="Montant" value={form.montant} onChange={e=>setForm(p=>({...p,montant:e.target.value}))}
+  style={{width:120,padding:'8px 10px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:12,outline:'none'}}/>
+{editLine.type==='depenses'&&<select value={form.cat||'Autre'} onChange={e=>setForm(p=>({...p,cat:e.target.value}))}
+  style={{padding:'8px 10px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:12,outline:'none'}}>
+  {cats.map(c=><option key={c}>{c}</option>)}
+</select>}
+<button onClick={saveEditedLine}
+  style={{padding:'8px 12px',borderRadius:'var(--radius-xs)',border:'none',background:av,color:'#fff',cursor:'pointer',fontSize:12}}>Sauver</button>
+<button onClick={()=>{setEditLine(null);setForm({label:'',montant:'',cat:'Autre'});}}
+  style={{padding:'8px 12px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'transparent',color:'var(--text3)',cursor:'pointer',fontSize:12}}>Annuler</button>
+</div>}
+<div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:24}}>
+<div style={{background:'var(--bg3)',borderRadius:'var(--radius)',padding:16,textAlign:'center'}}>
+  <div style={{fontSize:12,color:'var(--text3)',marginBottom:4}}>Revenus</div>
+  <div style={{fontSize:22,fontWeight:700,color:'var(--success)'}}>+{totalRev.toLocaleString('fr-FR')} €</div>
+</div>
+<div style={{background:'var(--bg3)',borderRadius:'var(--radius)',padding:16,textAlign:'center'}}>
+  <div style={{fontSize:12,color:'var(--text3)',marginBottom:4}}>Dépenses</div>
+  <div style={{fontSize:22,fontWeight:700,color:'#f87171'}}>-{totalDep.toLocaleString('fr-FR')} €</div>
+</div>
+<div style={{background:'var(--bg3)',borderRadius:'var(--radius)',padding:16,textAlign:'center',border:`1px solid ${balance>=0?'var(--accent-dja-border)':'rgba(248,113,113,.25)'}`}}>
+  <div style={{fontSize:12,color:'var(--text3)',marginBottom:4}}>Balance</div>
+  <div style={{fontSize:22,fontWeight:700,color:balance>=0?av:'#f87171'}}>{balance>=0?'+':''}{balance.toLocaleString('fr-FR')} €</div>
+</div>
+</div>
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:20}}>
+<div style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:20,border:'1px solid var(--border)'}}>
+  <h3 style={{fontSize:15,fontWeight:500,marginBottom:12,color:'var(--success)'}}>Revenus</h3>
+  {revenus.map(r=><LineRow key={r.id} line={r} type="revenus"/>)}
+  <AddForm type="revenus"/>
+</div>
+<div style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:20,border:'1px solid var(--border)'}}>
+  <h3 style={{fontSize:15,fontWeight:500,marginBottom:12,color:'#f87171'}}>Dépenses</h3>
+  {depenses.map(d=><LineRow key={d.id} line={d} type="depenses"/>)}
+  <AddForm type="depenses"/>
+</div>
+</div>
+</div>;
+};
+
+const renderVision=()=>{
+const who=activeProfile;
+const vision=who==='couple'?data.couple.vision:data[who].vision;
+const name=who==='dja'?data.dja.name:who==='liika'?data.liika.name:'Dja & Liika';
+const av=accent[who]||accent.dja;
+return <div>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24,flexWrap:'wrap',gap:12}}>
+<div>
+<h2 style={{fontSize:22,fontWeight:600,fontFamily:"'Playfair Display',serif",marginBottom:4}}>Vision</h2>
+<p style={{fontSize:14,color:'var(--text3)'}}>Vision long-terme — qui tu veux devenir</p>
+<p style={{fontSize:12,color:av,marginTop:6,fontWeight:600}}>Profil actif: {profileLabel}</p>
+</div>
+<div style={{display:'flex',gap:6}}>
+{['dja','liika','couple'].map(w=><button key={w} onClick={()=>setActiveProfile(w)}
+  style={{padding:'6px 14px',borderRadius:20,border:who===w?`2px solid ${accent[w]}`:'1px solid var(--border2)',background:who===w?accentBg[w]:'transparent',color:who===w?accent[w]:'var(--text3)',fontSize:13,cursor:'pointer'}}>
+  {w==='dja'?'Dja':w==='liika'?'Liika':'Couple'}
+</button>)}
+</div>
+</div>
+<div style={{background:`linear-gradient(135deg,${accentBg[who]},var(--bg2))`,borderRadius:'var(--radius)',padding:28,border:`1px solid ${accentBorder[who]}`,marginBottom:20}}>
+<div style={{fontSize:11,color:av,letterSpacing:'.1em',textTransform:'uppercase',marginBottom:12}}>Vision de {name}</div>
+<textarea value={vision||''} onChange={e=>updateVision(who,e.target.value)}
+  placeholder="Écris ici ta vision long-terme — qui tu veux être, ce que tu veux construire, où tu veux aller…"
+  rows={6}
+  style={{width:'100%',background:'transparent',border:'none',outline:'none',color:'var(--text)',fontSize:16,lineHeight:1.8,resize:'none',fontFamily:"'Playfair Display',serif",fontStyle:'italic'}}/>
+</div>
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:12}}>
+{[
+  {icon:'🎯',label:'Objectifs',value:(who==='couple'?data.couple.objectives:data[who]?.objectives||[]).length+' objectifs actifs'},
+  {icon:'✅',label:'Accompli',value:(who==='couple'?data.couple.objectives:data[who]?.objectives||[]).filter(o=>o.done).length+' objectifs terminés'},
+  {icon:'📝',label:'Notes',value:(who==='couple'?data.couple.notes:data[who]?.notes||[]).length+' notes'},
+].map(({icon,label,value})=><div key={label} style={{background:'var(--bg3)',borderRadius:'var(--radius-sm)',padding:'14px 16px',display:'flex',alignItems:'center',gap:12}}>
+  <span style={{fontSize:20}}>{icon}</span>
+  <div><div style={{fontSize:11,color:'var(--text3)'}}>{label}</div><div style={{fontSize:14,fontWeight:600}}>{value}</div></div>
+</div>)}
+</div>
+</div>;
 };
 
 const JOURS=['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
