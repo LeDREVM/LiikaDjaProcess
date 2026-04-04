@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Lanmou Divan — Mix Vibz</title>
+<title>Lanmou Douvan — Mix Vibz</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♡</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,500;1,400&display=swap" rel="stylesheet">
@@ -324,7 +324,7 @@ return <div>
 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24,flexWrap:'wrap',gap:12}}>
 <div>
 <h2 style={{fontSize:22,fontWeight:600,fontFamily:"'Playfair Display',serif"}}>Dja & Liika</h2>
-<p style={{fontSize:14,color:'var(--text3)',marginTop:2}}>Lanmou Divan — Vision commune</p>
+<p style={{fontSize:14,color:'var(--text3)',marginTop:2}}>Lanmou Douvan — Vision commune</p>
 </div>
 <div style={{display:'flex',gap:8}}>
 <button onClick={()=>setModal({type:'objective',who:'couple'})} style={{padding:'8px 16px',borderRadius:'var(--radius-sm)',border:'none',background:'var(--accent-couple)',color:'var(--bg)',cursor:'pointer',fontSize:13,fontWeight:500}}>+ Objectif</button>
@@ -385,7 +385,7 @@ return <div key={who} style={{background:'var(--bg2)',borderRadius:'var(--radius
 
 <div style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:20,border:'1px solid var(--accent-couple-border)',marginBottom:28}}>
 <div style={{fontSize:16,fontWeight:600,marginBottom:4}}>Objectifs couple</div>
-<div style={{fontSize:12,color:'var(--text3)',marginBottom:16}}>Lanmou Divan — projets communs</div>
+<div style={{fontSize:12,color:'var(--text3)',marginBottom:16}}>Lanmou Douvan — projets communs</div>
 {data.couple.objectives.map(o=><div key={o.id} style={{display:'flex',alignItems:'center',gap:10,marginBottom:8}}>
 <div style={{width:6,height:6,borderRadius:3,background:o.done?'var(--success)':'var(--accent-couple)',minWidth:6}}/>
 <span style={{fontSize:13,color:o.done?'var(--text3)':'var(--text)',flex:1}}>{o.title}</span>
