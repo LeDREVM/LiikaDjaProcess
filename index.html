@@ -166,6 +166,7 @@ couple:{
   vision:"Un foyer à nous, un voyage par an, des projets créatifs communs. Construire ensemble une vie entre la Guadeloupe et la route — Lanmou Douvan pour toujours."
 }
 };
+const defaultUI={activeProfile:'dja'};
 
 // ─── Supabase ───
 const SB_URL='https://mvtwotbyphuxdkcwgime.supabase.co';
@@ -176,12 +177,17 @@ try{
   const {data,error}=await sb.from('app_state').select('data').eq('id','main').single();
   if(error&&error.code==='PGRST116')return null; // no row yet
   if(error)throw error;
-  return data?.data||null;
+  const payload=data?.data||null;
+  if(!payload)return null;
+  // Rétrocompatibilité: anciennes sauvegardes = objet data brut
+  if(payload.appData)return payload;
+  return {appData:payload,ui:null};
 }catch(e){console.warn('[Supabase] load error:',e);return null}
 }
-async function sbSave(d){
+async function sbSave(d,ui){
 try{
-  const {error}=await sb.from('app_state').upsert({id:'main',data:d,updated_at:new Date().toISOString()});
+  const payload={appData:d,ui};
+  const {error}=await sb.from('app_state').upsert({id:'main',data:payload,updated_at:new Date().toISOString()});
   if(error)throw error;
   return true;
 }catch(e){console.warn('[Supabase] save error:',e);return false}
@@ -191,6 +197,10 @@ function loadData(){
 try{const d=localStorage.getItem('dja-liika-goals');return d?JSON.parse(d):defaultData}catch(e){return defaultData}
 }
 function saveData(d){localStorage.setItem('dja-liika-goals',JSON.stringify(d))}
+function loadUI(){
+try{const u=localStorage.getItem('dja-liika-ui');return u?{...defaultUI,...JSON.parse(u)}:defaultUI}catch(e){return defaultUI}
+}
+function saveUI(u){localStorage.setItem('dja-liika-ui',JSON.stringify(u))}
 
 // ─── Components ───
 
@@ -350,30 +360,41 @@ return <div style={{position:'relative',height:200}}><canvas ref={canvasRef}/></
 // ─── Main App ───
 function App(){
 const [data,setData]=useState(loadData);
+const [ui,setUI]=useState(loadUI);
 const [view,setView]=useState('dashboard');
 const [modal,setModal]=useState(null);
 const [syncStatus,setSyncStatus]=useState('idle'); // idle | syncing | ok | error
+const remoteHydrated=useRef(false);
 
 // Sync to Supabase on data change (debounced 1.2s)
 const syncTimer=useRef(null);
 useEffect(()=>{
   saveData(data);
+  saveUI(ui);
+  // Garde anti-écrasement: on n'écrit pas sur Supabase avant la fin du premier chargement distant
+  if(!remoteHydrated.current)return;
   clearTimeout(syncTimer.current);
   syncTimer.current=setTimeout(async()=>{
     setSyncStatus('syncing');
-    const ok=await sbSave(data);
+    const ok=await sbSave(data,ui);
     setSyncStatus(ok?'ok':'error');
     if(ok)setTimeout(()=>setSyncStatus('idle'),2000);
   },1200);
-},[data]);
+  return ()=>clearTimeout(syncTimer.current);
+},[data,ui]);
 
 // Load from Supabase on mount
 useEffect(()=>{
   setSyncStatus('syncing');
-  sbLoad().then(d=>{
-    if(d){setData(d);setSyncStatus('ok');setTimeout(()=>setSyncStatus('idle'),2000);}
+  sbLoad().then(bundle=>{
+    if(bundle?.appData){
+      setData(bundle.appData);
+      if(bundle.ui)setUI(prev=>({...prev,...bundle.ui}));
+      setSyncStatus('ok');
+      setTimeout(()=>setSyncStatus('idle'),2000);
+    }
     else setSyncStatus('idle');
-  }).catch(()=>setSyncStatus('error'));
+  }).catch(()=>setSyncStatus('error')).finally(()=>{remoteHydrated.current=true});
 },[]);
 
 const clone=prev=>structuredClone(prev);
