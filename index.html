@@ -95,6 +95,34 @@ couple:{
 }
 };
 
+// ─── Nextcloud WebDAV ───
+const NC_CONFIG_KEY='dja-liika-nc-config';
+function loadNcConfig(){
+try{const c=localStorage.getItem(NC_CONFIG_KEY);return c?JSON.parse(c):{url:'',user:'',pass:'',file:'LanmouDouvan/data.json'}}catch(e){return {url:'',user:'',pass:'',file:'LanmouDouvan/data.json'}}
+}
+function saveNcConfig(c){localStorage.setItem(NC_CONFIG_KEY,JSON.stringify(c))}
+function ncHeaders(cfg){return {'Authorization':'Basic '+btoa(cfg.user+':'+cfg.pass),'Content-Type':'application/json'}}
+function ncUrl(cfg){return cfg.url.replace(/\/$/,'')+'/remote.php/dav/files/'+encodeURIComponent(cfg.user)+'/'+cfg.file}
+async function ncLoad(cfg){
+if(!cfg.url||!cfg.user||!cfg.pass)return null;
+try{
+  const r=await fetch(ncUrl(cfg),{method:'GET',headers:ncHeaders(cfg)});
+  if(r.status===404)return null;
+  if(!r.ok)throw new Error('HTTP '+r.status);
+  return await r.json();
+}catch(e){console.warn('[Nextcloud] load error:',e);return null}
+}
+async function ncSave(cfg,d){
+if(!cfg.url||!cfg.user||!cfg.pass)return false;
+try{
+  // create folder if needed
+  const folder=cfg.url.replace(/\/$/,'')+'/remote.php/dav/files/'+encodeURIComponent(cfg.user)+'/'+cfg.file.split('/').slice(0,-1).join('/');
+  await fetch(folder,{method:'MKCOL',headers:ncHeaders(cfg)}).catch(()=>{});
+  const r=await fetch(ncUrl(cfg),{method:'PUT',headers:ncHeaders(cfg),body:JSON.stringify(d)});
+  return r.ok||r.status===201||r.status===204;
+}catch(e){console.warn('[Nextcloud] save error:',e);return false}
+}
+
 function loadData(){
 try{const d=localStorage.getItem('dja-liika-goals');return d?JSON.parse(d):defaultData}catch(e){return defaultData}
 }
@@ -230,8 +258,37 @@ function App(){
 const [data,setData]=useState(loadData);
 const [view,setView]=useState('dashboard');
 const [modal,setModal]=useState(null);
+const [ncConfig,setNcConfig]=useState(loadNcConfig);
+const [ncStatus,setNcStatus]=useState('idle'); // idle | syncing | ok | error
+const [showNcPanel,setShowNcPanel]=useState(false);
+const ncRef=useRef(ncConfig);
+ncRef.current=ncConfig;
 
-useEffect(()=>saveData(data),[data]);
+// Sync to Nextcloud on data change (debounced)
+const syncTimer=useRef(null);
+useEffect(()=>{
+  saveData(data);
+  clearTimeout(syncTimer.current);
+  syncTimer.current=setTimeout(async()=>{
+    const cfg=ncRef.current;
+    if(!cfg.url||!cfg.user||!cfg.pass)return;
+    setNcStatus('syncing');
+    const ok=await ncSave(cfg,data);
+    setNcStatus(ok?'ok':'error');
+    if(ok)setTimeout(()=>setNcStatus('idle'),2000);
+  },1200);
+},[data]);
+
+// Load from Nextcloud on mount
+useEffect(()=>{
+  const cfg=ncRef.current;
+  if(!cfg.url||!cfg.user||!cfg.pass)return;
+  setNcStatus('syncing');
+  ncLoad(cfg).then(d=>{
+    if(d){setData(d);setNcStatus('ok');setTimeout(()=>setNcStatus('idle'),2000);}
+    else setNcStatus('idle');
+  }).catch(()=>setNcStatus('error'));
+},[]);
 
 const updateObj=(who,id,updates)=>{
 setData(prev=>{
@@ -436,7 +493,37 @@ style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 20p
 <span style={{fontSize:16,width:20,textAlign:'center'}}>{n.icon}</span>{n.label}
 </button>)}
 </div>
-<div style={{padding:'0 20px'}}>
+<div style={{padding:'0 20px',display:'flex',flexDirection:'column',gap:8}}>
+{/* Nextcloud status + toggle */}
+<button onClick={()=>setShowNcPanel(p=>!p)}
+style={{width:'100%',padding:'8px',borderRadius:'var(--radius-sm)',border:'1px solid var(--accent-dja-border)',background:showNcPanel?'var(--accent-dja-bg)':'transparent',color:'var(--accent-dja2)',cursor:'pointer',fontSize:12,display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+<span>☁</span> Nextcloud
+<span style={{marginLeft:'auto',fontSize:10,color:ncStatus==='ok'?'var(--success)':ncStatus==='error'?'#f87171':ncStatus==='syncing'?'var(--accent-couple)':'var(--text3)'}}>
+{ncStatus==='ok'?'✓ sync':ncStatus==='error'?'✗ erreur':ncStatus==='syncing'?'…':ncConfig.url?'configuré':'non config'}
+</span>
+</button>
+{showNcPanel&&<div style={{background:'var(--bg3)',borderRadius:'var(--radius-sm)',padding:12,border:'1px solid var(--border)',display:'flex',flexDirection:'column',gap:8}}>
+<div style={{fontSize:11,color:'var(--text3)',marginBottom:2}}>Configuration Nextcloud</div>
+{[
+  {k:'url',label:'URL',placeholder:'https://cloud.exemple.com'},
+  {k:'user',label:'Utilisateur',placeholder:'nom'},
+  {k:'pass',label:'Mot de passe app',placeholder:'xxxx-xxxx-xxxx-xxxx',type:'password'},
+  {k:'file',label:'Fichier',placeholder:'LanmouDouvan/data.json'}
+].map(({k,label,placeholder,type})=><div key={k}>
+  <div style={{fontSize:10,color:'var(--text3)',marginBottom:3}}>{label}</div>
+  <input type={type||'text'} value={ncConfig[k]} placeholder={placeholder}
+    onChange={e=>{const c={...ncConfig,[k]:e.target.value};setNcConfig(c);saveNcConfig(c);ncRef.current=c;}}
+    style={{width:'100%',background:'var(--bg4)',border:'1px solid var(--border2)',borderRadius:'var(--radius-xs)',padding:'5px 8px',color:'var(--text)',fontSize:11,outline:'none'}}/>
+</div>)}
+<button onClick={async()=>{
+  setNcStatus('syncing');
+  const d=await ncLoad(ncConfig);
+  if(d){setData(d);setNcStatus('ok');setTimeout(()=>setNcStatus('idle'),2000);}
+  else{setNcStatus('error');}
+}} style={{padding:'6px',borderRadius:'var(--radius-xs)',border:'none',background:'var(--accent-dja-bg)',color:'var(--accent-dja2)',cursor:'pointer',fontSize:11}}>
+  ↓ Charger depuis Nextcloud
+</button>
+</div>}
 <button onClick={()=>{if(confirm('Reinitialiser toutes les donnees ?')){localStorage.removeItem('dja-liika-goals');setData(defaultData)}}}
 style={{width:'100%',padding:'8px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'transparent',color:'var(--text3)',cursor:'pointer',fontSize:12}}>Reinitialiser</button>
 </div>
