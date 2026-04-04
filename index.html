@@ -4,8 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Lanmou Douvan — Mix Vibz</title>
+<meta name="description" content="Tableau de bord partagé Dja & Liika — objectifs, actions et notes en commun.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♡</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,500;1,400&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -24,6 +26,11 @@ body{overflow-x:hidden}
 @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
 @keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
 @keyframes slideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
+@media(max-width:768px){
+nav{display:none!important}
+.mobile-nav{display:block!important}
+main{padding:20px 16px 80px!important}
+}
 </style>
 </head>
 <body>
@@ -33,7 +40,12 @@ body{overflow-x:hidden}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script type="text/babel">
-const {useState,useEffect,useRef,useCallback}=React;
+const {useState,useEffect,useRef,useCallback,useMemo}=React;
+
+// ─── Helpers couleur ───
+const accent={dja:'var(--accent-dja)',liika:'var(--accent-liika)',couple:'var(--accent-couple)'};
+const accentBg={dja:'var(--accent-dja-bg)',liika:'var(--accent-liika-bg)',couple:'var(--accent-couple-bg)'};
+const accentBorder={dja:'var(--accent-dja-border)',liika:'var(--accent-liika-border)',couple:'var(--accent-couple-border)'};
 
 // ─── Data ───
 const defaultData={
@@ -143,50 +155,80 @@ return <svg width={size} height={size} style={{transform:'rotate(-90deg)'}}>
 
 function StatCard({label,value,color,icon}){
 return <div style={{background:'var(--bg3)',borderRadius:'var(--radius)',padding:'16px 20px',display:'flex',alignItems:'center',gap:14}}>
-<div style={{width:40,height:40,borderRadius:10,background:color==='dja'?'var(--accent-dja-bg)':color==='liika'?'var(--accent-liika-bg)':'var(--accent-couple-bg)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18}}>{icon}</div>
+<div style={{width:40,height:40,borderRadius:10,background:accentBg[color],display:'flex',alignItems:'center',justifyContent:'center',fontSize:18}}>{icon}</div>
 <div><div style={{fontSize:13,color:'var(--text3)',marginBottom:2}}>{label}</div>
 <div style={{fontSize:22,fontWeight:600}}>{value}</div></div>
 </div>
 }
 
 function ObjectiveCard({obj,color,onToggle,onProgress,onDelete}){
-const accentVar=color==='dja'?'var(--accent-dja)':color==='liika'?'var(--accent-liika)':'var(--accent-couple)';
-const bgVar=color==='dja'?'var(--accent-dja-bg)':color==='liika'?'var(--accent-liika-bg)':'var(--accent-couple-bg)';
-return <div style={{background:'var(--bg3)',borderRadius:'var(--radius)',padding:'16px 20px',borderLeft:`3px solid ${obj.done?'var(--success)':accentVar}`,animation:'fadeUp .4s ease both',opacity:obj.done?.6:1,transition:'opacity .3s'}}>
+const av=accent[color];const bv=accentBg[color];
+return <div style={{background:'var(--bg3)',borderRadius:'var(--radius)',padding:'16px 20px',borderLeft:`3px solid ${obj.done?'var(--success)':av}`,animation:'fadeUp .4s ease both',opacity:obj.done?.6:1,transition:'opacity .3s'}}>
 <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
 <div style={{flex:1}}>
 <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
-<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:bgVar,color:accentVar,fontWeight:500}}>{obj.cat}</span>
+<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:bv,color:av,fontWeight:500}}>{obj.cat}</span>
 {obj.done&&<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:'var(--success-bg)',color:'var(--success)',fontWeight:500}}>Fait</span>}
 </div>
 <div style={{fontSize:15,fontWeight:500,marginBottom:4,textDecoration:obj.done?'line-through':'none'}}>{obj.title}</div>
 <div style={{fontSize:13,color:'var(--text3)'}}>{obj.desc}</div>
 </div>
 <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
-<ProgressRing pct={obj.progress} color={obj.done?'var(--success)':accentVar}/>
-<span style={{fontSize:11,fontWeight:500,color:obj.done?'var(--success)':accentVar}}>{obj.progress}%</span>
+<ProgressRing pct={obj.progress} color={obj.done?'var(--success)':av}/>
+<span style={{fontSize:11,fontWeight:500,color:obj.done?'var(--success)':av}}>{obj.progress}%</span>
 </div>
 </div>
 <div style={{marginTop:12,display:'flex',alignItems:'center',gap:8}}>
 <input type="range" min="0" max="100" step="5" value={obj.progress}
   onChange={e=>onProgress(obj.id,parseInt(e.target.value))}
-  style={{flex:1,height:4,accentColor:accentVar,cursor:'pointer'}}/>
+  style={{flex:1,height:4,accentColor:av,cursor:'pointer'}}/>
 <button onClick={()=>onToggle(obj.id)} style={{background:obj.done?'var(--success-bg)':'var(--bg4)',border:'none',borderRadius:'var(--radius-xs)',padding:'6px 12px',fontSize:12,color:obj.done?'var(--success)':'var(--text2)',cursor:'pointer',whiteSpace:'nowrap'}}>
-{obj.done?'Reactivar':'Valider'}</button>
-<button onClick={()=>onDelete(obj.id)} style={{background:'none',border:'none',fontSize:14,color:'var(--text3)',cursor:'pointer',padding:'6px'}}>✕</button>
+{obj.done?'Réactiver':'Valider'}</button>
+<button onClick={()=>onDelete(obj.id)} aria-label="Supprimer" style={{background:'none',border:'none',fontSize:14,color:'var(--text3)',cursor:'pointer',padding:'6px'}}>✕</button>
 </div>
 </div>
 }
 
 function ActionItem({action,color,onToggle}){
-const accentVar=color==='dja'?'var(--accent-dja)':color==='liika'?'var(--accent-liika)':'var(--accent-couple)';
+const av=accent[color];
 return <div style={{display:'flex',alignItems:'center',gap:12,padding:'12px 16px',background:'var(--bg3)',borderRadius:'var(--radius-sm)',cursor:'pointer',transition:'all .15s',animation:'slideIn .3s ease both'}} onClick={()=>onToggle(action.id)}>
 <div style={{width:20,height:20,minWidth:20,borderRadius:6,border:action.done?'none':`2px solid var(--border2)`,background:action.done?'var(--success)':'transparent',display:'flex',alignItems:'center',justifyContent:'center',transition:'all .2s'}}>
 {action.done&&<span style={{color:'var(--bg)',fontSize:12,fontWeight:700}}>✓</span>}
 </div>
 <span style={{flex:1,fontSize:14,color:action.done?'var(--text3)':'var(--text)',textDecoration:action.done?'line-through':'none',transition:'all .2s'}}>{action.text}</span>
-<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:color==='dja'?'var(--accent-dja-bg)':color==='liika'?'var(--accent-liika-bg)':'var(--accent-couple-bg)',color:accentVar,fontWeight:500}}>{action.cat}</span>
+<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:accentBg[color],color:av,fontWeight:500}}>{action.cat}</span>
 </div>
+}
+
+function NotesPanel({who,notes,onAdd,onDelete}){
+const [draft,setDraft]=useState('');
+const av=accent[who];const bv=accentBorder[who];
+const fmt=iso=>{const d=new Date(iso);return d.toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'})+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});};
+const submit=()=>{if(draft.trim()){onAdd(who,draft);setDraft('');}};
+return <div style={{marginTop:32}}>
+<h3 style={{fontSize:16,fontWeight:500,marginBottom:14,color:'var(--text2)'}}>Notes</h3>
+<div style={{display:'flex',gap:8,marginBottom:16}}>
+<textarea value={draft} onChange={e=>setDraft(e.target.value)}
+  onKeyDown={e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey))submit();}}
+  placeholder="Nouvelle note… (Ctrl+Entrée pour valider)"
+  rows={3}
+  style={{flex:1,background:'var(--bg3)',border:`1px solid ${bv}`,borderRadius:'var(--radius-sm)',padding:'10px 12px',color:'var(--text)',fontSize:13,resize:'vertical',outline:'none',fontFamily:'inherit',lineHeight:1.5}}/>
+<button onClick={submit}
+  style={{alignSelf:'flex-end',padding:'8px 14px',borderRadius:'var(--radius-sm)',border:'none',background:av,color:'#fff',cursor:'pointer',fontSize:13,fontWeight:500,whiteSpace:'nowrap'}}>
+  + Ajouter
+</button>
+</div>
+{!(notes||[]).length&&<p style={{fontSize:13,color:'var(--text3)',textAlign:'center',padding:'20px 0'}}>Aucune note pour l'instant.</p>}
+<div style={{display:'flex',flexDirection:'column',gap:10}}>
+{(notes||[]).map(n=><div key={n.id} style={{background:'var(--bg2)',border:`1px solid ${bv}`,borderRadius:'var(--radius-sm)',padding:'12px 14px'}}>
+  <p style={{fontSize:13,color:'var(--text)',lineHeight:1.6,whiteSpace:'pre-wrap',marginBottom:6}}>{n.text}</p>
+  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+    <span style={{fontSize:11,color:'var(--text3)'}}>{fmt(n.date)}</span>
+    <button onClick={()=>onDelete(who,n.id)} aria-label="Supprimer la note" style={{background:'none',border:'none',color:'var(--text3)',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 2px'}}>×</button>
+  </div>
+</div>)}
+</div>
+</div>;
 }
 
 function AddModal({show,onClose,onAdd,type,color}){
@@ -194,7 +236,7 @@ const [title,setTitle]=useState('');
 const [desc,setDesc]=useState('');
 const [cat,setCat]=useState('Carriere');
 if(!show)return null;
-const accentVar=color==='dja'?'var(--accent-dja)':color==='liika'?'var(--accent-liika)':'var(--accent-couple)';
+const av=accent[color]||accent.dja;
 const cats=color==='couple'?['Couple']:['Carriere','Sante','Finances','Perso'];
 return <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.7)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:100,padding:20}} onClick={onClose}>
 <div style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:28,maxWidth:440,width:'100%',border:'1px solid var(--border2)'}} onClick={e=>e.stopPropagation()}>
@@ -204,11 +246,11 @@ return <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.7)',display
 {type==='objective'&&<input placeholder="Description" value={desc} onChange={e=>setDesc(e.target.value)}
   style={{width:'100%',padding:'10px 14px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'var(--bg3)',color:'var(--text)',fontSize:14,marginBottom:12,outline:'none'}}/>}
 <div style={{display:'flex',gap:8,marginBottom:20,flexWrap:'wrap'}}>
-{cats.map(c=><button key={c} onClick={()=>setCat(c)} style={{padding:'6px 14px',borderRadius:20,border:cat===c?`2px solid ${accentVar}`:'1px solid var(--border2)',background:cat===c?'var(--bg4)':'transparent',color:cat===c?'var(--text)':'var(--text3)',fontSize:13,cursor:'pointer'}}>{c}</button>)}
+{cats.map(c=><button key={c} onClick={()=>setCat(c)} style={{padding:'6px 14px',borderRadius:20,border:cat===c?`2px solid ${av}`:'1px solid var(--border2)',background:cat===c?'var(--bg4)':'transparent',color:cat===c?'var(--text)':'var(--text3)',fontSize:13,cursor:'pointer'}}>{c}</button>)}
 </div>
 <div style={{display:'flex',gap:10,justifyContent:'flex-end'}}>
 <button onClick={onClose} style={{padding:'10px 20px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'transparent',color:'var(--text2)',cursor:'pointer',fontSize:14}}>Annuler</button>
-<button onClick={()=>{if(title.trim()){onAdd(title,desc,cat);setTitle('');setDesc('');onClose()}}} style={{padding:'10px 20px',borderRadius:'var(--radius-sm)',border:'none',background:accentVar,color:'#fff',cursor:'pointer',fontSize:14,fontWeight:500}}>Ajouter</button>
+<button onClick={()=>{if(title.trim()){onAdd(title,desc,cat);setTitle('');setDesc('');onClose()}}} style={{padding:'10px 20px',borderRadius:'var(--radius-sm)',border:'none',background:av,color:'#fff',cursor:'pointer',fontSize:14,fontWeight:500}}>Ajouter</button>
 </div>
 </div>
 </div>
@@ -293,74 +335,79 @@ useEffect(()=>{
   }).catch(()=>setNcStatus('error'));
 },[]);
 
-const updateObj=(who,id,updates)=>{
+const clone=prev=>structuredClone(prev);
+
+const updateObj=useCallback((who,id,updates)=>{
 setData(prev=>{
-const next=JSON.parse(JSON.stringify(prev));
+const next=clone(prev);
 const list=who==='couple'?next.couple.objectives:next[who].objectives;
 const idx=list.findIndex(o=>o.id===id);
 if(idx>=0)Object.assign(list[idx],updates);
 return next;
 });
-};
-const toggleAction=(who,id)=>{
+},[]);
+const toggleAction=useCallback((who,id)=>{
 setData(prev=>{
-const next=JSON.parse(JSON.stringify(prev));
+const next=clone(prev);
 const list=who==='couple'?next.couple.actions:next[who].actions;
 const idx=list.findIndex(a=>a.id===id);
 if(idx>=0)list[idx].done=!list[idx].done;
 return next;
 });
-};
-const deleteObj=(who,id)=>{
+},[]);
+const deleteObj=useCallback((who,id)=>{
 setData(prev=>{
-const next=JSON.parse(JSON.stringify(prev));
+const next=clone(prev);
 if(who==='couple')next.couple.objectives=next.couple.objectives.filter(o=>o.id!==id);
 else next[who].objectives=next[who].objectives.filter(o=>o.id!==id);
 return next;
 });
-};
-const addObjective=(who,title,desc,cat)=>{
+},[]);
+const addObjective=useCallback((who,title,desc,cat)=>{
 setData(prev=>{
-const next=JSON.parse(JSON.stringify(prev));
+const next=clone(prev);
 const obj={id:Date.now().toString(),cat,title,desc,progress:0,done:false};
 if(who==='couple')next.couple.objectives.push(obj);
 else next[who].objectives.push(obj);
 return next;
 });
-};
-const addAction=(who,text,_,cat)=>{
+},[]);
+const addAction=useCallback((who,text,_,cat)=>{
 setData(prev=>{
-const next=JSON.parse(JSON.stringify(prev));
+const next=clone(prev);
 const act={id:Date.now().toString(),text,cat,done:false};
 if(who==='couple')next.couple.actions.push(act);
 else next[who].actions.push(act);
 return next;
 });
-};
-const addNote=(who,text)=>{
+},[]);
+const addNote=useCallback((who,text)=>{
 if(!text.trim())return;
 setData(prev=>{
-const next=JSON.parse(JSON.stringify(prev));
+const next=clone(prev);
 const note={id:Date.now().toString(),text:text.trim(),date:new Date().toISOString()};
 if(who==='couple')next.couple.notes=[note,...(next.couple.notes||[])];
 else next[who].notes=[note,...(next[who].notes||[])];
 return next;
 });
-};
-const deleteNote=(who,id)=>{
+},[]);
+const deleteNote=useCallback((who,id)=>{
 setData(prev=>{
-const next=JSON.parse(JSON.stringify(prev));
+const next=clone(prev);
 if(who==='couple')next.couple.notes=(next.couple.notes||[]).filter(n=>n.id!==id);
 else next[who].notes=(next[who].notes||[]).filter(n=>n.id!==id);
 return next;
 });
-};
+},[]);
 
+const {totalObj,totalDone,avgProgress,totalActions,actionsDone}=useMemo(()=>{
 const totalObj=[...data.dja.objectives,...data.liika.objectives,...data.couple.objectives];
 const totalDone=totalObj.filter(o=>o.done).length;
 const avgProgress=totalObj.length?Math.round(totalObj.reduce((s,o)=>s+o.progress,0)/totalObj.length):0;
 const totalActions=[...data.dja.actions,...data.liika.actions,...data.couple.actions];
 const actionsDone=totalActions.filter(a=>a.done).length;
+return {totalObj,totalDone,avgProgress,totalActions,actionsDone};
+},[data]);
 
 const navItems=[
 {id:'dashboard',label:'Dashboard',icon:'◈'},
@@ -369,35 +416,6 @@ const navItems=[
 {id:'couple',label:'Couple',icon:'♡'},
 {id:'charts',label:'Stats',icon:'▤'},
 ];
-
-const NotesPanel=({who,notes,accentVar,borderVar})=>{
-const [draft,setDraft]=useState('');
-const fmt=iso=>{const d=new Date(iso);return d.toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'})+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});};
-return <div style={{marginTop:32}}>
-<h3 style={{fontSize:16,fontWeight:500,marginBottom:14,color:'var(--text2)'}}>Notes</h3>
-<div style={{display:'flex',gap:8,marginBottom:16}}>
-<textarea value={draft} onChange={e=>setDraft(e.target.value)}
-  onKeyDown={e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){addNote(who,draft);setDraft('');}}}
-  placeholder="Nouvelle note… (Ctrl+Entrée pour valider)"
-  rows={3}
-  style={{flex:1,background:'var(--bg3)',border:`1px solid ${borderVar}`,borderRadius:'var(--radius-sm)',padding:'10px 12px',color:'var(--text)',fontSize:13,resize:'vertical',outline:'none',fontFamily:'inherit',lineHeight:1.5}}/>
-<button onClick={()=>{addNote(who,draft);setDraft('');}}
-  style={{alignSelf:'flex-end',padding:'8px 14px',borderRadius:'var(--radius-sm)',border:'none',background:accentVar,color:'#fff',cursor:'pointer',fontSize:13,fontWeight:500,whiteSpace:'nowrap'}}>
-  + Ajouter
-</button>
-</div>
-{(notes||[]).length===0&&<p style={{fontSize:13,color:'var(--text3)',textAlign:'center',padding:'20px 0'}}>Aucune note pour l'instant.</p>}
-<div style={{display:'flex',flexDirection:'column',gap:10}}>
-{(notes||[]).map(n=><div key={n.id} style={{background:'var(--bg2)',border:`1px solid ${borderVar}`,borderRadius:'var(--radius-sm)',padding:'12px 14px',position:'relative'}}>
-  <p style={{fontSize:13,color:'var(--text)',lineHeight:1.6,whiteSpace:'pre-wrap',marginBottom:6}}>{n.text}</p>
-  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-    <span style={{fontSize:11,color:'var(--text3)'}}>{fmt(n.date)}</span>
-    <button onClick={()=>deleteNote(who,n.id)} style={{background:'none',border:'none',color:'var(--text3)',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 2px'}} title="Supprimer">×</button>
-  </div>
-</div>)}
-</div>
-</div>;
-};
 
 const renderPerson=(who)=>{
 const person=data[who];
@@ -409,7 +427,7 @@ return <div>
 <p style={{fontSize:14,color:'var(--text3)',marginTop:2}}>{person.role}{person.location?` — ${person.location}`:''}</p>
 </div>
 <div style={{display:'flex',gap:8}}>
-<button onClick={()=>setModal({type:'objective',who})} style={{padding:'8px 16px',borderRadius:'var(--radius-sm)',border:'none',background:who==='dja'?'var(--accent-dja)':'var(--accent-liika)',color:'#fff',cursor:'pointer',fontSize:13,fontWeight:500}}>+ Objectif</button>
+<button onClick={()=>setModal({type:'objective',who})} style={{padding:'8px 16px',borderRadius:'var(--radius-sm)',border:'none',background:accent[who],color:'#fff',cursor:'pointer',fontSize:13,fontWeight:500}}>+ Objectif</button>
 <button onClick={()=>setModal({type:'action',who})} style={{padding:'8px 16px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'transparent',color:'var(--text2)',cursor:'pointer',fontSize:13}}>+ Action</button>
 </div>
 </div>
@@ -423,7 +441,7 @@ return <div>
 <div style={{display:'grid',gap:8}}>
 {person.actions.map(a=><ActionItem key={a.id} action={a} color={color} onToggle={id=>toggleAction(who,id)}/>)}
 </div>
-<NotesPanel who={who} notes={person.notes} accentVar={who==='dja'?'var(--accent-dja)':'var(--accent-liika)'} borderVar={who==='dja'?'var(--accent-dja-border)':'var(--accent-liika-border)'}/>
+<NotesPanel who={who} notes={person.notes} onAdd={addNote} onDelete={deleteNote}/>
 </div>
 };
 
@@ -449,7 +467,7 @@ return <div>
 <div style={{display:'grid',gap:8}}>
 {data.couple.actions.map(a=><ActionItem key={a.id} action={a} color="couple" onToggle={id=>toggleAction('couple',id)}/>)}
 </div>
-<NotesPanel who="couple" notes={data.couple.notes} accentVar="var(--accent-couple)" borderVar="var(--accent-couple-border)"/>
+<NotesPanel who="couple" notes={data.couple.notes} onAdd={addNote} onDelete={deleteNote}/>
 </div>
 };
 
@@ -468,23 +486,22 @@ return <div>
 <h3 style={{fontSize:16,fontWeight:500,marginBottom:16,color:'var(--text2)'}}>Cote a cote</h3>
 <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:16,marginBottom:28}}>
 {['dja','liika'].map(who=>{
-const p=data[who];const col=who;
+const p=data[who];
 const avg=p.objectives.length?Math.round(p.objectives.reduce((s,o)=>s+o.progress,0)/p.objectives.length):0;
-const done=p.objectives.filter(o=>o.done).length;
-const accentVar=who==='dja'?'var(--accent-dja)':'var(--accent-liika)';
-return <div key={who} style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:20,border:`1px solid ${who==='dja'?'var(--accent-dja-border)':'var(--accent-liika-border)'}`}}>
+const av=accent[who];
+return <div key={who} style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:20,border:`1px solid ${accentBorder[who]}`}}>
 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
 <div>
 <div style={{fontSize:16,fontWeight:600}}>{p.name}</div>
 <div style={{fontSize:12,color:'var(--text3)'}}>{p.role}</div>
 </div>
 <div style={{position:'relative',display:'flex',alignItems:'center',justifyContent:'center'}}>
-<ProgressRing pct={avg} size={56} stroke={5} color={accentVar}/>
+<ProgressRing pct={avg} size={56} stroke={5} color={av}/>
 <span style={{position:'absolute',fontSize:13,fontWeight:600}}>{avg}%</span>
 </div>
 </div>
 {p.objectives.slice(0,3).map(o=><div key={o.id} style={{display:'flex',alignItems:'center',gap:10,marginBottom:8}}>
-<div style={{width:6,height:6,borderRadius:3,background:o.done?'var(--success)':accentVar,minWidth:6}}/>
+<div style={{width:6,height:6,borderRadius:3,background:o.done?'var(--success)':av,minWidth:6}}/>
 <span style={{fontSize:13,color:o.done?'var(--text3)':'var(--text)',flex:1,textDecoration:o.done?'line-through':'none'}}>{o.title}</span>
 <span style={{fontSize:11,color:'var(--text3)'}}>{o.progress}%</span>
 </div>)}
@@ -606,13 +623,6 @@ style={{display:'flex',flexDirection:'column',alignItems:'center',gap:2,border:'
     else addAction(modal.who,t,d,c);
   }}/>
 
-<style>{`
-@media(max-width:768px){
-nav{display:none!important}
-.mobile-nav{display:block!important}
-main{padding:20px 16px 80px!important}
-}
-`}</style>
 </div>
 }
 
