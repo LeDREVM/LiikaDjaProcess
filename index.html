@@ -4,8 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Lanmou Douvan — Mix Vibz</title>
+<meta name="description" content="Tableau de bord partagé Dja & Liika — objectifs, actions et notes en commun.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♡</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,500;1,400&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -24,6 +26,11 @@ body{overflow-x:hidden}
 @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
 @keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
 @keyframes slideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
+@media(max-width:768px){
+nav{display:none!important}
+.mobile-nav{display:block!important}
+main{padding:20px 16px 80px!important}
+}
 </style>
 </head>
 <body>
@@ -32,8 +39,14 @@ body{overflow-x:hidden}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script type="text/babel">
-const {useState,useEffect,useRef,useCallback}=React;
+const {useState,useEffect,useRef,useCallback,useMemo}=React;
+
+// ─── Helpers couleur ───
+const accent={dja:'var(--accent-dja)',liika:'var(--accent-liika)',couple:'var(--accent-couple)'};
+const accentBg={dja:'var(--accent-dja-bg)',liika:'var(--accent-liika-bg)',couple:'var(--accent-couple-bg)'};
+const accentBorder={dja:'var(--accent-dja-border)',liika:'var(--accent-liika-border)',couple:'var(--accent-couple-border)'};
 
 // ─── Data ───
 const defaultData={
@@ -57,7 +70,28 @@ dja:{
     {id:"da4",text:"Calculer le revenu minimum pour quitter le freelance",cat:"Finances",done:false},
     {id:"da5",text:"Prototyper l'interface principale",cat:"Carriere",done:false},
     {id:"da6",text:"Tester 3 recettes vegetales guadeloupeennes",cat:"Sante",done:false},
-  ]
+  ],
+  notes:[],
+  meals:[
+    {id:'dm1',jour:'Lundi',type:'Matin',plat:'Smoothie banane mangue',note:''},
+    {id:'dm2',jour:'Lundi',type:'Midi',plat:'Riz complet haricots rouges',note:''},
+    {id:'dm3',jour:'Lundi',type:'Soir',plat:'Soupe lentilles corail',note:''},
+    {id:'dm4',jour:'Mardi',type:'Midi',plat:'Salade quinoa légumes rôtis',note:''},
+    {id:'dm5',jour:'Mercredi',type:'Midi',plat:'Curry pois chiches',note:''},
+  ],
+  budget:{
+    revenus:[
+      {id:'dr1',label:'Freelance DA',montant:2500},
+      {id:'dr2',label:'SaaS / apps',montant:200}
+    ],
+    depenses:[
+      {id:'dd1',label:'Loyer',montant:800,cat:'Logement'},
+      {id:'dd2',label:'Alimentation',montant:350,cat:'Vie'},
+      {id:'dd3',label:'Abonnements tech',montant:80,cat:'Tech'},
+      {id:'dd4',label:'Transport',montant:120,cat:'Transport'}
+    ]
+  },
+  vision:"Créer un écosystème d'apps caribéennes pour les créatifs TDAH. Identité visuelle antillaise forte dans la tech. Indépendance financière via le SaaS d'ici 2028. Vivre et créer depuis la Guadeloupe."
 },
 liika:{
   name:"Liika",
@@ -79,7 +113,27 @@ liika:{
     {id:"la4",text:"Routine etirements de 10 min aux pauses",cat:"Sante",done:false},
     {id:"la5",text:"Planifier un week-end deconnexion avec Dja",cat:"Perso",done:false},
     {id:"la6",text:"Se renseigner sur les formations capacitaire",cat:"Carriere",done:false},
-  ]
+  ],
+  notes:[],
+  meals:[
+    {id:'lm1',jour:'Lundi',type:'Matin',plat:'Café thermos + pain de mie',note:'Route tôt'},
+    {id:'lm2',jour:'Lundi',type:'Midi',plat:'Tupperware riz poulet légumes',note:'Préparé la veille'},
+    {id:'lm3',jour:'Mardi',type:'Midi',plat:'Salade composée / wrap',note:'Repos aire autoroute'},
+    {id:'lm4',jour:'Mercredi',type:'Matin',plat:'Yaourt fruits secs noix',note:''},
+    {id:'lm5',jour:'Vendredi',type:'Soir',plat:'Repas maison avec Dja',note:'Rentré(e)'},
+  ],
+  budget:{
+    revenus:[
+      {id:'lr1',label:'Transport PL',montant:3200}
+    ],
+    depenses:[
+      {id:'ld1',label:'Charges véhicule',montant:900,cat:'Pro'},
+      {id:'ld2',label:'Carburant',montant:400,cat:'Transport'},
+      {id:'ld3',label:'Alimentation route',montant:250,cat:'Vie'},
+      {id:'ld4',label:'Assurances',montant:180,cat:'Pro'}
+    ]
+  },
+  vision:"Devenir cheffe de flotte d'ici 2027 avec un second camion. Choisir mes tournées, rentrer chez moi le week-end. Construire un chez-nous solide avec Dja. Santé, équilibre et liberté sur la route."
 },
 couple:{
   objectives:[
@@ -91,14 +145,61 @@ couple:{
     {id:"ca1",text:"Planifier une soiree objectifs couple",cat:"Couple",done:false},
     {id:"ca2",text:"Ouvrir un compte commun projets",cat:"Couple",done:false},
     {id:"ca3",text:"Choisir une destination vacances 2027",cat:"Couple",done:false},
-  ]
+  ],
+  notes:[],
+  meals:[
+    {id:'cm1',jour:'Samedi',type:'Midi',plat:'Brunch maison ensemble',note:'Rituel hebdo'},
+    {id:'cm2',jour:'Samedi',type:'Soir',plat:'Barbecue / plats antillais',note:''},
+    {id:'cm3',jour:'Dimanche',type:'Midi',plat:'Repas en famille ou sortie',note:''},
+  ],
+  budget:{
+    revenus:[
+      {id:'cr1',label:'Contribution Dja',montant:800},
+      {id:'cr2',label:'Contribution Liika',montant:800}
+    ],
+    depenses:[
+      {id:'cd1',label:'Fond vacances 2027',montant:500,cat:'Projets'},
+      {id:'cd2',label:'Épargne logement',montant:600,cat:'Épargne'},
+      {id:'cd3',label:'Loisirs couple',montant:200,cat:'Vie'}
+    ]
+  },
+  vision:"Un foyer à nous, un voyage par an, des projets créatifs communs. Construire ensemble une vie entre la Guadeloupe et la route — Lanmou Douvan pour toujours."
 }
 };
+const defaultUI={activeProfile:'dja'};
+
+// ─── Supabase ───
+const SB_URL='https://mvtwotbyphuxdkcwgime.supabase.co';
+const SB_KEY='sb_publishable_3GTu11_-nrnYDyFY2Rl7eQ_bndRXVAz';
+const sb=supabase.createClient(SB_URL,SB_KEY);
+async function sbLoad(){
+try{
+  const {data,error}=await sb.from('app_state').select('data').eq('id','main').single();
+  if(error&&error.code==='PGRST116')return null; // no row yet
+  if(error)throw error;
+  const payload=data?.data||null;
+  if(!payload)return null;
+  if(payload.appData)return payload;
+  return {appData:payload,ui:null};
+}catch(e){console.warn('[Supabase] load error:',e);return null}
+}
+async function sbSave(d,ui){
+try{
+  const payload={appData:d,ui};
+  const {error}=await sb.from('app_state').upsert({id:'main',data:payload,updated_at:new Date().toISOString()});
+  if(error)throw error;
+  return true;
+}catch(e){console.warn('[Supabase] save error:',e);return false}
+}
 
 function loadData(){
 try{const d=localStorage.getItem('dja-liika-goals');return d?JSON.parse(d):defaultData}catch(e){return defaultData}
 }
 function saveData(d){localStorage.setItem('dja-liika-goals',JSON.stringify(d))}
+function loadUI(){
+try{const u=localStorage.getItem('dja-liika-ui');return u?{...defaultUI,...JSON.parse(u)}:defaultUI}catch(e){return defaultUI}
+}
+function saveUI(u){localStorage.setItem('dja-liika-ui',JSON.stringify(u))}
 
 // ─── Components ───
 
@@ -112,50 +213,80 @@ return <svg width={size} height={size} style={{transform:'rotate(-90deg)'}}>
 
 function StatCard({label,value,color,icon}){
 return <div style={{background:'var(--bg3)',borderRadius:'var(--radius)',padding:'16px 20px',display:'flex',alignItems:'center',gap:14}}>
-<div style={{width:40,height:40,borderRadius:10,background:color==='dja'?'var(--accent-dja-bg)':color==='liika'?'var(--accent-liika-bg)':'var(--accent-couple-bg)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18}}>{icon}</div>
+<div style={{width:40,height:40,borderRadius:10,background:accentBg[color],display:'flex',alignItems:'center',justifyContent:'center',fontSize:18}}>{icon}</div>
 <div><div style={{fontSize:13,color:'var(--text3)',marginBottom:2}}>{label}</div>
 <div style={{fontSize:22,fontWeight:600}}>{value}</div></div>
 </div>
 }
 
 function ObjectiveCard({obj,color,onToggle,onProgress,onDelete}){
-const accentVar=color==='dja'?'var(--accent-dja)':color==='liika'?'var(--accent-liika)':'var(--accent-couple)';
-const bgVar=color==='dja'?'var(--accent-dja-bg)':color==='liika'?'var(--accent-liika-bg)':'var(--accent-couple-bg)';
-return <div style={{background:'var(--bg3)',borderRadius:'var(--radius)',padding:'16px 20px',borderLeft:`3px solid ${obj.done?'var(--success)':accentVar}`,animation:'fadeUp .4s ease both',opacity:obj.done?.6:1,transition:'opacity .3s'}}>
+const av=accent[color];const bv=accentBg[color];
+return <div style={{background:'var(--bg3)',borderRadius:'var(--radius)',padding:'16px 20px',borderLeft:`3px solid ${obj.done?'var(--success)':av}`,animation:'fadeUp .4s ease both',opacity:obj.done?0.6:1,transition:'opacity .3s'}}>
 <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
 <div style={{flex:1}}>
 <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
-<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:bgVar,color:accentVar,fontWeight:500}}>{obj.cat}</span>
+<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:bv,color:av,fontWeight:500}}>{obj.cat}</span>
 {obj.done&&<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:'var(--success-bg)',color:'var(--success)',fontWeight:500}}>Fait</span>}
 </div>
 <div style={{fontSize:15,fontWeight:500,marginBottom:4,textDecoration:obj.done?'line-through':'none'}}>{obj.title}</div>
 <div style={{fontSize:13,color:'var(--text3)'}}>{obj.desc}</div>
 </div>
 <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
-<ProgressRing pct={obj.progress} color={obj.done?'var(--success)':accentVar}/>
-<span style={{fontSize:11,fontWeight:500,color:obj.done?'var(--success)':accentVar}}>{obj.progress}%</span>
+<ProgressRing pct={obj.progress} color={obj.done?'var(--success)':av}/>
+<span style={{fontSize:11,fontWeight:500,color:obj.done?'var(--success)':av}}>{obj.progress}%</span>
 </div>
 </div>
 <div style={{marginTop:12,display:'flex',alignItems:'center',gap:8}}>
 <input type="range" min="0" max="100" step="5" value={obj.progress}
   onChange={e=>onProgress(obj.id,parseInt(e.target.value))}
-  style={{flex:1,height:4,accentColor:accentVar,cursor:'pointer'}}/>
+  style={{flex:1,height:4,accentColor:av,cursor:'pointer'}}/>
 <button onClick={()=>onToggle(obj.id)} style={{background:obj.done?'var(--success-bg)':'var(--bg4)',border:'none',borderRadius:'var(--radius-xs)',padding:'6px 12px',fontSize:12,color:obj.done?'var(--success)':'var(--text2)',cursor:'pointer',whiteSpace:'nowrap'}}>
-{obj.done?'Reactivar':'Valider'}</button>
-<button onClick={()=>onDelete(obj.id)} style={{background:'none',border:'none',fontSize:14,color:'var(--text3)',cursor:'pointer',padding:'6px'}}>✕</button>
+{obj.done?'Réactiver':'Valider'}</button>
+<button onClick={()=>onDelete(obj.id)} aria-label="Supprimer" style={{background:'none',border:'none',fontSize:14,color:'var(--text3)',cursor:'pointer',padding:'6px'}}>✕</button>
 </div>
 </div>
 }
 
 function ActionItem({action,color,onToggle}){
-const accentVar=color==='dja'?'var(--accent-dja)':color==='liika'?'var(--accent-liika)':'var(--accent-couple)';
+const av=accent[color];
 return <div style={{display:'flex',alignItems:'center',gap:12,padding:'12px 16px',background:'var(--bg3)',borderRadius:'var(--radius-sm)',cursor:'pointer',transition:'all .15s',animation:'slideIn .3s ease both'}} onClick={()=>onToggle(action.id)}>
 <div style={{width:20,height:20,minWidth:20,borderRadius:6,border:action.done?'none':`2px solid var(--border2)`,background:action.done?'var(--success)':'transparent',display:'flex',alignItems:'center',justifyContent:'center',transition:'all .2s'}}>
 {action.done&&<span style={{color:'var(--bg)',fontSize:12,fontWeight:700}}>✓</span>}
 </div>
 <span style={{flex:1,fontSize:14,color:action.done?'var(--text3)':'var(--text)',textDecoration:action.done?'line-through':'none',transition:'all .2s'}}>{action.text}</span>
-<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:color==='dja'?'var(--accent-dja-bg)':color==='liika'?'var(--accent-liika-bg)':'var(--accent-couple-bg)',color:accentVar,fontWeight:500}}>{action.cat}</span>
+<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:accentBg[color],color:av,fontWeight:500}}>{action.cat}</span>
 </div>
+}
+
+function NotesPanel({who,notes,onAdd,onDelete}){
+const [draft,setDraft]=useState('');
+const av=accent[who];const bv=accentBorder[who];
+const fmt=iso=>{const d=new Date(iso);return d.toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'})+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});};
+const submit=()=>{if(draft.trim()){onAdd(who,draft);setDraft('');}};
+return <div style={{marginTop:32}}>
+<h3 style={{fontSize:16,fontWeight:500,marginBottom:14,color:'var(--text2)'}}>Notes</h3>
+<div style={{display:'flex',gap:8,marginBottom:16}}>
+<textarea value={draft} onChange={e=>setDraft(e.target.value)}
+  onKeyDown={e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey))submit();}}
+  placeholder="Nouvelle note… (Ctrl+Entrée pour valider)"
+  rows={3}
+  style={{flex:1,background:'var(--bg3)',border:`1px solid ${bv}`,borderRadius:'var(--radius-sm)',padding:'10px 12px',color:'var(--text)',fontSize:13,resize:'vertical',outline:'none',fontFamily:'inherit',lineHeight:1.5}}/>
+<button onClick={submit}
+  style={{alignSelf:'flex-end',padding:'8px 14px',borderRadius:'var(--radius-sm)',border:'none',background:av,color:'#fff',cursor:'pointer',fontSize:13,fontWeight:500,whiteSpace:'nowrap'}}>
+  + Ajouter
+</button>
+</div>
+{!(notes||[]).length&&<p style={{fontSize:13,color:'var(--text3)',textAlign:'center',padding:'20px 0'}}>Aucune note pour l'instant.</p>}
+<div style={{display:'flex',flexDirection:'column',gap:10}}>
+{(notes||[]).map(n=><div key={n.id} style={{background:'var(--bg2)',border:`1px solid ${bv}`,borderRadius:'var(--radius-sm)',padding:'12px 14px'}}>
+  <p style={{fontSize:13,color:'var(--text)',lineHeight:1.6,whiteSpace:'pre-wrap',marginBottom:6}}>{n.text}</p>
+  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+    <span style={{fontSize:11,color:'var(--text3)'}}>{fmt(n.date)}</span>
+    <button onClick={()=>onDelete(who,n.id)} aria-label="Supprimer la note" style={{background:'none',border:'none',color:'var(--text3)',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 2px'}}>×</button>
+  </div>
+</div>)}
+</div>
+</div>;
 }
 
 function AddModal({show,onClose,onAdd,type,color}){
@@ -163,7 +294,7 @@ const [title,setTitle]=useState('');
 const [desc,setDesc]=useState('');
 const [cat,setCat]=useState('Carriere');
 if(!show)return null;
-const accentVar=color==='dja'?'var(--accent-dja)':color==='liika'?'var(--accent-liika)':'var(--accent-couple)';
+const av=accent[color]||accent.dja;
 const cats=color==='couple'?['Couple']:['Carriere','Sante','Finances','Perso'];
 return <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.7)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:100,padding:20}} onClick={onClose}>
 <div style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:28,maxWidth:440,width:'100%',border:'1px solid var(--border2)'}} onClick={e=>e.stopPropagation()}>
@@ -173,11 +304,11 @@ return <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.7)',display
 {type==='objective'&&<input placeholder="Description" value={desc} onChange={e=>setDesc(e.target.value)}
   style={{width:'100%',padding:'10px 14px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'var(--bg3)',color:'var(--text)',fontSize:14,marginBottom:12,outline:'none'}}/>}
 <div style={{display:'flex',gap:8,marginBottom:20,flexWrap:'wrap'}}>
-{cats.map(c=><button key={c} onClick={()=>setCat(c)} style={{padding:'6px 14px',borderRadius:20,border:cat===c?`2px solid ${accentVar}`:'1px solid var(--border2)',background:cat===c?'var(--bg4)':'transparent',color:cat===c?'var(--text)':'var(--text3)',fontSize:13,cursor:'pointer'}}>{c}</button>)}
+{cats.map(c=><button key={c} onClick={()=>setCat(c)} style={{padding:'6px 14px',borderRadius:20,border:cat===c?`2px solid ${av}`:'1px solid var(--border2)',background:cat===c?'var(--bg4)':'transparent',color:cat===c?'var(--text)':'var(--text3)',fontSize:13,cursor:'pointer'}}>{c}</button>)}
 </div>
 <div style={{display:'flex',gap:10,justifyContent:'flex-end'}}>
 <button onClick={onClose} style={{padding:'10px 20px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'transparent',color:'var(--text2)',cursor:'pointer',fontSize:14}}>Annuler</button>
-<button onClick={()=>{if(title.trim()){onAdd(title,desc,cat);setTitle('');setDesc('');onClose()}}} style={{padding:'10px 20px',borderRadius:'var(--radius-sm)',border:'none',background:accentVar,color:'#fff',cursor:'pointer',fontSize:14,fontWeight:500}}>Ajouter</button>
+<button onClick={()=>{if(title.trim()){onAdd(title,desc,cat);setTitle('');setDesc('');onClose()}}} style={{padding:'10px 20px',borderRadius:'var(--radius-sm)',border:'none',background:av,color:'#fff',cursor:'pointer',fontSize:14,fontWeight:500}}>Ajouter</button>
 </div>
 </div>
 </div>
@@ -228,67 +359,167 @@ return <div style={{position:'relative',height:200}}><canvas ref={canvasRef}/></
 // ─── Main App ───
 function App(){
 const [data,setData]=useState(loadData);
+const [ui,setUI]=useState(loadUI);
 const [view,setView]=useState('dashboard');
 const [modal,setModal]=useState(null);
+const [syncStatus,setSyncStatus]=useState('idle'); // idle | syncing | ok | error
+const activeProfile=ui?.activeProfile||'dja';
+const profileLabel=activeProfile==='dja'?'Dja':activeProfile==='liika'?'Liika':'Couple';
+const setActiveProfile=useCallback((who)=>setUI(prev=>({...prev,activeProfile:who})),[]);
 
-useEffect(()=>saveData(data),[data]);
+// Sync to Supabase on data change (debounced 1.2s)
+const syncTimer=useRef(null);
+useEffect(()=>{
+  saveData(data);
+  saveUI(ui);
+  clearTimeout(syncTimer.current);
+  syncTimer.current=setTimeout(async()=>{
+    setSyncStatus('syncing');
+    const ok=await sbSave(data,ui);
+    setSyncStatus(ok?'ok':'error');
+    if(ok)setTimeout(()=>setSyncStatus('idle'),2000);
+  },1200);
+},[data,ui]);
 
-const updateObj=(who,id,updates)=>{
+// Load from Supabase on mount
+useEffect(()=>{
+  setSyncStatus('syncing');
+  sbLoad().then(bundle=>{
+    if(bundle?.appData){
+      setData(bundle.appData);
+      if(bundle.ui)setUI(prev=>({...prev,...bundle.ui}));
+      setSyncStatus('ok');
+      setTimeout(()=>setSyncStatus('idle'),2000);
+    }
+    else setSyncStatus('idle');
+  }).catch(()=>setSyncStatus('error'));
+},[]);
+
+const clone=prev=>structuredClone(prev);
+
+const updateObj=useCallback((who,id,updates)=>{
 setData(prev=>{
-const next=JSON.parse(JSON.stringify(prev));
+const next=clone(prev);
 const list=who==='couple'?next.couple.objectives:next[who].objectives;
 const idx=list.findIndex(o=>o.id===id);
 if(idx>=0)Object.assign(list[idx],updates);
 return next;
 });
-};
-const toggleAction=(who,id)=>{
+},[]);
+const toggleAction=useCallback((who,id)=>{
 setData(prev=>{
-const next=JSON.parse(JSON.stringify(prev));
+const next=clone(prev);
 const list=who==='couple'?next.couple.actions:next[who].actions;
 const idx=list.findIndex(a=>a.id===id);
 if(idx>=0)list[idx].done=!list[idx].done;
 return next;
 });
-};
-const deleteObj=(who,id)=>{
+},[]);
+const deleteObj=useCallback((who,id)=>{
 setData(prev=>{
-const next=JSON.parse(JSON.stringify(prev));
+const next=clone(prev);
 if(who==='couple')next.couple.objectives=next.couple.objectives.filter(o=>o.id!==id);
 else next[who].objectives=next[who].objectives.filter(o=>o.id!==id);
 return next;
 });
-};
-const addObjective=(who,title,desc,cat)=>{
+},[]);
+const addObjective=useCallback((who,title,desc,cat)=>{
 setData(prev=>{
-const next=JSON.parse(JSON.stringify(prev));
+const next=clone(prev);
 const obj={id:Date.now().toString(),cat,title,desc,progress:0,done:false};
 if(who==='couple')next.couple.objectives.push(obj);
 else next[who].objectives.push(obj);
 return next;
 });
-};
-const addAction=(who,text,_,cat)=>{
+},[]);
+const addAction=useCallback((who,text,_,cat)=>{
 setData(prev=>{
-const next=JSON.parse(JSON.stringify(prev));
+const next=clone(prev);
 const act={id:Date.now().toString(),text,cat,done:false};
 if(who==='couple')next.couple.actions.push(act);
 else next[who].actions.push(act);
 return next;
 });
-};
+},[]);
+const addNote=useCallback((who,text)=>{
+if(!text.trim())return;
+setData(prev=>{
+const next=clone(prev);
+const note={id:Date.now().toString(),text:text.trim(),date:new Date().toISOString()};
+if(who==='couple')next.couple.notes=[note,...(next.couple.notes||[])];
+else next[who].notes=[note,...(next[who].notes||[])];
+return next;
+});
+},[]);
+const deleteNote=useCallback((who,id)=>{
+setData(prev=>{
+const next=clone(prev);
+if(who==='couple')next.couple.notes=(next.couple.notes||[]).filter(n=>n.id!==id);
+else next[who].notes=(next[who].notes||[]).filter(n=>n.id!==id);
+return next;
+});
+},[]);
+const upsertMeal=useCallback((who,meal)=>{
+setData(prev=>{
+const next=clone(prev);
+const src=next[who]?.meals||next.couple?.meals||[];
+const idx=src.findIndex(m=>m.id===meal.id);
+if(idx>=0)src[idx]=meal; else src.push(meal);
+return next;
+});
+},[]);
+const deleteMeal=useCallback((who,id)=>{
+setData(prev=>{
+const next=clone(prev);
+if(who==='couple')next.couple.meals=(next.couple.meals||[]).filter(m=>m.id!==id);
+else next[who].meals=(next[who].meals||[]).filter(m=>m.id!==id);
+return next;
+});
+},[]);
+const upsertBudgetLine=useCallback((who,type,line)=>{
+setData(prev=>{
+const next=clone(prev);
+const src=who==='couple'?next.couple.budget:next[who].budget;
+const arr=src[type];
+const idx=arr.findIndex(l=>l.id===line.id);
+if(idx>=0)arr[idx]=line; else arr.push(line);
+return next;
+});
+},[]);
+const deleteBudgetLine=useCallback((who,type,id)=>{
+setData(prev=>{
+const next=clone(prev);
+const src=who==='couple'?next.couple.budget:next[who].budget;
+src[type]=src[type].filter(l=>l.id!==id);
+return next;
+});
+},[]);
+const updateVision=useCallback((who,text)=>{
+setData(prev=>{
+const next=clone(prev);
+if(who==='couple')next.couple.vision=text;
+else next[who].vision=text;
+return next;
+});
+},[]);
 
+const {totalObj,totalDone,avgProgress,totalActions,actionsDone}=useMemo(()=>{
 const totalObj=[...data.dja.objectives,...data.liika.objectives,...data.couple.objectives];
 const totalDone=totalObj.filter(o=>o.done).length;
 const avgProgress=totalObj.length?Math.round(totalObj.reduce((s,o)=>s+o.progress,0)/totalObj.length):0;
 const totalActions=[...data.dja.actions,...data.liika.actions,...data.couple.actions];
 const actionsDone=totalActions.filter(a=>a.done).length;
+return {totalObj,totalDone,avgProgress,totalActions,actionsDone};
+},[data]);
 
 const navItems=[
 {id:'dashboard',label:'Dashboard',icon:'◈'},
 {id:'dja',label:'Dja',icon:'◆'},
 {id:'liika',label:'Liika',icon:'◇'},
 {id:'couple',label:'Couple',icon:'♡'},
+{id:'repas',label:'Repas',icon:'🍽'},
+{id:'budget',label:'Budget',icon:'💰'},
+{id:'vision',label:'Vision',icon:'✦'},
 {id:'charts',label:'Stats',icon:'▤'},
 ];
 
@@ -302,7 +533,7 @@ return <div>
 <p style={{fontSize:14,color:'var(--text3)',marginTop:2}}>{person.role}{person.location?` — ${person.location}`:''}</p>
 </div>
 <div style={{display:'flex',gap:8}}>
-<button onClick={()=>setModal({type:'objective',who})} style={{padding:'8px 16px',borderRadius:'var(--radius-sm)',border:'none',background:who==='dja'?'var(--accent-dja)':'var(--accent-liika)',color:'#fff',cursor:'pointer',fontSize:13,fontWeight:500}}>+ Objectif</button>
+<button onClick={()=>setModal({type:'objective',who})} style={{padding:'8px 16px',borderRadius:'var(--radius-sm)',border:'none',background:accent[who],color:'#fff',cursor:'pointer',fontSize:13,fontWeight:500}}>+ Objectif</button>
 <button onClick={()=>setModal({type:'action',who})} style={{padding:'8px 16px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'transparent',color:'var(--text2)',cursor:'pointer',fontSize:13}}>+ Action</button>
 </div>
 </div>
@@ -316,6 +547,7 @@ return <div>
 <div style={{display:'grid',gap:8}}>
 {person.actions.map(a=><ActionItem key={a.id} action={a} color={color} onToggle={id=>toggleAction(who,id)}/>)}
 </div>
+<NotesPanel who={who} notes={person.notes} onAdd={addNote} onDelete={deleteNote}/>
 </div>
 };
 
@@ -341,7 +573,225 @@ return <div>
 <div style={{display:'grid',gap:8}}>
 {data.couple.actions.map(a=><ActionItem key={a.id} action={a} color="couple" onToggle={id=>toggleAction('couple',id)}/>)}
 </div>
+<NotesPanel who="couple" notes={data.couple.notes} onAdd={addNote} onDelete={deleteNote}/>
 </div>
+};
+
+const JOURS=['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
+const TYPES=['Matin','Midi','Soir'];
+
+const renderRepas=()=>{
+const who=activeProfile;
+const [editId,setEditId]=useState(null);
+const [editVal,setEditVal]=useState('');
+const meals=who==='couple'?data.couple.meals:data[who].meals;
+const av=accent[who]||accent.dja;
+const getMeal=(jour,type)=>meals.find(m=>m.jour===jour&&m.type===type);
+return <div>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24,flexWrap:'wrap',gap:12}}>
+<div>
+<h2 style={{fontSize:22,fontWeight:600,fontFamily:"'Playfair Display',serif",marginBottom:4}}>Plans de repas</h2>
+<p style={{fontSize:14,color:'var(--text3)'}}>Organisation alimentaire de la semaine</p>
+<p style={{fontSize:12,color:av,marginTop:6,fontWeight:600}}>Profil actif: {profileLabel}</p>
+</div>
+<div style={{display:'flex',gap:6}}>
+{['dja','liika','couple'].map(w=><button key={w} onClick={()=>setActiveProfile(w)}
+  style={{padding:'6px 14px',borderRadius:20,border:who===w?`2px solid ${accent[w]}`:'1px solid var(--border2)',background:who===w?accentBg[w]:'transparent',color:who===w?accent[w]:'var(--text3)',fontSize:13,cursor:'pointer'}}>
+  {w==='dja'?'Dja':w==='liika'?'Liika':'Couple'}
+</button>)}
+</div>
+</div>
+<div style={{overflowX:'auto'}}>
+<table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+<thead>
+<tr>
+<th style={{padding:'8px 12px',textAlign:'left',color:'var(--text3)',fontWeight:500,borderBottom:'1px solid var(--border)'}}>Jour</th>
+{TYPES.map(t=><th key={t} style={{padding:'8px 12px',textAlign:'left',color:'var(--text3)',fontWeight:500,borderBottom:'1px solid var(--border)'}}>{t}</th>)}
+</tr>
+</thead>
+<tbody>
+{JOURS.map(jour=><tr key={jour} style={{borderBottom:'1px solid var(--border)'}}>
+<td style={{padding:'10px 12px',fontWeight:500,color:av,whiteSpace:'nowrap'}}>{jour}</td>
+{TYPES.map(type=>{
+  const meal=getMeal(jour,type);
+  const cellId=(meal?.id)||`${jour}-${type}`;
+  return <td key={type} style={{padding:'6px 8px',minWidth:160}}>
+  {editId===cellId
+    ?<div style={{display:'flex',gap:6}}>
+      <input autoFocus value={editVal} onChange={e=>setEditVal(e.target.value)}
+        onKeyDown={e=>{
+          if(e.key==='Enter'){
+            if(editVal.trim()){upsertMeal(who,{id:meal?.id||Date.now().toString(),jour,type,plat:editVal.trim(),note:meal?.note||''});}
+            else if(meal){deleteMeal(who,meal.id);}
+            setEditId(null);
+          }
+          if(e.key==='Escape')setEditId(null);
+        }}
+        style={{flex:1,background:'var(--bg4)',border:`1px solid ${av}`,borderRadius:'var(--radius-xs)',padding:'4px 8px',color:'var(--text)',fontSize:12,outline:'none'}}/>
+      <button onClick={()=>{
+        if(editVal.trim()){upsertMeal(who,{id:meal?.id||Date.now().toString(),jour,type,plat:editVal.trim(),note:meal?.note||''});}
+        else if(meal){deleteMeal(who,meal.id);}
+        setEditId(null);
+      }} style={{padding:'4px 8px',borderRadius:'var(--radius-xs)',border:'none',background:av,color:'#fff',cursor:'pointer',fontSize:11}}>✓</button>
+    </div>
+    :<div onClick={()=>{setEditId(cellId);setEditVal(meal?.plat||'');}}
+      style={{padding:'6px 8px',borderRadius:'var(--radius-xs)',background:meal?'var(--bg3)':'transparent',border:`1px dashed ${meal?'transparent':'var(--border2)'}`,cursor:'text',color:meal?'var(--text)':'var(--text3)',minHeight:32,display:'flex',alignItems:'center'}}>
+      {meal?meal.plat:<span style={{fontSize:11}}>+ Ajouter</span>}
+    </div>}
+  </td>;
+})}
+</tr>)}
+</tbody>
+</table>
+</div>
+<p style={{fontSize:11,color:'var(--text3)',marginTop:12}}>Cliquer sur une cellule pour modifier — Entrée pour valider, Échap pour annuler</p>
+</div>;
+};
+
+const renderBudget=()=>{
+const who=activeProfile;
+const [editLine,setEditLine]=useState(null); // {type,id}
+const [form,setForm]=useState({label:'',montant:'',cat:''});
+const budget=who==='couple'?data.couple.budget:data[who].budget;
+const revenus=budget?.revenus||[];
+const depenses=budget?.depenses||[];
+const totalRev=revenus.reduce((s,r)=>s+Number(r.montant),0);
+const totalDep=depenses.reduce((s,d)=>s+Number(d.montant),0);
+const balance=totalRev-totalDep;
+const av=accent[who]||accent.dja;
+const cats=['Logement','Vie','Transport','Tech','Pro','Projets','Épargne','Autre'];
+const saveEditedLine=()=>{
+if(!editLine)return;
+const label=form.label.trim();
+const montant=Number(form.montant);
+if(!label||Number.isNaN(montant))return;
+upsertBudgetLine(who,editLine.type,{id:editLine.id,label,montant,cat:editLine.type==='depenses'?(form.cat||'Autre'):undefined});
+setEditLine(null);
+setForm({label:'',montant:'',cat:'Autre'});
+};
+const LineRow=({line,type})=>(
+<div style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',borderBottom:'1px solid var(--border)'}}>
+<div style={{flex:1}}>
+  <div style={{fontSize:13,color:'var(--text)'}}>{line.label}</div>
+  {line.cat&&<div style={{fontSize:11,color:'var(--text3)'}}>{line.cat}</div>}
+</div>
+<div style={{fontSize:14,fontWeight:600,color:type==='revenus'?'var(--success)':'var(--text)',minWidth:80,textAlign:'right'}}>{type==='revenus'?'+':'-'}{Number(line.montant).toLocaleString('fr-FR')} €</div>
+<button onClick={()=>{setEditLine({type,id:line.id});setForm({label:line.label,montant:String(line.montant),cat:line.cat||'Autre'});}}
+  style={{background:'none',border:'none',color:'var(--text3)',cursor:'pointer',fontSize:12,padding:'2px 6px'}}>✎</button>
+<button onClick={()=>deleteBudgetLine(who,type,line.id)}
+  style={{background:'none',border:'none',color:'var(--text3)',cursor:'pointer',fontSize:14,padding:'2px 4px'}}>×</button>
+</div>);
+const AddForm=({type})=>{
+const [open,setOpen]=useState(false);
+const [f,setF]=useState({label:'',montant:'',cat:'Autre'});
+if(!open)return <button onClick={()=>setOpen(true)} style={{marginTop:8,padding:'6px 12px',borderRadius:'var(--radius-xs)',border:`1px dashed ${av}`,background:'transparent',color:av,cursor:'pointer',fontSize:12,width:'100%'}}>+ Ajouter</button>;
+return <div style={{marginTop:8,display:'flex',gap:6,flexWrap:'wrap'}}>
+<input placeholder="Libellé" value={f.label} onChange={e=>setF(p=>({...p,label:e.target.value}))}
+  style={{flex:2,minWidth:100,padding:'6px 8px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:12,outline:'none'}}/>
+<input type="number" placeholder="Montant" value={f.montant} onChange={e=>setF(p=>({...p,montant:e.target.value}))}
+  style={{width:90,padding:'6px 8px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:12,outline:'none'}}/>
+{type==='depenses'&&<select value={f.cat} onChange={e=>setF(p=>({...p,cat:e.target.value}))}
+  style={{padding:'6px 8px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:12,outline:'none'}}>
+  {cats.map(c=><option key={c}>{c}</option>)}
+</select>}
+<button onClick={()=>{if(f.label&&f.montant){upsertBudgetLine(who,type,{id:Date.now().toString(),label:f.label,montant:Number(f.montant),cat:f.cat});setOpen(false);setF({label:'',montant:'',cat:'Autre'});}}}
+  style={{padding:'6px 10px',borderRadius:'var(--radius-xs)',border:'none',background:av,color:'#fff',cursor:'pointer',fontSize:12}}>✓</button>
+<button onClick={()=>setOpen(false)} style={{padding:'6px 10px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'transparent',color:'var(--text3)',cursor:'pointer',fontSize:12}}>✕</button>
+</div>;};
+return <div>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24,flexWrap:'wrap',gap:12}}>
+<div>
+<h2 style={{fontSize:22,fontWeight:600,fontFamily:"'Playfair Display',serif",marginBottom:4}}>Budget</h2>
+<p style={{fontSize:14,color:'var(--text3)'}}>Revenus, dépenses et balance mensuelle</p>
+<p style={{fontSize:12,color:av,marginTop:6,fontWeight:600}}>Profil actif: {profileLabel}</p>
+</div>
+<div style={{display:'flex',gap:6}}>
+{['dja','liika','couple'].map(w=><button key={w} onClick={()=>setActiveProfile(w)}
+  style={{padding:'6px 14px',borderRadius:20,border:who===w?`2px solid ${accent[w]}`:'1px solid var(--border2)',background:who===w?accentBg[w]:'transparent',color:who===w?accent[w]:'var(--text3)',fontSize:13,cursor:'pointer'}}>
+  {w==='dja'?'Dja':w==='liika'?'Liika':'Couple'}
+</button>)}
+</div>
+</div>
+{editLine&&<div style={{background:'var(--bg2)',border:'1px solid var(--border2)',borderRadius:'var(--radius-sm)',padding:'12px',display:'flex',gap:8,flexWrap:'wrap',marginBottom:16}}>
+<input placeholder="Libellé" value={form.label} onChange={e=>setForm(p=>({...p,label:e.target.value}))}
+  style={{flex:2,minWidth:160,padding:'8px 10px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:12,outline:'none'}}/>
+<input type="number" placeholder="Montant" value={form.montant} onChange={e=>setForm(p=>({...p,montant:e.target.value}))}
+  style={{width:120,padding:'8px 10px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:12,outline:'none'}}/>
+{editLine.type==='depenses'&&<select value={form.cat||'Autre'} onChange={e=>setForm(p=>({...p,cat:e.target.value}))}
+  style={{padding:'8px 10px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:12,outline:'none'}}>
+  {cats.map(c=><option key={c}>{c}</option>)}
+</select>}
+<button onClick={saveEditedLine}
+  style={{padding:'8px 12px',borderRadius:'var(--radius-xs)',border:'none',background:av,color:'#fff',cursor:'pointer',fontSize:12}}>Sauver</button>
+<button onClick={()=>{setEditLine(null);setForm({label:'',montant:'',cat:'Autre'});}}
+  style={{padding:'8px 12px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'transparent',color:'var(--text3)',cursor:'pointer',fontSize:12}}>Annuler</button>
+</div>}
+<div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:24}}>
+<div style={{background:'var(--bg3)',borderRadius:'var(--radius)',padding:16,textAlign:'center'}}>
+  <div style={{fontSize:12,color:'var(--text3)',marginBottom:4}}>Revenus</div>
+  <div style={{fontSize:22,fontWeight:700,color:'var(--success)'}}>+{totalRev.toLocaleString('fr-FR')} €</div>
+</div>
+<div style={{background:'var(--bg3)',borderRadius:'var(--radius)',padding:16,textAlign:'center'}}>
+  <div style={{fontSize:12,color:'var(--text3)',marginBottom:4}}>Dépenses</div>
+  <div style={{fontSize:22,fontWeight:700,color:'#f87171'}}>-{totalDep.toLocaleString('fr-FR')} €</div>
+</div>
+<div style={{background:'var(--bg3)',borderRadius:'var(--radius)',padding:16,textAlign:'center',border:`1px solid ${balance>=0?'var(--accent-dja-border)':'rgba(248,113,113,.25)'}`}}>
+  <div style={{fontSize:12,color:'var(--text3)',marginBottom:4}}>Balance</div>
+  <div style={{fontSize:22,fontWeight:700,color:balance>=0?av:'#f87171'}}>{balance>=0?'+':''}{balance.toLocaleString('fr-FR')} €</div>
+</div>
+</div>
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:20}}>
+<div style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:20,border:'1px solid var(--border)'}}>
+  <h3 style={{fontSize:15,fontWeight:500,marginBottom:12,color:'var(--success)'}}>Revenus</h3>
+  {revenus.map(r=><LineRow key={r.id} line={r} type="revenus"/>)}
+  <AddForm type="revenus"/>
+</div>
+<div style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:20,border:'1px solid var(--border)'}}>
+  <h3 style={{fontSize:15,fontWeight:500,marginBottom:12,color:'#f87171'}}>Dépenses</h3>
+  {depenses.map(d=><LineRow key={d.id} line={d} type="depenses"/>)}
+  <AddForm type="depenses"/>
+</div>
+</div>
+</div>;
+};
+
+const renderVision=()=>{
+const who=activeProfile;
+const vision=who==='couple'?data.couple.vision:data[who].vision;
+const name=who==='dja'?data.dja.name:who==='liika'?data.liika.name:'Dja & Liika';
+const av=accent[who]||accent.dja;
+return <div>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24,flexWrap:'wrap',gap:12}}>
+<div>
+<h2 style={{fontSize:22,fontWeight:600,fontFamily:"'Playfair Display',serif",marginBottom:4}}>Vision</h2>
+<p style={{fontSize:14,color:'var(--text3)'}}>Vision long-terme — qui tu veux devenir</p>
+<p style={{fontSize:12,color:av,marginTop:6,fontWeight:600}}>Profil actif: {profileLabel}</p>
+</div>
+<div style={{display:'flex',gap:6}}>
+{['dja','liika','couple'].map(w=><button key={w} onClick={()=>setActiveProfile(w)}
+  style={{padding:'6px 14px',borderRadius:20,border:who===w?`2px solid ${accent[w]}`:'1px solid var(--border2)',background:who===w?accentBg[w]:'transparent',color:who===w?accent[w]:'var(--text3)',fontSize:13,cursor:'pointer'}}>
+  {w==='dja'?'Dja':w==='liika'?'Liika':'Couple'}
+</button>)}
+</div>
+</div>
+<div style={{background:`linear-gradient(135deg,${accentBg[who]},var(--bg2))`,borderRadius:'var(--radius)',padding:28,border:`1px solid ${accentBorder[who]}`,marginBottom:20}}>
+<div style={{fontSize:11,color:av,letterSpacing:'.1em',textTransform:'uppercase',marginBottom:12}}>Vision de {name}</div>
+<textarea value={vision||''} onChange={e=>updateVision(who,e.target.value)}
+  placeholder="Écris ici ta vision long-terme — qui tu veux être, ce que tu veux construire, où tu veux aller…"
+  rows={6}
+  style={{width:'100%',background:'transparent',border:'none',outline:'none',color:'var(--text)',fontSize:16,lineHeight:1.8,resize:'none',fontFamily:"'Playfair Display',serif",fontStyle:'italic'}}/>
+</div>
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:12}}>
+{[
+  {icon:'🎯',label:'Objectifs',value:(who==='couple'?data.couple.objectives:data[who]?.objectives||[]).length+' objectifs actifs'},
+  {icon:'✅',label:'Accompli',value:(who==='couple'?data.couple.objectives:data[who]?.objectives||[]).filter(o=>o.done).length+' objectifs terminés'},
+  {icon:'📝',label:'Notes',value:(who==='couple'?data.couple.notes:data[who]?.notes||[]).length+' notes'},
+].map(({icon,label,value})=><div key={label} style={{background:'var(--bg3)',borderRadius:'var(--radius-sm)',padding:'14px 16px',display:'flex',alignItems:'center',gap:12}}>
+  <span style={{fontSize:20}}>{icon}</span>
+  <div><div style={{fontSize:11,color:'var(--text3)'}}>{label}</div><div style={{fontSize:14,fontWeight:600}}>{value}</div></div>
+</div>)}
+</div>
+</div>;
 };
 
 const renderDashboard=()=>{
@@ -352,30 +802,41 @@ return <div>
 </div>
 <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:12,marginBottom:28}}>
 <StatCard label="Progression moyenne" value={`${avgProgress}%`} color="dja" icon="◈"/>
-<StatCard label="Objectifs termines" value={`${totalDone}/${totalObj.length}`} color="liika" icon="✓"/>
+<StatCard label="Objectifs terminés" value={`${totalDone}/${totalObj.length}`} color="liika" icon="✓"/>
 <StatCard label="Actions faites" value={`${actionsDone}/${totalActions.length}`} color="couple" icon="▸"/>
+{(()=>{const totRev=['dja','liika','couple'].reduce((s,w)=>{const b=w==='couple'?data.couple.budget:data[w].budget;return s+(b?.revenus||[]).reduce((a,r)=>a+Number(r.montant),0);},0);const totDep=['dja','liika','couple'].reduce((s,w)=>{const b=w==='couple'?data.couple.budget:data[w].budget;return s+(b?.depenses||[]).reduce((a,d)=>a+Number(d.montant),0);},0);return <StatCard label="Balance totale" value={`${(totRev-totDep)>=0?'+':''}${(totRev-totDep).toLocaleString('fr-FR')} €`} color={(totRev-totDep)>=0?'dja':'couple'} icon="💰"/>;})()}
 </div>
 
-<h3 style={{fontSize:16,fontWeight:500,marginBottom:16,color:'var(--text2)'}}>Cote a cote</h3>
+{/* Vision rapide */}
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:12,marginBottom:28}}>
+{['dja','liika','couple'].map(w=>{
+const v=w==='couple'?data.couple.vision:data[w].vision;
+const name=w==='dja'?data.dja.name:w==='liika'?data.liika.name:'Couple';
+return v?<div key={w} onClick={()=>setView('vision')} style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:16,border:`1px solid ${accentBorder[w]}`,cursor:'pointer',transition:'opacity .15s'}}>
+<div style={{fontSize:11,color:accent[w],letterSpacing:'.08em',textTransform:'uppercase',marginBottom:6}}>✦ Vision {name}</div>
+<p style={{fontSize:13,color:'var(--text2)',lineHeight:1.6,fontStyle:'italic',overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}}>{v}</p>
+</div>:null;})}
+</div>
+
+<h3 style={{fontSize:16,fontWeight:500,marginBottom:16,color:'var(--text2)'}}>Côte à côte</h3>
 <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:16,marginBottom:28}}>
 {['dja','liika'].map(who=>{
-const p=data[who];const col=who;
+const p=data[who];
 const avg=p.objectives.length?Math.round(p.objectives.reduce((s,o)=>s+o.progress,0)/p.objectives.length):0;
-const done=p.objectives.filter(o=>o.done).length;
-const accentVar=who==='dja'?'var(--accent-dja)':'var(--accent-liika)';
-return <div key={who} style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:20,border:`1px solid ${who==='dja'?'var(--accent-dja-border)':'var(--accent-liika-border)'}`}}>
+const av=accent[who];
+return <div key={who} style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:20,border:`1px solid ${accentBorder[who]}`}}>
 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
 <div>
 <div style={{fontSize:16,fontWeight:600}}>{p.name}</div>
 <div style={{fontSize:12,color:'var(--text3)'}}>{p.role}</div>
 </div>
 <div style={{position:'relative',display:'flex',alignItems:'center',justifyContent:'center'}}>
-<ProgressRing pct={avg} size={56} stroke={5} color={accentVar}/>
+<ProgressRing pct={avg} size={56} stroke={5} color={av}/>
 <span style={{position:'absolute',fontSize:13,fontWeight:600}}>{avg}%</span>
 </div>
 </div>
 {p.objectives.slice(0,3).map(o=><div key={o.id} style={{display:'flex',alignItems:'center',gap:10,marginBottom:8}}>
-<div style={{width:6,height:6,borderRadius:3,background:o.done?'var(--success)':accentVar,minWidth:6}}/>
+<div style={{width:6,height:6,borderRadius:3,background:o.done?'var(--success)':av,minWidth:6}}/>
 <span style={{fontSize:13,color:o.done?'var(--text3)':'var(--text)',flex:1,textDecoration:o.done?'line-through':'none'}}>{o.title}</span>
 <span style={{fontSize:11,color:'var(--text3)'}}>{o.progress}%</span>
 </div>)}
@@ -393,6 +854,39 @@ return <div key={who} style={{background:'var(--bg2)',borderRadius:'var(--radius
 </div>)}
 <button onClick={()=>setView('couple')} style={{marginTop:12,width:'100%',padding:'8px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'transparent',color:'var(--text2)',cursor:'pointer',fontSize:13}}>Voir tout →</button>
 </div>
+
+{/* Budget résumé */}
+<h3 style={{fontSize:16,fontWeight:500,marginBottom:16,color:'var(--text2)'}}>Budget mensuel</h3>
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:12,marginBottom:28}}>
+{['dja','liika','couple'].map(w=>{
+const b=w==='couple'?data.couple.budget:data[w].budget;
+const rev=(b?.revenus||[]).reduce((s,r)=>s+Number(r.montant),0);
+const dep=(b?.depenses||[]).reduce((s,d)=>s+Number(d.montant),0);
+const bal=rev-dep;
+const name=w==='dja'?data.dja.name:w==='liika'?data.liika.name:'Couple';
+return <div key={w} onClick={()=>{setActiveProfile(w);setView('budget');}} style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:16,border:`1px solid ${accentBorder[w]}`,cursor:'pointer'}}>
+<div style={{fontSize:13,fontWeight:600,marginBottom:10}}>{name}</div>
+<div style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:4}}>
+  <span style={{color:'var(--text3)'}}>Revenus</span><span style={{color:'var(--success)'}}>+{rev.toLocaleString('fr-FR')} €</span>
+</div>
+<div style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:8}}>
+  <span style={{color:'var(--text3)'}}>Dépenses</span><span style={{color:'#f87171'}}>-{dep.toLocaleString('fr-FR')} €</span>
+</div>
+<div style={{height:2,background:'var(--border)',borderRadius:1,marginBottom:8}}>
+  <div style={{height:2,width:`${rev?Math.min(dep/rev*100,100):0}%`,background:bal>=0?'var(--success)':'#f87171',borderRadius:1,transition:'width .4s'}}/>
+</div>
+<div style={{fontSize:14,fontWeight:700,color:bal>=0?accent[w]:'#f87171',textAlign:'right'}}>{bal>=0?'+':''}{bal.toLocaleString('fr-FR')} €</div>
+</div>;})}
+</div>
+
+{/* Dernières notes */}
+{(()=>{const recent=[...['dja','liika','couple'].flatMap(w=>(w==='couple'?data.couple.notes:data[w].notes||[]).slice(0,1).map(n=>({...n,who:w})))].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,3);return recent.length?<><h3 style={{fontSize:16,fontWeight:500,marginBottom:12,color:'var(--text2)'}}>Notes récentes</h3>
+<div style={{display:'grid',gap:8,marginBottom:28}}>
+{recent.map(n=><div key={n.id} style={{background:'var(--bg2)',borderRadius:'var(--radius-sm)',padding:'10px 14px',border:`1px solid ${accentBorder[n.who]}`,display:'flex',gap:12,alignItems:'flex-start'}}>
+<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:accentBg[n.who],color:accent[n.who],fontWeight:500,whiteSpace:'nowrap',marginTop:2}}>{n.who==='couple'?'Couple':n.who==='dja'?data.dja.name:data.liika.name}</span>
+<p style={{fontSize:13,color:'var(--text)',flex:1,lineHeight:1.5,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{n.text}</p>
+</div>)}
+</div></>:null;})()}
 </div>
 };
 
@@ -426,7 +920,7 @@ return <div style={{display:'flex',minHeight:'100vh'}}>
 <nav style={{width:220,minWidth:220,background:'var(--bg2)',borderRight:'1px solid var(--border)',padding:'24px 0',display:'flex',flexDirection:'column',position:'sticky',top:0,height:'100vh'}}>
 <div style={{padding:'0 20px',marginBottom:32}}>
 <div style={{fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:600,letterSpacing:'-0.02em'}}>
-<span style={{color:'var(--accent-dja)'}}>Lanmou</span> <span style={{color:'var(--accent-liika)'}}>Divan</span>
+<span style={{color:'var(--accent-dja)'}}>Lanmou</span> <span style={{color:'var(--accent-liika)'}}>Douvan</span>
 </div>
 <div style={{fontSize:11,color:'var(--text3)',marginTop:4,letterSpacing:'.05em',textTransform:'uppercase'}}>Mix Vibz</div>
 </div>
@@ -436,9 +930,17 @@ style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 20p
 <span style={{fontSize:16,width:20,textAlign:'center'}}>{n.icon}</span>{n.label}
 </button>)}
 </div>
-<div style={{padding:'0 20px'}}>
-<button onClick={()=>{if(confirm('Reinitialiser toutes les donnees ?')){localStorage.removeItem('dja-liika-goals');setData(defaultData)}}}
-style={{width:'100%',padding:'8px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'transparent',color:'var(--text3)',cursor:'pointer',fontSize:12}}>Reinitialiser</button>
+<div style={{padding:'0 20px',display:'flex',flexDirection:'column',gap:8}}>
+{/* Supabase sync status */}
+<div style={{display:'flex',alignItems:'center',gap:6,padding:'7px 10px',borderRadius:'var(--radius-sm)',border:'1px solid var(--accent-dja-border)',background:'var(--accent-dja-bg)'}}>
+<span style={{fontSize:13}}>🗄</span>
+<span style={{fontSize:12,color:'var(--accent-dja2)',flex:1}}>Supabase</span>
+<span style={{fontSize:10,fontWeight:500,color:syncStatus==='ok'?'var(--success)':syncStatus==='error'?'#f87171':syncStatus==='syncing'?'var(--accent-couple)':'var(--text3)'}}>
+{syncStatus==='ok'?'✓ sync':syncStatus==='error'?'✗ erreur':syncStatus==='syncing'?'sync…':'prêt'}
+</span>
+</div>
+<button onClick={()=>{if(confirm('Réinitialiser toutes les données ?')){localStorage.removeItem('dja-liika-goals');setData(defaultData)}}}
+style={{width:'100%',padding:'8px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'transparent',color:'var(--text3)',cursor:'pointer',fontSize:12}}>Réinitialiser</button>
 </div>
 </nav>
 
@@ -458,6 +960,9 @@ style={{display:'flex',flexDirection:'column',alignItems:'center',gap:2,border:'
 {view==='dja'&&renderPerson('dja')}
 {view==='liika'&&renderPerson('liika')}
 {view==='couple'&&renderCouple()}
+{view==='repas'&&renderRepas()}
+{view==='budget'&&renderBudget()}
+{view==='vision'&&renderVision()}
 {view==='charts'&&renderCharts()}
 </main>
 
@@ -467,13 +972,6 @@ style={{display:'flex',flexDirection:'column',alignItems:'center',gap:2,border:'
     else addAction(modal.who,t,d,c);
   }}/>
 
-<style>{`
-@media(max-width:768px){
-nav{display:none!important}
-.mobile-nav{display:block!important}
-main{padding:20px 16px 80px!important}
-}
-`}</style>
 </div>
 }
 
