@@ -71,7 +71,27 @@ dja:{
     {id:"da5",text:"Prototyper l'interface principale",cat:"Carriere",done:false},
     {id:"da6",text:"Tester 3 recettes vegetales guadeloupeennes",cat:"Sante",done:false},
   ],
-  notes:[]
+  notes:[],
+  meals:[
+    {id:'dm1',jour:'Lundi',type:'Matin',plat:'Smoothie banane mangue',note:''},
+    {id:'dm2',jour:'Lundi',type:'Midi',plat:'Riz complet haricots rouges',note:''},
+    {id:'dm3',jour:'Lundi',type:'Soir',plat:'Soupe lentilles corail',note:''},
+    {id:'dm4',jour:'Mardi',type:'Midi',plat:'Salade quinoa légumes rôtis',note:''},
+    {id:'dm5',jour:'Mercredi',type:'Midi',plat:'Curry pois chiches',note:''},
+  ],
+  budget:{
+    revenus:[
+      {id:'dr1',label:'Freelance DA',montant:2500},
+      {id:'dr2',label:'SaaS / apps',montant:200}
+    ],
+    depenses:[
+      {id:'dd1',label:'Loyer',montant:800,cat:'Logement'},
+      {id:'dd2',label:'Alimentation',montant:350,cat:'Vie'},
+      {id:'dd3',label:'Abonnements tech',montant:80,cat:'Tech'},
+      {id:'dd4',label:'Transport',montant:120,cat:'Transport'}
+    ]
+  },
+  vision:"Créer un écosystème d'apps caribéennes pour les créatifs TDAH. Identité visuelle antillaise forte dans la tech. Indépendance financière via le SaaS d'ici 2028. Vivre et créer depuis la Guadeloupe."
 },
 liika:{
   name:"Liika",
@@ -94,7 +114,26 @@ liika:{
     {id:"la5",text:"Planifier un week-end deconnexion avec Dja",cat:"Perso",done:false},
     {id:"la6",text:"Se renseigner sur les formations capacitaire",cat:"Carriere",done:false},
   ],
-  notes:[]
+  notes:[],
+  meals:[
+    {id:'lm1',jour:'Lundi',type:'Matin',plat:'Café thermos + pain de mie',note:'Route tôt'},
+    {id:'lm2',jour:'Lundi',type:'Midi',plat:'Tupperware riz poulet légumes',note:'Préparé la veille'},
+    {id:'lm3',jour:'Mardi',type:'Midi',plat:'Salade composée / wrap',note:'Repos aire autoroute'},
+    {id:'lm4',jour:'Mercredi',type:'Matin',plat:'Yaourt fruits secs noix',note:''},
+    {id:'lm5',jour:'Vendredi',type:'Soir',plat:'Repas maison avec Dja',note:'Rentré(e)'},
+  ],
+  budget:{
+    revenus:[
+      {id:'lr1',label:'Transport PL',montant:3200}
+    ],
+    depenses:[
+      {id:'ld1',label:'Charges véhicule',montant:900,cat:'Pro'},
+      {id:'ld2',label:'Carburant',montant:400,cat:'Transport'},
+      {id:'ld3',label:'Alimentation route',montant:250,cat:'Vie'},
+      {id:'ld4',label:'Assurances',montant:180,cat:'Pro'}
+    ]
+  },
+  vision:"Devenir cheffe de flotte d'ici 2027 avec un second camion. Choisir mes tournées, rentrer chez moi le week-end. Construire un chez-nous solide avec Dja. Santé, équilibre et liberté sur la route."
 },
 couple:{
   objectives:[
@@ -107,7 +146,24 @@ couple:{
     {id:"ca2",text:"Ouvrir un compte commun projets",cat:"Couple",done:false},
     {id:"ca3",text:"Choisir une destination vacances 2027",cat:"Couple",done:false},
   ],
-  notes:[]
+  notes:[],
+  meals:[
+    {id:'cm1',jour:'Samedi',type:'Midi',plat:'Brunch maison ensemble',note:'Rituel hebdo'},
+    {id:'cm2',jour:'Samedi',type:'Soir',plat:'Barbecue / plats antillais',note:''},
+    {id:'cm3',jour:'Dimanche',type:'Midi',plat:'Repas en famille ou sortie',note:''},
+  ],
+  budget:{
+    revenus:[
+      {id:'cr1',label:'Contribution Dja',montant:800},
+      {id:'cr2',label:'Contribution Liika',montant:800}
+    ],
+    depenses:[
+      {id:'cd1',label:'Fond vacances 2027',montant:500,cat:'Projets'},
+      {id:'cd2',label:'Épargne logement',montant:600,cat:'Épargne'},
+      {id:'cd3',label:'Loisirs couple',montant:200,cat:'Vie'}
+    ]
+  },
+  vision:"Un foyer à nous, un voyage par an, des projets créatifs communs. Construire ensemble une vie entre la Guadeloupe et la route — Lanmou Douvan pour toujours."
 }
 };
 
@@ -384,6 +440,49 @@ else next[who].notes=(next[who].notes||[]).filter(n=>n.id!==id);
 return next;
 });
 },[]);
+const upsertMeal=useCallback((who,meal)=>{
+setData(prev=>{
+const next=clone(prev);
+const src=next[who]?.meals||next.couple?.meals||[];
+const idx=src.findIndex(m=>m.id===meal.id);
+if(idx>=0)src[idx]=meal; else src.push(meal);
+return next;
+});
+},[]);
+const deleteMeal=useCallback((who,id)=>{
+setData(prev=>{
+const next=clone(prev);
+if(who==='couple')next.couple.meals=(next.couple.meals||[]).filter(m=>m.id!==id);
+else next[who].meals=(next[who].meals||[]).filter(m=>m.id!==id);
+return next;
+});
+},[]);
+const upsertBudgetLine=useCallback((who,type,line)=>{
+setData(prev=>{
+const next=clone(prev);
+const src=who==='couple'?next.couple.budget:next[who].budget;
+const arr=src[type];
+const idx=arr.findIndex(l=>l.id===line.id);
+if(idx>=0)arr[idx]=line; else arr.push(line);
+return next;
+});
+},[]);
+const deleteBudgetLine=useCallback((who,type,id)=>{
+setData(prev=>{
+const next=clone(prev);
+const src=who==='couple'?next.couple.budget:next[who].budget;
+src[type]=src[type].filter(l=>l.id!==id);
+return next;
+});
+},[]);
+const updateVision=useCallback((who,text)=>{
+setData(prev=>{
+const next=clone(prev);
+if(who==='couple')next.couple.vision=text;
+else next[who].vision=text;
+return next;
+});
+},[]);
 
 const {totalObj,totalDone,avgProgress,totalActions,actionsDone}=useMemo(()=>{
 const totalObj=[...data.dja.objectives,...data.liika.objectives,...data.couple.objectives];
@@ -399,6 +498,9 @@ const navItems=[
 {id:'dja',label:'Dja',icon:'◆'},
 {id:'liika',label:'Liika',icon:'◇'},
 {id:'couple',label:'Couple',icon:'♡'},
+{id:'repas',label:'Repas',icon:'🍽'},
+{id:'budget',label:'Budget',icon:'💰'},
+{id:'vision',label:'Vision',icon:'✦'},
 {id:'charts',label:'Stats',icon:'▤'},
 ];
 
@@ -456,6 +558,197 @@ return <div>
 </div>
 };
 
+const JOURS=['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
+const TYPES=['Matin','Midi','Soir'];
+
+const renderRepas=()=>{
+const [who,setWho]=useState('dja');
+const [editId,setEditId]=useState(null);
+const [editVal,setEditVal]=useState('');
+const meals=who==='couple'?data.couple.meals:data[who].meals;
+const av=accent[who]||accent.dja;
+const getMeal=(jour,type)=>meals.find(m=>m.jour===jour&&m.type===type);
+return <div>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24,flexWrap:'wrap',gap:12}}>
+<div>
+<h2 style={{fontSize:22,fontWeight:600,fontFamily:"'Playfair Display',serif",marginBottom:4}}>Plans de repas</h2>
+<p style={{fontSize:14,color:'var(--text3)'}}>Organisation alimentaire de la semaine</p>
+</div>
+<div style={{display:'flex',gap:6}}>
+{['dja','liika','couple'].map(w=><button key={w} onClick={()=>setWho(w)}
+  style={{padding:'6px 14px',borderRadius:20,border:who===w?`2px solid ${accent[w]}`:'1px solid var(--border2)',background:who===w?accentBg[w]:'transparent',color:who===w?accent[w]:'var(--text3)',fontSize:13,cursor:'pointer'}}>
+  {w==='dja'?'Dja':w==='liika'?'Liika':'Couple'}
+</button>)}
+</div>
+</div>
+<div style={{overflowX:'auto'}}>
+<table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+<thead>
+<tr>
+<th style={{padding:'8px 12px',textAlign:'left',color:'var(--text3)',fontWeight:500,borderBottom:'1px solid var(--border)'}}>Jour</th>
+{TYPES.map(t=><th key={t} style={{padding:'8px 12px',textAlign:'left',color:'var(--text3)',fontWeight:500,borderBottom:'1px solid var(--border)'}}>{t}</th>)}
+</tr>
+</thead>
+<tbody>
+{JOURS.map(jour=><tr key={jour} style={{borderBottom:'1px solid var(--border)'}}>
+<td style={{padding:'10px 12px',fontWeight:500,color:av,whiteSpace:'nowrap'}}>{jour}</td>
+{TYPES.map(type=>{
+  const meal=getMeal(jour,type);
+  const cellId=(meal?.id)||`${jour}-${type}`;
+  return <td key={type} style={{padding:'6px 8px',minWidth:160}}>
+  {editId===cellId
+    ?<div style={{display:'flex',gap:6}}>
+      <input autoFocus value={editVal} onChange={e=>setEditVal(e.target.value)}
+        onKeyDown={e=>{
+          if(e.key==='Enter'){
+            if(editVal.trim()){upsertMeal(who,{id:meal?.id||Date.now().toString(),jour,type,plat:editVal.trim(),note:meal?.note||''});}
+            else if(meal){deleteMeal(who,meal.id);}
+            setEditId(null);
+          }
+          if(e.key==='Escape')setEditId(null);
+        }}
+        style={{flex:1,background:'var(--bg4)',border:`1px solid ${av}`,borderRadius:'var(--radius-xs)',padding:'4px 8px',color:'var(--text)',fontSize:12,outline:'none'}}/>
+      <button onClick={()=>{
+        if(editVal.trim()){upsertMeal(who,{id:meal?.id||Date.now().toString(),jour,type,plat:editVal.trim(),note:meal?.note||''});}
+        else if(meal){deleteMeal(who,meal.id);}
+        setEditId(null);
+      }} style={{padding:'4px 8px',borderRadius:'var(--radius-xs)',border:'none',background:av,color:'#fff',cursor:'pointer',fontSize:11}}>✓</button>
+    </div>
+    :<div onClick={()=>{setEditId(cellId);setEditVal(meal?.plat||'');}}
+      style={{padding:'6px 8px',borderRadius:'var(--radius-xs)',background:meal?'var(--bg3)':'transparent',border:`1px dashed ${meal?'transparent':'var(--border2)'}`,cursor:'text',color:meal?'var(--text)':'var(--text3)',minHeight:32,display:'flex',alignItems:'center'}}>
+      {meal?meal.plat:<span style={{fontSize:11}}>+ Ajouter</span>}
+    </div>}
+  </td>;
+})}
+</tr>)}
+</tbody>
+</table>
+</div>
+<p style={{fontSize:11,color:'var(--text3)',marginTop:12}}>Cliquer sur une cellule pour modifier — Entrée pour valider, Échap pour annuler</p>
+</div>;
+};
+
+const renderBudget=()=>{
+const [who,setWho]=useState('dja');
+const [editLine,setEditLine]=useState(null); // {type,id}
+const [form,setForm]=useState({label:'',montant:'',cat:''});
+const budget=who==='couple'?data.couple.budget:data[who].budget;
+const revenus=budget?.revenus||[];
+const depenses=budget?.depenses||[];
+const totalRev=revenus.reduce((s,r)=>s+Number(r.montant),0);
+const totalDep=depenses.reduce((s,d)=>s+Number(d.montant),0);
+const balance=totalRev-totalDep;
+const av=accent[who]||accent.dja;
+const cats=['Logement','Vie','Transport','Tech','Pro','Projets','Épargne','Autre'];
+const LineRow=({line,type})=>(
+<div style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',borderBottom:'1px solid var(--border)'}}>
+<div style={{flex:1}}>
+  <div style={{fontSize:13,color:'var(--text)'}}>{line.label}</div>
+  {line.cat&&<div style={{fontSize:11,color:'var(--text3)'}}>{line.cat}</div>}
+</div>
+<div style={{fontSize:14,fontWeight:600,color:type==='revenus'?'var(--success)':'var(--text)',minWidth:80,textAlign:'right'}}>{type==='revenus'?'+':'-'}{Number(line.montant).toLocaleString('fr-FR')} €</div>
+<button onClick={()=>{setEditLine({type,id:line.id});setForm({label:line.label,montant:String(line.montant),cat:line.cat||'Autre'});}}
+  style={{background:'none',border:'none',color:'var(--text3)',cursor:'pointer',fontSize:12,padding:'2px 6px'}}>✎</button>
+<button onClick={()=>deleteBudgetLine(who,type,line.id)}
+  style={{background:'none',border:'none',color:'var(--text3)',cursor:'pointer',fontSize:14,padding:'2px 4px'}}>×</button>
+</div>);
+const AddForm=({type})=>{
+const [open,setOpen]=useState(false);
+const [f,setF]=useState({label:'',montant:'',cat:'Autre'});
+if(!open)return <button onClick={()=>setOpen(true)} style={{marginTop:8,padding:'6px 12px',borderRadius:'var(--radius-xs)',border:`1px dashed ${av}`,background:'transparent',color:av,cursor:'pointer',fontSize:12,width:'100%'}}>+ Ajouter</button>;
+return <div style={{marginTop:8,display:'flex',gap:6,flexWrap:'wrap'}}>
+<input placeholder="Libellé" value={f.label} onChange={e=>setF(p=>({...p,label:e.target.value}))}
+  style={{flex:2,minWidth:100,padding:'6px 8px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:12,outline:'none'}}/>
+<input type="number" placeholder="Montant" value={f.montant} onChange={e=>setF(p=>({...p,montant:e.target.value}))}
+  style={{width:90,padding:'6px 8px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:12,outline:'none'}}/>
+{type==='depenses'&&<select value={f.cat} onChange={e=>setF(p=>({...p,cat:e.target.value}))}
+  style={{padding:'6px 8px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:12,outline:'none'}}>
+  {cats.map(c=><option key={c}>{c}</option>)}
+</select>}
+<button onClick={()=>{if(f.label&&f.montant){upsertBudgetLine(who,type,{id:Date.now().toString(),label:f.label,montant:Number(f.montant),cat:f.cat});setOpen(false);setF({label:'',montant:'',cat:'Autre'});}}}
+  style={{padding:'6px 10px',borderRadius:'var(--radius-xs)',border:'none',background:av,color:'#fff',cursor:'pointer',fontSize:12}}>✓</button>
+<button onClick={()=>setOpen(false)} style={{padding:'6px 10px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'transparent',color:'var(--text3)',cursor:'pointer',fontSize:12}}>✕</button>
+</div>;};
+return <div>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24,flexWrap:'wrap',gap:12}}>
+<div>
+<h2 style={{fontSize:22,fontWeight:600,fontFamily:"'Playfair Display',serif",marginBottom:4}}>Budget</h2>
+<p style={{fontSize:14,color:'var(--text3)'}}>Revenus, dépenses et balance mensuelle</p>
+</div>
+<div style={{display:'flex',gap:6}}>
+{['dja','liika','couple'].map(w=><button key={w} onClick={()=>setWho(w)}
+  style={{padding:'6px 14px',borderRadius:20,border:who===w?`2px solid ${accent[w]}`:'1px solid var(--border2)',background:who===w?accentBg[w]:'transparent',color:who===w?accent[w]:'var(--text3)',fontSize:13,cursor:'pointer'}}>
+  {w==='dja'?'Dja':w==='liika'?'Liika':'Couple'}
+</button>)}
+</div>
+</div>
+<div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:24}}>
+<div style={{background:'var(--bg3)',borderRadius:'var(--radius)',padding:16,textAlign:'center'}}>
+  <div style={{fontSize:12,color:'var(--text3)',marginBottom:4}}>Revenus</div>
+  <div style={{fontSize:22,fontWeight:700,color:'var(--success)'}}>+{totalRev.toLocaleString('fr-FR')} €</div>
+</div>
+<div style={{background:'var(--bg3)',borderRadius:'var(--radius)',padding:16,textAlign:'center'}}>
+  <div style={{fontSize:12,color:'var(--text3)',marginBottom:4}}>Dépenses</div>
+  <div style={{fontSize:22,fontWeight:700,color:'#f87171'}}>-{totalDep.toLocaleString('fr-FR')} €</div>
+</div>
+<div style={{background:'var(--bg3)',borderRadius:'var(--radius)',padding:16,textAlign:'center',border:`1px solid ${balance>=0?'var(--accent-dja-border)':'rgba(248,113,113,.25)'}`}}>
+  <div style={{fontSize:12,color:'var(--text3)',marginBottom:4}}>Balance</div>
+  <div style={{fontSize:22,fontWeight:700,color:balance>=0?av:'#f87171'}}>{balance>=0?'+':''}{balance.toLocaleString('fr-FR')} €</div>
+</div>
+</div>
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:20}}>
+<div style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:20,border:'1px solid var(--border)'}}>
+  <h3 style={{fontSize:15,fontWeight:500,marginBottom:12,color:'var(--success)'}}>Revenus</h3>
+  {revenus.map(r=><LineRow key={r.id} line={r} type="revenus"/>)}
+  <AddForm type="revenus"/>
+</div>
+<div style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:20,border:'1px solid var(--border)'}}>
+  <h3 style={{fontSize:15,fontWeight:500,marginBottom:12,color:'#f87171'}}>Dépenses</h3>
+  {depenses.map(d=><LineRow key={d.id} line={d} type="depenses"/>)}
+  <AddForm type="depenses"/>
+</div>
+</div>
+</div>;
+};
+
+const renderVision=()=>{
+const [who,setWho]=useState('dja');
+const vision=who==='couple'?data.couple.vision:data[who].vision;
+const name=who==='dja'?data.dja.name:who==='liika'?data.liika.name:'Dja & Liika';
+const av=accent[who]||accent.dja;
+return <div>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24,flexWrap:'wrap',gap:12}}>
+<div>
+<h2 style={{fontSize:22,fontWeight:600,fontFamily:"'Playfair Display',serif",marginBottom:4}}>Vision</h2>
+<p style={{fontSize:14,color:'var(--text3)'}}>Vision long-terme — qui tu veux devenir</p>
+</div>
+<div style={{display:'flex',gap:6}}>
+{['dja','liika','couple'].map(w=><button key={w} onClick={()=>setWho(w)}
+  style={{padding:'6px 14px',borderRadius:20,border:who===w?`2px solid ${accent[w]}`:'1px solid var(--border2)',background:who===w?accentBg[w]:'transparent',color:who===w?accent[w]:'var(--text3)',fontSize:13,cursor:'pointer'}}>
+  {w==='dja'?'Dja':w==='liika'?'Liika':'Couple'}
+</button>)}
+</div>
+</div>
+<div style={{background:`linear-gradient(135deg,${accentBg[who]},var(--bg2))`,borderRadius:'var(--radius)',padding:28,border:`1px solid ${accentBorder[who]}`,marginBottom:20}}>
+<div style={{fontSize:11,color:av,letterSpacing:'.1em',textTransform:'uppercase',marginBottom:12}}>Vision de {name}</div>
+<textarea value={vision||''} onChange={e=>updateVision(who,e.target.value)}
+  placeholder="Écris ici ta vision long-terme — qui tu veux être, ce que tu veux construire, où tu veux aller…"
+  rows={6}
+  style={{width:'100%',background:'transparent',border:'none',outline:'none',color:'var(--text)',fontSize:16,lineHeight:1.8,resize:'none',fontFamily:"'Playfair Display',serif",fontStyle:'italic'}}/>
+</div>
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:12}}>
+{[
+  {icon:'🎯',label:'Objectifs',value:(who==='couple'?data.couple.objectives:data[who]?.objectives||[]).length+' objectifs actifs'},
+  {icon:'✅',label:'Accompli',value:(who==='couple'?data.couple.objectives:data[who]?.objectives||[]).filter(o=>o.done).length+' objectifs terminés'},
+  {icon:'📝',label:'Notes',value:(who==='couple'?data.couple.notes:data[who]?.notes||[]).length+' notes'},
+].map(({icon,label,value})=><div key={label} style={{background:'var(--bg3)',borderRadius:'var(--radius-sm)',padding:'14px 16px',display:'flex',alignItems:'center',gap:12}}>
+  <span style={{fontSize:20}}>{icon}</span>
+  <div><div style={{fontSize:11,color:'var(--text3)'}}>{label}</div><div style={{fontSize:14,fontWeight:600}}>{value}</div></div>
+</div>)}
+</div>
+</div>;
+};
+
 const renderDashboard=()=>{
 return <div>
 <div style={{marginBottom:28}}>
@@ -464,11 +757,23 @@ return <div>
 </div>
 <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:12,marginBottom:28}}>
 <StatCard label="Progression moyenne" value={`${avgProgress}%`} color="dja" icon="◈"/>
-<StatCard label="Objectifs termines" value={`${totalDone}/${totalObj.length}`} color="liika" icon="✓"/>
+<StatCard label="Objectifs terminés" value={`${totalDone}/${totalObj.length}`} color="liika" icon="✓"/>
 <StatCard label="Actions faites" value={`${actionsDone}/${totalActions.length}`} color="couple" icon="▸"/>
+{(()=>{const totRev=['dja','liika','couple'].reduce((s,w)=>{const b=w==='couple'?data.couple.budget:data[w].budget;return s+(b?.revenus||[]).reduce((a,r)=>a+Number(r.montant),0);},0);const totDep=['dja','liika','couple'].reduce((s,w)=>{const b=w==='couple'?data.couple.budget:data[w].budget;return s+(b?.depenses||[]).reduce((a,d)=>a+Number(d.montant),0);},0);return <StatCard label="Balance totale" value={`${(totRev-totDep)>=0?'+':''}${(totRev-totDep).toLocaleString('fr-FR')} €`} color={(totRev-totDep)>=0?'dja':'couple'} icon="💰"/>;})()}
 </div>
 
-<h3 style={{fontSize:16,fontWeight:500,marginBottom:16,color:'var(--text2)'}}>Cote a cote</h3>
+{/* Vision rapide */}
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:12,marginBottom:28}}>
+{['dja','liika','couple'].map(w=>{
+const v=w==='couple'?data.couple.vision:data[w].vision;
+const name=w==='dja'?data.dja.name:w==='liika'?data.liika.name:'Couple';
+return v?<div key={w} onClick={()=>setView('vision')} style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:16,border:`1px solid ${accentBorder[w]}`,cursor:'pointer',transition:'opacity .15s'}}>
+<div style={{fontSize:11,color:accent[w],letterSpacing:'.08em',textTransform:'uppercase',marginBottom:6}}>✦ Vision {name}</div>
+<p style={{fontSize:13,color:'var(--text2)',lineHeight:1.6,fontStyle:'italic',overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}}>{v}</p>
+</div>:null;})}
+</div>
+
+<h3 style={{fontSize:16,fontWeight:500,marginBottom:16,color:'var(--text2)'}}>Côte à côte</h3>
 <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:16,marginBottom:28}}>
 {['dja','liika'].map(who=>{
 const p=data[who];
@@ -504,6 +809,39 @@ return <div key={who} style={{background:'var(--bg2)',borderRadius:'var(--radius
 </div>)}
 <button onClick={()=>setView('couple')} style={{marginTop:12,width:'100%',padding:'8px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'transparent',color:'var(--text2)',cursor:'pointer',fontSize:13}}>Voir tout →</button>
 </div>
+
+{/* Budget résumé */}
+<h3 style={{fontSize:16,fontWeight:500,marginBottom:16,color:'var(--text2)'}}>Budget mensuel</h3>
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:12,marginBottom:28}}>
+{['dja','liika','couple'].map(w=>{
+const b=w==='couple'?data.couple.budget:data[w].budget;
+const rev=(b?.revenus||[]).reduce((s,r)=>s+Number(r.montant),0);
+const dep=(b?.depenses||[]).reduce((s,d)=>s+Number(d.montant),0);
+const bal=rev-dep;
+const name=w==='dja'?data.dja.name:w==='liika'?data.liika.name:'Couple';
+return <div key={w} onClick={()=>setView('budget')} style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:16,border:`1px solid ${accentBorder[w]}`,cursor:'pointer'}}>
+<div style={{fontSize:13,fontWeight:600,marginBottom:10}}>{name}</div>
+<div style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:4}}>
+  <span style={{color:'var(--text3)'}}>Revenus</span><span style={{color:'var(--success)'}}>+{rev.toLocaleString('fr-FR')} €</span>
+</div>
+<div style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:8}}>
+  <span style={{color:'var(--text3)'}}>Dépenses</span><span style={{color:'#f87171'}}>-{dep.toLocaleString('fr-FR')} €</span>
+</div>
+<div style={{height:2,background:'var(--border)',borderRadius:1,marginBottom:8}}>
+  <div style={{height:2,width:`${rev?Math.min(dep/rev*100,100):0}%`,background:bal>=0?'var(--success)':'#f87171',borderRadius:1,transition:'width .4s'}}/>
+</div>
+<div style={{fontSize:14,fontWeight:700,color:bal>=0?accent[w]:'#f87171',textAlign:'right'}}>{bal>=0?'+':''}{bal.toLocaleString('fr-FR')} €</div>
+</div>;})}
+</div>
+
+{/* Dernières notes */}
+{(()=>{const recent=[...['dja','liika','couple'].flatMap(w=>(w==='couple'?data.couple.notes:data[w].notes||[]).slice(0,1).map(n=>({...n,who:w})))].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,3);return recent.length?<><h3 style={{fontSize:16,fontWeight:500,marginBottom:12,color:'var(--text2)'}}>Notes récentes</h3>
+<div style={{display:'grid',gap:8,marginBottom:28}}>
+{recent.map(n=><div key={n.id} style={{background:'var(--bg2)',borderRadius:'var(--radius-sm)',padding:'10px 14px',border:`1px solid ${accentBorder[n.who]}`,display:'flex',gap:12,alignItems:'flex-start'}}>
+<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:accentBg[n.who],color:accent[n.who],fontWeight:500,whiteSpace:'nowrap',marginTop:2}}>{n.who==='couple'?'Couple':n.who==='dja'?data.dja.name:data.liika.name}</span>
+<p style={{fontSize:13,color:'var(--text)',flex:1,lineHeight:1.5,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{n.text}</p>
+</div>)}
+</div></>:null;})()}
 </div>
 };
 
@@ -577,6 +915,9 @@ style={{display:'flex',flexDirection:'column',alignItems:'center',gap:2,border:'
 {view==='dja'&&renderPerson('dja')}
 {view==='liika'&&renderPerson('liika')}
 {view==='couple'&&renderCouple()}
+{view==='repas'&&renderRepas()}
+{view==='budget'&&renderBudget()}
+{view==='vision'&&renderVision()}
 {view==='charts'&&renderCharts()}
 </main>
 
