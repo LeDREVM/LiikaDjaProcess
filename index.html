@@ -8,7 +8,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♡</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,500;1,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,500;0,700;1,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -606,6 +606,287 @@ return <div key={jour} style={{marginBottom:16}}>
 </div>;
 }
 
+// ─── Planning View ───
+const PLAN_DAYS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+const PLAN_DAYS_FULL=['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
+const PLAN_CATEGORIES={
+sport:{label:'Sport',color:'#4ade80',icon:'💪'},
+pro:{label:'Pro',color:'#60a5fa',icon:'💼'},
+famille:{label:'Famille / Couple',color:'#f472b6',icon:'❤️'},
+nature:{label:'Nature & Sorties',color:'#facc15',icon:'🌿'},
+culture:{label:'Culture',color:'#c084fc',icon:'📚'},
+repos:{label:'Récup & Bien-être',color:'#fb923c',icon:'🌙'},
+};
+const INITIAL_PLANNING={
+0:[
+{time:'06:00',cat:'sport',title:'Running côtier',detail:'Gosier ou Sainte-Anne, 30–45 min ensemble',who:'both'},
+{time:'08:00',cat:'pro',title:'Départ Liika (PL)',detail:'Route du jour — trajets longue distance',who:'liika'},
+{time:'09:00',cat:'pro',title:'Studio / Direction artistique',detail:'Projets ingé son / vidéaste / applis',who:'dja'},
+{time:'19:00',cat:'famille',title:'Dîner végétalien',detail:'Cuisiner ensemble : recette de la semaine',who:'both'},
+{time:'21:00',cat:'culture',title:'Lecture ou film',detail:'15 min livre chacun ou épisode série',who:'both'},
+],
+1:[
+{time:'06:30',cat:'sport',title:'Yoga & Mobilité',detail:'30 min chez vous — flexibilité + récup lombaires (PL)',who:'both'},
+{time:'08:00',cat:'pro',title:'Liika en route',detail:'',who:'liika'},
+{time:'09:30',cat:'pro',title:'Bloc créatif Dja',detail:'Pomodoro x4 — développement applis / mix',who:'dja'},
+{time:'18:30',cat:'sport',title:'Musculation',detail:'Salle ou cour — haut du corps + gainage',who:'both'},
+{time:'20:30',cat:'famille',title:'Soirée plateau',detail:'Cuisine rapide, détente, échanges du jour',who:'both'},
+],
+2:[
+{time:'06:00',cat:'sport',title:'Natation / Mer',detail:'Plage Caravelle, Sainte-Anne — 45 min nage',who:'both'},
+{time:'09:00',cat:'pro',title:'Réunions / Clients Dja',detail:'Visios, briefs, coordination projets',who:'dja'},
+{time:'10:00',cat:'pro',title:'Admin Liika',detail:'Papiers transport, suivi camion, planning livraisons',who:'liika'},
+{time:'17:00',cat:'nature',title:'Rivière ou mangrove',detail:'Bras-David, Dolé-les-Bains, ou Allée Dumanoir',who:'both'},
+{time:'20:00',cat:'famille',title:'Dîner romantique maison',detail:'Recette végétalienne élaborée + bons ingrédients locaux',who:'both'},
+],
+3:[
+{time:'06:30',cat:'sport',title:'Cardio HIIT',detail:'20 min — cour ou bord de mer',who:'both'},
+{time:'08:00',cat:'pro',title:'Liika départ',detail:'',who:'liika'},
+{time:'09:00',cat:'pro',title:'Dev & création Dja',detail:'Focus profond — nouvelles features applis',who:'dja'},
+{time:'19:00',cat:'culture',title:'Club lecture / film',detail:'30 min lecture + discussion, ou film choisi ensemble',who:'both'},
+{time:'20:30',cat:'famille',title:'Planification semaine+1',detail:'Sorties, courses, objectifs couple',who:'both'},
+],
+4:[
+{time:'06:00',cat:'sport',title:'Randonnée légère',detail:'La Soufrière, Chutes du Carbet, ou Forêt de Sofaïa',who:'both'},
+{time:'10:00',cat:'pro',title:'Wrap-up semaine Dja',detail:'Bilan projets, mise à jour portfolio / GitHub',who:'dja'},
+{time:'10:00',cat:'pro',title:'Bilan Liika',detail:'Km, dépenses, incidents, planning flotte',who:'liika'},
+{time:'18:00',cat:'nature',title:'Coucher de soleil',detail:'Point des Châteaux, Vieux-Fort ou Deshaies',who:'both'},
+{time:'20:00',cat:'famille',title:'Soirée amis',detail:'Inviter des proches ou sortie bar / restaurant vegan-friendly',who:'both'},
+],
+5:[
+{time:'07:00',cat:'sport',title:'Sport intensif',detail:'Vélo côtier, kayak, ou escalade Basse-Terre',who:'both'},
+{time:'10:30',cat:'nature',title:'Plage journée',detail:'Plage de la Perle, Anse-Bertrand ou Petit-Havre',who:'both'},
+{time:'14:00',cat:'culture',title:'Marché / Exposition',detail:'Marché de Saint-François, galerie, brocante ou festival',who:'both'},
+{time:'19:00',cat:'famille',title:'BBQ végétalien',detail:'Légumes grillés, tofu fumé, brochettes banane-plantain',who:'both'},
+{time:'21:30',cat:'culture',title:'Film ou concert',detail:'Cinéma, concert local, ou soirée ciné maison',who:'both'},
+],
+6:[
+{time:'08:00',cat:'repos',title:'Grasse matinée',detail:'Réveil sans alarme, petit-déjeuner élaboré',who:'both'},
+{time:'10:00',cat:'sport',title:'Yoga doux ensemble',detail:'45 min — stretching, respiration, connexion',who:'both'},
+{time:'12:00',cat:'famille',title:'Grand repas végétalien',detail:'Recette nouvelle, préparation partagée, musique',who:'both'},
+{time:'15:00',cat:'nature',title:'Balade nature libre',detail:'Jardins botaniques, réserve Cousteau, ou cascade',who:'both'},
+{time:'18:00',cat:'repos',title:'Bain, soin, détente',detail:'Massage maison, huiles essentielles, bain au sel marin',who:'both'},
+{time:'20:00',cat:'famille',title:'Intention semaine',detail:'Écrire chacun ses 3 intentions pour la semaine à venir',who:'both'},
+],
+};
+const PLAN_WHO={
+both:{label:'Tous les deux',color:'#f472b6'},
+dja:{label:'Dja',color:'#60a5fa'},
+liika:{label:'Liika',color:'#4ade80'},
+};
+const OUTINGS=[
+{icon:'🏖️',title:'Plages',places:['Caravelle (Sainte-Anne)','Plage de la Perle (Deshaies)','Petit-Havre (Le Gosier)','Anse-Bertrand','Malendure (Bouillante)']},
+{icon:'🌊',title:'Rivières & Cascades',places:['Bras-David','Chutes du Carbet','Dolé-les-Bains','Saut de la Lézarde','Cascade aux Écrevisses']},
+{icon:'🏔️',title:'Randonnées',places:['La Soufrière (sommet)','Forêt de Sofaïa','Trace des Crêtes','Morne à Louis','Allée Dumanoir']},
+{icon:'🌅',title:'Couchers de soleil',places:['Point des Châteaux','Vieux-Fort','Désirade (vue)','Pointe Noire','Anse à la Barque']},
+{icon:'🎭',title:'Sorties culturelles',places:['Marché de Saint-François','Mémorial ACTe (Pointe-à-Pitre)','Festival Gwoka','Concerts locaux','Galeries Basse-Terre']},
+];
+const BOOKS=[
+{title:'La Nourriture végétaliste créole',author:'Collectif antillais',cat:'cuisine'},
+{title:'Atomic Habits',author:'James Clear',cat:'développement'},
+{title:'Moi, Tituba…',author:'Maryse Condé',cat:'littérature'},
+{title:"The Artist's Way",author:'Julia Cameron',cat:'créativité'},
+{title:'Daring Greatly',author:'Brené Brown',cat:'couple & croissance'},
+];
+const FILMS=[
+{title:'Kirikou et la Sorcière',genre:'Animation africaine — magie & origines'},
+{title:'The Big Sick',genre:'Romance — couple & différences culturelles'},
+{title:'Seaspiracy',genre:'Documentaire — océan & écologie'},
+{title:'Klaus',genre:'Animation — générosité & lien humain'},
+{title:'Okja',genre:'Drame végane — sensibilisation animale'},
+{title:'Marriage Story',genre:'Drame — communication & amour profond'},
+];
+
+function PlanningView(){
+const [activeDay,setActiveDay]=useState(0);
+const [activeTab,setActiveTab]=useState('planning');
+const [checked,setChecked]=useState({});
+const toggleCheck=useCallback((key)=>setChecked(p=>({...p,[key]:!p[key]})),[]);
+const dayItems=INITIAL_PLANNING[activeDay]||[];
+
+return <div style={{
+fontFamily:"'Playfair Display','Georgia',serif",
+color:'#e8f5e0',
+overflowX:'hidden',
+}}>
+<style>{`
+.plan-tab-btn{transition:all .25s ease;cursor:pointer;border:none;}
+.plan-tab-btn:hover{transform:translateY(-2px);}
+.plan-day-btn{transition:all .2s ease;cursor:pointer;}
+.plan-day-btn:hover{transform:scale(1.05);}
+.plan-item-card{transition:all .2s ease;cursor:pointer;}
+.plan-item-card:hover{transform:translateX(4px);}
+.plan-outing-card{transition:all .25s ease;cursor:pointer;}
+.plan-outing-card:hover{transform:translateY(-3px);}
+@keyframes planFadeIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+.plan-fade{animation:planFadeIn .4s ease forwards;}
+@keyframes planPulse{0%,100%{opacity:1;}50%{opacity:.6;}}
+.plan-heartbeat{animation:planPulse 2s infinite;}
+`}</style>
+
+{/* Header */}
+<div style={{padding:'24px 20px 16px',borderBottom:'1px solid #1e3a2a',background:'linear-gradient(180deg,#0a150e 0%,transparent 100%)',position:'relative',overflow:'hidden',borderRadius:'var(--radius) var(--radius) 0 0',marginBottom:0}}>
+<div style={{position:'absolute',top:-40,right:-30,width:180,height:180,background:'radial-gradient(circle,rgba(74,222,128,.08) 0%,transparent 70%)',borderRadius:'50%'}}/>
+<div style={{display:'flex',alignItems:'flex-end',gap:10,marginBottom:4}}>
+<span style={{fontSize:24}} className="plan-heartbeat">❤️</span>
+<div>
+<div style={{fontFamily:"'Space Mono',monospace",fontSize:9,color:'#4ade80',letterSpacing:4,textTransform:'uppercase',marginBottom:2}}>Lanmou Douvan</div>
+<h1 style={{margin:0,fontSize:22,fontWeight:700,color:'#f0faf0',lineHeight:1}}>Liika & Dja</h1>
+</div>
+</div>
+<p style={{margin:'6px 0 0',fontSize:12,color:'#6b9e7a',fontStyle:'italic'}}>Planning vie de couple • Guadeloupe 🌴</p>
+
+<div style={{display:'flex',gap:8,marginTop:16,overflowX:'auto',paddingBottom:4}}>
+{[{id:'planning',label:'📅 Semaine'},{id:'sorties',label:'🌿 Sorties GWA'},{id:'culture',label:'📚 Culture'}].map(t=>(
+<button key={t.id} className="plan-tab-btn" onClick={()=>setActiveTab(t.id)} style={{
+padding:'7px 14px',borderRadius:20,fontSize:11,
+fontFamily:"'Space Mono',monospace",whiteSpace:'nowrap',
+background:activeTab===t.id?'#4ade80':'rgba(255,255,255,.05)',
+color:activeTab===t.id?'#0a0f0d':'#8bb89a',
+fontWeight:activeTab===t.id?700:400,
+border:activeTab===t.id?'none':'1px solid #1e3a2a',
+}}>{t.label}</button>
+))}
+</div>
+</div>
+
+{/* PLANNING TAB */}
+{activeTab==='planning'&&<div className="plan-fade">
+<div style={{padding:'14px 16px 8px',display:'flex',gap:6,overflowX:'auto'}}>
+{PLAN_DAYS.map((d,i)=>(
+<button key={i} className="plan-day-btn" onClick={()=>setActiveDay(i)} style={{
+minWidth:44,padding:'9px 5px',borderRadius:10,border:'none',
+background:activeDay===i?'linear-gradient(135deg,#4ade80,#22c55e)':'rgba(255,255,255,.04)',
+color:activeDay===i?'#0a0f0d':'#6b9e7a',
+fontFamily:"'Space Mono',monospace",fontSize:10,fontWeight:700,textAlign:'center',
+boxShadow:activeDay===i?'0 4px 14px rgba(74,222,128,.3)':'none',outline:'none',
+}}>
+<div>{d}</div>
+<div style={{fontSize:7,marginTop:2,opacity:.7}}>{activeDay===i?'●':'○'}</div>
+</button>
+))}
+</div>
+<div style={{padding:'0 16px 10px'}}>
+<h2 style={{margin:0,fontSize:18,color:'#b7f7c8',fontWeight:700}}>{PLAN_DAYS_FULL[activeDay]}</h2>
+</div>
+<div style={{padding:'0 16px 20px'}}>
+{dayItems.map((item,idx)=>{
+const cat=PLAN_CATEGORIES[item.cat];
+const who=PLAN_WHO[item.who];
+const key=`${activeDay}-${idx}`;
+const done=checked[key];
+return <div key={idx} className="plan-item-card plan-fade" onClick={()=>toggleCheck(key)} style={{
+display:'flex',gap:12,marginBottom:12,animationDelay:`${idx*.06}s`,
+}}>
+<div style={{display:'flex',flexDirection:'column',alignItems:'center',minWidth:40}}>
+<div style={{fontFamily:"'Space Mono',monospace",fontSize:9,color:'#4b7a5c',marginBottom:3,whiteSpace:'nowrap'}}>{item.time}</div>
+<div style={{width:9,height:9,borderRadius:'50%',background:done?cat.color:'transparent',border:`2px solid ${cat.color}`,flexShrink:0,boxShadow:done?`0 0 7px ${cat.color}60`:'none',transition:'all .2s'}}/>
+{idx<dayItems.length-1&&<div style={{width:1,flex:1,minHeight:16,background:'#1e3a2a',marginTop:3}}/>}
+</div>
+<div style={{flex:1,background:done?'rgba(74,222,128,.05)':'rgba(255,255,255,.03)',border:`1px solid ${done?cat.color+'40':'#1a3028'}`,borderLeft:`3px solid ${cat.color}`,borderRadius:10,padding:'10px 12px',opacity:done?.65:1,transition:'all .2s'}}>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+<div style={{display:'flex',alignItems:'center',gap:7,flex:1}}>
+<span style={{fontSize:14}}>{cat.icon}</span>
+<span style={{fontSize:13,fontWeight:700,color:done?'#4b7a5c':'#d4f5df',textDecoration:done?'line-through':'none',fontFamily:"'Playfair Display',serif"}}>{item.title}</span>
+</div>
+<div style={{fontSize:8,fontFamily:"'Space Mono',monospace",color:who.color,background:who.color+'18',padding:'2px 7px',borderRadius:10,flexShrink:0,marginLeft:7}}>{who.label}</div>
+</div>
+{item.detail&&<p style={{margin:'5px 0 0 21px',fontSize:11,color:'#5c8a6e',lineHeight:1.5,fontStyle:'italic'}}>{item.detail}</p>}
+<div style={{marginTop:7,marginLeft:21,display:'inline-block',fontSize:8,fontFamily:"'Space Mono',monospace",color:cat.color,background:cat.color+'15',padding:'2px 7px',borderRadius:7}}>{cat.label}</div>
+</div>
+</div>;})}
+<div style={{background:'rgba(255,255,255,.03)',border:'1px solid #1e3a2a',borderRadius:12,padding:14,marginTop:4}}>
+<div style={{fontFamily:"'Space Mono',monospace",fontSize:9,color:'#4ade80',marginBottom:8,letterSpacing:2}}>PROGRESSION DU JOUR</div>
+{(()=>{
+const total=dayItems.length;
+const doneCount=dayItems.filter((_,i)=>checked[`${activeDay}-${i}`]).length;
+const pct=total>0?Math.round((doneCount/total)*100):0;
+return <>
+<div style={{display:'flex',justifyContent:'space-between',marginBottom:6}}>
+<span style={{fontSize:11,color:'#6b9e7a'}}>{doneCount}/{total} activités</span>
+<span style={{fontFamily:"'Space Mono',monospace",fontSize:13,color:'#4ade80',fontWeight:700}}>{pct}%</span>
+</div>
+<div style={{height:5,background:'#1a3028',borderRadius:4,overflow:'hidden'}}>
+<div style={{height:'100%',width:`${pct}%`,background:'linear-gradient(90deg,#4ade80,#22c55e)',borderRadius:4,transition:'width .4s ease',boxShadow:'0 0 10px rgba(74,222,128,.45)'}}/>
+</div></>;
+})()}
+</div>
+</div>
+</div>}
+
+{/* SORTIES TAB */}
+{activeTab==='sorties'&&<div className="plan-fade" style={{padding:'18px 16px 20px'}}>
+<h2 style={{margin:'0 0 5px',fontSize:18,color:'#b7f7c8'}}>Sorties Guadeloupe</h2>
+<p style={{margin:'0 0 16px',fontSize:12,color:'#5c8a6e',fontStyle:'italic'}}>Vos spots favoris pour explorer l'archipel ensemble 🌊</p>
+{OUTINGS.map((o,i)=>(
+<div key={i} className="plan-outing-card" style={{background:'rgba(255,255,255,.03)',border:'1px solid #1a3028',borderRadius:14,padding:14,marginBottom:12}}>
+<div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+<span style={{fontSize:20}}>{o.icon}</span>
+<span style={{fontSize:14,fontWeight:700,color:'#d4f5df'}}>{o.title}</span>
+</div>
+<div style={{display:'flex',flexWrap:'wrap',gap:7}}>
+{o.places.map((p,j)=>(
+<span key={j} style={{fontSize:10,fontFamily:"'Space Mono',monospace",background:'rgba(74,222,128,.1)',color:'#4ade80',padding:'3px 10px',borderRadius:18,border:'1px solid #2d5a3d'}}>{p}</span>
+))}
+</div>
+</div>
+))}
+<div style={{background:'linear-gradient(135deg,rgba(244,114,182,.08),rgba(74,222,128,.05))',border:'1px solid #3a1a2a',borderRadius:14,padding:14,marginTop:4}}>
+<div style={{fontSize:14,marginBottom:7}}>🎉 <span style={{fontWeight:700,color:'#f9c8e0'}}>Sorties entre amis</span></div>
+<div style={{display:'flex',flexWrap:'wrap',gap:7}}>
+{['Barbecue plage','Soirée dominos','Rando groupe','Pique-nique rivière','Karaoké zouk','Resto vegan friendly','Sortie kayak collectif'].map((s,i)=>(
+<span key={i} style={{fontSize:10,background:'rgba(244,114,182,.12)',color:'#f472b6',padding:'3px 10px',borderRadius:18,fontFamily:"'Space Mono',monospace",border:'1px solid #6b1e4a'}}>{s}</span>
+))}
+</div>
+</div>
+</div>}
+
+{/* CULTURE TAB */}
+{activeTab==='culture'&&<div className="plan-fade" style={{padding:'18px 16px 20px'}}>
+<h2 style={{margin:'0 0 5px',fontSize:18,color:'#b7f7c8'}}>Espace Culture</h2>
+<p style={{margin:'0 0 16px',fontSize:12,color:'#5c8a6e',fontStyle:'italic'}}>Livres & films à partager ensemble 🌙</p>
+<div style={{marginBottom:20}}>
+<div style={{display:'flex',alignItems:'center',gap:7,marginBottom:12,fontFamily:"'Space Mono',monospace",fontSize:10,color:'#c084fc',letterSpacing:2}}>
+<span>📖</span> LISTE DE LECTURE
+</div>
+{BOOKS.map((b,i)=>(
+<div key={i} className="plan-item-card" style={{display:'flex',alignItems:'center',gap:10,background:'rgba(192,132,252,.05)',border:'1px solid #2a1a3a',borderLeft:'3px solid #c084fc',borderRadius:10,padding:'11px 12px',marginBottom:9}}>
+<div style={{flex:1}}>
+<div style={{fontSize:12,fontWeight:700,color:'#e8d5ff',marginBottom:2}}>{b.title}</div>
+<div style={{fontSize:10,color:'#7a5a9a',fontStyle:'italic'}}>{b.author}</div>
+</div>
+<span style={{fontSize:8,fontFamily:"'Space Mono',monospace",color:'#c084fc',background:'rgba(192,132,252,.12)',padding:'2px 7px',borderRadius:9}}>{b.cat}</span>
+</div>
+))}
+</div>
+<div>
+<div style={{display:'flex',alignItems:'center',gap:7,marginBottom:12,fontFamily:"'Space Mono',monospace",fontSize:10,color:'#facc15',letterSpacing:2}}>
+<span>🎬</span> SÉLECTION FILMS
+</div>
+{FILMS.map((f,i)=>(
+<div key={i} className="plan-item-card" style={{display:'flex',alignItems:'center',gap:10,background:'rgba(250,204,21,.04)',border:'1px solid #2a2010',borderLeft:'3px solid #facc15',borderRadius:10,padding:'11px 12px',marginBottom:9}}>
+<span style={{fontSize:16,minWidth:24}}>🎞️</span>
+<div>
+<div style={{fontSize:12,fontWeight:700,color:'#fef9e0',marginBottom:2}}>{f.title}</div>
+<div style={{fontSize:10,color:'#7a6a3a',fontStyle:'italic'}}>{f.genre}</div>
+</div>
+</div>
+))}
+</div>
+</div>}
+
+{/* Légende */}
+<div style={{borderTop:'1px solid #1a3028',padding:'10px 16px',display:'flex',justifyContent:'center',gap:14,flexWrap:'wrap'}}>
+{Object.entries(PLAN_WHO).map(([k,v])=>(
+<div key={k} style={{display:'flex',alignItems:'center',gap:4}}>
+<div style={{width:6,height:6,borderRadius:'50%',background:v.color}}/>
+<span style={{fontSize:9,fontFamily:"'Space Mono',monospace",color:'#4b6a55'}}>{v.label}</span>
+</div>
+))}
+</div>
+</div>;
+}
+
 // ─── Main App ───
 function App(){
 const [data,setData]=useState(loadData);
@@ -757,6 +1038,7 @@ const navItems=[
 {id:'sport',label:'Sport',icon:'💪'},
 {id:'budget',label:'Budget',icon:'💰'},
 {id:'vision',label:'Vision',icon:'✦'},
+{id:'planning',label:'Planning',icon:'🗓'},
 {id:'charts',label:'Stats',icon:'▤'},
 ];
 
@@ -951,6 +1233,7 @@ style={{display:'flex',flexDirection:'column',alignItems:'center',gap:2,border:'
 {view==='sport'&&<SportView data={data} upsertSport={upsertSport} deleteSport={deleteSport}/>}
 {view==='budget'&&<BudgetView data={data} upsertBudgetLine={upsertBudgetLine} deleteBudgetLine={deleteBudgetLine}/>}
 {view==='vision'&&<VisionView data={data} updateVision={updateVision}/>}
+{view==='planning'&&<PlanningView/>}
 {view==='charts'&&renderCharts()}
 </main>
 
