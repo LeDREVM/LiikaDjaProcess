@@ -67,6 +67,20 @@ const accentBorder={dja:'var(--accent-dja-border)',liika:'var(--accent-liika-bor
 const clone=o=>typeof structuredClone==='function'?structuredClone(o):JSON.parse(JSON.stringify(o));
 const defaultUI={};
 
+// ─── Supabase ───
+const SB_URL='https://mvtwotbyphuxdkcwgime.supabase.co';
+const SB_KEY='sb_publishable_3GTu11_-nrnYDyFY2Rl7eQ_bndRXVAz';
+const sb=supabase.createClient(SB_URL,SB_KEY);
+async function sbLoad(){
+  const {data,error}=await sb.from('app_state').select('data').eq('id','main').single();
+  if(error||!data)throw error||new Error('no data');
+  return data.data;
+}
+async function sbSave(d){
+  const {error}=await sb.from('app_state').upsert({id:'main',data:d,updated_at:new Date().toISOString()});
+  if(error)throw error;
+}
+
 // ─── Data ───
 const defaultData={
 dja:{
@@ -928,7 +942,27 @@ const [view,setView]=useState('dashboard');
 const [modal,setModal]=useState(null);
 const [syncStatus,setSyncStatus]=useState('idle');
 
+// Persiste localStorage à chaque changement
 useEffect(()=>saveData(data),[data]);
+
+// Chargement initial depuis Supabase
+useEffect(()=>{
+setSyncStatus('syncing');
+sbLoad().then(remote=>{
+  setData(remote);
+  saveData(remote);
+  setSyncStatus('ok');
+}).catch(()=>setSyncStatus('idle'));
+},[]);
+
+// Sync Supabase debounce 1.5s
+useEffect(()=>{
+const t=setTimeout(()=>{
+  setSyncStatus('syncing');
+  sbSave(data).then(()=>setSyncStatus('ok')).catch(()=>setSyncStatus('error'));
+},1500);
+return ()=>clearTimeout(t);
+},[data]);
 
 const updateObj=useCallback((who,id,updates)=>{
 setData(prev=>{
