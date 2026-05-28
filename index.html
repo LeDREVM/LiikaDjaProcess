@@ -573,7 +573,7 @@ style={{padding:'6px 14px',borderRadius:20,border:who===w?`2px solid ${accent[w]
     {INTENSITES.map(i=><option key={i}>{i}</option>)}
   </select>
 </div>
-<div style={{display:'flex',gap:6'}}>
+<div style={{display:'flex',gap:6}}>
   <button onClick={()=>{if(form.activite.trim()){upsertSport(who,{id:Date.now().toString(),...form,fait:false});setShowForm(false);setForm({jour:'Lundi',activite:'',duree:30,intensite:'Modérée',cat:'Cardio'});}}}
     style={{padding:'7px 14px',borderRadius:'var(--radius-xs)',border:'none',background:av,color:'#fff',cursor:'pointer',fontSize:13,fontWeight:500}}>Ajouter</button>
   <button onClick={()=>setShowForm(false)} style={{padding:'7px 10px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'transparent',color:'var(--text3)',cursor:'pointer',fontSize:13}}>✕</button>
@@ -896,7 +896,7 @@ const [modal,setModal]=useState(null);
 
 useEffect(()=>saveData(data),[data]);
 
-const updateObj=(who,id,updates)=>{
+const updateObj=useCallback((who,id,updates)=>{
 setData(prev=>{
 const next=clone(prev);
 const list=who==='couple'?next.couple.objectives:next[who].objectives;
