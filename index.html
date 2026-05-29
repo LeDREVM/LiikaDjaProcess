@@ -43,10 +43,17 @@ background:
 @keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
 @keyframes slideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
 @keyframes goldShimmer{0%,100%{opacity:.7}50%{opacity:1}}
+.scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.scroll-x::-webkit-scrollbar{height:0;display:none}
 @media(max-width:768px){
 nav{display:none!important}
 .mobile-nav{display:block!important}
-main{padding:20px 16px 80px!important}
+main{padding:20px 14px 86px!important}
+.dash-hero{padding:22px 18px 18px!important}
+.dash-hero h2{font-size:24px!important}
+}
+@media(max-width:480px){
+main{padding:16px 12px 86px!important}
 }
 </style>
 </head>
@@ -601,7 +608,7 @@ return <div>
 style={{padding:'5px 14px',borderRadius:20,border:who===w?`1px solid ${accent[w]}`:'1px solid var(--border)',background:who===w?accentBg[w]:'transparent',color:who===w?accent[w]:'var(--text3)',fontSize:12,cursor:'pointer',transition:'all .15s'}}>
 {w==='dja'?'Dja':w==='liika'?'Liika':'Couple'}</button>)}</div>
 </div>
-<div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:24}}>
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))',gap:12,marginBottom:24}}>
 <div style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:'var(--radius)',padding:16,textAlign:'center',border:'1px solid var(--border)',boxShadow:'var(--shadow)'}}>
   <div style={{fontSize:11,color:'var(--text3)',marginBottom:5,letterSpacing:'.06em',textTransform:'uppercase'}}>Revenus</div>
   <div style={{fontSize:22,fontWeight:700,color:'var(--success)'}}>+{totRev.toLocaleString('fr-FR')} €</div>
@@ -907,10 +914,10 @@ overflowX:'hidden',
 </div>
 <p style={{margin:'6px 0 0',fontSize:12,color:'#6b9e7a',fontStyle:'italic'}}>Planning vie de couple • Guadeloupe 🌴</p>
 
-<div style={{display:'flex',gap:8,marginTop:16,overflowX:'auto',paddingBottom:4}}>
+<div className="scroll-x" style={{display:'flex',gap:8,marginTop:16,paddingBottom:4}}>
 {[{id:'planning',label:'📅 Semaine'},{id:'sorties',label:'🌿 Sorties GWA'},{id:'culture',label:'📚 Culture'}].map(t=>(
 <button key={t.id} className="plan-tab-btn" onClick={()=>setActiveTab(t.id)} style={{
-padding:'7px 14px',borderRadius:20,fontSize:11,
+flexShrink:0,padding:'7px 14px',borderRadius:20,fontSize:11,
 fontFamily:"'Space Mono',monospace",whiteSpace:'nowrap',
 background:activeTab===t.id?'#4ade80':'rgba(255,255,255,.05)',
 color:activeTab===t.id?'#0a0f0d':'#8bb89a',
@@ -923,7 +930,7 @@ border:activeTab===t.id?'none':'1px solid #1e3a2a',
 
 {/* PLANNING TAB */}
 {activeTab==='planning'&&<div className="plan-fade">
-<div style={{padding:'14px 16px 8px',display:'flex',gap:6,overflowX:'auto'}}>
+<div className="scroll-x" style={{padding:'14px 16px 8px',display:'flex',gap:6}}>
 {PLAN_DAYS.map((d,i)=>(
 <button key={i} className="plan-day-btn" onClick={()=>{setActiveDay(i);setAddingItem(false);}} style={{
 minWidth:44,padding:'9px 5px',borderRadius:10,border:'none',
@@ -1122,7 +1129,7 @@ return <div>
 </div>
 </div>
 <div className="gold-rule" style={{marginBottom:16}}/>
-<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:12}}>
 <div style={{background:'var(--bg4)',borderRadius:'var(--radius-sm)',padding:14,border:'1px solid var(--border)'}}>
 <p style={{fontSize:10,color:'var(--text3)',marginBottom:6,letterSpacing:'.1em',textTransform:'uppercase',fontFamily:"'Space Mono',monospace"}}>Apports nutritifs</p>
 <p style={{fontSize:12,color:'var(--text2)',lineHeight:1.65}}>{r.apports}</p>
@@ -1143,14 +1150,16 @@ return <div>
 <p style={{fontSize:13,color:'var(--text3)',fontStyle:'italic',fontFamily:"'Cormorant Garamond',serif"}}>Recettes végétales, sans gluten & autonomie alimentaire tropicale</p>
 </div>
 <div className="gold-rule" style={{marginBottom:20}}/>
-<div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:20,alignItems:'center'}}>
-{cats.map(c=><button key={c} onClick={()=>setFilterCat(c)} style={{padding:'5px 14px',borderRadius:20,border:filterCat===c?`1px solid ${catColors[c]||'var(--gold)'}`:'1px solid var(--border)',background:filterCat===c?'rgba(0,0,0,.15)':'transparent',color:filterCat===c?catColors[c]||'var(--gold)':'var(--text3)',fontSize:12,cursor:'pointer',transition:'all .15s'}}>{c}</button>)}
-<button onClick={()=>setShowAdd(p=>!p)} style={{padding:'5px 14px',borderRadius:20,border:'1px solid var(--border2)',background:'transparent',color:'var(--text2)',fontSize:12,cursor:'pointer',marginLeft:'auto'}}>+ Recette</button>
+<div style={{display:'flex',gap:8,marginBottom:20,alignItems:'center'}}>
+<div className="scroll-x" style={{display:'flex',gap:6,flex:1}}>
+{cats.map(c=><button key={c} onClick={()=>setFilterCat(c)} style={{flexShrink:0,padding:'5px 14px',borderRadius:20,border:filterCat===c?`1px solid ${catColors[c]||'var(--gold)'}`:'1px solid var(--border)',background:filterCat===c?'rgba(0,0,0,.15)':'transparent',color:filterCat===c?catColors[c]||'var(--gold)':'var(--text3)',fontSize:12,cursor:'pointer',transition:'all .15s'}}>{c}</button>)}
+</div>
+<button onClick={()=>setShowAdd(p=>!p)} style={{flexShrink:0,padding:'5px 14px',borderRadius:20,border:'1px solid var(--border2)',background:'transparent',color:'var(--text2)',fontSize:12,cursor:'pointer'}}>+ Recette</button>
 </div>
 {showAdd&&<div style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:'var(--radius)',padding:20,marginBottom:20,border:'1px solid var(--gold-border)',boxShadow:'var(--shadow)'}}>
 <h3 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,fontWeight:600,marginBottom:4,color:'var(--gold2)'}}>Nouvelle recette</h3>
 <div className="gold-rule" style={{marginBottom:14}}/>
-<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:10,marginBottom:12}}>
 <input placeholder="Nom de la recette" value={addForm.nom} onChange={e=>setAddForm(p=>({...p,nom:e.target.value}))}
   style={{gridColumn:'1/-1',padding:'9px 12px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:13,outline:'none'}}/>
 <select value={addForm.categorie} onChange={e=>setAddForm(p=>({...p,categorie:e.target.value}))}
@@ -1501,7 +1510,7 @@ return <div>
 const renderDashboard=()=>{
 return <div>
 {/* Hero tropical */}
-<div style={{background:'var(--grad-hero)',borderRadius:'var(--radius)',padding:'28px 28px 24px',marginBottom:24,border:'1px solid var(--gold-border)',boxShadow:'0 12px 40px rgba(0,0,0,.5)',position:'relative',overflow:'hidden'}}>
+<div className="dash-hero" style={{background:'var(--grad-hero)',borderRadius:'var(--radius)',padding:'28px 28px 24px',marginBottom:24,border:'1px solid var(--gold-border)',boxShadow:'0 12px 40px rgba(0,0,0,.5)',position:'relative',overflow:'hidden'}}>
 <div style={{position:'absolute',top:-60,right:-60,width:240,height:240,background:'radial-gradient(circle,rgba(217,183,95,.10) 0%,transparent 70%)',borderRadius:'50%',pointerEvents:'none'}}/>
 <div className="eyebrow" style={{marginBottom:10}}>🌴 Lanmou Douvan · Guadeloupe</div>
 <h2 style={{fontSize:30,fontWeight:600,fontFamily:"'Cormorant Garamond',serif",marginBottom:6,color:'var(--text)',lineHeight:1.2}}>
@@ -1649,10 +1658,10 @@ style={{width:'100%',padding:'7px',borderRadius:'var(--radius-sm)',border:'1px s
 
 {/* Mobile nav */}
 <div className="mobile-nav" style={{display:'none',position:'fixed',bottom:0,left:0,right:0,background:'var(--glass)',backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)',borderTop:'1px solid var(--gold-border)',padding:'6px 0',zIndex:50}}>
-<div style={{display:'flex',justifyContent:'space-around'}}>
+<div className="scroll-x" style={{display:'flex',gap:2,padding:'0 8px'}}>
 {navItems.map(n=><button key={n.id} onClick={()=>setView(n.id)}
-style={{display:'flex',flexDirection:'column',alignItems:'center',gap:2,border:'none',background:'transparent',color:view===n.id?'var(--gold)':'var(--text3)',cursor:'pointer',padding:'4px 6px',fontSize:9,fontFamily:"'Space Mono',monospace",letterSpacing:'.02em'}}>
-<span style={{fontSize:17}}>{n.icon}</span>{n.label}
+style={{display:'flex',flexDirection:'column',alignItems:'center',gap:3,flexShrink:0,minWidth:58,borderRadius:'var(--radius-xs)',border:'none',background:view===n.id?'var(--gold-bg)':'transparent',color:view===n.id?'var(--gold)':'var(--text3)',cursor:'pointer',padding:'6px 8px',fontSize:9,fontFamily:"'Space Mono',monospace",letterSpacing:'.02em',transition:'all .15s'}}>
+<span style={{fontSize:18}}>{n.icon}</span>{n.label}
 </button>)}
 </div>
 </div>
