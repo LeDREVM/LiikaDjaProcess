@@ -212,8 +212,11 @@ couple:{
   sport:[
     {id:'cs1',jour:'Samedi',activite:'Sport ensemble / balade',duree:60,intensite:'Légère',fait:false},
     {id:'cs2',jour:'Dimanche',activite:'Randonnée ou plage',duree:90,intensite:'Modérée',fait:false},
-  ]
-}
+  ],
+  planning:{},
+  ideeJour:{liste:[],custom:[]}
+},
+recipes:[]
 };
 
 function loadData(){
@@ -382,6 +385,116 @@ return ()=>{if(chartRef.current)chartRef.current.destroy()};
 },[data,who]);
 return <div style={{position:'relative',height:200}}><canvas ref={canvasRef}/></div>
 }
+
+// ─── Default idées du jour ───
+const DEFAULT_IDEES=[
+{id:'di1',text:'Cuisiner ensemble une nouvelle recette DrevmCook'},
+{id:'di2',text:'Planifier une sortie à la plage ce week-end'},
+{id:'di3',text:'Se dire 3 choses qu\'on apprécie l\'un chez l\'autre'},
+{id:'di4',text:'Essayer une nouvelle activité sportive ensemble'},
+{id:'di5',text:'Regarder un film de la liste culture'},
+{id:'di6',text:'Écrire ses objectifs de la semaine ensemble'},
+{id:'di7',text:'Préparer un batch cooking pour la semaine'},
+{id:'di8',text:'Explorer un nouveau coin de la Guadeloupe'},
+{id:'di9',text:'Méditer 10 minutes ensemble au lever'},
+{id:'di10',text:'Préparer un lait végétal maison DrevmCook'},
+{id:'di11',text:'Créer quelque chose ensemble (art, musique, cuisine)'},
+{id:'di12',text:'Appeler de la famille ou des amis proches'},
+{id:'di13',text:'Faire une liste de gratitude à deux'},
+{id:'di14',text:'Prendre soin de soi : bain, soin, relaxation'},
+{id:'di15',text:'Lancer une lactofermentation maison'},
+{id:'di16',text:'Écrire une vision 5 ans ensemble'},
+{id:'di17',text:'Préparer les mini baguettes sans gluten DrevmCook'},
+{id:'di18',text:'Faire une randonnée dans la nature guadeloupéenne'},
+{id:'di19',text:'Planifier les objectifs couple du mois'},
+{id:'di20',text:'Préparer un pique-nique végétalien pour une sortie'},
+{id:'di21',text:'Tester une infusion de feuilles de fruit à pain'},
+{id:'di22',text:'Regarder le coucher de soleil ensemble au Point des Châteaux'},
+];
+
+// ─── Default recipes DrevmCook ───
+const DEFAULT_RECIPES=[
+{id:'r1',nom:'Houmous Vivant',categorie:'Salés',tags:['vegan','sans-gluten'],
+ ingredients:['Pois chiches cuits','Ail','Citron vert','Tahini ou graines de courge mixées','Huile','Sel','Jus de lactofermentation (optionnel)'],
+ preparation:'Mixer tous les ingrédients jusqu\'à texture crémeuse. Ajuster l\'huile et le citron selon goût. Servir avec légumes crus ou pain maison.',
+ apports:'Pois chiche : protéines, fibres, fer. Ail : immunité. Citron vert : vitamine C. Graines de courge : zinc, magnésium.',
+ budget:'≈ 4 à 7 €'},
+{id:'r2',nom:'Rainbow Salad',categorie:'Salés',tags:['vegan','sans-gluten','cru'],
+ ingredients:['Chou rouge','Carotte','Betterave crue','Avocat','Tofu grillé ou pois chiches','Graines de courge','Sauce citron gingembre'],
+ preparation:'Assembler tous les ingrédients en bol coloré. Préparer la sauce en mixant citron vert, gingembre, huile et sel. Arroser et servir immédiatement.',
+ apports:'Chou rouge : anthocyanes, vitamine C. Betterave : circulation, fer végétal. Avocat : bons lipides, potassium. Gingembre : digestion, anti-inflammatoire.',
+ budget:'≈ 5 à 9 €'},
+{id:'r3',nom:'Mini Baguettes Maison',categorie:'Boulangerie',tags:['vegan','sans-gluten'],
+ ingredients:['350 g farine ou mélange sans gluten','1 sachet levure boulangère','Eau tiède','Huile de tournesol','Sel','Herbes aromatiques','Graines de courge (optionnel)'],
+ preparation:'1. Activer la levure dans l\'eau tiède avec l\'huile. 2. Ajouter farine, sel, herbes. 3. Mélanger. 4. Couvrir 30 min. 5. Faire des rabats toutes les 30 min (x3). 6. Former 4 mini baguettes. 7. Grifier le dessus. 8. Cuire à 200°C pendant 15-20 min.',
+ apports:'Farine : énergie, glucides, fibres. Levure : fermentation. Huile : vitamine E. Herbes : antioxydants. Graines de courge : zinc, magnésium.',
+ budget:'≈ 2,40 à 6 € (version SG)'},
+{id:'r4',nom:'Focaccia DrevmCook',categorie:'Boulangerie',tags:['vegan','sans-gluten'],
+ ingredients:['300 g farine sans gluten','100 g levain actif ou levure','250 ml eau tiède','3 c.s. huile','Sel','Ail','Thym / romarin / bouquet garni','Tomates ou oignons','Graines de courge (optionnel)'],
+ preparation:'1. Mélanger farine, levain, eau, huile et sel. 2. Laisser pousser 1-2 h. 3. Verser dans un plat huilé. 4. Faire des trous avec les doigts. 5. Ajouter ail, herbes, tomates ou oignons. 6. Cuire 20-25 min à 200°C.',
+ apports:'Ail : allicine, immunité. Tomate : lycopène, vitamine C. Oignon : quercétine, prébiotiques. Romarin/thym : antioxydants, digestion.',
+ budget:'≈ 5 à 8 €'},
+{id:'r5',nom:'Galettes Anti-Gaspillage',categorie:'Boulangerie',tags:['vegan','sans-gluten'],
+ ingredients:['Reste de levain','Farine de pois chiche ou riz','Eau','Sel','Herbes','Huile pour cuisson'],
+ preparation:'1. Mélanger le levain avec farine et eau. 2. Ajouter sel et herbes. 3. Cuire à la poêle comme une crêpe épaisse.',
+ apports:'Levain : fermentation, digestibilité. Pois chiche : protéines, fibres, fer. Herbes : antioxydants.',
+ budget:'≈ 1 à 2 €'},
+{id:'r6',nom:'Carottes Épicées Fermentées',categorie:'Fermentés',tags:['vegan','sans-gluten','fermenté'],
+ ingredients:['1 kg carottes','10 g sel marin','Gingembre','Cannelle','Ail'],
+ preparation:'1. Râper les carottes. 2. Ajouter sel et épices. 3. Malaxer pour faire sortir le jus. 4. Tasser en bocal. 5. Compléter avec eau si besoin. 6. Garder immergé. 7. Fermenter 2-3 semaines.',
+ apports:'Carotte : bêta-carotène, fibres, potassium. Gingembre : gingérols, digestion. Cannelle : antioxydants. Ail : allicine.',
+ budget:'≈ 4 à 6 €'},
+{id:'r7',nom:'Chou Rouge Lactofermenté',categorie:'Fermentés',tags:['vegan','sans-gluten','fermenté'],
+ ingredients:['Chou rouge','Sel marin (2% du poids)','Ail (optionnel)','Gingembre (optionnel)'],
+ preparation:'Émincer finement le chou, saler, malaxer vigoureusement jusqu\'à ce que le jus sorte. Tasser en bocal, garder immergé sous le liquide. Fermenter 1 à 3 semaines à température ambiante.',
+ apports:'Chou rouge : anthocyanes, vitamine C, fibres, antioxydants. Probiotiques naturels après fermentation.',
+ budget:'≈ 3 à 5 €'},
+{id:'r8',nom:'Sauce Piquante Fermentée',categorie:'Fermentés',tags:['vegan','sans-gluten','fermenté'],
+ ingredients:['Piments locaux (bonda man jak, habanero)','Ail','Sel','Eau filtrée','Gingembre (optionnel)'],
+ preparation:'Mettre piments et ail en saumure (eau + sel). Fermenter 1-2 semaines en bocal recouvert d\'un tissu. Mixer finement. Conserver au frais après ouverture.',
+ apports:'Piment : capsaïcine, circulation, métabolisme. Ail : allicine, immunité. Gingembre : anti-inflammatoire.',
+ budget:'≈ 4 à 6 €'},
+{id:'r9',nom:'Banane Givrée Cacao',categorie:'Desserts',tags:['vegan','sans-gluten','cru'],
+ ingredients:['Bananes mûres (congelées)','Cacao brut','Graines de courge trempées ou torréfiées','Cannelle','Lait végétal (optionnel)'],
+ preparation:'1. Couper les bananes. 2. Congeler 2h minimum. 3. Mixer avec cacao et un peu de lait végétal. 4. Ajouter graines de courge. Servir immédiatement ou remettre 20 min au congélateur.',
+ apports:'Banane : potassium, énergie. Cacao : magnésium, antioxydants. Graines de courge : zinc, protéines, magnésium.',
+ budget:'≈ 2 à 4 €'},
+{id:'r10',nom:'Tiramisu Banane Chocolat',categorie:'Desserts',tags:['vegan','sans-gluten'],
+ ingredients:['4 bananes mûres','200 g biscuits SG ou base riz/fruit à pain','Cacao brut','Café (optionnel)','Cannelle','Crème de coco ou mascarpone','Aquafaba (option vegan)','Sucre roux','Vanille','Chocolat noir fondu'],
+ preparation:'1. Préparer la crème (mascarpone + sucre + vanille, ou crème coco + aquafaba fouettée). 2. Préparer base biscuitée, tremper dans café léger. 3. Monter couches : biscuit, banane, crème, cacao. 4. Ajouter chocolat noir fondu. 5. Repos au frais 4h minimum.',
+ apports:'Banane : potassium, énergie, B6. Cacao brut : magnésium, flavonoïdes, fer. Crème de coco : bons lipides. Chocolat noir : antioxydants.',
+ budget:'≈ 11 à 18 €'},
+{id:'r11',nom:"M&M's Maison Naturels",categorie:'Desserts',tags:['vegan','sans-gluten'],
+ ingredients:['120-130 g poudre d\'amande','50 g cacao 100%','60 g sucre de coco','Pincée de sel','1 c.s. vanille liquide','3 c.s. lait végétal','Chocolat blanc ou noir + huile de coco (enrobage)','Colorants naturels : matcha, spiruline, betterave, maca, phycocyanine'],
+ preparation:'1. Mélanger amande, cacao, sucre et sel. 2. Ajouter vanille et lait végétal. 3. Former une boule. 4. Couper en petits morceaux d\'1 cm. 5. Congeler 10-20 min. 6. Fondre chocolat + huile + colorant naturel. 7. Enrober. 8. Congeler 10-30 min.',
+ apports:'Amande : vitamine E, magnésium, protéines. Cacao : magnésium, antioxydants, fer. Colorants : matcha/spiruline/betterave (antioxydants).',
+ budget:'≈ 11 à 23 €'},
+{id:'r12',nom:'Snickers DrevmCook',categorie:'Desserts',tags:['vegan','sans-gluten'],
+ ingredients:['Base nougat: poudre d\'amande, beurre de cacahuète, lait végétal, sirop naturel, sel, vanille','Caramel: dattes, beurre de cacahuète, eau chaude, sel, vanille','Cacahuètes grillées','Enrobage: chocolat noir + huile de coco'],
+ preparation:'1. Mélanger base nougat, étaler dans un moule. 2. Mixer dattes + beurre cacahuète + eau + sel (caramel). 3. Étaler caramel sur la base. 4. Ajouter cacahuètes. 5. Congeler. 6. Couper en barres. 7. Enrober de chocolat noir fondu. 8. Garder au frais.',
+ apports:'Dattes : potassium, énergie, fibres. Cacahuètes : protéines, bons lipides, magnésium. Amande : vitamine E. Chocolat noir : antioxydants.',
+ budget:'≈ 14 à 25 € pour 8-10 barres'},
+{id:'r13',nom:"Lait d'Amande Maison",categorie:'Boissons',tags:['vegan','sans-gluten','cru'],
+ ingredients:['100 g amandes (trempées 8-12h)','700 ml eau filtrée','1 pincée de sel','Vanille (optionnel)'],
+ preparation:'1. Faire tremper les amandes 8-12h. 2. Rincer. 3. Mixer avec l\'eau filtrée 2 min à puissance max. 4. Filtrer avec tissu propre ou sac à lait végétal. 5. Conserver 2-3 jours au frais dans une bouteille fermée.',
+ apports:'Amande : vitamine E, magnésium, protéines végétales, bons lipides. Eau filtrée : hydratation, base neutre.',
+ budget:'≈ 3,50 à 6 €'},
+{id:'r14',nom:'Lait de Graines de Courge',categorie:'Boissons',tags:['vegan','sans-gluten','cru'],
+ ingredients:['100 g graines de courge (trempées 4-8h)','700 ml eau filtrée','1 pincée de sel','Cannelle (optionnel)'],
+ preparation:'1. Tremper les graines 4-8h. 2. Rincer. 3. Mixer avec l\'eau. 4. Filtrer. 5. Assaisonner. 6. Conserver au frais 2-3 jours. Bien agiter avant de servir.',
+ apports:'Graines de courge : zinc, magnésium, protéines végétales, bons lipides. Cannelle : antioxydants, soutien glycémique.',
+ budget:'≈ 2,50 à 5 €'},
+{id:'r15',nom:'Infusion Feuilles Fruit à Pain',categorie:'Boissons',tags:['vegan','sans-gluten','tropical'],
+ ingredients:['4-6 feuilles de fruit à pain','1 L eau','Gingembre (optionnel)','Cannelle (optionnel)','Miel ou sirop de canne (optionnel)'],
+ preparation:'1. Nettoyer les feuilles. 2. Faire bouillir l\'eau. 3. Ajouter les feuilles. 4. Laisser frémir 10-15 min. 5. Filtrer. Servir chaud ou refroidi avec citron vert et menthe.',
+ apports:'Feuilles de fruit à pain : polyphénols, flavonoïdes, potassium, usage traditionnel digestif. Gingembre : digestion, anti-inflammatoire.',
+ budget:'≈ 0,80 à 1,50 €'},
+{id:'r16',nom:'Plantes & Herbier Créole',categorie:'Référence',tags:['tropical','guadeloupe','plantes'],
+ ingredients:['Pourpier : oméga-3 végétaux, fibres, minéraux','Atoumo : digestion, respiration, infusion traditionnelle créole','Moringa : fer, calcium, protéines partielles, chlorophylle','Feuilles de goyave : tanins, antioxydants, infusion digestive','Feuilles de patate douce : chlorophylle, fibres, brèdes sautées','Leaf of Life (Bryophyllum pinnatum) : usage traditionnel – voir précautions'],
+ preparation:'Répertoire des plantes traditionnelles antillaises utilisées en cuisine et médecine populaire DrevmCook. Toujours commencer à petite dose. Ces plantes ne remplacent pas un avis médical. Leaf of Life : contient des glycosides cardiaques — éviter grossesse, problèmes cardiaques, enfants.',
+ apports:'Patrimoine botanique caribéen : antioxydants, huiles essentielles, flavonoïdes, minéraux, polyphénols.',
+ budget:'Gratuit (cueillette) à ≈ 1-2 € (marché local)'},
+];
 
 // ─── Tab Views (proper React components to allow local useState) ───
 const JOURS=['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
@@ -744,12 +857,23 @@ const FILMS=[
 {title:'Marriage Story',genre:'Drame — communication & amour profond'},
 ];
 
-function PlanningView(){
+function PlanningView({planning,togglePlanningCheck,addPlanningCustomItem,deletePlanningCustomItem}){
 const [activeDay,setActiveDay]=useState(0);
 const [activeTab,setActiveTab]=useState('planning');
-const [checked,setChecked]=useState({});
-const toggleCheck=useCallback((key)=>setChecked(p=>({...p,[key]:!p[key]})),[]);
-const dayItems=INITIAL_PLANNING[activeDay]||[];
+const [addingItem,setAddingItem]=useState(false);
+const [addForm,setAddForm]=useState({time:'09:00',cat:'repos',title:'',detail:'',who:'both'});
+const planDay=(planning||{})[activeDay]||{checked:{},custom:[]};
+const checked=planDay.checked||{};
+const customItems=planDay.custom||[];
+const initItems=(INITIAL_PLANNING[activeDay]||[]).map((it,i)=>({...it,id:`i${activeDay}-${i}`}));
+const dayItems=[...initItems,...customItems];
+const doneCount=dayItems.filter(it=>!!checked[it.id]).length;
+const handleAdd=()=>{
+  if(!addForm.title.trim())return;
+  addPlanningCustomItem(activeDay,{...addForm,id:Date.now().toString()});
+  setAddForm({time:'09:00',cat:'repos',title:'',detail:'',who:'both'});
+  setAddingItem(false);
+};
 
 return <div style={{
 fontFamily:"'Playfair Display','Georgia',serif",
@@ -801,7 +925,7 @@ border:activeTab===t.id?'none':'1px solid #1e3a2a',
 {activeTab==='planning'&&<div className="plan-fade">
 <div style={{padding:'14px 16px 8px',display:'flex',gap:6,overflowX:'auto'}}>
 {PLAN_DAYS.map((d,i)=>(
-<button key={i} className="plan-day-btn" onClick={()=>setActiveDay(i)} style={{
+<button key={i} className="plan-day-btn" onClick={()=>{setActiveDay(i);setAddingItem(false);}} style={{
 minWidth:44,padding:'9px 5px',borderRadius:10,border:'none',
 background:activeDay===i?'linear-gradient(135deg,#4ade80,#22c55e)':'rgba(255,255,255,.04)',
 color:activeDay===i?'#0a0f0d':'#6b9e7a',
@@ -813,30 +937,56 @@ boxShadow:activeDay===i?'0 4px 14px rgba(74,222,128,.3)':'none',outline:'none',
 </button>
 ))}
 </div>
-<div style={{padding:'0 16px 10px'}}>
+<div style={{padding:'0 16px 6px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
 <h2 style={{margin:0,fontSize:18,color:'#b7f7c8',fontWeight:700}}>{PLAN_DAYS_FULL[activeDay]}</h2>
+<button onClick={()=>setAddingItem(p=>!p)} style={{padding:'5px 12px',borderRadius:20,border:'1px solid #4ade80',background:'transparent',color:'#4ade80',cursor:'pointer',fontSize:11,fontFamily:"'Space Mono',monospace"}}>+ Ajouter</button>
 </div>
+{addingItem&&<div style={{margin:'0 16px 12px',background:'rgba(74,222,128,.06)',borderRadius:12,padding:14,border:'1px solid #2d5a3d'}}>
+<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
+<input value={addForm.time} onChange={e=>setAddForm(p=>({...p,time:e.target.value}))} type="time"
+  style={{padding:'6px 10px',borderRadius:8,border:'1px solid #2d5a3d',background:'rgba(0,0,0,.3)',color:'#e8f5e0',fontSize:12,outline:'none',fontFamily:"'Space Mono',monospace"}}/>
+<select value={addForm.cat} onChange={e=>setAddForm(p=>({...p,cat:e.target.value}))}
+  style={{padding:'6px 10px',borderRadius:8,border:'1px solid #2d5a3d',background:'rgba(10,20,14,.9)',color:'#e8f5e0',fontSize:12,outline:'none'}}>
+  {Object.entries(PLAN_CATEGORIES).map(([k,v])=><option key={k} value={k}>{v.icon} {v.label}</option>)}
+</select>
+<input value={addForm.title} onChange={e=>setAddForm(p=>({...p,title:e.target.value}))} placeholder="Titre de l'activité"
+  style={{gridColumn:'1/-1',padding:'6px 10px',borderRadius:8,border:'1px solid #2d5a3d',background:'rgba(0,0,0,.3)',color:'#e8f5e0',fontSize:12,outline:'none'}}/>
+<input value={addForm.detail} onChange={e=>setAddForm(p=>({...p,detail:e.target.value}))} placeholder="Détails (optionnel)"
+  style={{gridColumn:'1/-1',padding:'6px 10px',borderRadius:8,border:'1px solid #2d5a3d',background:'rgba(0,0,0,.3)',color:'#e8f5e0',fontSize:12,outline:'none'}}/>
+<select value={addForm.who} onChange={e=>setAddForm(p=>({...p,who:e.target.value}))}
+  style={{padding:'6px 10px',borderRadius:8,border:'1px solid #2d5a3d',background:'rgba(10,20,14,.9)',color:'#e8f5e0',fontSize:12,outline:'none'}}>
+  {Object.entries(PLAN_WHO).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+</select>
+<div style={{display:'flex',gap:6}}>
+<button onClick={handleAdd} style={{flex:1,padding:'7px',borderRadius:8,border:'none',background:'#4ade80',color:'#0a0f0d',cursor:'pointer',fontSize:12,fontWeight:700}}>✓ Ajouter</button>
+<button onClick={()=>setAddingItem(false)} style={{padding:'7px 12px',borderRadius:8,border:'1px solid #2d5a3d',background:'transparent',color:'#6b9e7a',cursor:'pointer',fontSize:12}}>✕</button>
+</div>
+</div>
+</div>}
 <div style={{padding:'0 16px 20px'}}>
 {dayItems.map((item,idx)=>{
-const cat=PLAN_CATEGORIES[item.cat];
-const who=PLAN_WHO[item.who];
-const key=`${activeDay}-${idx}`;
-const done=checked[key];
-return <div key={idx} className="plan-item-card plan-fade" onClick={()=>toggleCheck(key)} style={{
+const cat=PLAN_CATEGORIES[item.cat]||PLAN_CATEGORIES.repos;
+const who=PLAN_WHO[item.who]||PLAN_WHO.both;
+const isDone=!!checked[item.id];
+const isCustom=!item.id.startsWith('i');
+return <div key={item.id} className="plan-item-card plan-fade" style={{
 display:'flex',gap:12,marginBottom:12,animationDelay:`${idx*.06}s`,
 }}>
 <div style={{display:'flex',flexDirection:'column',alignItems:'center',minWidth:40}}>
 <div style={{fontFamily:"'Space Mono',monospace",fontSize:9,color:'#4b7a5c',marginBottom:3,whiteSpace:'nowrap'}}>{item.time}</div>
-<div style={{width:9,height:9,borderRadius:'50%',background:done?cat.color:'transparent',border:`2px solid ${cat.color}`,flexShrink:0,boxShadow:done?`0 0 7px ${cat.color}60`:'none',transition:'all .2s'}}/>
+<div style={{width:9,height:9,borderRadius:'50%',background:isDone?cat.color:'transparent',border:`2px solid ${cat.color}`,flexShrink:0,boxShadow:isDone?`0 0 7px ${cat.color}60`:'none',transition:'all .2s'}}/>
 {idx<dayItems.length-1&&<div style={{width:1,flex:1,minHeight:16,background:'#1e3a2a',marginTop:3}}/>}
 </div>
-<div style={{flex:1,background:done?'rgba(74,222,128,.05)':'rgba(255,255,255,.03)',border:`1px solid ${done?cat.color+'40':'#1a3028'}`,borderLeft:`3px solid ${cat.color}`,borderRadius:10,padding:'10px 12px',opacity:done?.65:1,transition:'all .2s'}}>
+<div onClick={()=>togglePlanningCheck(activeDay,item.id)} style={{flex:1,background:isDone?'rgba(74,222,128,.05)':'rgba(255,255,255,.03)',border:`1px solid ${isDone?cat.color+'40':'#1a3028'}`,borderLeft:`3px solid ${cat.color}`,borderRadius:10,padding:'10px 12px',opacity:isDone?.65:1,transition:'all .2s',cursor:'pointer'}}>
 <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
 <div style={{display:'flex',alignItems:'center',gap:7,flex:1}}>
 <span style={{fontSize:14}}>{cat.icon}</span>
-<span style={{fontSize:13,fontWeight:700,color:done?'#4b7a5c':'#d4f5df',textDecoration:done?'line-through':'none',fontFamily:"'Playfair Display',serif"}}>{item.title}</span>
+<span style={{fontSize:13,fontWeight:700,color:isDone?'#4b7a5c':'#d4f5df',textDecoration:isDone?'line-through':'none',fontFamily:"'Playfair Display',serif"}}>{item.title}</span>
 </div>
-<div style={{fontSize:8,fontFamily:"'Space Mono',monospace",color:who.color,background:who.color+'18',padding:'2px 7px',borderRadius:10,flexShrink:0,marginLeft:7}}>{who.label}</div>
+<div style={{display:'flex',alignItems:'center',gap:5}}>
+<div style={{fontSize:8,fontFamily:"'Space Mono',monospace",color:who.color,background:who.color+'18',padding:'2px 7px',borderRadius:10,flexShrink:0}}>{who.label}</div>
+{isCustom&&<button onClick={e=>{e.stopPropagation();deletePlanningCustomItem(activeDay,item.id);}} style={{background:'none',border:'none',color:'#4b7a5c',cursor:'pointer',fontSize:14,padding:'0 2px',lineHeight:1}}>×</button>}
+</div>
 </div>
 {item.detail&&<p style={{margin:'5px 0 0 21px',fontSize:11,color:'#5c8a6e',lineHeight:1.5,fontStyle:'italic'}}>{item.detail}</p>}
 <div style={{marginTop:7,marginLeft:21,display:'inline-block',fontSize:8,fontFamily:"'Space Mono',monospace",color:cat.color,background:cat.color+'15',padding:'2px 7px',borderRadius:7}}>{cat.label}</div>
@@ -846,7 +996,6 @@ display:'flex',gap:12,marginBottom:12,animationDelay:`${idx*.06}s`,
 <div style={{fontFamily:"'Space Mono',monospace",fontSize:9,color:'#4ade80',marginBottom:8,letterSpacing:2}}>PROGRESSION DU JOUR</div>
 {(()=>{
 const total=dayItems.length;
-const doneCount=dayItems.filter((_,i)=>checked[`${activeDay}-${i}`]).length;
 const pct=total>0?Math.round((doneCount/total)*100):0;
 return <>
 <div style={{display:'flex',justifyContent:'space-between',marginBottom:6}}>
@@ -930,6 +1079,123 @@ return <>
 <span style={{fontSize:9,fontFamily:"'Space Mono',monospace",color:'#4b6a55'}}>{v.label}</span>
 </div>
 ))}
+</div>
+</div>;
+}
+
+// ─── DrevmCook View ───
+function DrevmCookView({recipes,upsertRecipe,deleteRecipe}){
+const allRecipes=[...DEFAULT_RECIPES,...(recipes||[]).filter(r=>!DEFAULT_RECIPES.some(dr=>dr.id===r.id))];
+const [filterCat,setFilterCat]=useState('Tout');
+const [selected,setSelected]=useState(null);
+const [showAdd,setShowAdd]=useState(false);
+const [addForm,setAddForm]=useState({nom:'',categorie:'Salés',tags:'',ingredients:'',preparation:'',apports:'',budget:''});
+const cats=['Tout','Salés','Boulangerie','Fermentés','Desserts','Boissons','Référence'];
+const catColors={Salés:'var(--success)',Boulangerie:'var(--gold)',Fermentés:'#fb923c',Desserts:'var(--accent-liika)',Boissons:'var(--accent-dja)',Référence:'var(--text3)'};
+const filtered=filterCat==='Tout'?allRecipes:allRecipes.filter(r=>r.categorie===filterCat);
+
+if(selected){
+const r=allRecipes.find(x=>x.id===selected);
+if(!r)return <div><button onClick={()=>setSelected(null)} style={{background:'none',border:'none',color:'var(--gold)',cursor:'pointer',fontSize:13,padding:0}}>← Retour</button></div>;
+const cc=catColors[r.categorie]||'var(--gold)';
+return <div>
+<button onClick={()=>setSelected(null)} style={{display:'flex',alignItems:'center',gap:6,background:'none',border:'none',color:'var(--gold)',cursor:'pointer',fontSize:13,marginBottom:20,padding:0,fontFamily:"'Space Mono',monospace",letterSpacing:'.05em'}}>← Retour aux recettes</button>
+<div style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:'var(--radius)',padding:24,border:'1px solid var(--border)',boxShadow:'var(--shadow)'}}>
+<div className="eyebrow" style={{marginBottom:8,color:cc}}>{r.categorie}</div>
+<h2 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:26,fontWeight:600,marginBottom:6,color:'var(--text)'}}>{r.nom}</h2>
+<div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:16}}>
+{(r.tags||[]).map(t=><span key={t} style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'var(--gold-bg)',color:'var(--gold)',border:'1px solid var(--gold-border)',fontFamily:"'Space Mono',monospace"}}>{t}</span>)}
+</div>
+<div className="gold-rule" style={{marginBottom:20}}/>
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:20,marginBottom:20}}>
+<div>
+<p className="eyebrow" style={{marginBottom:12,color:cc}}>Ingrédients</p>
+<ul style={{listStyle:'none',padding:0,display:'flex',flexDirection:'column',gap:7}}>
+{(r.ingredients||[]).map((ing,i)=><li key={i} style={{display:'flex',gap:8,fontSize:13,color:'var(--text2)',alignItems:'flex-start'}}>
+<span style={{color:cc,marginTop:2,flexShrink:0,fontWeight:700}}>·</span>{ing}
+</li>)}
+</ul>
+</div>
+<div>
+<p className="eyebrow" style={{marginBottom:12,color:cc}}>Préparation</p>
+<p style={{fontSize:13,color:'var(--text2)',lineHeight:1.75,whiteSpace:'pre-wrap'}}>{r.preparation}</p>
+</div>
+</div>
+<div className="gold-rule" style={{marginBottom:16}}/>
+<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+<div style={{background:'var(--bg4)',borderRadius:'var(--radius-sm)',padding:14,border:'1px solid var(--border)'}}>
+<p style={{fontSize:10,color:'var(--text3)',marginBottom:6,letterSpacing:'.1em',textTransform:'uppercase',fontFamily:"'Space Mono',monospace"}}>Apports nutritifs</p>
+<p style={{fontSize:12,color:'var(--text2)',lineHeight:1.65}}>{r.apports}</p>
+</div>
+<div style={{background:'var(--bg4)',borderRadius:'var(--radius-sm)',padding:14,border:'1px solid var(--border)'}}>
+<p style={{fontSize:10,color:'var(--text3)',marginBottom:6,letterSpacing:'.1em',textTransform:'uppercase',fontFamily:"'Space Mono',monospace"}}>Budget Guadeloupe</p>
+<p style={{fontSize:15,color:'var(--gold)',fontWeight:600}}>{r.budget}</p>
+</div>
+</div>
+</div>
+</div>;
+}
+
+return <div>
+<div style={{marginBottom:24}}>
+<p className="eyebrow" style={{marginBottom:6}}>🌿 Cuisine végétale & tropicale</p>
+<h2 style={{fontSize:26,fontWeight:600,fontFamily:"'Cormorant Garamond',serif",marginBottom:4,color:'var(--text)'}}>DrevmCook</h2>
+<p style={{fontSize:13,color:'var(--text3)',fontStyle:'italic',fontFamily:"'Cormorant Garamond',serif"}}>Recettes végétales, sans gluten & autonomie alimentaire tropicale</p>
+</div>
+<div className="gold-rule" style={{marginBottom:20}}/>
+<div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:20,alignItems:'center'}}>
+{cats.map(c=><button key={c} onClick={()=>setFilterCat(c)} style={{padding:'5px 14px',borderRadius:20,border:filterCat===c?`1px solid ${catColors[c]||'var(--gold)'}`:'1px solid var(--border)',background:filterCat===c?'rgba(0,0,0,.15)':'transparent',color:filterCat===c?catColors[c]||'var(--gold)':'var(--text3)',fontSize:12,cursor:'pointer',transition:'all .15s'}}>{c}</button>)}
+<button onClick={()=>setShowAdd(p=>!p)} style={{padding:'5px 14px',borderRadius:20,border:'1px solid var(--border2)',background:'transparent',color:'var(--text2)',fontSize:12,cursor:'pointer',marginLeft:'auto'}}>+ Recette</button>
+</div>
+{showAdd&&<div style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:'var(--radius)',padding:20,marginBottom:20,border:'1px solid var(--gold-border)',boxShadow:'var(--shadow)'}}>
+<h3 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,fontWeight:600,marginBottom:4,color:'var(--gold2)'}}>Nouvelle recette</h3>
+<div className="gold-rule" style={{marginBottom:14}}/>
+<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+<input placeholder="Nom de la recette" value={addForm.nom} onChange={e=>setAddForm(p=>({...p,nom:e.target.value}))}
+  style={{gridColumn:'1/-1',padding:'9px 12px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:13,outline:'none'}}/>
+<select value={addForm.categorie} onChange={e=>setAddForm(p=>({...p,categorie:e.target.value}))}
+  style={{padding:'9px 12px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:13,outline:'none'}}>
+  {cats.filter(c=>c!=='Tout').map(c=><option key={c}>{c}</option>)}
+</select>
+<input placeholder="Tags (ex: vegan, sans-gluten)" value={addForm.tags} onChange={e=>setAddForm(p=>({...p,tags:e.target.value}))}
+  style={{padding:'9px 12px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:13,outline:'none'}}/>
+<textarea placeholder="Ingrédients (un par ligne)" value={addForm.ingredients} onChange={e=>setAddForm(p=>({...p,ingredients:e.target.value}))} rows={4}
+  style={{padding:'9px 12px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:13,outline:'none',resize:'vertical',fontFamily:'inherit',lineHeight:1.5}}/>
+<textarea placeholder="Préparation" value={addForm.preparation} onChange={e=>setAddForm(p=>({...p,preparation:e.target.value}))} rows={4}
+  style={{padding:'9px 12px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:13,outline:'none',resize:'vertical',fontFamily:'inherit',lineHeight:1.5}}/>
+<input placeholder="Apports nutritionnels" value={addForm.apports} onChange={e=>setAddForm(p=>({...p,apports:e.target.value}))}
+  style={{padding:'9px 12px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:13,outline:'none'}}/>
+<input placeholder="Budget" value={addForm.budget} onChange={e=>setAddForm(p=>({...p,budget:e.target.value}))}
+  style={{padding:'9px 12px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:13,outline:'none'}}/>
+</div>
+<div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
+<button onClick={()=>{setShowAdd(false);setAddForm({nom:'',categorie:'Salés',tags:'',ingredients:'',preparation:'',apports:'',budget:''});}} style={{padding:'8px 18px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border)',background:'transparent',color:'var(--text3)',cursor:'pointer',fontSize:13}}>Annuler</button>
+<button onClick={()=>{
+  if(!addForm.nom.trim())return;
+  upsertRecipe({id:Date.now().toString(),nom:addForm.nom,categorie:addForm.categorie,tags:addForm.tags.split(',').map(t=>t.trim()).filter(Boolean),ingredients:addForm.ingredients.split('\n').filter(Boolean),preparation:addForm.preparation,apports:addForm.apports,budget:addForm.budget});
+  setShowAdd(false);
+  setAddForm({nom:'',categorie:'Salés',tags:'',ingredients:'',preparation:'',apports:'',budget:''});
+}} style={{padding:'8px 18px',borderRadius:'var(--radius-sm)',border:'none',background:'linear-gradient(135deg,var(--gold),var(--gold2))',color:'#06120d',cursor:'pointer',fontSize:13,fontWeight:700,letterSpacing:'.04em'}}>Sauvegarder</button>
+</div>
+</div>}
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:14}}>
+{filtered.map(r=>{
+const cc=catColors[r.categorie]||'var(--gold)';
+const isDefault=DEFAULT_RECIPES.some(dr=>dr.id===r.id);
+return <div key={r.id} onClick={()=>setSelected(r.id)} style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:'var(--radius)',padding:'16px 18px',border:'1px solid var(--border)',borderTop:`2px solid ${cc}`,cursor:'pointer',transition:'all .2s',boxShadow:'var(--shadow)'}}>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
+<span style={{fontSize:10,color:cc,fontFamily:"'Space Mono',monospace",letterSpacing:'.1em',textTransform:'uppercase'}}>{r.categorie}</span>
+{!isDefault&&<button onClick={e=>{e.stopPropagation();if(confirm('Supprimer cette recette ?'))deleteRecipe(r.id);}} style={{background:'none',border:'none',color:'var(--text3)',cursor:'pointer',fontSize:16,padding:'0 2px',lineHeight:1}}>×</button>}
+</div>
+<h3 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,fontWeight:600,marginBottom:8,color:'var(--text)',lineHeight:1.2}}>{r.nom}</h3>
+<div style={{display:'flex',gap:4,flexWrap:'wrap',marginBottom:8}}>
+{(r.tags||[]).slice(0,3).map(t=><span key={t} style={{fontSize:9,padding:'1px 6px',borderRadius:20,background:'var(--gold-bg)',color:'var(--gold)',border:'1px solid var(--gold-border)',fontFamily:"'Space Mono',monospace"}}>{t}</span>)}
+</div>
+<div style={{fontSize:11,color:'var(--text3)',display:'flex',justifyContent:'space-between'}}>
+<span>{(r.ingredients||[]).length} ingrédients</span>
+<span style={{color:'var(--gold)'}}>{r.budget}</span>
+</div>
+</div>;})}
 </div>
 </div>;
 }
@@ -1087,6 +1353,69 @@ else next[who].sport=(next[who].sport||[]).filter(s=>s.id!==id);
 return next;
 });
 },[]);
+const upsertRecipe=useCallback((recipe)=>{
+setData(prev=>{
+const next=clone(prev);
+if(!Array.isArray(next.recipes))next.recipes=[];
+const idx=next.recipes.findIndex(r=>r.id===recipe.id);
+if(idx>=0)next.recipes[idx]=recipe; else next.recipes.push(recipe);
+return next;
+});
+},[]);
+const deleteRecipe=useCallback((id)=>{
+setData(prev=>{
+const next=clone(prev);
+next.recipes=(next.recipes||[]).filter(r=>r.id!==id);
+return next;
+});
+},[]);
+const togglePlanningCheck=useCallback((day,itemId)=>{
+setData(prev=>{
+const next=clone(prev);
+if(!next.couple.planning)next.couple.planning={};
+const d=next.couple.planning[day]||{checked:{},custom:[]};
+d.checked={...d.checked,[itemId]:!d.checked[itemId]};
+next.couple.planning[day]=d;
+return next;
+});
+},[]);
+const addPlanningCustomItem=useCallback((day,item)=>{
+setData(prev=>{
+const next=clone(prev);
+if(!next.couple.planning)next.couple.planning={};
+const d=next.couple.planning[day]||{checked:{},custom:[]};
+d.custom=[...(d.custom||[]),item];
+next.couple.planning[day]=d;
+return next;
+});
+},[]);
+const deletePlanningCustomItem=useCallback((day,id)=>{
+setData(prev=>{
+const next=clone(prev);
+if(next.couple.planning&&next.couple.planning[day]){
+  next.couple.planning[day].custom=(next.couple.planning[day].custom||[]).filter(i=>i.id!==id);
+}
+return next;
+});
+},[]);
+const addIdeeCustom=useCallback((text)=>{
+if(!text.trim())return;
+setData(prev=>{
+const next=clone(prev);
+if(!next.couple.ideeJour)next.couple.ideeJour={liste:[],custom:[]};
+next.couple.ideeJour.custom=[...(next.couple.ideeJour.custom||[]),{id:Date.now().toString(),text:text.trim()}];
+return next;
+});
+},[]);
+const deleteIdeeCustom=useCallback((id)=>{
+setData(prev=>{
+const next=clone(prev);
+if(next.couple.ideeJour){
+  next.couple.ideeJour.custom=(next.couple.ideeJour.custom||[]).filter(i=>i.id!==id);
+}
+return next;
+});
+},[]);
 
 const {totalObj,totalDone,avgProgress,totalActions,actionsDone}=useMemo(()=>{
 const totalObj=[...data.dja.objectives,...data.liika.objectives,...data.couple.objectives];
@@ -1107,6 +1436,7 @@ const navItems=[
 {id:'budget',label:'Budget',icon:'💰'},
 {id:'vision',label:'Vision',icon:'✦'},
 {id:'planning',label:'Planning',icon:'🗓'},
+{id:'drevmcook',label:'DrevmCook',icon:'🌿'},
 {id:'charts',label:'Stats',icon:'▤'},
 ];
 
@@ -1180,6 +1510,23 @@ Tableau de bord
 <p style={{fontSize:13,color:'var(--text3)',marginBottom:0}}>Vue d'ensemble — Vision 2026-2036</p>
 <div style={{marginTop:16,height:1,background:'linear-gradient(90deg,var(--gold-border),transparent)'}}/>
 </div>
+{(()=>{
+const ideeJour=(data.couple||{}).ideeJour||{liste:[],custom:[]};
+const allIdees=[...DEFAULT_IDEES,...(ideeJour.custom||[])];
+const today=new Date();
+const dayOfYear=Math.floor((today-new Date(today.getFullYear(),0,0))/864e5);
+const idee=allIdees.length?allIdees[dayOfYear%allIdees.length]:{text:'Prenez soin de vous aujourd\'hui ♡'};
+return <div style={{background:'linear-gradient(135deg,var(--bg3),var(--bg4))',borderRadius:'var(--radius)',padding:'20px 24px',marginBottom:24,border:'1px solid var(--gold-border)',boxShadow:'var(--shadow)',position:'relative',overflow:'hidden'}}>
+<div style={{position:'absolute',top:0,right:0,width:140,height:140,background:'radial-gradient(circle,rgba(217,183,95,.08),transparent 70%)',borderRadius:'50%',transform:'translate(35%,-35%)',pointerEvents:'none'}}/>
+<div className="eyebrow" style={{marginBottom:10}}>✨ Idée du jour</div>
+<p style={{fontSize:18,fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',color:'var(--text)',lineHeight:1.55,marginBottom:14}}>{idee.text}</p>
+<div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+<button onClick={()=>setView('planning')} style={{padding:'5px 14px',borderRadius:20,border:'1px solid var(--gold-border)',background:'transparent',color:'var(--gold)',fontSize:11,cursor:'pointer',fontFamily:"'Space Mono',monospace",letterSpacing:'.04em'}}>Voir planning →</button>
+<button onClick={()=>setView('drevmcook')} style={{padding:'5px 14px',borderRadius:20,border:'1px solid var(--border2)',background:'transparent',color:'var(--text3)',fontSize:11,cursor:'pointer',fontFamily:"'Space Mono',monospace",letterSpacing:'.04em'}}>🌿 DrevmCook</button>
+<span style={{fontSize:10,color:'var(--text3)',marginLeft:'auto',fontFamily:"'Space Mono',monospace"}}>{today.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})}</span>
+</div>
+</div>;
+})()}
 <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:12,marginBottom:28}}>
 <StatCard label="Progression moyenne" value={`${avgProgress}%`} color="dja" icon="◈"/>
 <StatCard label="Objectifs terminés" value={`${totalDone}/${totalObj.length}`} color="liika" icon="✓"/>
@@ -1320,7 +1667,8 @@ style={{display:'flex',flexDirection:'column',alignItems:'center',gap:2,border:'
 {view==='sport'&&<SportView data={data} upsertSport={upsertSport} deleteSport={deleteSport}/>}
 {view==='budget'&&<BudgetView data={data} upsertBudgetLine={upsertBudgetLine} deleteBudgetLine={deleteBudgetLine}/>}
 {view==='vision'&&<VisionView data={data} updateVision={updateVision}/>}
-{view==='planning'&&<PlanningView/>}
+{view==='planning'&&<PlanningView planning={(data.couple||{}).planning||{}} togglePlanningCheck={togglePlanningCheck} addPlanningCustomItem={addPlanningCustomItem} deletePlanningCustomItem={deletePlanningCustomItem}/>}
+{view==='drevmcook'&&<DrevmCookView recipes={data.recipes||[]} upsertRecipe={upsertRecipe} deleteRecipe={deleteRecipe}/>}
 {view==='charts'&&renderCharts()}
 </main>
 
