@@ -864,6 +864,84 @@ const FILMS=[
 {title:'Marriage Story',genre:'Drame — communication & amour profond'},
 ];
 
+// ─── Culture Guadeloupe ───
+const CULTURE_EVENTS=[
+{id:'ce1',titre:'Carnaval de Guadeloupe',periode:'Février — Mars',mois:2,lieu:'Pointe-à-Pitre & communes',desc:'Le plus grand carnaval des Antilles françaises : défilés de chars, groupes à pied, masques traditionnels et musique Gwo Ka.',cat:'Festivals',icon:'🎭',annuel:true},
+{id:'ce2',titre:'Festival Gwoka',periode:'Juillet',mois:7,lieu:'Sainte-Anne',desc:'Célébration du patrimoine immatériel de l\'UNESCO : tambours ka, chants lewòz et danses traditionnelles pendant 5 jours.',cat:'Musique',icon:'🥁',annuel:true},
+{id:'ce3',titre:'Fête de la Musique',periode:'21 Juin',mois:6,lieu:'Guadeloupe entière',desc:'Scènes ouvertes dans toutes les communes : zouk, gwo ka, reggae, jazz créole et musiques du monde au cœur de la Guadeloupe.',cat:'Musique',icon:'🎶',annuel:true},
+{id:'ce4',titre:'Fête des Cuisinières',periode:'Août',mois:8,lieu:'Pointe-à-Pitre',desc:'Tradition séculaire : les cuisinières en tenue créole défilent vers la cathédrale, puis grand festin de cuisine créole traditionnelle.',cat:'Gastronomie',icon:'👩‍🍳',annuel:true},
+{id:'ce5',titre:'Course de yoles traditionnelles',periode:'Juillet — Août',mois:7,lieu:'Communes côtières',desc:'Les embarcations de pêcheurs artisanaux en régate, symbole de la culture maritime guadeloupéenne.',cat:'Sport & Mer',icon:'⛵',annuel:true},
+{id:'ce6',titre:'Festival Jazz aux Antilles',periode:'Décembre',mois:12,lieu:'Pointe-à-Pitre',desc:'Figures internationales et artistes locaux se retrouvent pour une semaine de jazz, blues et soul sur fond de Caraïbe.',cat:'Musique',icon:'🎷',annuel:true},
+{id:'ce7',titre:'Festival International du Film de Guadeloupe',periode:'Novembre',mois:11,lieu:'Basse-Terre & Pointe-à-Pitre',desc:'Cinéma caribéen et francophone : films, courts-métrages, rencontres avec réalisateurs et projections en plein air.',cat:'Art & Cinéma',icon:'🎬',annuel:true},
+{id:'ce8',titre:'Semaine Créole',periode:'Octobre',mois:10,lieu:'Guadeloupe entière',desc:'Valorisation de la langue et de la culture créole : contes, lectures, spectacles et gastronomie pendant une semaine.',cat:'Patrimoine',icon:'📚',annuel:true},
+{id:'ce9',titre:'Mémorial ACTe — Expositions',periode:'Toute l\'année',mois:0,lieu:'Pointe-à-Pitre',desc:'Le plus grand centre caribéen de mémoire des traites et de l\'esclavage. Expositions immersives, ateliers pédagogiques.',cat:'Art & Cinéma',icon:'🏛️',annuel:false},
+{id:'ce10',titre:'Toussaint créole',periode:'Novembre',mois:11,lieu:'Cimetières de Guadeloupe',desc:'Tradition unique : illumination nocturne des cimetières avec des milliers de bougies, veillée familiale et recueillement.',cat:'Patrimoine',icon:'🕯️',annuel:true},
+{id:'ce11',titre:'Salon du Livre Guadeloupéen',periode:'Avril',mois:4,lieu:'Pointe-à-Pitre',desc:'Rencontre avec les auteurs antillais et caribéens : dédicaces, conférences et débats autour de la littérature créole.',cat:'Art & Cinéma',icon:'📖',annuel:true},
+{id:'ce12',titre:'Grand Prix automobile de Guadeloupe',periode:'Juin',mois:6,lieu:'Circuit du Lamentin',desc:'Compétition de rallye et de circuit réunissant pilotes locaux et continentaux, ambiance festive garantie.',cat:'Sport & Mer',icon:'🏎️',annuel:true},
+{id:'ce13',titre:'Fête de Marie-Galante — La Jeannette',periode:'Juin',mois:6,lieu:'Grand-Bourg, Marie-Galante',desc:'Festival de musique traditionnelle : gwo ka, biguine et quadrille sur l\'île aux cent moulins.',cat:'Musique',icon:'🌴',annuel:true},
+{id:'ce14',titre:'Festival Couleurs Caraïbe',periode:'Mai',mois:5,lieu:'Basse-Terre',desc:'Rencontre des arts visuels caribéens : peinture, sculpture, photographie et street art dans les rues de Basse-Terre.',cat:'Art & Cinéma',icon:'🎨',annuel:true},
+{id:'ce15',titre:'Fête Patronale de Sainte-Anne',periode:'Juillet',mois:7,lieu:'Sainte-Anne',desc:'Procession, messe en créole, exposition artisanale, marché nocturne et feux d\'artifice sur la plage.',cat:'Patrimoine',icon:'✨',annuel:true},
+{id:'ce16',titre:'Rando Nocturne de la Soufrière',periode:'Mai — Juin',mois:5,lieu:'La Soufrière, Basse-Terre',desc:'Randonnée nocturne organisée vers le sommet du volcan, lever du soleil spectaculaire sur l\'archipel.',cat:'Sport & Mer',icon:'🌋',annuel:true},
+{id:'ce17',titre:'Marché de Noël créole',periode:'Décembre',mois:12,lieu:'Saint-François & communes',desc:'Marchés artisanaux, spécialités locales (boudins, charandon, féroce), musique de Noël antillais.',cat:'Gastronomie',icon:'🎄',annuel:true},
+{id:'ce18',titre:'Festival du Bœuf de Marie-Galante',periode:'Août',mois:8,lieu:'Marie-Galante',desc:'Fête de l\'élevage bovin traditionnel sur l\'île : concours, défilé de bœufs décorés et gastronomie locale.',cat:'Gastronomie',icon:'🐂',annuel:true},
+];
+
+function CultureGwadView(){
+const CATS=['Tous','Festivals','Musique','Gastronomie','Art & Cinéma','Patrimoine','Sport & Mer'];
+const CAT_COLORS={Festivals:'var(--accent-liika)',Musique:'var(--gold)',Gastronomie:'var(--success)','Art & Cinéma':'var(--accent-dja)',Patrimoine:'#fb923c','Sport & Mer':'#38bdf8'};
+const [filterCat,setFilterCat]=useState('Tous');
+const today=new Date();
+const currentMonth=today.getMonth()+1;
+const filtered=filterCat==='Tous'?CULTURE_EVENTS:CULTURE_EVENTS.filter(e=>e.cat===filterCat);
+const isCurrent=e=>e.mois===currentMonth||e.mois===0;
+const isSoon=e=>!isCurrent(e)&&(e.mois===currentMonth+1||(currentMonth===12&&e.mois===1));
+
+return <div>
+<div style={{background:'linear-gradient(135deg,rgba(217,183,95,.09),rgba(74,222,128,.06))',borderRadius:'var(--radius)',padding:'24px',marginBottom:20,border:'1px solid var(--gold-border)',position:'relative',overflow:'hidden'}}>
+<div style={{position:'absolute',top:-50,right:-50,width:200,height:200,background:'radial-gradient(circle,rgba(217,183,95,.08),transparent 70%)',borderRadius:'50%',pointerEvents:'none'}}/>
+<p className="eyebrow" style={{marginBottom:8}}>🎭 Agenda culturel</p>
+<h2 style={{fontSize:26,fontFamily:"'Cormorant Garamond',serif",fontWeight:600,color:'var(--text)',marginBottom:4,lineHeight:1.2}}>Culture Guadeloupe</h2>
+<p style={{fontSize:13,color:'var(--text3)',fontStyle:'italic',fontFamily:"'Cormorant Garamond',serif"}}>Festivals, musique, art et patrimoine de l'archipel 🌴</p>
+</div>
+
+<div className="scroll-x" style={{display:'flex',gap:8,marginBottom:20,paddingBottom:4}}>
+{CATS.map(c=>{
+const active=filterCat===c;
+const col=CAT_COLORS[c]||'var(--text3)';
+return <button key={c} onClick={()=>setFilterCat(c)} style={{flexShrink:0,padding:'6px 14px',borderRadius:20,border:`1px solid ${active?col:'var(--border)'}`,background:active?col+'22':'transparent',color:active?col:'var(--text3)',fontSize:11,cursor:'pointer',fontFamily:"'Space Mono',monospace",whiteSpace:'nowrap',transition:'all .2s',fontWeight:active?700:400}}>{c}</button>;
+})}
+</div>
+
+<div style={{display:'grid',gap:12}}>
+{filtered.map((e,i)=>{
+const col=CAT_COLORS[e.cat]||'var(--text3)';
+const current=isCurrent(e);
+const soon=isSoon(e);
+return <div key={e.id} style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:'var(--radius)',padding:'16px 18px',border:`1px solid ${current?col+'44':'var(--border)'}`,borderLeft:`3px solid ${col}`,boxShadow:current?`0 4px 20px ${col}18`:'var(--shadow)',animation:`fadeUp .35s ease ${i*.06}s both`,position:'relative',overflow:'hidden'}}>
+{current&&<div style={{position:'absolute',top:12,right:12,fontSize:9,fontFamily:"'Space Mono',monospace",background:col+'22',color:col,padding:'2px 8px',borderRadius:10,letterSpacing:'.1em'}}>● CE MOIS</div>}
+{!current&&soon&&<div style={{position:'absolute',top:12,right:12,fontSize:9,fontFamily:"'Space Mono',monospace",background:'var(--gold-bg)',color:'var(--gold)',padding:'2px 8px',borderRadius:10,letterSpacing:'.1em'}}>À VENIR</div>}
+<div style={{display:'flex',gap:12,alignItems:'flex-start'}}>
+<span style={{fontSize:24,lineHeight:1,flexShrink:0,marginTop:2}}>{e.icon}</span>
+<div style={{flex:1}}>
+<h3 style={{fontSize:15,fontWeight:600,color:'var(--text)',fontFamily:"'Playfair Display',serif",lineHeight:1.2,marginBottom:6,paddingRight:current||soon?60:0}}>{e.titre}</h3>
+<div style={{display:'flex',gap:12,marginBottom:8,flexWrap:'wrap'}}>
+<span style={{fontSize:11,color:'var(--gold)',fontFamily:"'Space Mono',monospace"}}>📅 {e.periode}</span>
+<span style={{fontSize:11,color:'var(--text3)',fontFamily:"'Space Mono',monospace"}}>📍 {e.lieu}</span>
+</div>
+<p style={{fontSize:12,color:'var(--text2)',lineHeight:1.65,marginBottom:8}}>{e.desc}</p>
+<div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
+<span style={{fontSize:9,fontFamily:"'Space Mono',monospace",color:col,background:col+'15',padding:'2px 8px',borderRadius:8,border:`1px solid ${col}30`}}>{e.cat}</span>
+{e.annuel&&<span style={{fontSize:9,fontFamily:"'Space Mono',monospace",color:'var(--text3)',background:'var(--bg4)',padding:'2px 8px',borderRadius:8}}>Annuel</span>}
+</div>
+</div>
+</div>
+</div>;
+})}
+{filtered.length===0&&<div style={{textAlign:'center',padding:40,color:'var(--text3)',fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',fontSize:16}}>Aucun événement dans cette catégorie.</div>}
+</div>
+</div>;
+}
+
 function PlanningView({planning,togglePlanningCheck,addPlanningCustomItem,deletePlanningCustomItem}){
 const [activeDay,setActiveDay]=useState(0);
 const [activeTab,setActiveTab]=useState('planning');
@@ -1446,6 +1524,7 @@ const navItems=[
 {id:'vision',label:'Vision',icon:'✦'},
 {id:'planning',label:'Planning',icon:'🗓'},
 {id:'drevmcook',label:'DrevmCook',icon:'🌿'},
+{id:'culture',label:'Culture GWA',icon:'🎭'},
 {id:'charts',label:'Stats',icon:'▤'},
 ];
 
@@ -1678,6 +1757,7 @@ style={{display:'flex',flexDirection:'column',alignItems:'center',gap:3,flexShri
 {view==='vision'&&<VisionView data={data} updateVision={updateVision}/>}
 {view==='planning'&&<PlanningView planning={(data.couple||{}).planning||{}} togglePlanningCheck={togglePlanningCheck} addPlanningCustomItem={addPlanningCustomItem} deletePlanningCustomItem={deletePlanningCustomItem}/>}
 {view==='drevmcook'&&<DrevmCookView recipes={data.recipes||[]} upsertRecipe={upsertRecipe} deleteRecipe={deleteRecipe}/>}
+{view==='culture'&&<CultureGwadView/>}
 {view==='charts'&&renderCharts()}
 </main>
 
