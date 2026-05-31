@@ -663,10 +663,10 @@ style={{padding:'5px 14px',borderRadius:20,border:who===w?`1px solid ${accent[w]
 </div>
 <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:12}}>
 {[
-  {icon:'🎯',label:'Objectifs actifs',value:(who==='couple'?data.couple.objectives:data[who]?.objectives||[]).filter(o=>!o.done).length},
-  {icon:'✅',label:'Terminés',value:(who==='couple'?data.couple.objectives:data[who]?.objectives||[]).filter(o=>o.done).length},
-  {icon:'💪',label:'Séances sport',value:(who==='couple'?data.couple.sport:data[who]?.sport||[]).filter(s=>s.fait).length+' / '+(who==='couple'?data.couple.sport:data[who]?.sport||[]).length},
-  {icon:'📝',label:'Notes',value:(who==='couple'?data.couple.notes:data[who]?.notes||[]).length},
+  {icon:'🎯',label:'Objectifs actifs',value:((who==='couple'?data.couple.objectives:data[who]?.objectives)||[]).filter(o=>!o.done).length},
+  {icon:'✅',label:'Terminés',value:((who==='couple'?data.couple.objectives:data[who]?.objectives)||[]).filter(o=>o.done).length},
+  {icon:'💪',label:'Séances sport',value:(()=>{const sp=(who==='couple'?data.couple.sport:data[who]?.sport)||[];return sp.filter(s=>s.fait).length+' / '+sp.length;})()},
+  {icon:'📝',label:'Notes',value:((who==='couple'?data.couple.notes:data[who]?.notes)||[]).length},
 ].map(({icon,label,value})=><div key={label} style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:'var(--radius-sm)',padding:'14px 16px',display:'flex',alignItems:'center',gap:10,border:'1px solid var(--border)',boxShadow:'var(--shadow)'}}>
   <span style={{fontSize:20}}>{icon}</span>
   <div><div style={{fontSize:10,color:'var(--text3)',marginBottom:3,letterSpacing:'.04em'}}>{label}</div><div style={{fontSize:16,fontWeight:600,color:'var(--text)'}}>{value}</div></div>
