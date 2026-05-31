@@ -78,13 +78,21 @@ const defaultUI={};
 const SB_URL='https://mvtwotbyphuxdkcwgime.supabase.co';
 const SB_KEY='sb_publishable_3GTu11_-nrnYDyFY2Rl7eQ_bndRXVAz';
 const sb=supabase.createClient(SB_URL,SB_KEY);
+
+// ID unique de cet appareil (généré une seule fois, persisté en localStorage)
+const DEVICE_ID=(()=>{
+  let id=localStorage.getItem('ld-device-id');
+  if(!id){id='dev_'+Math.random().toString(36).slice(2,10);localStorage.setItem('ld-device-id',id);}
+  return id;
+})();
+
 async function sbLoad(){
   const {data,error}=await sb.from('app_state').select('data').eq('id','main').single();
   if(error||!data)throw error||new Error('no data');
   return data.data;
 }
 async function sbSave(d){
-  const {error}=await sb.from('app_state').upsert({id:'main',data:d,updated_at:new Date().toISOString()});
+  const {error}=await sb.from('app_state').upsert({id:'main',data:d,updated_at:new Date().toISOString(),device_id:DEVICE_ID});
   if(error)throw error;
 }
 
@@ -1449,6 +1457,7 @@ const [ui,setUI]=useState(loadUI);
 const [view,setView]=useState('dashboard');
 const [modal,setModal]=useState(null);
 const [syncStatus,setSyncStatus]=useState('idle');
+const [onlineCount,setOnlineCount]=useState(0);
 
 // Persiste localStorage à chaque changement
 useEffect(()=>saveData(data),[data]);
@@ -1471,6 +1480,43 @@ const t=setTimeout(()=>{
 },1500);
 return ()=>clearTimeout(t);
 },[data]);
+
+// ─── Realtime cross-device sync + présence ───
+useEffect(()=>{
+// Présence : lit les sessions actives (<5 min)
+const refreshOnline=()=>sb.from('app_sessions')
+  .select('id').gte('last_seen',new Date(Date.now()-300000).toISOString())
+  .then(({data:rows})=>rows&&setOnlineCount(rows.length)).catch(()=>{});
+// Ping : enregistre / met à jour cet appareil
+const ping=()=>sb.from('app_sessions').upsert({
+  id:DEVICE_ID,
+  user_name:localStorage.getItem('ld-username')||'Appareil',
+  last_seen:new Date().toISOString(),
+  is_online:true
+}).catch(()=>{});
+
+ping();refreshOnline();
+const iv=setInterval(()=>{ping();refreshOnline();},60000);
+
+const ch=sb.channel('ld-realtime')
+  // Réception des changements d'un AUTRE appareil
+  .on('postgres_changes',
+    {event:'UPDATE',schema:'public',table:'app_state',filter:'id=eq.main'},
+    (payload)=>{
+      if(!payload.new?.data)return;
+      if(payload.new.device_id===DEVICE_ID)return; // notre propre save → ignorer
+      setData(payload.new.data);
+      saveData(payload.new.data);
+      setSyncStatus('ok');
+    })
+  // Mise à jour du compteur d'appareils en ligne
+  .on('postgres_changes',
+    {event:'*',schema:'public',table:'app_sessions'},
+    ()=>refreshOnline())
+  .subscribe();
+
+return()=>{clearInterval(iv);sb.removeChannel(ch);};
+},[]);
 
 const updateObj=useCallback((who,id,updates)=>{
 setData(prev=>{
@@ -1919,6 +1965,10 @@ return <button key={n.id} onClick={()=>setView(n.id)} style={{
 <span style={{fontSize:9,fontWeight:600,fontFamily:"'Space Mono',monospace",color:syncStatus==='ok'?'var(--success)':syncStatus==='error'?'#f87171':syncStatus==='syncing'?'var(--gold)':'var(--text3)'}}>
 {syncStatus==='ok'?'✓ sync':syncStatus==='error'?'✗ err':syncStatus==='syncing'?'sync…':'idle'}
 </span>
+{onlineCount>0&&<span title={`${onlineCount} appareil(s) connecté(s)`} style={{display:'flex',alignItems:'center',gap:2,fontSize:9,fontFamily:"'Space Mono',monospace",color:'var(--success)',background:'var(--success-bg)',padding:'1px 6px',borderRadius:8,marginLeft:2}}>
+<span style={{width:5,height:5,borderRadius:'50%',background:'var(--success)',display:'inline-block',animation:'pulse 2s infinite'}}/>
+{onlineCount}
+</span>}
 </div>
 <button onClick={()=>{if(confirm('Réinitialiser toutes les données ?')){localStorage.removeItem('dja-liika-goals');setData(defaultData)}}}
 style={{width:'100%',padding:'7px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border)',background:'transparent',color:'var(--text3)',cursor:'pointer',fontSize:11,letterSpacing:'.03em'}}>Réinitialiser</button>
