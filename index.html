@@ -221,7 +221,8 @@ couple:{
     {id:'cs2',jour:'Dimanche',activite:'Randonnée ou plage',duree:90,intensite:'Modérée',fait:false},
   ],
   planning:{},
-  ideeJour:{liste:[],custom:[]}
+  ideeJour:{liste:[],custom:[]},
+  maison:{checked:{},custom:[],lastReset:''}
 },
 recipes:[]
 };
@@ -864,6 +865,238 @@ const FILMS=[
 {title:'Marriage Story',genre:'Drame — communication & amour profond'},
 ];
 
+// ─── Culture Guadeloupe ───
+const CULTURE_EVENTS=[
+{id:'ce1',titre:'Carnaval de Guadeloupe',periode:'Février — Mars',mois:2,lieu:'Pointe-à-Pitre & communes',desc:'Le plus grand carnaval des Antilles françaises : défilés de chars, groupes à pied, masques traditionnels et musique Gwo Ka.',cat:'Festivals',icon:'🎭',annuel:true},
+{id:'ce2',titre:'Festival Gwoka',periode:'Juillet',mois:7,lieu:'Sainte-Anne',desc:'Célébration du patrimoine immatériel de l\'UNESCO : tambours ka, chants lewòz et danses traditionnelles pendant 5 jours.',cat:'Musique',icon:'🥁',annuel:true},
+{id:'ce3',titre:'Fête de la Musique',periode:'21 Juin',mois:6,lieu:'Guadeloupe entière',desc:'Scènes ouvertes dans toutes les communes : zouk, gwo ka, reggae, jazz créole et musiques du monde au cœur de la Guadeloupe.',cat:'Musique',icon:'🎶',annuel:true},
+{id:'ce4',titre:'Fête des Cuisinières',periode:'Août',mois:8,lieu:'Pointe-à-Pitre',desc:'Tradition séculaire : les cuisinières en tenue créole défilent vers la cathédrale, puis grand festin de cuisine créole traditionnelle.',cat:'Gastronomie',icon:'👩‍🍳',annuel:true},
+{id:'ce5',titre:'Course de yoles traditionnelles',periode:'Juillet — Août',mois:7,lieu:'Communes côtières',desc:'Les embarcations de pêcheurs artisanaux en régate, symbole de la culture maritime guadeloupéenne.',cat:'Sport & Mer',icon:'⛵',annuel:true},
+{id:'ce6',titre:'Festival Jazz aux Antilles',periode:'Décembre',mois:12,lieu:'Pointe-à-Pitre',desc:'Figures internationales et artistes locaux se retrouvent pour une semaine de jazz, blues et soul sur fond de Caraïbe.',cat:'Musique',icon:'🎷',annuel:true},
+{id:'ce7',titre:'Festival International du Film de Guadeloupe',periode:'Novembre',mois:11,lieu:'Basse-Terre & Pointe-à-Pitre',desc:'Cinéma caribéen et francophone : films, courts-métrages, rencontres avec réalisateurs et projections en plein air.',cat:'Art & Cinéma',icon:'🎬',annuel:true},
+{id:'ce8',titre:'Semaine Créole',periode:'Octobre',mois:10,lieu:'Guadeloupe entière',desc:'Valorisation de la langue et de la culture créole : contes, lectures, spectacles et gastronomie pendant une semaine.',cat:'Patrimoine',icon:'📚',annuel:true},
+{id:'ce9',titre:'Mémorial ACTe — Expositions',periode:'Toute l\'année',mois:0,lieu:'Pointe-à-Pitre',desc:'Le plus grand centre caribéen de mémoire des traites et de l\'esclavage. Expositions immersives, ateliers pédagogiques.',cat:'Art & Cinéma',icon:'🏛️',annuel:false},
+{id:'ce10',titre:'Toussaint créole',periode:'Novembre',mois:11,lieu:'Cimetières de Guadeloupe',desc:'Tradition unique : illumination nocturne des cimetières avec des milliers de bougies, veillée familiale et recueillement.',cat:'Patrimoine',icon:'🕯️',annuel:true},
+{id:'ce11',titre:'Salon du Livre Guadeloupéen',periode:'Avril',mois:4,lieu:'Pointe-à-Pitre',desc:'Rencontre avec les auteurs antillais et caribéens : dédicaces, conférences et débats autour de la littérature créole.',cat:'Art & Cinéma',icon:'📖',annuel:true},
+{id:'ce12',titre:'Grand Prix automobile de Guadeloupe',periode:'Juin',mois:6,lieu:'Circuit du Lamentin',desc:'Compétition de rallye et de circuit réunissant pilotes locaux et continentaux, ambiance festive garantie.',cat:'Sport & Mer',icon:'🏎️',annuel:true},
+{id:'ce13',titre:'Fête de Marie-Galante — La Jeannette',periode:'Juin',mois:6,lieu:'Grand-Bourg, Marie-Galante',desc:'Festival de musique traditionnelle : gwo ka, biguine et quadrille sur l\'île aux cent moulins.',cat:'Musique',icon:'🌴',annuel:true},
+{id:'ce14',titre:'Festival Couleurs Caraïbe',periode:'Mai',mois:5,lieu:'Basse-Terre',desc:'Rencontre des arts visuels caribéens : peinture, sculpture, photographie et street art dans les rues de Basse-Terre.',cat:'Art & Cinéma',icon:'🎨',annuel:true},
+{id:'ce15',titre:'Fête Patronale de Sainte-Anne',periode:'Juillet',mois:7,lieu:'Sainte-Anne',desc:'Procession, messe en créole, exposition artisanale, marché nocturne et feux d\'artifice sur la plage.',cat:'Patrimoine',icon:'✨',annuel:true},
+{id:'ce16',titre:'Rando Nocturne de la Soufrière',periode:'Mai — Juin',mois:5,lieu:'La Soufrière, Basse-Terre',desc:'Randonnée nocturne organisée vers le sommet du volcan, lever du soleil spectaculaire sur l\'archipel.',cat:'Sport & Mer',icon:'🌋',annuel:true},
+{id:'ce17',titre:'Marché de Noël créole',periode:'Décembre',mois:12,lieu:'Saint-François & communes',desc:'Marchés artisanaux, spécialités locales (boudins, charandon, féroce), musique de Noël antillais.',cat:'Gastronomie',icon:'🎄',annuel:true},
+{id:'ce18',titre:'Festival du Bœuf de Marie-Galante',periode:'Août',mois:8,lieu:'Marie-Galante',desc:'Fête de l\'élevage bovin traditionnel sur l\'île : concours, défilé de bœufs décorés et gastronomie locale.',cat:'Gastronomie',icon:'🐂',annuel:true},
+];
+
+function CultureGwadView(){
+const CATS=['Tous','Festivals','Musique','Gastronomie','Art & Cinéma','Patrimoine','Sport & Mer'];
+const CAT_COLORS={Festivals:'var(--accent-liika)',Musique:'var(--gold)',Gastronomie:'var(--success)','Art & Cinéma':'var(--accent-dja)',Patrimoine:'#fb923c','Sport & Mer':'#38bdf8'};
+const [filterCat,setFilterCat]=useState('Tous');
+const today=new Date();
+const currentMonth=today.getMonth()+1;
+const filtered=filterCat==='Tous'?CULTURE_EVENTS:CULTURE_EVENTS.filter(e=>e.cat===filterCat);
+const isCurrent=e=>e.mois===currentMonth||e.mois===0;
+const isSoon=e=>!isCurrent(e)&&(e.mois===currentMonth+1||(currentMonth===12&&e.mois===1));
+
+return <div>
+<div style={{background:'linear-gradient(135deg,rgba(217,183,95,.09),rgba(74,222,128,.06))',borderRadius:'var(--radius)',padding:'24px',marginBottom:20,border:'1px solid var(--gold-border)',position:'relative',overflow:'hidden'}}>
+<div style={{position:'absolute',top:-50,right:-50,width:200,height:200,background:'radial-gradient(circle,rgba(217,183,95,.08),transparent 70%)',borderRadius:'50%',pointerEvents:'none'}}/>
+<p className="eyebrow" style={{marginBottom:8}}>🎭 Agenda culturel</p>
+<h2 style={{fontSize:26,fontFamily:"'Cormorant Garamond',serif",fontWeight:600,color:'var(--text)',marginBottom:4,lineHeight:1.2}}>Culture Guadeloupe</h2>
+<p style={{fontSize:13,color:'var(--text3)',fontStyle:'italic',fontFamily:"'Cormorant Garamond',serif"}}>Festivals, musique, art et patrimoine de l'archipel 🌴</p>
+</div>
+
+<div className="scroll-x" style={{display:'flex',gap:8,marginBottom:20,paddingBottom:4}}>
+{CATS.map(c=>{
+const active=filterCat===c;
+const col=CAT_COLORS[c]||'var(--text3)';
+return <button key={c} onClick={()=>setFilterCat(c)} style={{flexShrink:0,padding:'6px 14px',borderRadius:20,border:`1px solid ${active?col:'var(--border)'}`,background:active?col+'22':'transparent',color:active?col:'var(--text3)',fontSize:11,cursor:'pointer',fontFamily:"'Space Mono',monospace",whiteSpace:'nowrap',transition:'all .2s',fontWeight:active?700:400}}>{c}</button>;
+})}
+</div>
+
+<div style={{display:'grid',gap:12}}>
+{filtered.map((e,i)=>{
+const col=CAT_COLORS[e.cat]||'var(--text3)';
+const current=isCurrent(e);
+const soon=isSoon(e);
+return <div key={e.id} style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:'var(--radius)',padding:'16px 18px',border:`1px solid ${current?col+'44':'var(--border)'}`,borderLeft:`3px solid ${col}`,boxShadow:current?`0 4px 20px ${col}18`:'var(--shadow)',animation:`fadeUp .35s ease ${i*.06}s both`,position:'relative',overflow:'hidden'}}>
+{current&&<div style={{position:'absolute',top:12,right:12,fontSize:9,fontFamily:"'Space Mono',monospace",background:col+'22',color:col,padding:'2px 8px',borderRadius:10,letterSpacing:'.1em'}}>● CE MOIS</div>}
+{!current&&soon&&<div style={{position:'absolute',top:12,right:12,fontSize:9,fontFamily:"'Space Mono',monospace",background:'var(--gold-bg)',color:'var(--gold)',padding:'2px 8px',borderRadius:10,letterSpacing:'.1em'}}>À VENIR</div>}
+<div style={{display:'flex',gap:12,alignItems:'flex-start'}}>
+<span style={{fontSize:24,lineHeight:1,flexShrink:0,marginTop:2}}>{e.icon}</span>
+<div style={{flex:1}}>
+<h3 style={{fontSize:15,fontWeight:600,color:'var(--text)',fontFamily:"'Playfair Display',serif",lineHeight:1.2,marginBottom:6,paddingRight:current||soon?60:0}}>{e.titre}</h3>
+<div style={{display:'flex',gap:12,marginBottom:8,flexWrap:'wrap'}}>
+<span style={{fontSize:11,color:'var(--gold)',fontFamily:"'Space Mono',monospace"}}>📅 {e.periode}</span>
+<span style={{fontSize:11,color:'var(--text3)',fontFamily:"'Space Mono',monospace"}}>📍 {e.lieu}</span>
+</div>
+<p style={{fontSize:12,color:'var(--text2)',lineHeight:1.65,marginBottom:8}}>{e.desc}</p>
+<div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
+<span style={{fontSize:9,fontFamily:"'Space Mono',monospace",color:col,background:col+'15',padding:'2px 8px',borderRadius:8,border:`1px solid ${col}30`}}>{e.cat}</span>
+{e.annuel&&<span style={{fontSize:9,fontFamily:"'Space Mono',monospace",color:'var(--text3)',background:'var(--bg4)',padding:'2px 8px',borderRadius:8}}>Annuel</span>}
+</div>
+</div>
+</div>
+</div>;
+})}
+{filtered.length===0&&<div style={{textAlign:'center',padding:40,color:'var(--text3)',fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',fontSize:16}}>Aucun événement dans cette catégorie.</div>}
+</div>
+</div>;
+}
+
+// ─── Maison ───
+const DEFAULT_MAISON_TASKS=[
+{id:'ht1',titre:'Faire les lits',icon:'🛏️',heure:'08:00',freq:'Quotidien',who:'both'},
+{id:'ht2',titre:'Vaisselle',icon:'🍽️',heure:'08:30',freq:'Quotidien',who:'both'},
+{id:'ht3',titre:'Nettoyage cuisine',icon:'🧹',heure:'09:00',freq:'Quotidien',who:'both'},
+{id:'ht4',titre:'Balai / aspirateur',icon:'🧺',heure:'10:00',freq:'Quotidien',who:'both'},
+{id:'ht5',titre:'Sortir les poubelles',icon:'🗑️',heure:'07:30',freq:'Quotidien',who:'both'},
+{id:'ht6',titre:'Arroser les plantes',icon:'🪴',heure:'09:00',freq:'Quotidien',who:'both'},
+{id:'ht7',titre:'Nettoyer salle de bain',icon:'🚿',heure:'10:30',freq:'Quotidien',who:'both'},
+{id:'ht8',titre:'Vider les corbeilles',icon:'📦',heure:'20:00',freq:'Quotidien',who:'both'},
+{id:'ht9',titre:'Lessive',icon:'👕',heure:'09:00',freq:'Hebdomadaire',who:'both'},
+{id:'ht10',titre:'Nettoyage sol complet',icon:'🧽',heure:'10:00',freq:'Hebdomadaire',who:'both'},
+{id:'ht11',titre:'Courses alimentaires',icon:'🛒',heure:'10:00',freq:'Hebdomadaire',who:'both'},
+{id:'ht12',titre:'Rangement général',icon:'📋',heure:'16:00',freq:'Hebdomadaire',who:'both'},
+{id:'ht13',titre:'Nettoyage vitres',icon:'🪟',heure:'10:00',freq:'Mensuel',who:'both'},
+{id:'ht14',titre:'Nettoyage four & réfrigérateur',icon:'🧊',heure:'11:00',freq:'Mensuel',who:'both'},
+{id:'ht15',titre:'Nettoyage salle de bain complet',icon:'🚿',heure:'10:00',freq:'Mensuel',who:'both'},
+{id:'ht16',titre:'Désencombrement & tri',icon:'📦',heure:'14:00',freq:'Mensuel',who:'both'},
+];
+
+function MaisonView({maison,toggleMaisonTask,addMaisonTask,deleteMaisonTask,resetMaisonChecked}){
+const [activeFreq,setActiveFreq]=useState('Quotidien');
+const [addingTask,setAddingTask]=useState(false);
+const [addForm,setAddForm]=useState({titre:'',icon:'🏠',heure:'09:00',freq:'Quotidien',who:'both'});
+const [notifPerm,setNotifPerm]=useState(()=>typeof Notification!=='undefined'?Notification.permission:'default');
+
+const maison_=maison||{};
+const checked=maison_.checked||{};
+const custom=maison_.custom||[];
+const allTasks=[...DEFAULT_MAISON_TASKS,...custom.filter(c=>!DEFAULT_MAISON_TASKS.some(d=>d.id===c.id))];
+
+// Ref always up-to-date for the interval (avoids stale closures)
+const stateRef=useRef({checked,allTasks});
+useEffect(()=>{stateRef.current={checked,allTasks};});
+
+// Daily auto-reset
+useEffect(()=>{
+  const today=new Date().toISOString().slice(0,10);
+  if((maison_.lastReset||'')!==today)resetMaisonChecked(today);
+},[]);
+
+// Notification interval — runs once, reads fresh values via stateRef
+useEffect(()=>{
+  if(typeof Notification==='undefined')return;
+  const iv=setInterval(()=>{
+    if(Notification.permission!=='granted')return;
+    const {checked:chk,allTasks:tasks}=stateRef.current;
+    const now=new Date();
+    const hhmm=`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    tasks.filter(t=>t.heure===hhmm&&!chk[t.id]).forEach(t=>{
+      try{new Notification(`🏠 ${t.titre}`,{body:`Rappel ${t.freq.toLowerCase()} · Lanmou Douvan`});}catch(_){}
+    });
+  },60000);
+  return()=>clearInterval(iv);
+},[]);
+
+const requestNotif=async()=>{
+  if(typeof Notification==='undefined')return;
+  const p=await Notification.requestPermission();
+  setNotifPerm(p);
+};
+
+const FREQS=['Quotidien','Hebdomadaire','Mensuel'];
+const filtered=allTasks.filter(t=>t.freq===activeFreq);
+const doneCount=filtered.filter(t=>!!checked[t.id]).length;
+const pct=filtered.length?Math.round(doneCount/filtered.length*100):0;
+const WHO_LABELS={dja:'Dja',liika:'Liika',both:'Ensemble'};
+const WHO_COLORS={dja:'var(--accent-dja)',liika:'var(--accent-liika)',both:'var(--gold)'};
+const FREQ_COLORS={'Quotidien':'var(--success)','Hebdomadaire':'var(--gold)','Mensuel':'var(--accent-dja)'};
+
+return <div>
+{/* Header */}
+<div style={{background:'linear-gradient(135deg,rgba(74,222,128,.08),rgba(217,183,95,.06))',borderRadius:'var(--radius)',padding:'22px 24px',marginBottom:20,border:'1px solid rgba(74,222,128,.22)',position:'relative',overflow:'hidden'}}>
+<div style={{position:'absolute',top:-40,right:-40,width:180,height:180,background:'radial-gradient(circle,rgba(74,222,128,.08),transparent 70%)',borderRadius:'50%',pointerEvents:'none'}}/>
+<p className="eyebrow" style={{marginBottom:8,color:'var(--success)'}}>🏠 Organisation</p>
+<h2 style={{fontSize:26,fontFamily:"'Cormorant Garamond',serif",fontWeight:600,color:'var(--text)',marginBottom:4,lineHeight:1.2}}>Tâches de la maison</h2>
+<p style={{fontSize:13,color:'var(--text3)',fontStyle:'italic',fontFamily:"'Cormorant Garamond',serif",marginBottom:14}}>Votre foyer, organisé ensemble ♡</p>
+<div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+<button onClick={requestNotif} style={{padding:'6px 14px',borderRadius:20,border:`1px solid ${notifPerm==='granted'?'var(--success)':'var(--border2)'}`,background:notifPerm==='granted'?'var(--success-bg)':'transparent',color:notifPerm==='granted'?'var(--success)':'var(--text3)',fontSize:11,cursor:'pointer',fontFamily:"'Space Mono',monospace",transition:'all .2s'}}>
+{notifPerm==='granted'?'🔔 Rappels actifs':'🔕 Activer les rappels'}
+</button>
+{notifPerm==='denied'&&<span style={{fontSize:10,color:'#e05050',fontFamily:"'Space Mono',monospace"}}>Autoriser dans les paramètres du navigateur</span>}
+</div>
+</div>
+
+{/* Freq tabs */}
+<div className="scroll-x" style={{display:'flex',gap:8,marginBottom:18}}>
+{FREQS.map(f=>{
+const active=activeFreq===f;
+const col=FREQ_COLORS[f];
+return <button key={f} onClick={()=>setActiveFreq(f)} style={{flexShrink:0,padding:'7px 16px',borderRadius:20,border:`1px solid ${active?col:'var(--border)'}`,background:active?col+'22':'transparent',color:active?col:'var(--text3)',fontSize:11,cursor:'pointer',fontFamily:"'Space Mono',monospace",fontWeight:active?700:400,transition:'all .2s'}}>{f}</button>;
+})}
+</div>
+
+{/* Progress bar */}
+{filtered.length>0&&<div style={{background:'var(--bg3)',borderRadius:'var(--radius-sm)',padding:'14px 18px',marginBottom:18,border:'1px solid var(--border)'}}>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+<span style={{fontSize:11,color:'var(--text3)',fontFamily:"'Space Mono',monospace"}}>{doneCount}/{filtered.length} tâches {activeFreq.toLowerCase()}s</span>
+<span style={{fontSize:14,fontWeight:700,color:pct===100?'var(--success)':'var(--gold)',fontFamily:"'Space Mono',monospace"}}>{pct}%{pct===100?' 🎉':''}</span>
+</div>
+<div style={{height:5,background:'var(--bg4)',borderRadius:4,overflow:'hidden'}}>
+<div style={{height:'100%',width:`${pct}%`,background:pct===100?'linear-gradient(90deg,var(--success),#22c55e)':'linear-gradient(90deg,var(--gold),var(--gold2))',borderRadius:4,transition:'width .45s ease'}}/>
+</div>
+</div>}
+
+{/* Task list */}
+<div style={{display:'grid',gap:10,marginBottom:20}}>
+{filtered.map((task,i)=>{
+const done=!!checked[task.id];
+const isCustom=!task.id.startsWith('ht');
+const wCol=WHO_COLORS[task.who||'both'];
+return <div key={task.id} onClick={()=>toggleMaisonTask(task.id)} style={{display:'flex',alignItems:'center',gap:12,background:done?'rgba(74,222,128,.05)':'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:'var(--radius-sm)',padding:'12px 16px',border:`1px solid ${done?'rgba(74,222,128,.25)':'var(--border)'}`,borderLeft:`3px solid ${done?'var(--success)':FREQ_COLORS[task.freq]}`,cursor:'pointer',transition:'all .2s',animation:`fadeUp .3s ease ${i*.05}s both`,opacity:done?.65:1}}>
+<span style={{fontSize:22,flexShrink:0}}>{task.icon}</span>
+<div style={{flex:1,minWidth:0}}>
+<div style={{fontSize:13,fontWeight:600,color:done?'var(--text3)':'var(--text)',textDecoration:done?'line-through':'none',marginBottom:4,transition:'all .2s'}}>{task.titre}</div>
+<div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+<span style={{fontSize:10,color:'var(--gold)',fontFamily:"'Space Mono',monospace"}}>⏰ {task.heure}</span>
+<span style={{fontSize:9,color:wCol,background:wCol+'18',padding:'1px 8px',borderRadius:8,fontFamily:"'Space Mono',monospace"}}>{WHO_LABELS[task.who||'both']}</span>
+</div>
+</div>
+<div style={{display:'flex',alignItems:'center',gap:6,flexShrink:0}}>
+{done?<span style={{fontSize:18}}>✅</span>:<div style={{width:20,height:20,borderRadius:'50%',border:'2px solid var(--border2)',flexShrink:0}}/>}
+{isCustom&&<button onClick={e=>{e.stopPropagation();deleteMaisonTask(task.id);}} style={{background:'none',border:'none',color:'var(--text3)',cursor:'pointer',fontSize:16,padding:'0 2px',lineHeight:1}}>×</button>}
+</div>
+</div>;})}
+{filtered.length===0&&<div style={{textAlign:'center',padding:32,color:'var(--text3)',fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',fontSize:15}}>Aucune tâche {activeFreq.toLowerCase()}.</div>}
+</div>
+
+{/* Add task */}
+<button onClick={()=>setAddingTask(p=>!p)} style={{padding:'8px 18px',borderRadius:'var(--radius-sm)',border:'1px solid var(--gold-border)',background:'transparent',color:'var(--gold)',cursor:'pointer',fontSize:12,fontFamily:"'Space Mono',monospace",letterSpacing:'.04em',marginBottom:addingTask?12:0,transition:'all .2s'}}>+ Ajouter une tâche</button>
+{addingTask&&<div style={{background:'rgba(217,183,95,.05)',borderRadius:'var(--radius)',padding:16,border:'1px solid var(--gold-border)'}}>
+<div style={{display:'grid',gridTemplateColumns:'44px 1fr',gap:8,marginBottom:8}}>
+<input value={addForm.icon} onChange={e=>setAddForm(p=>({...p,icon:e.target.value}))} style={{padding:'6px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'var(--bg3)',color:'var(--text)',fontSize:18,outline:'none',textAlign:'center'}}/>
+<input value={addForm.titre} onChange={e=>setAddForm(p=>({...p,titre:e.target.value}))} placeholder="Nom de la tâche" style={{padding:'7px 10px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'var(--bg3)',color:'var(--text)',fontSize:13,outline:'none'}}/>
+</div>
+<div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:12}}>
+<input value={addForm.heure} onChange={e=>setAddForm(p=>({...p,heure:e.target.value}))} type="time" style={{padding:'6px 8px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'var(--bg3)',color:'var(--text)',fontSize:12,outline:'none',fontFamily:"'Space Mono',monospace"}}/>
+<select value={addForm.freq} onChange={e=>setAddForm(p=>({...p,freq:e.target.value}))} style={{padding:'6px 8px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'var(--bg3)',color:'var(--text)',fontSize:12,outline:'none'}}>
+{FREQS.map(f=><option key={f} value={f}>{f}</option>)}
+</select>
+<select value={addForm.who} onChange={e=>setAddForm(p=>({...p,who:e.target.value}))} style={{padding:'6px 8px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'var(--bg3)',color:'var(--text)',fontSize:12,outline:'none'}}>
+<option value="both">Ensemble</option>
+<option value="dja">Dja</option>
+<option value="liika">Liika</option>
+</select>
+</div>
+<div style={{display:'flex',gap:8}}>
+<button onClick={()=>{if(!addForm.titre.trim())return;addMaisonTask({...addForm,id:Date.now().toString()});setAddForm({titre:'',icon:'🏠',heure:'09:00',freq:'Quotidien',who:'both'});setAddingTask(false);}} style={{flex:1,padding:'8px',borderRadius:'var(--radius-xs)',border:'none',background:'linear-gradient(135deg,var(--gold),var(--gold2))',color:'#06120d',cursor:'pointer',fontSize:12,fontWeight:700}}>✓ Ajouter</button>
+<button onClick={()=>setAddingTask(false)} style={{padding:'8px 14px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border)',background:'transparent',color:'var(--text3)',cursor:'pointer',fontSize:12}}>✕</button>
+</div>
+</div>}
+</div>;
+}
+
 function PlanningView({planning,togglePlanningCheck,addPlanningCustomItem,deletePlanningCustomItem}){
 const [activeDay,setActiveDay]=useState(0);
 const [activeTab,setActiveTab]=useState('planning');
@@ -1426,6 +1659,40 @@ return next;
 });
 },[]);
 
+const toggleMaisonTask=useCallback((id)=>{
+setData(prev=>{
+const next=clone(prev);
+if(!next.couple.maison)next.couple.maison={checked:{},custom:[],lastReset:''};
+const c=next.couple.maison.checked||{};
+next.couple.maison.checked={...c,[id]:!c[id]};
+return next;
+});
+},[]);
+const addMaisonTask=useCallback((task)=>{
+setData(prev=>{
+const next=clone(prev);
+if(!next.couple.maison)next.couple.maison={checked:{},custom:[],lastReset:''};
+next.couple.maison.custom=[...(next.couple.maison.custom||[]),task];
+return next;
+});
+},[]);
+const deleteMaisonTask=useCallback((id)=>{
+setData(prev=>{
+const next=clone(prev);
+if(next.couple.maison)next.couple.maison.custom=(next.couple.maison.custom||[]).filter(t=>t.id!==id);
+return next;
+});
+},[]);
+const resetMaisonChecked=useCallback((dateStr)=>{
+setData(prev=>{
+const next=clone(prev);
+if(!next.couple.maison)next.couple.maison={checked:{},custom:[],lastReset:''};
+next.couple.maison.checked={};
+next.couple.maison.lastReset=dateStr;
+return next;
+});
+},[]);
+
 const {totalObj,totalDone,avgProgress,totalActions,actionsDone}=useMemo(()=>{
 const totalObj=[...data.dja.objectives,...data.liika.objectives,...data.couple.objectives];
 const totalDone=totalObj.filter(o=>o.done).length;
@@ -1440,12 +1707,14 @@ const navItems=[
 {id:'dja',label:'Dja',icon:'◆'},
 {id:'liika',label:'Liika',icon:'◇'},
 {id:'couple',label:'Couple',icon:'♡'},
+{id:'maison',label:'Maison',icon:'🏠'},
 {id:'repas',label:'Repas',icon:'🍽'},
 {id:'sport',label:'Sport',icon:'💪'},
 {id:'budget',label:'Budget',icon:'💰'},
 {id:'vision',label:'Vision',icon:'✦'},
 {id:'planning',label:'Planning',icon:'🗓'},
 {id:'drevmcook',label:'DrevmCook',icon:'🌿'},
+{id:'culture',label:'Culture GWA',icon:'🎭'},
 {id:'charts',label:'Stats',icon:'▤'},
 ];
 
@@ -1672,12 +1941,14 @@ style={{display:'flex',flexDirection:'column',alignItems:'center',gap:3,flexShri
 {view==='dja'&&renderPerson('dja')}
 {view==='liika'&&renderPerson('liika')}
 {view==='couple'&&renderCouple()}
+{view==='maison'&&<MaisonView maison={(data.couple||{}).maison} toggleMaisonTask={toggleMaisonTask} addMaisonTask={addMaisonTask} deleteMaisonTask={deleteMaisonTask} resetMaisonChecked={resetMaisonChecked}/>}
 {view==='repas'&&<MealsView data={data} upsertMeal={upsertMeal} deleteMeal={deleteMeal}/>}
 {view==='sport'&&<SportView data={data} upsertSport={upsertSport} deleteSport={deleteSport}/>}
 {view==='budget'&&<BudgetView data={data} upsertBudgetLine={upsertBudgetLine} deleteBudgetLine={deleteBudgetLine}/>}
 {view==='vision'&&<VisionView data={data} updateVision={updateVision}/>}
 {view==='planning'&&<PlanningView planning={(data.couple||{}).planning||{}} togglePlanningCheck={togglePlanningCheck} addPlanningCustomItem={addPlanningCustomItem} deletePlanningCustomItem={deletePlanningCustomItem}/>}
 {view==='drevmcook'&&<DrevmCookView recipes={data.recipes||[]} upsertRecipe={upsertRecipe} deleteRecipe={deleteRecipe}/>}
+{view==='culture'&&<CultureGwadView/>}
 {view==='charts'&&renderCharts()}
 </main>
 
