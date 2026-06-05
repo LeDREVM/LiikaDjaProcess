@@ -19,6 +19,8 @@
 --accent-liika:#f472b6;--accent-liika2:#f9a8d4;--accent-liika-bg:rgba(244,114,182,.10);--accent-liika-border:rgba(244,114,182,.28);
 --accent-couple:#d9b75f;--accent-couple-bg:rgba(217,183,95,.10);--accent-couple-border:rgba(217,183,95,.28);
 --success:#4ade80;--success-bg:rgba(74,222,128,.12);
+--warn:#fb923c;--warn-bg:rgba(251,146,60,.12);--warn-border:rgba(251,146,60,.30);
+--danger:#f87171;--danger-bg:rgba(248,113,113,.10);--danger-border:rgba(248,113,113,.28);
 --border:rgba(217,183,95,.11);--border2:rgba(217,183,95,.20);
 --glass:rgba(8,22,14,.70);--shadow:0 8px 32px rgba(0,0,0,.50);
 --grad-hero:linear-gradient(135deg,#0c1f16 0%,#122b1e 55%,#0a1a10 100%);
@@ -43,6 +45,8 @@ background:
 @keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
 @keyframes slideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
 @keyframes goldShimmer{0%,100%{opacity:.7}50%{opacity:1}}
+@keyframes alertPop{0%{transform:scale(.9);opacity:0}60%{transform:scale(1.03)}100%{transform:scale(1);opacity:1}}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
 .scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .scroll-x::-webkit-scrollbar{height:0;display:none}
 @media(max-width:768px){
@@ -230,13 +234,14 @@ couple:{
   ],
   planning:{},
   ideeJour:{liste:[],custom:[]},
-  maison:{checked:{},custom:[],lastReset:''}
+  maison:{checked:{},custom:[],lastReset:''},
+  objMensuels:[]
 },
 recipes:[]
 };
 
 function loadData(){
-try{const d=localStorage.getItem('dja-liika-goals');return d?JSON.parse(d):defaultData}catch(e){return defaultData}
+try{const d=localStorage.getItem('dja-liika-goals');const p=d?JSON.parse(d):defaultData;if(!p.couple.objMensuels)p.couple.objMensuels=[];return p;}catch(e){return defaultData}
 }
 function saveData(d){localStorage.setItem('dja-liika-goals',JSON.stringify(d))}
 function loadUI(){
@@ -951,6 +956,36 @@ return <div key={e.id} style={{background:'linear-gradient(160deg,var(--bg3),var
 </div>;
 }
 
+// ─── Route Liika ───
+const ALERTES_FATIGUE=[
+{km:200,type:'pause',label:'Pause recommandée',detail:'20 min minimum — sortir du camion, marcher, s\'étirer',urgent:false},
+{km:400,type:'pause',label:'Grande pause + repas',detail:'45 min — manger assis, repos visuel, hydratation 500 ml',urgent:false},
+{km:550,type:'warn',label:'Zone de vigilance',detail:'Attention : concentration réduite. Ouvrir la fenêtre, boire de l\'eau, activer musique rythmée.',urgent:true},
+{km:600,type:'stop',label:'ARRÊT IMPÉRATIF',detail:'Dormir minimum 30 min. Ne pas ignorer cette alerte. La fatigue = danger réel.',urgent:true},
+];
+const CHECKLIST_DEPART=[
+{id:'cd1',text:'Thermos eau chaude + bouteille 1,5 L remplie'},
+{id:'cd2',text:'Tupperware repas préparé (recette créole du frigo)'},
+{id:'cd3',text:'Fruits frais + fruits secs + noix (snacks sains)'},
+{id:'cd4',text:'Coussin lombaire positionné dans le siège'},
+{id:'cd5',text:'Playlist ou podcast chargé pour la route'},
+{id:'cd6',text:'Heure de départ + itinéraire partagé avec Dja'},
+{id:'cd7',text:'Routine étirements 5 min faite avant montée'},
+{id:'cd8',text:'Téléphone chargé à 100 % + chargeur embarqué'},
+];
+const ETIREMENTS_PAUSE=[
+{nom:'Rotation du cou',duree:'30 sec',detail:'Cercles lents, gauche puis droite'},
+{nom:'Épaules en arrière',duree:'20 sec',detail:'10 rotations lentes vers l\'arrière'},
+{nom:'Étirement lombaires',duree:'40 sec',detail:'Mains sur les hanches, inclinaison douce'},
+{nom:'Quadriceps debout',duree:'30 sec/jambe',detail:'Tenir la cheville, garder l\'équilibre'},
+{nom:'Marche active',duree:'5 min',detail:'Marcher vite autour du camion ou de l\'aire'},
+{nom:'Respiration profonde',duree:'1 min',detail:'4 sec inspire, 4 sec expire — 3 cycles'},
+];
+
+// ─── Objectifs mensuels ───
+const MOIS_LABELS=['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+const CATS_OBJ_MENSUEL=['Nature','Cuisine','Culture','Finances','Sport','Voyage','Couple','Famille'];
+
 // ─── Maison ───
 const DEFAULT_MAISON_TASKS=[
 {id:'ht1',titre:'Faire les lits',icon:'🛏️',heure:'08:00',freq:'Quotidien',who:'both'},
@@ -1458,6 +1493,11 @@ const [view,setView]=useState('dashboard');
 const [modal,setModal]=useState(null);
 const [syncStatus,setSyncStatus]=useState('idle');
 const [onlineCount,setOnlineCount]=useState(0);
+const [routeKm,setRouteKm]=useState(0);
+const [routeChecklist,setRouteChecklist]=useState({});
+const [objMoisFilter,setObjMoisFilter]=useState(()=>new Date().getMonth());
+const [showAddObjM,setShowAddObjM]=useState(false);
+const [newObjM,setNewObjM]=useState({titre:'',detail:'',categorie:'Nature'});
 
 // Persiste localStorage à chaque changement
 useEffect(()=>saveData(data),[data]);
@@ -1739,6 +1779,16 @@ return next;
 });
 },[]);
 
+const updateObjMensuel=useCallback((id,updates)=>{
+setData(prev=>{const next=clone(prev);const list=next.couple.objMensuels||[];const idx=list.findIndex(o=>o.id===id);if(idx>=0)Object.assign(list[idx],updates);return next;});
+},[]);
+const addObjMensuel=useCallback((titre,detail,cat,mois)=>{
+setData(prev=>{const next=clone(prev);if(!next.couple.objMensuels)next.couple.objMensuels=[];next.couple.objMensuels.push({id:Date.now().toString(),mois,annee:new Date().getFullYear(),titre,detail,categorie:cat,statut:'en_cours',progress:0});return next;});
+},[]);
+const deleteObjMensuel=useCallback((id)=>{
+setData(prev=>{const next=clone(prev);next.couple.objMensuels=(next.couple.objMensuels||[]).filter(o=>o.id!==id);return next;});
+},[]);
+
 const {totalObj,totalDone,avgProgress,totalActions,actionsDone}=useMemo(()=>{
 const totalObj=[...data.dja.objectives,...data.liika.objectives,...data.couple.objectives];
 const totalDone=totalObj.filter(o=>o.done).length;
@@ -1761,6 +1811,8 @@ const navItems=[
 {id:'planning',label:'Planning',icon:'🗓'},
 {id:'drevmcook',label:'DrevmCook',icon:'🌿'},
 {id:'culture',label:'Culture GWA',icon:'🎭'},
+{id:'route',label:'Route Liika',icon:'🚛'},
+{id:'objmensuel',label:'Objectifs mois',icon:'🎯'},
 {id:'charts',label:'Stats',icon:'▤'},
 ];
 
@@ -1933,6 +1985,171 @@ return <div key={who} style={{background:'linear-gradient(160deg,var(--bg3),var(
 </div>
 };
 
+// ─── Route Liika ───
+const renderRoute=()=>{
+const alertesActives=ALERTES_FATIGUE.filter(a=>routeKm>=a.km);
+const prochaine=ALERTES_FATIGUE.find(a=>routeKm<a.km);
+const pctRoute=Math.min(100,Math.round(routeKm/600*100));
+const checkDone=Object.values(routeChecklist).filter(Boolean).length;
+return <div>
+<div style={{background:'linear-gradient(135deg,rgba(244,114,182,.08),rgba(167,139,250,.06))',borderRadius:'var(--radius)',padding:'22px 24px',marginBottom:20,border:'1px solid var(--accent-liika-border)',position:'relative',overflow:'hidden'}}>
+<div style={{position:'absolute',top:-40,right:-40,width:160,height:160,background:'radial-gradient(circle,rgba(244,114,182,.08),transparent 70%)',borderRadius:'50%',pointerEvents:'none'}}/>
+<p className="eyebrow" style={{marginBottom:8,color:'var(--accent-liika)'}}>🚛 Sécurité & Bien-être</p>
+<h2 style={{fontSize:26,fontFamily:"'Cormorant Garamond',serif",fontWeight:600,color:'var(--text)',marginBottom:4,lineHeight:1.2}}>Mode Route — Liika</h2>
+<p style={{fontSize:13,color:'var(--text3)',fontStyle:'italic',fontFamily:"'Cormorant Garamond',serif"}}>Pauses intelligentes, alertes fatigue, checklist départ ♡</p>
+</div>
+
+{/* Compteur km */}
+<div style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:'var(--radius)',padding:'20px 22px',marginBottom:16,border:`1px solid ${pctRoute>=92?'var(--danger-border)':pctRoute>=67?'var(--warn-border)':'var(--accent-liika-border)'}`,boxShadow:'var(--shadow)'}}>
+<p style={{fontSize:11,color:'var(--text3)',marginBottom:10,fontFamily:"'Space Mono',monospace",letterSpacing:'.1em'}}>KILOMÈTRES PARCOURUS AUJOURD'HUI</p>
+<div style={{display:'flex',alignItems:'center',gap:16,marginBottom:14,flexWrap:'wrap'}}>
+<span style={{fontSize:40,fontWeight:700,color:pctRoute>=92?'var(--danger)':pctRoute>=67?'var(--warn)':'var(--accent-liika)',fontFamily:"'Space Mono',monospace",lineHeight:1}}>{routeKm} km</span>
+<div style={{display:'flex',flexDirection:'column',gap:6}}>
+<button onClick={()=>setRouteKm(k=>k+50)} style={{padding:'6px 14px',borderRadius:'var(--radius-xs)',background:'var(--accent-liika-bg)',color:'var(--accent-liika)',border:'1px solid var(--accent-liika-border)',cursor:'pointer',fontSize:13,fontWeight:600}}>+50 km</button>
+<button onClick={()=>setRouteKm(k=>Math.max(0,k-50))} style={{padding:'6px 14px',borderRadius:'var(--radius-xs)',background:'var(--bg4)',color:'var(--text3)',border:'1px solid var(--border)',cursor:'pointer',fontSize:12}}>-50 km</button>
+</div>
+<button onClick={()=>{setRouteKm(0);setRouteChecklist({});}} style={{marginLeft:'auto',padding:'8px 14px',borderRadius:'var(--radius-sm)',background:'transparent',color:'var(--text3)',border:'1px solid var(--border)',cursor:'pointer',fontSize:11,fontFamily:"'Space Mono',monospace"}}>Reset journée</button>
+</div>
+<div style={{height:8,background:'var(--bg4)',borderRadius:4,overflow:'hidden',marginBottom:6}}>
+<div style={{height:'100%',width:`${pctRoute}%`,background:pctRoute>=92?'linear-gradient(90deg,var(--warn),var(--danger))':pctRoute>=67?'linear-gradient(90deg,var(--gold),var(--warn))':'linear-gradient(90deg,var(--accent-liika),var(--accent-liika2))',borderRadius:4,transition:'width .4s ease,background .4s ease'}}/>
+</div>
+<div style={{display:'flex',justifyContent:'space-between',fontSize:10,color:'var(--text3)',fontFamily:"'Space Mono',monospace"}}>
+<span>0 km</span><span>Limite : 600 km/jour</span>
+</div>
+{prochaine&&<div style={{marginTop:12,display:'flex',alignItems:'center',gap:10,padding:'9px 12px',background:'var(--bg4)',borderRadius:'var(--radius-sm)',border:'1px solid var(--border)'}}>
+<span style={{fontSize:14}}>🕐</span>
+<div style={{flex:1}}><span style={{fontSize:11,color:'var(--text3)'}}>Prochaine alerte : </span><span style={{fontSize:13,fontWeight:600,color:'var(--text)'}}>{prochaine.label}</span></div>
+<span style={{fontSize:11,color:'var(--success)',fontFamily:"'Space Mono',monospace",fontWeight:700}}>dans {prochaine.km-routeKm} km</span>
+</div>}
+</div>
+
+{/* Alertes actives */}
+{alertesActives.length>0&&<div style={{marginBottom:20}}>
+<p className="eyebrow" style={{marginBottom:10}}>⚠ Alertes en cours</p>
+{alertesActives.map((a,i)=><div key={i} style={{background:a.type==='stop'?'var(--danger-bg)':a.urgent?'var(--warn-bg)':'var(--bg3)',border:`1px solid ${a.type==='stop'?'var(--danger-border)':a.urgent?'var(--warn-border)':'var(--border)'}`,borderRadius:'var(--radius)',padding:'14px 18px',marginBottom:10,animation:'alertPop .4s ease both'}}>
+<div style={{display:'flex',alignItems:'center',gap:10,marginBottom:6}}>
+<span style={{fontSize:20}}>{a.type==='stop'?'🛑':a.urgent?'⚠️':'⏸️'}</span>
+<span style={{fontSize:15,fontWeight:600,color:a.type==='stop'?'var(--danger)':a.urgent?'var(--warn)':'var(--text)',flex:1}}>{a.label}</span>
+{a.urgent&&<span style={{fontSize:9,fontFamily:"'Space Mono',monospace",background:a.type==='stop'?'var(--danger-bg)':'var(--warn-bg)',color:a.type==='stop'?'var(--danger)':'var(--warn)',padding:'2px 8px',borderRadius:8,border:`1px solid ${a.type==='stop'?'var(--danger-border)':'var(--warn-border)'}`,animation:'blink 1.5s infinite'}}>ACTIF</span>}
+</div>
+<p style={{fontSize:12,color:'var(--text2)',lineHeight:1.65}}>{a.detail}</p>
+</div>)}
+</div>}
+
+{/* Étirements */}
+<div style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:'var(--radius)',padding:'18px 20px',marginBottom:16,border:'1px solid var(--border)',boxShadow:'var(--shadow)'}}>
+<p className="eyebrow" style={{marginBottom:4,color:'var(--success)'}}>🧘 Routine pause — 10 min</p>
+<p style={{fontSize:12,color:'var(--text3)',marginBottom:14,fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic'}}>Protège ton corps sur la longue distance</p>
+<div style={{display:'grid',gap:8}}>
+{ETIREMENTS_PAUSE.map((e,i)=><div key={i} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'var(--bg4)',borderRadius:'var(--radius-sm)',border:'1px solid var(--border)'}}>
+<span style={{fontSize:16,minWidth:22}}>💪</span>
+<div style={{flex:1}}>
+<div style={{fontSize:13,fontWeight:500,color:'var(--text)'}}>{e.nom}</div>
+<div style={{fontSize:11,color:'var(--text3)'}}>{e.detail}</div>
+</div>
+<span style={{fontSize:10,fontFamily:"'Space Mono',monospace",color:'var(--accent-liika)',background:'var(--accent-liika-bg)',padding:'3px 10px',borderRadius:10,flexShrink:0}}>{e.duree}</span>
+</div>)}
+</div>
+</div>
+
+{/* Checklist départ */}
+<div style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:'var(--radius)',padding:'18px 20px',border:'1px solid var(--border)',boxShadow:'var(--shadow)'}}>
+<p className="eyebrow" style={{marginBottom:4,color:'var(--gold)'}}>✅ Checklist départ</p>
+<p style={{fontSize:12,color:'var(--text3)',marginBottom:14,fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic'}}>À cocher avant chaque prise de route</p>
+<div style={{display:'grid',gap:8,marginBottom:14}}>
+{CHECKLIST_DEPART.map(item=><div key={item.id} onClick={()=>setRouteChecklist(p=>({...p,[item.id]:!p[item.id]}))} style={{display:'flex',alignItems:'center',gap:12,padding:'11px 14px',background:routeChecklist[item.id]?'rgba(74,222,128,.05)':'var(--bg4)',borderRadius:'var(--radius-sm)',border:`1px solid ${routeChecklist[item.id]?'rgba(74,222,128,.25)':'var(--border)'}`,cursor:'pointer',transition:'all .2s',opacity:routeChecklist[item.id]?.7:1}}>
+<div style={{width:20,height:20,borderRadius:6,border:routeChecklist[item.id]?'none':'2px solid var(--border2)',background:routeChecklist[item.id]?'var(--success)':'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,transition:'all .2s'}}>
+{routeChecklist[item.id]&&<span style={{color:'var(--bg)',fontSize:12,fontWeight:700}}>✓</span>}
+</div>
+<span style={{fontSize:13,textDecoration:routeChecklist[item.id]?'line-through':'none',color:routeChecklist[item.id]?'var(--text3)':'var(--text)',transition:'all .2s'}}>{item.text}</span>
+</div>)}
+</div>
+<div style={{height:5,background:'var(--bg4)',borderRadius:4,overflow:'hidden',marginBottom:6}}>
+<div style={{height:'100%',width:`${checkDone/CHECKLIST_DEPART.length*100}%`,background:'linear-gradient(90deg,var(--gold),var(--gold2))',borderRadius:4,transition:'width .4s'}}/>
+</div>
+<div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'var(--text3)',fontFamily:"'Space Mono',monospace"}}>
+<span>{checkDone}/{CHECKLIST_DEPART.length} cochés</span>
+{checkDone===CHECKLIST_DEPART.length&&<span style={{color:'var(--success)',fontWeight:700}}>Prête à partir 🚛</span>}
+</div>
+</div>
+</div>;
+};
+
+// ─── Objectifs mensuels ───
+const renderObjMensuel=()=>{
+const annee=new Date().getFullYear();
+const currentMonth=new Date().getMonth();
+const objDuMois=(data.couple.objMensuels||[]).filter(o=>o.mois===objMoisFilter&&o.annee===annee);
+const STATUTS={en_cours:{label:'En cours',color:'var(--gold)'},termine:{label:'Terminé ✓',color:'var(--success)'},reporte:{label:'Reporté',color:'var(--text3)'}};
+return <div>
+<div style={{background:'linear-gradient(135deg,rgba(217,183,95,.09),rgba(74,222,128,.05))',borderRadius:'var(--radius)',padding:'22px 24px',marginBottom:20,border:'1px solid var(--gold-border)',position:'relative',overflow:'hidden'}}>
+<div style={{position:'absolute',top:-40,right:-40,width:160,height:160,background:'radial-gradient(circle,rgba(217,183,95,.08),transparent 70%)',borderRadius:'50%',pointerEvents:'none'}}/>
+<p className="eyebrow" style={{marginBottom:8}}>🎯 Vision mensuelle</p>
+<h2 style={{fontSize:26,fontFamily:"'Cormorant Garamond',serif",fontWeight:600,color:'var(--text)',marginBottom:4,lineHeight:1.2}}>Objectifs du mois</h2>
+<p style={{fontSize:13,color:'var(--text3)',fontStyle:'italic',fontFamily:"'Cormorant Garamond',serif"}}>Ce qu'on construit ensemble, mois après mois ♡</p>
+</div>
+
+{/* Sélecteur mois */}
+<div className="scroll-x" style={{display:'flex',gap:6,marginBottom:20,paddingBottom:4}}>
+{MOIS_LABELS.map((m,i)=><button key={i} onClick={()=>setObjMoisFilter(i)} style={{flexShrink:0,padding:'6px 12px',borderRadius:20,border:`1px solid ${objMoisFilter===i?'var(--gold)':'var(--border)'}`,background:objMoisFilter===i?'var(--gold-bg)':'transparent',color:objMoisFilter===i?'var(--gold)':'var(--text3)',fontSize:11,fontWeight:objMoisFilter===i?700:400,cursor:'pointer',fontFamily:"'Space Mono',monospace",whiteSpace:'nowrap',transition:'all .2s'}}>
+{m}{i===currentMonth?<span style={{marginLeft:3,fontSize:8,opacity:.7}}>●</span>:null}
+</button>)}
+</div>
+
+{/* Stats */}
+{objDuMois.length>0&&<div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:20}}>
+{[{l:'Total',v:objDuMois.length,c:'var(--text2)'},{l:'Terminés',v:objDuMois.filter(o=>o.statut==='termine').length,c:'var(--success)'},{l:'En cours',v:objDuMois.filter(o=>o.statut==='en_cours').length,c:'var(--gold)'}].map((s,i)=><div key={i} style={{background:'var(--bg3)',borderRadius:'var(--radius-sm)',padding:'12px 14px',border:'1px solid var(--border)',textAlign:'center'}}>
+<div style={{fontSize:22,fontWeight:700,color:s.c,fontFamily:"'Space Mono',monospace"}}>{s.v}</div>
+<div style={{fontSize:10,color:'var(--text3)',fontFamily:"'Space Mono',monospace",marginTop:2}}>{s.l}</div>
+</div>)}
+</div>}
+
+{/* Liste des objectifs */}
+<div style={{display:'grid',gap:12,marginBottom:16}}>
+{objDuMois.length===0&&<div style={{textAlign:'center',padding:'32px 20px',color:'var(--text3)',fontSize:15,fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic'}}>
+Aucun objectif pour {MOIS_LABELS[objMoisFilter]}.<br/>
+<span style={{fontSize:12}}>Ajoutez le premier objectif de ce mois ↓</span>
+</div>}
+{objDuMois.map((obj,i)=>{
+const st=STATUTS[obj.statut]||STATUTS.en_cours;
+return <div key={obj.id} style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:'var(--radius)',padding:'16px 18px',border:`1px solid ${obj.statut==='termine'?'rgba(74,222,128,.25)':'var(--border)'}`,borderLeft:`3px solid ${st.color}`,boxShadow:'var(--shadow)',animation:`fadeUp .3s ease ${i*.06}s both`}}>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:10,marginBottom:10}}>
+<div style={{flex:1}}>
+<div style={{display:'flex',gap:7,marginBottom:6,flexWrap:'wrap'}}>
+<span style={{fontSize:9,fontFamily:"'Space Mono',monospace",color:'var(--gold)',background:'var(--gold-bg)',padding:'2px 8px',borderRadius:8,border:'1px solid var(--gold-border)'}}>{obj.categorie}</span>
+<span style={{fontSize:9,fontFamily:"'Space Mono',monospace",color:st.color,background:st.color+'18',padding:'2px 8px',borderRadius:8}}>{st.label}</span>
+</div>
+<div style={{fontSize:15,fontWeight:600,color:'var(--text)',marginBottom:obj.detail?3:0}}>{obj.titre}</div>
+{obj.detail&&<div style={{fontSize:12,color:'var(--text3)',fontStyle:'italic'}}>{obj.detail}</div>}
+</div>
+<button onClick={()=>deleteObjMensuel(obj.id)} style={{background:'none',border:'none',color:'var(--text3)',cursor:'pointer',fontSize:16,padding:'2px 4px',flexShrink:0}}>×</button>
+</div>
+<div style={{display:'flex',alignItems:'center',gap:10}}>
+<input type="range" min="0" max="100" step="10" value={obj.progress} onChange={e=>{const v=parseInt(e.target.value);updateObjMensuel(obj.id,{progress:v,statut:v>=100?'termine':'en_cours'});}} style={{flex:1,height:4,accentColor:st.color,cursor:'pointer'}}/>
+<span style={{fontSize:12,fontWeight:700,color:obj.statut==='termine'?'var(--success)':'var(--gold)',fontFamily:"'Space Mono',monospace",minWidth:34}}>{obj.progress}%</span>
+<button onClick={()=>updateObjMensuel(obj.id,{statut:obj.statut==='termine'?'en_cours':'termine',progress:obj.statut==='termine'?obj.progress:100})} style={{fontSize:10,fontFamily:"'Space Mono',monospace",background:'var(--bg4)',border:'1px solid var(--border2)',borderRadius:'var(--radius-xs)',padding:'4px 10px',cursor:'pointer',color:'var(--text2)',whiteSpace:'nowrap'}}>
+{obj.statut==='termine'?'Réactiver':'Marquer fait'}
+</button>
+</div>
+</div>;})}
+</div>
+
+{/* Formulaire ajout */}
+{showAddObjM?<div style={{background:'var(--bg3)',borderRadius:'var(--radius)',padding:18,border:'1px solid var(--gold-border)'}}>
+<p className="eyebrow" style={{marginBottom:12,color:'var(--gold)'}}>+ Objectif — {MOIS_LABELS[objMoisFilter]}</p>
+<input placeholder="Titre de l'objectif" value={newObjM.titre} onChange={e=>setNewObjM(p=>({...p,titre:e.target.value}))} style={{width:'100%',padding:'9px 12px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'var(--bg2)',color:'var(--text)',fontSize:13,marginBottom:8,outline:'none'}}/>
+<input placeholder="Détails (optionnel)" value={newObjM.detail} onChange={e=>setNewObjM(p=>({...p,detail:e.target.value}))} style={{width:'100%',padding:'9px 12px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'var(--bg2)',color:'var(--text)',fontSize:13,marginBottom:12,outline:'none'}}/>
+<div className="scroll-x" style={{display:'flex',gap:6,marginBottom:14,paddingBottom:4}}>
+{CATS_OBJ_MENSUEL.map(c=><button key={c} onClick={()=>setNewObjM(p=>({...p,categorie:c}))} style={{flexShrink:0,padding:'5px 12px',borderRadius:20,border:`1px solid ${newObjM.categorie===c?'var(--gold)':'var(--border)'}`,background:newObjM.categorie===c?'var(--gold-bg)':'transparent',color:newObjM.categorie===c?'var(--gold)':'var(--text3)',fontSize:11,cursor:'pointer',fontFamily:"'Space Mono',monospace"}}>{c}</button>)}
+</div>
+<div style={{display:'flex',gap:8}}>
+<button onClick={()=>{setShowAddObjM(false);setNewObjM({titre:'',detail:'',categorie:'Nature'});}} style={{flex:1,padding:'9px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border)',background:'transparent',color:'var(--text3)',cursor:'pointer',fontSize:13}}>Annuler</button>
+<button onClick={()=>{if(!newObjM.titre.trim())return;addObjMensuel(newObjM.titre,newObjM.detail,newObjM.categorie,objMoisFilter);setNewObjM({titre:'',detail:'',categorie:'Nature'});setShowAddObjM(false);}} style={{flex:2,padding:'9px',borderRadius:'var(--radius-sm)',border:'none',background:'linear-gradient(135deg,var(--gold),var(--gold2))',color:'#06120d',cursor:'pointer',fontSize:13,fontWeight:700}}>Ajouter</button>
+</div>
+</div>:<button onClick={()=>setShowAddObjM(true)} style={{width:'100%',padding:'12px',borderRadius:'var(--radius-sm)',border:'1px dashed var(--gold-border)',background:'transparent',color:'var(--gold)',cursor:'pointer',fontSize:13,fontFamily:"'Space Mono',monospace",letterSpacing:'.04em'}}>+ Ajouter un objectif pour {MOIS_LABELS[objMoisFilter]}</button>}
+</div>;
+};
+
 return <div style={{display:'flex',minHeight:'100vh'}}>
 {/* Sidebar */}
 <nav style={{width:228,minWidth:228,background:'var(--glass)',backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)',borderRight:'1px solid var(--gold-border)',padding:'28px 0',display:'flex',flexDirection:'column',position:'sticky',top:0,height:'100vh'}}>
@@ -1999,6 +2216,8 @@ style={{display:'flex',flexDirection:'column',alignItems:'center',gap:3,flexShri
 {view==='planning'&&<PlanningView planning={(data.couple||{}).planning||{}} togglePlanningCheck={togglePlanningCheck} addPlanningCustomItem={addPlanningCustomItem} deletePlanningCustomItem={deletePlanningCustomItem}/>}
 {view==='drevmcook'&&<DrevmCookView recipes={data.recipes||[]} upsertRecipe={upsertRecipe} deleteRecipe={deleteRecipe}/>}
 {view==='culture'&&<CultureGwadView/>}
+{view==='route'&&renderRoute()}
+{view==='objmensuel'&&renderObjMensuel()}
 {view==='charts'&&renderCharts()}
 </main>
 
