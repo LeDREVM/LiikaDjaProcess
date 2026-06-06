@@ -5550,15 +5550,22 @@ function App() {
   }, [data]);
   useEffect(() => {
     if (!sb) return;
-    const refreshOnline = () => sb.from('app_sessions').select('id').gte('last_seen', new Date(Date.now() - 300000).toISOString()).then(({
-      data: rows
-    }) => rows && setOnlineCount(rows.length)).catch(() => {});
-    const ping = () => sb.from('app_sessions').upsert({
-      id: DEVICE_ID,
-      user_name: localStorage.getItem('ld-username') || 'Appareil',
-      last_seen: new Date().toISOString(),
-      is_online: true
-    }).catch(() => {});
+    const refreshOnline = async () => {
+      try {
+        const {data: rows} = await sb.from('app_sessions').select('id').gte('last_seen', new Date(Date.now() - 300000).toISOString());
+        if (rows) setOnlineCount(rows.length);
+      } catch(_) {}
+    };
+    const ping = async () => {
+      try {
+        await sb.from('app_sessions').upsert({
+          id: DEVICE_ID,
+          user_name: localStorage.getItem('ld-username') || 'Appareil',
+          last_seen: new Date().toISOString(),
+          is_online: true
+        });
+      } catch(_) {}
+    };
     ping();
     refreshOnline();
     const iv = setInterval(() => {
