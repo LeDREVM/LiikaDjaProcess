@@ -143,7 +143,10 @@ const defaultUI={};
 // ─── Supabase ───
 const SB_URL='https://mvtwotbyphuxdkcwgime.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im12dHdvdGJ5cGh1eGRrY3dnaW1lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzMTA5NTIsImV4cCI6MjA5MDg4Njk1Mn0.pZvyjzD9Qpl4IKjBYJcL4ObqdH-UXu47tHLFIzxfde8';
-const sb=supabase.createClient(SB_URL,SB_KEY);
+// Initialisation défensive : si le CDN jsdelivr ne charge pas → sb=null,
+// l'app continue en mode localStorage-only (jamais de page blanche).
+let sb=null;
+try{if(typeof supabase!=='undefined'&&supabase?.createClient)sb=supabase.createClient(SB_URL,SB_KEY);}catch(_){}
 
 // ID unique de cet appareil (généré une seule fois, persisté en localStorage)
 const DEVICE_ID=(()=>{
@@ -153,11 +156,13 @@ const DEVICE_ID=(()=>{
 })();
 
 async function sbLoad(){
+  if(!sb)throw new Error('no client');
   const {data,error}=await sb.from('app_state').select('data').eq('id','main').single();
   if(error||!data||!data.data)throw error||new Error('no data');
   return normalize(data.data);
 }
 async function sbSave(d){
+  if(!sb)throw new Error('no client');
   const {error}=await sb.from('app_state').upsert({id:'main',data:d,updated_at:new Date().toISOString(),device_id:DEVICE_ID});
   if(error)throw error;
 }
@@ -1602,6 +1607,7 @@ return ()=>clearTimeout(t);
 
 // ─── Realtime cross-device sync + présence ───
 useEffect(()=>{
+if(!sb)return; // Supabase CDN non chargé → mode offline silencieux
 // Présence : lit les sessions actives (<5 min)
 const refreshOnline=()=>sb.from('app_sessions')
   .select('id').gte('last_seen',new Date(Date.now()-300000).toISOString())
