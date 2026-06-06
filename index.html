@@ -22,9 +22,10 @@
 --warn:#fb923c;--warn-bg:rgba(251,146,60,.12);--warn-border:rgba(251,146,60,.30);
 --danger:#f87171;--danger-bg:rgba(248,113,113,.10);--danger-border:rgba(248,113,113,.28);
 --border:rgba(217,183,95,.11);--border2:rgba(217,183,95,.20);
---glass:rgba(8,22,14,.70);--shadow:0 8px 32px rgba(0,0,0,.50);
+--glass:rgba(8,22,14,.75);--shadow:0 8px 32px rgba(0,0,0,.50);
 --grad-hero:linear-gradient(135deg,#0c1f16 0%,#122b1e 55%,#0a1a10 100%);
 --radius:16px;--radius-sm:11px;--radius-xs:8px;
+--nav-h:72px;
 }
 html,body,#root{height:100%;font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
 body{
@@ -49,16 +50,71 @@ background:
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
 .scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .scroll-x::-webkit-scrollbar{height:0;display:none}
+
+/* ── Responsive Layout ─────────────────────────────────── */
+
+/* Desktop : sidebar visible, main prend le reste */
+.app-layout{display:flex;min-height:100vh}
+.app-sidebar{width:228px;min-width:228px;flex-shrink:0}
+.app-main{flex:1;padding:32px 40px;min-width:0;overflow-x:hidden;max-width:900px}
+
+/* Tablette (769 → 1024px) : sidebar cachée, bottom nav */
+@media(min-width:769px) and (max-width:1024px){
+  .app-sidebar{display:none!important}
+  .mobile-nav{display:flex!important}
+  .app-main{padding:28px 28px calc(var(--nav-h) + 16px)!important;max-width:100%}
+  .dash-hero h2{font-size:26px!important}
+}
+
+/* Mobile (≤768px) */
 @media(max-width:768px){
-nav{display:none!important}
-.mobile-nav{display:block!important}
-main{padding:20px 14px 86px!important}
-.dash-hero{padding:22px 18px 18px!important}
-.dash-hero h2{font-size:24px!important}
+  .app-sidebar{display:none!important}
+  .mobile-nav{display:flex!important}
+  .app-main{padding:20px 16px calc(var(--nav-h) + 12px)!important;max-width:100%}
+  .dash-hero{padding:18px 16px 16px!important}
+  .dash-hero h2{font-size:22px!important}
+  .stat-grid{grid-template-columns:repeat(2,1fr)!important}
+  .person-actions{flex-direction:column!important;align-items:stretch!important}
+  .person-actions button{width:100%!important;justify-content:center!important}
 }
+
+/* Petit mobile (≤480px) */
 @media(max-width:480px){
-main{padding:16px 12px 86px!important}
+  .app-main{padding:14px 12px calc(var(--nav-h) + 10px)!important}
+  .dash-hero h2{font-size:19px!important}
 }
+
+/* ── Mobile nav ──────────────────────────────────────────── */
+.mobile-nav{
+  display:none;
+  position:fixed;bottom:0;left:0;right:0;
+  background:var(--glass);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border-top:1px solid var(--gold-border);
+  height:var(--nav-h);
+  z-index:100;
+  padding:6px 4px env(safe-area-inset-bottom,6px);
+}
+.mobile-nav-inner{
+  display:flex;gap:2px;
+  overflow-x:auto;height:100%;
+  -webkit-overflow-scrolling:touch;scrollbar-width:none;align-items:stretch;
+  padding:0 4px;
+}
+.mobile-nav-inner::-webkit-scrollbar{display:none}
+.mnav-btn{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:3px;flex-shrink:0;
+  min-width:64px;
+  border:none;border-radius:12px;
+  padding:6px 8px;cursor:pointer;
+  transition:background .15s,color .15s;
+  font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.02em;
+  background:transparent;color:var(--text3);
+}
+.mnav-btn.active{background:var(--gold-bg);color:var(--gold)}
+.mnav-btn .mnav-icon{font-size:20px;line-height:1}
+.mnav-btn .mnav-label{font-size:9px;max-width:56px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -71,6 +127,12 @@ main{padding:16px 12px 86px!important}
 <script type="text/babel">
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
+function useWindowWidth(){
+const [w,setW]=useState(()=>typeof window!=='undefined'?window.innerWidth:1200);
+useEffect(()=>{const h=()=>setW(window.innerWidth);window.addEventListener('resize',h,{passive:true});return()=>window.removeEventListener('resize',h);},[]);
+return w;
+}
+
 // ─── Helpers ───
 const accent={dja:'var(--accent-dja)',liika:'var(--accent-liika)',couple:'var(--accent-couple)'};
 const accentBg={dja:'var(--accent-dja-bg)',liika:'var(--accent-liika-bg)',couple:'var(--accent-couple-bg)'};
@@ -80,7 +142,7 @@ const defaultUI={};
 
 // ─── Supabase ───
 const SB_URL='https://mvtwotbyphuxdkcwgime.supabase.co';
-const SB_KEY='sb_publishable_3GTu11_-nrnYDyFY2Rl7eQ_bndRXVAz';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im12dHdvdGJ5cGh1eGRrY3dnaW1lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzMTA5NTIsImV4cCI6MjA5MDg4Njk1Mn0.pZvyjzD9Qpl4IKjBYJcL4ObqdH-UXu47tHLFIzxfde8';
 const sb=supabase.createClient(SB_URL,SB_KEY);
 
 // ID unique de cet appareil (généré une seule fois, persisté en localStorage)
@@ -358,8 +420,9 @@ const [cat,setCat]=useState('Carriere');
 if(!show)return null;
 const av=accent[color]||accent.dja;
 const cats=color==='couple'?['Couple']:['Carriere','Sante','Finances','Perso'];
-return <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.75)',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:100,padding:20}} onClick={onClose}>
-<div style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:'var(--radius)',padding:28,maxWidth:440,width:'100%',border:'1px solid var(--gold-border)',boxShadow:'0 20px 60px rgba(0,0,0,.6)'}} onClick={e=>e.stopPropagation()}>
+const sm=typeof window!=='undefined'&&window.innerWidth<=600;
+return <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.75)',backdropFilter:'blur(4px)',display:'flex',alignItems:sm?'flex-end':'center',justifyContent:'center',zIndex:200,padding:sm?0:20}} onClick={onClose}>
+<div style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:sm?'20px 20px 0 0':'var(--radius)',padding:sm?'24px 20px 32px':28,maxWidth:440,width:'100%',border:'1px solid var(--gold-border)',boxShadow:'0 -8px 40px rgba(0,0,0,.6)'}} onClick={e=>e.stopPropagation()}>
 <h3 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,fontWeight:600,marginBottom:4,color:'var(--gold2)'}}>{type==='objective'?'Nouvel objectif':'Nouvelle action'}</h3>
 <div className="gold-rule" style={{marginBottom:18}}/>
 <input placeholder={type==='objective'?'Titre de l\'objectif':'Action a realiser'} value={title} onChange={e=>setTitle(e.target.value)}
@@ -1499,6 +1562,10 @@ return <div key={r.id} onClick={()=>setSelected(r.id)} style={{background:'linea
 
 // ─── Main App ───
 function App(){
+const vw=useWindowWidth();
+const isMobile=vw<=768;
+const isTablet=vw>768&&vw<=1024;
+const isSmall=vw<=1024;
 const [data,setData]=useState(loadData);
 const [ui,setUI]=useState(loadUI);
 const [view,setView]=useState('dashboard');
@@ -1839,7 +1906,7 @@ return <div>
 <h2 style={{fontSize:26,fontWeight:600,fontFamily:"'Cormorant Garamond',serif",color:'var(--text)',lineHeight:1.1}}>{person.name}</h2>
 <p style={{fontSize:13,color:'var(--text3)',marginTop:4}}>{person.role}{person.location?` · ${person.location}`:''}</p>
 </div>
-<div style={{display:'flex',gap:8}}>
+<div className="person-actions" style={{display:'flex',gap:8,flexWrap:'wrap'}}>
 <button onClick={()=>setModal({type:'objective',who})} style={{padding:'8px 16px',borderRadius:'var(--radius-sm)',border:'none',background:`linear-gradient(135deg,${accent[who]},${accent[who]}cc)`,color:'#06120d',cursor:'pointer',fontSize:12,fontWeight:700,letterSpacing:'.04em'}}>+ Objectif</button>
 <button onClick={()=>setModal({type:'action',who})} style={{padding:'8px 16px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border)',background:'transparent',color:'var(--text3)',cursor:'pointer',fontSize:12,transition:'all .15s'}}>+ Action</button>
 </div>
@@ -1867,7 +1934,7 @@ return <div>
 <h2 style={{fontSize:26,fontWeight:600,fontFamily:"'Cormorant Garamond',serif",color:'var(--gold)',lineHeight:1.1}}>Dja & Liika</h2>
 <p style={{fontSize:13,color:'var(--text3)',marginTop:4,fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic'}}>Lanmou Douvan — Vision commune</p>
 </div>
-<div style={{display:'flex',gap:8}}>
+<div className="person-actions" style={{display:'flex',gap:8,flexWrap:'wrap'}}>
 <button onClick={()=>setModal({type:'objective',who:'couple'})} style={{padding:'8px 16px',borderRadius:'var(--radius-sm)',border:'none',background:`linear-gradient(135deg,var(--gold),var(--gold2))`,color:'#06120d',cursor:'pointer',fontSize:12,fontWeight:700,letterSpacing:'.04em'}}>+ Objectif</button>
 <button onClick={()=>setModal({type:'action',who:'couple'})} style={{padding:'8px 16px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border)',background:'transparent',color:'var(--text3)',cursor:'pointer',fontSize:12}}>+ Action</button>
 </div>
@@ -1916,7 +1983,7 @@ return <div style={{background:'linear-gradient(135deg,var(--bg3),var(--bg4))',b
 </div>
 </div>;
 })()}
-<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:12,marginBottom:28}}>
+<div className="stat-grid" style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:12,marginBottom:28}}>
 <StatCard label="Progression moyenne" value={`${avgProgress}%`} color="dja" icon="◈"/>
 <StatCard label="Objectifs terminés" value={`${totalDone}/${totalObj.length}`} color="liika" icon="✓"/>
 <StatCard label="Actions faites" value={`${actionsDone}/${totalActions.length}`} color="couple" icon="▸"/>
@@ -1924,7 +1991,7 @@ return <div style={{background:'linear-gradient(135deg,var(--bg3),var(--bg4))',b
 </div>
 
 {/* Vision rapide */}
-<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:12,marginBottom:28}}>
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(280px,100%),1fr))',gap:12,marginBottom:28}}>
 {['dja','liika','couple'].map(w=>{
 const v=w==='couple'?data.couple.vision:data[w].vision;
 const name=w==='dja'?data.dja.name:w==='liika'?data.liika.name:'Couple';
@@ -1935,7 +2002,7 @@ return v?<div key={w} onClick={()=>setView('vision')} style={{background:'linear
 </div>
 
 <h3 className="eyebrow" style={{marginBottom:16}}>◈ Côte à côte</h3>
-<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:16,marginBottom:28}}>
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(280px,100%),1fr))',gap:16,marginBottom:28}}>
 {['dja','liika'].map(who=>{
 const p=data[who];
 const avg=p.objectives.length?Math.round(p.objectives.reduce((s,o)=>s+o.progress,0)/p.objectives.length):0;
@@ -2163,9 +2230,9 @@ return <div key={obj.id} style={{background:'linear-gradient(160deg,var(--bg3),v
 </div>;
 };
 
-return <div style={{display:'flex',minHeight:'100vh'}}>
+return <div className="app-layout">
 {/* Sidebar */}
-<nav style={{width:228,minWidth:228,background:'var(--glass)',backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)',borderRight:'1px solid var(--gold-border)',padding:'28px 0',display:'flex',flexDirection:'column',position:'sticky',top:0,height:'100vh'}}>
+<nav className="app-sidebar" style={{background:'var(--glass)',backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)',borderRight:'1px solid var(--gold-border)',padding:'28px 0',display:'flex',flexDirection:'column',position:'sticky',top:0,height:'100vh'}}>
 <div style={{padding:'0 20px',marginBottom:28}}>
 <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,letterSpacing:'.01em',lineHeight:1.15}}>
 <span style={{color:'var(--gold)'}}>Lanmou</span> <span style={{color:'var(--text)'}}>Douvan</span>
@@ -2205,18 +2272,18 @@ style={{width:'100%',padding:'7px',borderRadius:'var(--radius-sm)',border:'1px s
 </div>
 </nav>
 
-{/* Mobile nav */}
-<div className="mobile-nav" style={{display:'none',position:'fixed',bottom:0,left:0,right:0,background:'var(--glass)',backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)',borderTop:'1px solid var(--gold-border)',padding:'6px 0',zIndex:50}}>
-<div className="scroll-x" style={{display:'flex',gap:2,padding:'0 8px'}}>
-{navItems.map(n=><button key={n.id} onClick={()=>setView(n.id)}
-style={{display:'flex',flexDirection:'column',alignItems:'center',gap:3,flexShrink:0,minWidth:58,borderRadius:'var(--radius-xs)',border:'none',background:view===n.id?'var(--gold-bg)':'transparent',color:view===n.id?'var(--gold)':'var(--text3)',cursor:'pointer',padding:'6px 8px',fontSize:9,fontFamily:"'Space Mono',monospace",letterSpacing:'.02em',transition:'all .15s'}}>
-<span style={{fontSize:18}}>{n.icon}</span>{n.label}
+{/* Mobile / Tablet nav */}
+<div className="mobile-nav">
+<div className="mobile-nav-inner">
+{navItems.map(n=><button key={n.id} onClick={()=>setView(n.id)} className={`mnav-btn${view===n.id?' active':''}`}>
+<span className="mnav-icon">{n.icon}</span>
+<span className="mnav-label">{n.label}</span>
 </button>)}
 </div>
 </div>
 
 {/* Main */}
-<main style={{flex:1,padding:'32px 40px',maxWidth:900,minWidth:0}}>
+<main className="app-main">
 {view==='dashboard'&&renderDashboard()}
 {view==='dja'&&renderPerson('dja')}
 {view==='liika'&&renderPerson('liika')}
