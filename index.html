@@ -271,10 +271,6 @@ couple:{
     {id:"ca1",text:"Planifier une soiree objectifs couple",cat:"Couple",done:false},
     {id:"ca2",text:"Ouvrir un compte commun projets",cat:"Couple",done:false},
     {id:"ca3",text:"Choisir une destination vacances 2027",cat:"Couple",done:false},
-<<<<<<< HEAD
-  ]
-}
-=======
   ],
   notes:[],
   meals:[
@@ -304,35 +300,7 @@ couple:{
   objMensuels:[]
 },
 recipes:[]
->>>>>>> 9012e62c3d0f3ba48031d79836bb9224d171253f
 };
-const defaultUI={activeProfile:'dja'};
-
-<<<<<<< HEAD
-=======
-// ─── Supabase ───
-const SB_URL='https://mvtwotbyphuxdkcwgime.supabase.co';
-const SB_KEY='sb_publishable_3GTu11_-nrnYDyFY2Rl7eQ_bndRXVAz';
-const sb=supabase.createClient(SB_URL,SB_KEY);
-async function sbLoad(){
-try{
-  const {data,error}=await sb.from('app_state').select('data').eq('id','main').single();
-  if(error&&error.code==='PGRST116')return null; // no row yet
-  if(error)throw error;
-  const payload=data?.data||null;
-  if(!payload)return null;
-  if(payload.appData)return payload;
-  return {appData:payload,ui:null};
-}catch(e){console.warn('[Supabase] load error:',e);return null}
-}
-async function sbSave(d,ui){
-try{
-  const payload={appData:d,ui};
-  const {error}=await sb.from('app_state').upsert({id:'main',data:payload,updated_at:new Date().toISOString()});
-  if(error)throw error;
-  return true;
-}catch(e){console.warn('[Supabase] save error:',e);return false}
-}
 
 // Garantit que les données chargées/reçues ont toujours la forme attendue
 // (dja / liika / couple complets). Évite l'écran blanc si Supabase renvoie
@@ -346,7 +314,6 @@ for(const k of ['dja','liika','couple']){
 if(Array.isArray(d.recipes))base.recipes=d.recipes;
 return base;
 }
->>>>>>> 9012e62c3d0f3ba48031d79836bb9224d171253f
 function loadData(){
 try{const d=localStorage.getItem('dja-liika-goals');return normalize(d?JSON.parse(d):defaultData);}catch(e){return clone(defaultData)}
 }
@@ -375,14 +342,9 @@ return <div style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',b
 }
 
 function ObjectiveCard({obj,color,onToggle,onProgress,onDelete}){
-<<<<<<< HEAD
 const accentVar=color==='dja'?'var(--accent-dja)':color==='liika'?'var(--accent-liika)':'var(--accent-couple)';
 const bgVar=color==='dja'?'var(--accent-dja-bg)':color==='liika'?'var(--accent-liika-bg)':'var(--accent-couple-bg)';
-return <div style={{background:'var(--bg3)',borderRadius:'var(--radius)',padding:'16px 20px',borderLeft:`3px solid ${obj.done?'var(--success)':accentVar}`,animation:'fadeUp .4s ease both',opacity:obj.done?.6:1,transition:'opacity .3s'}}>
-=======
-const av=accent[color];const bv=accentBg[color];
-return <div style={{background:'var(--bg3)',borderRadius:'var(--radius)',padding:'16px 20px',borderLeft:`3px solid ${obj.done?'var(--success)':av}`,animation:'fadeUp .4s ease both',opacity:obj.done?0.6:1,transition:'opacity .3s'}}>
->>>>>>> 9012e62c3d0f3ba48031d79836bb9224d171253f
+return <div style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:'var(--radius)',padding:'16px 20px',borderLeft:`3px solid ${obj.done?'var(--success)':accentVar}`,border:`1px solid var(--border)`,borderLeftWidth:3,borderLeftColor:obj.done?'var(--success)':accentVar,animation:'fadeUp .4s ease both',opacity:obj.done?.65:1,transition:'opacity .3s',boxShadow:'var(--shadow)'}}>
 <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
 <div style={{flex:1}}>
 <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
@@ -1608,16 +1570,13 @@ const [data,setData]=useState(loadData);
 const [ui,setUI]=useState(loadUI);
 const [view,setView]=useState('dashboard');
 const [modal,setModal]=useState(null);
-<<<<<<< HEAD
-
-useEffect(()=>saveData(data),[data]);
-
-const updateObj=(who,id,updates)=>{
-=======
-const [syncStatus,setSyncStatus]=useState('idle'); // idle | syncing | ok | error
-const activeProfile=ui?.activeProfile||'dja';
-const profileLabel=activeProfile==='dja'?'Dja':activeProfile==='liika'?'Liika':'Couple';
-const setActiveProfile=useCallback((who)=>setUI(prev=>({...prev,activeProfile:who})),[]);
+const [syncStatus,setSyncStatus]=useState('idle');
+const [onlineCount,setOnlineCount]=useState(0);
+const [routeKm,setRouteKm]=useState(0);
+const [routeChecklist,setRouteChecklist]=useState({});
+const [objMoisFilter,setObjMoisFilter]=useState(()=>new Date().getMonth());
+const [showAddObjM,setShowAddObjM]=useState(false);
+const [newObjM,setNewObjM]=useState({titre:'',detail:'',categorie:'Nature'});
 
 // Persiste localStorage à chaque changement
 useEffect(()=>saveData(data),[data]);
@@ -1680,7 +1639,6 @@ return()=>{clearInterval(iv);sb.removeChannel(ch);};
 },[]);
 
 const updateObj=useCallback((who,id,updates)=>{
->>>>>>> 9012e62c3d0f3ba48031d79836bb9224d171253f
 setData(prev=>{
 const next=clone(prev);
 const list=who==='couple'?next.couple.objectives:next[who].objectives;
@@ -1936,7 +1894,6 @@ const navItems=[
 {id:'route',label:'Route Liika',icon:'🚛'},
 {id:'objmensuel',label:'Objectifs mois',icon:'🎯'},
 {id:'charts',label:'Stats',icon:'▤'},
-{id:'cuisine',label:'DrevmCook',icon:'🌿'},
 ];
 
 const renderPerson=(who)=>{
@@ -2080,367 +2037,6 @@ return <div key={who} style={{background:'linear-gradient(160deg,var(--bg3),var(
 </div>)}
 <button onClick={()=>setView('couple')} style={{marginTop:12,width:'100%',padding:'8px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'transparent',color:'var(--text2)',cursor:'pointer',fontSize:13}}>Voir tout →</button>
 </div>
-<<<<<<< HEAD
-</div>
-};
-
-// ─── DrevmCook Data ───
-const drevmCookData = {
-  categories: [
-    {id:'bases',label:'Bases maison',icon:'🥛',color:'#a78bfa'},
-    {id:'sales',label:'Recettes salées',icon:'🥖',color:'#34d399'},
-    {id:'fermentation',label:'Fermentation',icon:'🫙',color:'#fbbf24'},
-    {id:'boissons',label:'Boissons & Infusions',icon:'🍵',color:'#60a5fa'},
-    {id:'desserts',label:'Desserts & Snacks',icon:'🍫',color:'#f472b6'},
-    {id:'plantes',label:'Herbier alimentaire',icon:'🌿',color:'#34d399'},
-    {id:'orga',label:'Organisation TDAH',icon:'🧠',color:'#8b5cf6'},
-  ],
-  recettes: [
-    // BASES
-    {id:'r01',cat:'bases',name:'Lait d\'amande maison',temps:'15 min + trempage',budget:'3,50 à 6 €',vegan:true,sansGluten:true,
-      ingredients:['100 g amandes','700 ml eau filtrée','1 pincée de sel','vanille optionnelle'],
-      etapes:['Tremper les amandes 8 à 12 h','Rincer','Mixer avec l\'eau filtrée','Filtrer avec tissu propre','Conserver 2 à 3 jours au frais'],
-      apports:'Vitamine E, magnésium, protéines végétales, bons lipides'},
-    {id:'r02',cat:'bases',name:'Lait de graines de courge',temps:'15 min + trempage',budget:'2,50 à 5 €',vegan:true,sansGluten:true,
-      ingredients:['100 g graines de courge','700 ml eau filtrée','1 pincée de sel','cannelle optionnelle'],
-      etapes:['Tremper les graines 4 à 8 h','Rincer','Mixer avec l\'eau','Filtrer','Conserver au frais 2 à 3 jours'],
-      apports:'Zinc, magnésium, protéines végétales, bons lipides'},
-    {id:'r03',cat:'bases',name:'Levain naturel sans gluten',temps:'5 jours',budget:'3,80 à 6,80 €',vegan:true,sansGluten:true,
-      ingredients:['Farine de riz complet','Farine de fruit à pain / sarrasin / pois chiche','Eau filtrée','Bocal propre'],
-      etapes:['J1 : 30g farine riz + 20g farine fruit à pain + 50ml eau','J2 : Ajouter 25g farine + 25-40ml eau','J3 : Retirer un peu si déborde, nourrir','J4 : Nourrir encore — bulles apparaissent','J5 : Prêt si bulle, gonfle et sent acidulé'],
-      apports:'Fermentation = meilleure digestion, goût développé, meilleure assimilation'},
-    // SALÉES
-    {id:'r04',cat:'sales',name:'Mini baguettes maison (×4)',temps:'2h',budget:'2,40 à 6 €',vegan:true,sansGluten:true,
-      ingredients:['350 g farine ou mélange sans gluten','1 sachet levure boulangère','Eau tiède','Huile de tournesol','Sel, herbes','Graines de courge optionnelles'],
-      etapes:['Activer levure dans eau tiède + huile','Ajouter farine, sel, herbes','Mélanger, couvrir 30 min','Rabats toutes les 30 min × 3','Séparer en 4 baguettes, griffer','Cuire 200°C, 15-20 min'],
-      apports:'Énergie, zinc, magnésium, antioxydants'},
-    {id:'r05',cat:'sales',name:'Focaccia DrevmCook',temps:'2h30',budget:'5 à 8 €',vegan:true,sansGluten:true,
-      ingredients:['300 g farine sans gluten','100 g levain actif ou levure','250 ml eau tiède','3 c. à soupe huile','Sel, ail, thym, romarin','Tomates ou oignons'],
-      etapes:['Mélanger farine, levain, eau, huile, sel','Pousser 1-2h','Verser dans plat huilé, faire des trous','Ajouter ail, herbes, garniture','Cuire 200°C, 20-25 min'],
-      apports:'Allicine, lycopène, vitamine C, prébiotiques'},
-    {id:'r06',cat:'sales',name:'Galettes anti-gaspillage',temps:'15 min',budget:'1 à 2 €',vegan:true,sansGluten:true,
-      ingredients:['Reste de levain','Farine de pois chiche ou riz','Eau, sel, herbes','Huile pour cuisson'],
-      etapes:['Mélanger levain + farine + eau','Assaisonner','Cuire à la poêle comme crêpe épaisse'],
-      apports:'Protéines, fibres, fer, fermentation'},
-    {id:'r07',cat:'sales',name:'Crackers au levain',temps:'30 min',budget:'1,50 à 3 €',vegan:true,sansGluten:true,
-      ingredients:['Reste de levain','Graines de courge','Sel, herbes','Huile'],
-      etapes:['Étaler très finement','Ajouter graines et herbes','Cuire 180°C jusqu\'à croustillant'],
-      apports:'Zinc, protéines, fermentation'},
-    {id:'r08',cat:'sales',name:'Pizza rustique sans gluten',temps:'45 min',budget:'6 à 10 €',vegan:true,sansGluten:true,
-      ingredients:['Pâte focaccia ou levain','Sauce tomate','Oignons, légumes','Herbes'],
-      etapes:['Étaler la pâte','Précuire 8 min','Garnir','Cuire 12-15 min'],
-      apports:'Lycopène, fibres, énergie'},
-    {id:'r09',cat:'sales',name:'Houmous vivant',temps:'10 min',budget:'4 à 7 €',vegan:true,sansGluten:true,
-      ingredients:['Pois chiches cuits','Ail, citron vert','Tahini ou graines de courge mixées','Huile, sel','Jus de lactofermentation optionnel'],
-      etapes:['Mixer tous les ingrédients jusqu\'à texture crémeuse'],
-      apports:'Protéines, fibres, fer, zinc, vitamine C'},
-    {id:'r10',cat:'sales',name:'Rainbow Salad',temps:'15 min',budget:'5 à 8 €',vegan:true,sansGluten:true,
-      ingredients:['Chou rouge, carotte, betterave','Avocat','Tofu grillé ou pois chiches','Graines de courge','Sauce citron gingembre'],
-      etapes:['Assembler tous les ingrédients en bol coloré'],
-      apports:'Anthocyanes, fer, bons lipides, protéines'},
-    {id:'r11',cat:'sales',name:'Riz pilaf aux pickles',temps:'25 min',budget:'3 à 5 €',vegan:true,sansGluten:true,
-      ingredients:['Riz basmati ou sauvage','Oignon, ail','Bouquet garni','Pickles ou légumes fermentés','Huile'],
-      etapes:['Revenir oignon et ail','Ajouter riz + eau + bouquet garni','Servir avec pickles'],
-      apports:'Énergie, prébiotiques, acidité digestive'},
-    {id:'r12',cat:'sales',name:'Club sandwich végétal',temps:'10 min',budget:'4 à 7 €',vegan:true,sansGluten:true,
-      ingredients:['Pain sans gluten maison','Jacquier ou champignons','Chou fermenté','Roquette','Sauce végétale'],
-      etapes:['Griller le pain','Garnir, presser légèrement','Couper en triangles'],
-      apports:'Protéines, probiotiques, fibres'},
-    // FERMENTATION
-    {id:'r13',cat:'fermentation',name:'Carottes épicées fermentées',temps:'2-3 semaines',budget:'4 à 6 €',vegan:true,sansGluten:true,
-      ingredients:['1 kg carottes','10 g sel marin','Gingembre, cannelle, ail'],
-      etapes:['Râper les carottes','Ajouter sel et épices','Malaxer pour le jus','Tasser en bocal','Garder immergé','Fermenter 2-3 semaines'],
-      apports:'Bêta-carotène, gingérols, allicine'},
-    {id:'r14',cat:'fermentation',name:'Chou-fleur en saumure',temps:'2-3 semaines',budget:'5 à 7 €',vegan:true,sansGluten:true,
-      ingredients:['550 g chou-fleur','30 g sel','450 g eau'],
-      etapes:['Couper le chou-fleur','Dissoudre sel dans eau','Bocal, couvrir de saumure','Fermenter 2-3 semaines'],
-      apports:'Vitamine C, sulforaphane, fibres'},
-    {id:'r15',cat:'fermentation',name:'Chou rouge lactofermenté',temps:'1-3 semaines',budget:'3 à 5 €',vegan:true,sansGluten:true,
-      ingredients:['Chou rouge','Sel marin','Ail, gingembre optionnels'],
-      etapes:['Émincer, saler, malaxer','Tasser, garder immergé','Fermenter 1-3 semaines'],
-      apports:'Anthocyanes, vitamine C, antioxydants'},
-    {id:'r16',cat:'fermentation',name:'Pickles de chou rouge doux',temps:'30 min + repos',budget:'5 à 7 €',vegan:true,sansGluten:true,
-      ingredients:['1/2 chou rouge','Vinaigre de cidre','Eau, sel, sucre','Poivre, cardamome'],
-      etapes:['Chauffer eau + vinaigre + sel + sucre','Verser sur chou émincé','Laisser refroidir, conserver au frais'],
-      apports:'Antioxydants, digestion'},
-    {id:'r17',cat:'fermentation',name:'Sauce piquante fermentée',temps:'1-2 semaines',budget:'3 à 5 €',vegan:true,sansGluten:true,
-      ingredients:['Piments','Ail','Sel, eau','Gingembre optionnel'],
-      etapes:['Mettre en saumure','Fermenter 1-2 semaines','Mixer'],
-      apports:'Capsaïcine, allicine, anti-inflammatoire'},
-    {id:'r18',cat:'fermentation',name:'Ail fermenté au miel',temps:'Plusieurs semaines',budget:'6 à 10 €',vegan:false,sansGluten:true,
-      ingredients:['Ail cru','Miel brut'],
-      etapes:['Mettre gousses dans le miel','Retourner régulièrement','Attendre plusieurs semaines'],
-      apports:'Immunité, gorge, circulation'},
-    {id:'r19',cat:'fermentation',name:'Kombucha maison',temps:'7-14 jours',budget:'5 à 10 €',vegan:true,sansGluten:true,
-      ingredients:['Thé','Sucre','SCOBY','Starter de kombucha'],
-      etapes:['Préparer thé sucré','Laisser refroidir','Ajouter SCOBY + starter','Couvrir tissu, fermenter','Ne pas fermer hermétiquement'],
-      apports:'Boisson vivante, acidité digestive'},
-    {id:'r20',cat:'fermentation',name:'Kvass de betterave',temps:'3-5 jours',budget:'2 à 4 €',vegan:true,sansGluten:true,
-      ingredients:['Betterave','Eau','Sel'],
-      etapes:['Couper betterave en morceaux','Eau + sel','Fermenter quelques jours'],
-      apports:'Fer végétal, nitrates naturels, circulation'},
-    // BOISSONS
-    {id:'r21',cat:'boissons',name:'Infusion feuilles de fruit à pain',temps:'20 min',budget:'0,80 à 1,50 €',vegan:true,sansGluten:true,
-      ingredients:['4-6 feuilles de fruit à pain','1L eau','Gingembre optionnel','Cannelle, miel optionnels'],
-      etapes:['Nettoyer les feuilles','Faire bouillir l\'eau','Ajouter feuilles','Frémir 10-15 min','Filtrer'],
-      apports:'Polyphénols, flavonoïdes, potassium'},
-    {id:'r22',cat:'boissons',name:'Matcha énergie mentale',temps:'5 min',budget:'2 à 4 €',vegan:true,sansGluten:true,
-      ingredients:['Matcha en poudre','Lait végétal','Cannelle, vanille'],
-      etapes:['Fouetter matcha + eau chaude','Ajouter lait végétal chaud','Cannelle et vanille'],
-      apports:'Catéchines, L-théanine, concentration calme'},
-    {id:'r23',cat:'boissons',name:'Moringa récupération',temps:'5 min',budget:'1 à 3 €',vegan:true,sansGluten:true,
-      ingredients:['Moringa en poudre','Lait végétal','Cannelle, vanille'],
-      etapes:['Mélanger moringa + lait','Chauffer doucement','Aromatiser'],
-      apports:'Fer, calcium, chlorophylle, protéines partielles'},
-    // DESSERTS
-    {id:'r24',cat:'desserts',name:'Banoffee Pie Créole',temps:'1h + repos',budget:'13 à 16 €',vegan:true,sansGluten:true,
-      ingredients:['Farine de fruit à pain ou riz','Coco râpée, sucre roux','Huile de coco','Lait de coco réduit','Bananes mûres, cannelle','Aquafaba optionnel'],
-      etapes:['Préparer base farine + coco + sucre + huile','Presser dans moule, cuire légèrement','Réduire lait coco + sucre + vanille en caramel','Ajouter bananes','Couvrir de meringue ou aquafaba','Réfrigérer'],
-      apports:'Potassium, bons lipides, fibres, énergie'},
-    {id:'r25',cat:'desserts',name:'Tiramisu Banane Chocolat',temps:'30 min + 4h repos',budget:'11 à 18 €',vegan:true,sansGluten:true,
-      ingredients:['4 bananes mûres','Biscuits sans gluten ou base maison','Cacao brut, café optionnel','Cannelle','Crème de coco ou mascarpone'],
-      etapes:['Préparer crème coco + sucre + vanille','Préparer base biscuitée','Monter couches : biscuit, banane, crème, cacao','Chocolat noir fondu','Repos au frais 4h minimum'],
-      apports:'Magnésium, flavonoïdes, potassium, fer'},
-    {id:'r26',cat:'desserts',name:'M&M\'s maison naturels',temps:'1h',budget:'11 à 23 €',vegan:true,sansGluten:true,
-      ingredients:['120-130 g poudre d\'amande','50 g cacao 100%','60 g sucre de coco','Vanille, sel, lait végétal','Chocolat fondu + huile de coco','Poudres colorantes : matcha, spiruline, betterave'],
-      etapes:['Mélanger amande, cacao, sucre, sel','Ajouter vanille + lait végétal','Former boule, couper en morceaux de 1cm','Congeler 10-20 min','Fondre chocolat + huile + poudre colorante','Enrober, congeler 10-30 min'],
-      apports:'Vitamine E, magnésium, antioxydants, fer'},
-    {id:'r27',cat:'desserts',name:'Snickers maison DrevmCook',temps:'1h30',budget:'14 à 25 €',vegan:true,sansGluten:true,
-      ingredients:['Poudre d\'amande, beurre de cacahuète','Lait végétal, sirop naturel','Dattes, eau chaude','Cacahuètes grillées','Chocolat noir, huile de coco'],
-      etapes:['Mélanger base nougat, étaler en moule','Mixer dattes + beurre cacahuète + eau + sel','Étaler caramel, ajouter cacahuètes','Congeler, couper en barres','Enrober chocolat noir + huile coco'],
-      apports:'Potassium, protéines, magnésium, antioxydants'},
-    {id:'r28',cat:'desserts',name:'Banane givrée cacao courge',temps:'10 min + congélation',budget:'2 à 4 €',vegan:true,sansGluten:true,
-      ingredients:['Bananes mûres','Cacao brut','Graines de courge','Cannelle','Lait végétal optionnel'],
-      etapes:['Couper et congeler les bananes','Mixer avec cacao + lait végétal','Ajouter graines de courge'],
-      apports:'Potassium, magnésium, zinc, antioxydants'},
-  ],
-  plantes: [
-    {nom:'Pourpier',apports:'Oméga-3 végétaux, fibres, minéraux, hydratation',usage:'Salade, condiment, bowls'},
-    {nom:'Atoumo',apports:'Digestion, respiration, mémoire créole',usage:'Infusion, boisson fraîche, sirop léger'},
-    {nom:'Moringa',apports:'Fer, calcium, protéines partielles, chlorophylle',usage:'Poudre dans boissons, sauces, soupes, smoothies'},
-    {nom:'Feuilles de goyave',apports:'Tanins, antioxydants, digestion',usage:'Décoction légère, infusion digestive'},
-    {nom:'Feuilles de patate douce',apports:'Chlorophylle, fibres, minéraux, antioxydants',usage:'Brèdes sautées, soupe, bouillon'},
-    {nom:'Leaf of Life (Bryophyllum)',apports:'Respiration, toux, peau, digestion',usage:'Infusion très légère, cataplasme — PRÉCAUTION : contient glycosides cardiaques'},
-  ],
-  orga: [
-    {regle:'Une base par jour',detail:'Ne pas tout faire le même jour. Une seule action : nourrir, tremper, mixer, cuire, assembler.'},
-    {regle:'Préparer des modules',detail:'Un bocal de pickles, un levain, un lait végétal, une base de pâte, un snack sucré, une sauce.'},
-    {regle:'Rappels visibles',detail:'Sur chaque bocal : date, contenu, action suivante, odeur normale / alerte.'},
-    {regle:'Zéro culpabilité',detail:'Si une étape saute, on reprend simplement. DrevmCook doit aider, pas mettre la pression.'},
-    {regle:'Transformer les restes',detail:'Levain → crackers, riz → pilaf, légumes → pickles, banane mûre → dessert glacé, graines → lait végétal.'},
-  ]
-};
-
-const renderCuisine=()=>{
-const [selectedCat,setSelectedCat]=useState('all');
-const [selectedRecipe,setSelectedRecipe]=useState(null);
-const [searchTerm,setSearchTerm]=useState('');
-const [subView,setSubView]=useState('recettes'); // recettes, plantes, orga, planning
-
-const filteredRecipes=drevmCookData.recettes.filter(r=>{
-  const matchCat=selectedCat==='all'||r.cat===selectedCat;
-  const matchSearch=!searchTerm||r.name.toLowerCase().includes(searchTerm.toLowerCase())||r.ingredients.some(i=>i.toLowerCase().includes(searchTerm.toLowerCase()));
-  return matchCat&&matchSearch;
-});
-
-const catCounts=drevmCookData.categories.map(c=>({...c,count:drevmCookData.recettes.filter(r=>r.cat===c.id).length}));
-
-if(selectedRecipe){
-  const r=selectedRecipe;
-  return <div>
-    <button onClick={()=>setSelectedRecipe(null)} style={{background:'none',border:'none',color:'var(--accent-dja)',cursor:'pointer',fontSize:14,marginBottom:20,display:'flex',alignItems:'center',gap:6}}>← Retour aux recettes</button>
-    <div style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:28,border:'1px solid var(--border2)'}}>
-      <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:20,flexWrap:'wrap'}}>
-        <h2 style={{fontSize:22,fontWeight:600,fontFamily:"'Playfair Display',serif",flex:1}}>{r.name}</h2>
-        <div style={{display:'flex',gap:6}}>
-          {r.vegan&&<span style={{fontSize:11,padding:'3px 10px',borderRadius:20,background:'rgba(52,211,153,.12)',color:'#34d399',fontWeight:500}}>Vegan</span>}
-          {r.sansGluten&&<span style={{fontSize:11,padding:'3px 10px',borderRadius:20,background:'rgba(251,191,36,.12)',color:'#fbbf24',fontWeight:500}}>Sans gluten</span>}
-        </div>
-      </div>
-      <div style={{display:'flex',gap:20,marginBottom:24,flexWrap:'wrap'}}>
-        <div style={{display:'flex',alignItems:'center',gap:6}}><span style={{fontSize:16}}>⏱</span><span style={{fontSize:13,color:'var(--text2)'}}>{r.temps}</span></div>
-        <div style={{display:'flex',alignItems:'center',gap:6}}><span style={{fontSize:16}}>💰</span><span style={{fontSize:13,color:'var(--text2)'}}>{r.budget}</span></div>
-      </div>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:20}}>
-        <div>
-          <h3 style={{fontSize:15,fontWeight:600,marginBottom:12,color:'var(--accent-dja2)'}}>Ingrédients</h3>
-          <div style={{display:'flex',flexDirection:'column',gap:6}}>
-            {r.ingredients.map((ing,i)=><div key={i} style={{display:'flex',alignItems:'center',gap:8,fontSize:13,color:'var(--text)'}}>
-              <span style={{width:6,height:6,borderRadius:3,background:'var(--accent-dja)',minWidth:6}}/>
-              {ing}
-            </div>)}
-          </div>
-        </div>
-        <div>
-          <h3 style={{fontSize:15,fontWeight:600,marginBottom:12,color:'var(--accent-liika2)'}}>Étapes</h3>
-          <div style={{display:'flex',flexDirection:'column',gap:8}}>
-            {r.etapes.map((et,i)=><div key={i} style={{display:'flex',gap:10,fontSize:13,color:'var(--text)'}}>
-              <span style={{width:22,height:22,minWidth:22,borderRadius:12,background:'var(--bg4)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:600,color:'var(--accent-liika)'}}>{i+1}</span>
-              <span style={{lineHeight:1.6,paddingTop:2}}>{et}</span>
-            </div>)}
-          </div>
-        </div>
-      </div>
-      <div style={{marginTop:20,padding:'14px 18px',background:'var(--bg3)',borderRadius:'var(--radius-sm)',borderLeft:'3px solid var(--accent-couple)'}}>
-        <div style={{fontSize:12,color:'var(--accent-couple)',fontWeight:600,marginBottom:4,textTransform:'uppercase',letterSpacing:'.05em'}}>Apports nutritifs</div>
-        <p style={{fontSize:13,color:'var(--text2)',lineHeight:1.6}}>{r.apports}</p>
-      </div>
-    </div>
-  </div>;
-}
-
-return <div>
-  <div style={{marginBottom:24}}>
-    <h2 style={{fontSize:26,fontWeight:600,fontFamily:"'Playfair Display',serif",marginBottom:4}}>
-      <span style={{color:'var(--accent-dja)'}}>Drevm</span><span style={{color:'var(--accent-couple)'}}>Cook</span> 🌿
-    </h2>
-    <p style={{fontSize:14,color:'var(--text3)'}}>Cuisine végétale, locale, sans gluten & autonomie alimentaire tropicale</p>
-  </div>
-
-  {/* Sub-navigation */}
-  <div style={{display:'flex',gap:6,marginBottom:20,flexWrap:'wrap'}}>
-    {[{id:'recettes',label:'Recettes',icon:'📖'},{id:'plantes',label:'Herbier',icon:'🌿'},{id:'orga',label:'Organisation TDAH',icon:'🧠'},{id:'planning',label:'Planning 7j',icon:'📅'}].map(s=>
-      <button key={s.id} onClick={()=>setSubView(s.id)} style={{padding:'8px 16px',borderRadius:20,border:subView===s.id?'2px solid var(--accent-dja)':'1px solid var(--border2)',background:subView===s.id?'var(--accent-dja-bg)':'transparent',color:subView===s.id?'var(--text)':'var(--text3)',fontSize:13,cursor:'pointer',fontWeight:subView===s.id?500:400,display:'flex',alignItems:'center',gap:6}}>
-        <span>{s.icon}</span>{s.label}
-      </button>
-    )}
-  </div>
-
-  {subView==='recettes'&&<div>
-    {/* Search */}
-    <input value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} placeholder="Rechercher une recette ou un ingrédient…"
-      style={{width:'100%',padding:'12px 16px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'var(--bg3)',color:'var(--text)',fontSize:14,marginBottom:16,outline:'none',fontFamily:'inherit'}}/>
-
-    {/* Category filters */}
-    <div style={{display:'flex',gap:6,marginBottom:20,flexWrap:'wrap',overflowX:'auto'}}>
-      <button onClick={()=>setSelectedCat('all')} style={{padding:'6px 14px',borderRadius:20,border:selectedCat==='all'?'2px solid var(--accent-couple)':'1px solid var(--border2)',background:selectedCat==='all'?'var(--accent-couple-bg)':'transparent',color:selectedCat==='all'?'var(--accent-couple)':'var(--text3)',fontSize:12,cursor:'pointer',whiteSpace:'nowrap'}}>
-        Tout ({drevmCookData.recettes.length})
-      </button>
-      {catCounts.map(c=>
-        <button key={c.id} onClick={()=>setSelectedCat(c.id)} style={{padding:'6px 14px',borderRadius:20,border:selectedCat===c.id?`2px solid ${c.color}`:'1px solid var(--border2)',background:selectedCat===c.id?`${c.color}18`:'transparent',color:selectedCat===c.id?c.color:'var(--text3)',fontSize:12,cursor:'pointer',whiteSpace:'nowrap',display:'flex',alignItems:'center',gap:4}}>
-          <span>{c.icon}</span> {c.label} ({c.count})
-        </button>
-      )}
-    </div>
-
-    {/* Recipe grid */}
-    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:12}}>
-      {filteredRecipes.map(r=>{
-        const catInfo=drevmCookData.categories.find(c=>c.id===r.cat);
-        return <div key={r.id} onClick={()=>setSelectedRecipe(r)} style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:'18px 20px',border:'1px solid var(--border)',cursor:'pointer',transition:'all .2s',borderLeft:`3px solid ${catInfo?.color||'var(--accent-dja)'}'}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
-            <h4 style={{fontSize:14,fontWeight:500,flex:1,lineHeight:1.4}}>{r.name}</h4>
-            <span style={{fontSize:16,marginLeft:8}}>{catInfo?.icon}</span>
-          </div>
-          <div style={{display:'flex',gap:12,fontSize:11,color:'var(--text3)',marginBottom:8}}>
-            <span>⏱ {r.temps}</span>
-            <span>💰 {r.budget}</span>
-          </div>
-          <div style={{display:'flex',gap:4}}>
-            {r.vegan&&<span style={{fontSize:10,padding:'2px 7px',borderRadius:10,background:'rgba(52,211,153,.1)',color:'#34d399'}}>V</span>}
-            {r.sansGluten&&<span style={{fontSize:10,padding:'2px 7px',borderRadius:10,background:'rgba(251,191,36,.1)',color:'#fbbf24'}}>SG</span>}
-          </div>
-        </div>
-      })}
-    </div>
-    {filteredRecipes.length===0&&<p style={{textAlign:'center',color:'var(--text3)',padding:'40px 0',fontSize:14}}>Aucune recette trouvée pour "{searchTerm}"</p>}
-  </div>}
-
-  {subView==='plantes'&&<div>
-    <div style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:20,marginBottom:16,border:'1px solid var(--border)',borderLeft:'3px solid #34d399'}}>
-      <p style={{fontSize:13,color:'var(--text2)',lineHeight:1.6,fontStyle:'italic'}}>Les plantes traditionnelles ne remplacent pas un avis médical. Toujours commencer petit, observer, éviter les mélanges risqués avec médicaments.</p>
-    </div>
-    <div style={{display:'grid',gap:12}}>
-      {drevmCookData.plantes.map((p,i)=>
-        <div key={i} style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:'18px 22px',border:'1px solid var(--border)',animation:`fadeUp .3s ease ${i*0.05}s both`}}>
-          <h3 style={{fontSize:16,fontWeight:600,marginBottom:8,color:'var(--text)'}}>{p.nom} 🌿</h3>
-          <div style={{marginBottom:8}}>
-            <span style={{fontSize:11,color:'#34d399',fontWeight:600,textTransform:'uppercase',letterSpacing:'.05em'}}>Apports</span>
-            <p style={{fontSize:13,color:'var(--text2)',marginTop:4,lineHeight:1.5}}>{p.apports}</p>
-          </div>
-          <div>
-            <span style={{fontSize:11,color:'var(--accent-couple)',fontWeight:600,textTransform:'uppercase',letterSpacing:'.05em'}}>Usage</span>
-            <p style={{fontSize:13,color:'var(--text2)',marginTop:4,lineHeight:1.5}}>{p.usage}</p>
-          </div>
-        </div>
-      )}
-    </div>
-  </div>}
-
-  {subView==='orga'&&<div>
-    <div style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:20,marginBottom:20,border:'1px solid var(--accent-dja-border)',borderLeft:'3px solid var(--accent-dja)'}}>
-      <div style={{fontSize:13,color:'var(--accent-dja2)',fontWeight:500,marginBottom:6}}>🧠 Philosophie TDAH-friendly</div>
-      <p style={{fontSize:13,color:'var(--text2)',lineHeight:1.6}}>DrevmCook doit aider, pas mettre la pression. Une seule action par jour suffit pour avancer.</p>
-    </div>
-    <div style={{display:'grid',gap:12}}>
-      {drevmCookData.orga.map((o,i)=>
-        <div key={i} style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:'18px 22px',border:'1px solid var(--border)',display:'flex',gap:16,alignItems:'flex-start',animation:`fadeUp .3s ease ${i*0.06}s both`}}>
-          <div style={{width:36,height:36,minWidth:36,borderRadius:10,background:'var(--accent-dja-bg)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,fontWeight:700,color:'var(--accent-dja)'}}>{i+1}</div>
-          <div>
-            <h4 style={{fontSize:15,fontWeight:600,marginBottom:4}}>{o.regle}</h4>
-            <p style={{fontSize:13,color:'var(--text2)',lineHeight:1.6}}>{o.detail}</p>
-          </div>
-        </div>
-      )}
-    </div>
-
-    <div style={{marginTop:28}}>
-      <h3 style={{fontSize:16,fontWeight:600,marginBottom:12,color:'var(--text)'}}>Équation DrevmCook</h3>
-      <div style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:20,border:'1px solid var(--accent-couple-border)',textAlign:'center'}}>
-        <p style={{fontSize:15,color:'var(--accent-couple)',fontWeight:500,lineHeight:1.8}}>Produit péyi + fermentation + bonnes graisses + protéines végétales + épices = énergie durable</p>
-      </div>
-    </div>
-  </div>}
-
-  {subView==='planning'&&<div>
-    <div style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:20,marginBottom:16,border:'1px solid var(--border2)'}}>
-      <h3 style={{fontSize:16,fontWeight:600,marginBottom:12}}>Planning Pain & Focaccia — 7 jours</h3>
-      <div style={{display:'grid',gap:10}}>
-        {[
-          {jour:'Jour 1',action:'Lancer le levain',detail:'30g farine riz + 20g farine fruit à pain + 50ml eau'},
-          {jour:'Jour 2',action:'Nourrir le levain',detail:'25g farine + 25-50ml eau'},
-          {jour:'Jour 3',action:'Renforcer',detail:'Retirer un peu si besoin, nourrir farine + eau'},
-          {jour:'Jour 4',action:'Préparer pâte baguettes',detail:'350g farine, levure/levain, eau tiède, huile, sel, herbes'},
-          {jour:'Jour 5',action:'Cuire mini baguettes',detail:'200°C, 15-20 min'},
-          {jour:'Jour 6',action:'Focaccia',detail:'300g farine, levain, eau, huile, ail, herbes — 200°C, 20-25 min'},
-          {jour:'Jour 7',action:'Anti-gaspillage',detail:'Galettes rapides, crackers, pizza rustique'},
-        ].map((j,i)=>
-          <div key={i} style={{display:'flex',gap:14,alignItems:'flex-start',padding:'12px 16px',background:'var(--bg3)',borderRadius:'var(--radius-sm)'}}>
-            <div style={{width:32,height:32,minWidth:32,borderRadius:8,background:i<5?'var(--accent-dja-bg)':i===5?'var(--accent-liika-bg)':'var(--accent-couple-bg)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,color:i<5?'var(--accent-dja)':i===5?'var(--accent-liika)':'var(--accent-couple)'}}>{j.jour.split(' ')[1]}</div>
-            <div>
-              <div style={{fontSize:14,fontWeight:500,marginBottom:2}}>{j.action}</div>
-              <div style={{fontSize:12,color:'var(--text3)'}}>{j.detail}</div>
-            </div>
-          </div>
-        )}
-      </div>
-      <div style={{marginTop:16,padding:'12px 16px',background:'var(--bg3)',borderRadius:'var(--radius-sm)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-        <span style={{fontSize:13,color:'var(--text2)'}}>Budget semaine</span>
-        <span style={{fontSize:14,fontWeight:600,color:'var(--accent-couple)'}}>≈ 12 à 22 €</span>
-      </div>
-    </div>
-
-    <div style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:20,border:'1px solid var(--border2)'}}>
-      <h3 style={{fontSize:16,fontWeight:600,marginBottom:12}}>Budget global de départ</h3>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:12}}>
-        <div style={{padding:'14px 18px',background:'var(--bg3)',borderRadius:'var(--radius-sm)'}}>
-          <div style={{fontSize:12,color:'var(--text3)',marginBottom:4}}>Base DrevmCook complète</div>
-          <div style={{fontSize:18,fontWeight:600,color:'var(--accent-dja)'}}>45 à 90 €</div>
-        </div>
-        <div style={{padding:'14px 18px',background:'var(--bg3)',borderRadius:'var(--radius-sm)'}}>
-          <div style={{fontSize:12,color:'var(--text3)',marginBottom:4}}>Budget semaine pain/fermentation/snacks</div>
-          <div style={{fontSize:18,fontWeight:600,color:'var(--accent-couple)'}}>20 à 45 €</div>
-        </div>
-      </div>
-    </div>
-  </div>}
-
-  {/* Quote */}
-  <div style={{marginTop:28,padding:'16px 20px',background:'var(--bg2)',borderRadius:'var(--radius)',border:'1px solid var(--border)',textAlign:'center'}}>
-    <p style={{fontSize:13,color:'var(--text3)',fontStyle:'italic',lineHeight:1.6}}>DrevmCook : nourrir le corps, calmer le système, réveiller la créativité. 🌴</p>
-  </div>
-=======
->>>>>>> 9012e62c3d0f3ba48031d79836bb9224d171253f
 </div>
 };
 
@@ -2703,7 +2299,6 @@ style={{width:'100%',padding:'7px',borderRadius:'var(--radius-sm)',border:'1px s
 {view==='route'&&renderRoute()}
 {view==='objmensuel'&&renderObjMensuel()}
 {view==='charts'&&renderCharts()}
-{view==='cuisine'&&renderCuisine()}
 </main>
 
 <AddModal show={!!modal} onClose={()=>setModal(null)} type={modal?.type} color={modal?.who}
