@@ -201,6 +201,19 @@ function loadUI(){
 try{const u=localStorage.getItem('dja-liika-ui');return u?{...defaultUI,...JSON.parse(u)}:defaultUI}catch(e){return defaultUI}
 }
 function saveUI(u){localStorage.setItem('dja-liika-ui',JSON.stringify(u))}
+// Complète une donnée (locale ou distante) éventuellement incomplète avec les valeurs par défaut.
+// Évite les crashs quand une ancienne sauvegarde n'a pas encore toutes les clés (notes, meals, budget…).
+function withDefaults(d){
+if(!d||typeof d!=='object')return defaultData;
+const fill=(base,inc)=>({...base,...(inc||{}),
+  objectives:inc?.objectives??base.objectives,
+  actions:inc?.actions??base.actions,
+  notes:inc?.notes??[],
+  meals:inc?.meals??base.meals,
+  budget:inc?.budget??base.budget,
+  vision:inc?.vision??base.vision});
+return {dja:fill(defaultData.dja,d.dja),liika:fill(defaultData.liika,d.liika),couple:fill(defaultData.couple,d.couple)};
+}
 
 // ─── Components ───
 
@@ -359,12 +372,14 @@ return <div style={{position:'relative',height:200}}><canvas ref={canvasRef}/></
 
 // ─── Main App ───
 function App(){
-const [data,setData]=useState(loadData);
+const [data,setData]=useState(()=>withDefaults(loadData()));
 const [ui,setUI]=useState(loadUI);
 const [view,setView]=useState('dashboard');
 const [modal,setModal]=useState(null);
 const [syncStatus,setSyncStatus]=useState('idle'); // idle | syncing | ok | error
 const remoteHydrated=useRef(false);
+// Évite la boucle: quand on applique une modif reçue en temps réel, on ne la renvoie pas à Supabase
+const skipRemoteSave=useRef(false);
 
 // Sync to Supabase on data change (debounced 1.2s)
 const syncTimer=useRef(null);
@@ -373,6 +388,8 @@ useEffect(()=>{
   saveUI(ui);
   // Garde anti-écrasement: on n'écrit pas sur Supabase avant la fin du premier chargement distant
   if(!remoteHydrated.current)return;
+  // La modif vient d'arriver de l'autre appareil → on l'applique localement sans la renvoyer (anti-boucle)
+  if(skipRemoteSave.current){skipRemoteSave.current=false;return;}
   clearTimeout(syncTimer.current);
   syncTimer.current=setTimeout(async()=>{
     setSyncStatus('syncing');
@@ -388,13 +405,31 @@ useEffect(()=>{
   setSyncStatus('syncing');
   sbLoad().then(bundle=>{
     if(bundle?.appData){
-      setData(bundle.appData);
+      setData(withDefaults(bundle.appData));
       if(bundle.ui)setUI(prev=>({...prev,...bundle.ui}));
       setSyncStatus('ok');
       setTimeout(()=>setSyncStatus('idle'),2000);
     }
     else setSyncStatus('idle');
   }).catch(()=>setSyncStatus('error')).finally(()=>{remoteHydrated.current=true});
+},[]);
+
+// Temps réel: applique en direct les modifs faites depuis l'autre appareil
+useEffect(()=>{
+  const ch=sb.channel('app_state:main')
+    .on('postgres_changes',{event:'*',schema:'public',table:'app_state',filter:'id=eq.main'},payload=>{
+      const p=payload.new?.data;
+      if(!p)return;
+      // Rétrocompat: ancien format = objet brut ; nouveau format = {appData, ui}
+      const bundle=p.appData?p:{appData:p,ui:null};
+      skipRemoteSave.current=true; // ne pas renvoyer cette modif à Supabase
+      setData(withDefaults(bundle.appData));
+      if(bundle.ui)setUI(prev=>({...prev,...bundle.ui}));
+      setSyncStatus('ok');
+      setTimeout(()=>setSyncStatus('idle'),2000);
+    })
+    .subscribe();
+  return ()=>{sb.removeChannel(ch);};
 },[]);
 
 const clone=prev=>structuredClone(prev);
