@@ -92,8 +92,8 @@ const DEVICE_ID=(()=>{
 
 async function sbLoad(){
   const {data,error}=await sb.from('app_state').select('data').eq('id','main').single();
-  if(error||!data)throw error||new Error('no data');
-  return data.data;
+  if(error||!data||!data.data)throw error||new Error('no data');
+  return normalize(data.data);
 }
 async function sbSave(d){
   const {error}=await sb.from('app_state').upsert({id:'main',data:d,updated_at:new Date().toISOString(),device_id:DEVICE_ID});
@@ -240,8 +240,20 @@ couple:{
 recipes:[]
 };
 
+// Garantit que les données chargées/reçues ont toujours la forme attendue
+// (dja / liika / couple complets). Évite l'écran blanc si Supabase renvoie
+// un état partiel, null ou d'une ancienne version.
+function normalize(d){
+if(!d||typeof d!=='object')return clone(defaultData);
+const base=clone(defaultData);
+for(const k of ['dja','liika','couple']){
+  base[k]={...base[k],...(d[k]&&typeof d[k]==='object'?d[k]:{})};
+}
+if(Array.isArray(d.recipes))base.recipes=d.recipes;
+return base;
+}
 function loadData(){
-try{const d=localStorage.getItem('dja-liika-goals');const p=d?JSON.parse(d):defaultData;if(!p.couple.objMensuels)p.couple.objMensuels=[];return p;}catch(e){return defaultData}
+try{const d=localStorage.getItem('dja-liika-goals');return normalize(d?JSON.parse(d):defaultData);}catch(e){return clone(defaultData)}
 }
 function saveData(d){localStorage.setItem('dja-liika-goals',JSON.stringify(d))}
 function loadUI(){
@@ -1545,8 +1557,9 @@ const ch=sb.channel('ld-realtime')
     (payload)=>{
       if(!payload.new?.data)return;
       if(payload.new.device_id===DEVICE_ID)return; // notre propre save → ignorer
-      setData(payload.new.data);
-      saveData(payload.new.data);
+      const remote=normalize(payload.new.data);
+      setData(remote);
+      saveData(remote);
       setSyncStatus('ok');
     })
   // Mise à jour du compteur d'appareils en ligne
@@ -1790,10 +1803,10 @@ setData(prev=>{const next=clone(prev);next.couple.objMensuels=(next.couple.objMe
 },[]);
 
 const {totalObj,totalDone,avgProgress,totalActions,actionsDone}=useMemo(()=>{
-const totalObj=[...data.dja.objectives,...data.liika.objectives,...data.couple.objectives];
+const totalObj=[...(data.dja?.objectives||[]),...(data.liika?.objectives||[]),...(data.couple?.objectives||[])];
 const totalDone=totalObj.filter(o=>o.done).length;
-const avgProgress=totalObj.length?Math.round(totalObj.reduce((s,o)=>s+o.progress,0)/totalObj.length):0;
-const totalActions=[...data.dja.actions,...data.liika.actions,...data.couple.actions];
+const avgProgress=totalObj.length?Math.round(totalObj.reduce((s,o)=>s+(o.progress||0),0)/totalObj.length):0;
+const totalActions=[...(data.dja?.actions||[]),...(data.liika?.actions||[]),...(data.couple?.actions||[])];
 const actionsDone=totalActions.filter(a=>a.done).length;
 return {totalObj,totalDone,avgProgress,totalActions,actionsDone};
 },[data]);
