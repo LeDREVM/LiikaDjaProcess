@@ -118,7 +118,21 @@ background:
 </style>
 </head>
 <body>
-<div id="root"></div>
+<!-- Message visible pendant le chargement (remplacé par React) -->
+<div id="root"><div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:16px;background:#06120d;color:#d9b75f;font-family:Outfit,sans-serif"><div style="font-size:48px">♡</div><div style="font-size:18px;font-weight:600">Lanmou Douvan</div><div style="font-size:13px;opacity:.6;animation:pulse 1.5s infinite">Chargement…</div></div></div>
+<!-- Capture toute erreur JS et l'affiche à l'écran au lieu de rester noir -->
+<script>
+window.__ldErr=function(msg,err){
+  document.getElementById('root').innerHTML=
+  '<div style="position:fixed;inset:0;background:#06120d;color:#f87171;padding:24px;font-family:monospace;font-size:13px;overflow:auto;z-index:9999">'
+  +'<div style="color:#d9b75f;font-size:20px;margin-bottom:16px">⚠ Lanmou Douvan — Erreur</div>'
+  +'<div style="margin-bottom:8px">'+String(msg)+'</div>'
+  +'<pre style="color:#c2c9b6;white-space:pre-wrap">'+(err&&err.stack||'')+'</pre>'
+  +'</div>';
+};
+window.onerror=function(m,s,l,c,e){window.__ldErr(m,e);return false;};
+window.addEventListener('unhandledrejection',function(e){window.__ldErr('Promise: '+(e.reason&&e.reason.message||e.reason),e.reason);});
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
