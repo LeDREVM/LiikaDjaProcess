@@ -8,29 +8,113 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♡</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,500;1,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,500;0,700;1,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
---bg:#0a0a0f;--bg2:#12121a;--bg3:#1a1a26;--bg4:#22222f;
---text:#e8e6f0;--text2:#a8a4b8;--text3:#6e6a80;
---accent-dja:#8b5cf6;--accent-dja2:#a78bfa;--accent-dja-bg:rgba(139,92,246,.1);--accent-dja-border:rgba(139,92,246,.25);
---accent-liika:#f472b6;--accent-liika2:#f9a8d4;--accent-liika-bg:rgba(244,114,182,.1);--accent-liika-border:rgba(244,114,182,.25);
---accent-couple:#fbbf24;--accent-couple-bg:rgba(251,191,36,.1);--accent-couple-border:rgba(251,191,36,.25);
---success:#34d399;--success-bg:rgba(52,211,153,.12);
---border:rgba(255,255,255,.06);--border2:rgba(255,255,255,.1);
---radius:12px;--radius-sm:8px;--radius-xs:6px;
+--bg:#06120d;--bg2:#0c1f16;--bg3:#122b1e;--bg4:#1a3a28;
+--text:#f3efe2;--text2:#c2c9b6;--text3:#86a08f;
+--gold:#d9b75f;--gold2:#f0d98a;--gold-bg:rgba(217,183,95,.10);--gold-border:rgba(217,183,95,.28);
+--accent-dja:#a78bfa;--accent-dja2:#c4b5fd;--accent-dja-bg:rgba(167,139,250,.10);--accent-dja-border:rgba(167,139,250,.28);
+--accent-liika:#f472b6;--accent-liika2:#f9a8d4;--accent-liika-bg:rgba(244,114,182,.10);--accent-liika-border:rgba(244,114,182,.28);
+--accent-couple:#d9b75f;--accent-couple-bg:rgba(217,183,95,.10);--accent-couple-border:rgba(217,183,95,.28);
+--success:#4ade80;--success-bg:rgba(74,222,128,.12);
+--warn:#fb923c;--warn-bg:rgba(251,146,60,.12);--warn-border:rgba(251,146,60,.30);
+--danger:#f87171;--danger-bg:rgba(248,113,113,.10);--danger-border:rgba(248,113,113,.28);
+--border:rgba(217,183,95,.11);--border2:rgba(217,183,95,.20);
+--glass:rgba(8,22,14,.75);--shadow:0 8px 32px rgba(0,0,0,.50);
+--grad-hero:linear-gradient(135deg,#0c1f16 0%,#122b1e 55%,#0a1a10 100%);
+--radius:16px;--radius-sm:11px;--radius-xs:8px;
+--nav-h:72px;
 }
 html,body,#root{height:100%;font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
-body{overflow-x:hidden}
+body{
+overflow-x:hidden;
+background:
+  radial-gradient(ellipse 900px 500px at 85% -5%,rgba(217,183,95,.055),transparent),
+  radial-gradient(ellipse 700px 600px at -8% 95%,rgba(74,222,128,.045),transparent),
+  var(--bg);
+}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:rgba(217,183,95,.25);border-radius:2px}
+::selection{background:rgba(217,183,95,.28)}
+.eyebrow{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold)}
+.gold-rule{height:1px;background:linear-gradient(90deg,transparent,var(--gold-border),transparent);margin:16px 0}
+.lx-card{background:linear-gradient(160deg,var(--bg3) 0%,var(--bg2) 100%);border:1px solid var(--border);box-shadow:var(--shadow);border-radius:var(--radius)}
 @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
 @keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
 @keyframes slideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
-@media(max-width:768px){
-nav{display:none!important}
-.mobile-nav{display:block!important}
-main{padding:20px 16px 80px!important}
+@keyframes goldShimmer{0%,100%{opacity:.7}50%{opacity:1}}
+@keyframes alertPop{0%{transform:scale(.9);opacity:0}60%{transform:scale(1.03)}100%{transform:scale(1);opacity:1}}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+.scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.scroll-x::-webkit-scrollbar{height:0;display:none}
+
+/* ── Responsive Layout ─────────────────────────────────── */
+
+/* Desktop : sidebar visible, main prend le reste */
+.app-layout{display:flex;min-height:100vh}
+.app-sidebar{width:228px;min-width:228px;flex-shrink:0}
+.app-main{flex:1;padding:32px 40px;min-width:0;overflow-x:hidden;max-width:900px}
+
+/* Tablette (769 → 1024px) : sidebar cachée, bottom nav */
+@media(min-width:769px) and (max-width:1024px){
+  .app-sidebar{display:none!important}
+  .mobile-nav{display:flex!important}
+  .app-main{padding:28px 28px calc(var(--nav-h) + 16px)!important;max-width:100%}
+  .dash-hero h2{font-size:26px!important}
 }
+
+/* Mobile (≤768px) */
+@media(max-width:768px){
+  .app-sidebar{display:none!important}
+  .mobile-nav{display:flex!important}
+  .app-main{padding:20px 16px calc(var(--nav-h) + 12px)!important;max-width:100%}
+  .dash-hero{padding:18px 16px 16px!important}
+  .dash-hero h2{font-size:22px!important}
+  .stat-grid{grid-template-columns:repeat(2,1fr)!important}
+  .person-actions{flex-direction:column!important;align-items:stretch!important}
+  .person-actions button{width:100%!important;justify-content:center!important}
+}
+
+/* Petit mobile (≤480px) */
+@media(max-width:480px){
+  .app-main{padding:14px 12px calc(var(--nav-h) + 10px)!important}
+  .dash-hero h2{font-size:19px!important}
+}
+
+/* ── Mobile nav ──────────────────────────────────────────── */
+.mobile-nav{
+  display:none;
+  position:fixed;bottom:0;left:0;right:0;
+  background:var(--glass);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border-top:1px solid var(--gold-border);
+  height:var(--nav-h);
+  z-index:100;
+  padding:6px 4px env(safe-area-inset-bottom,6px);
+}
+.mobile-nav-inner{
+  display:flex;gap:2px;
+  overflow-x:auto;height:100%;
+  -webkit-overflow-scrolling:touch;scrollbar-width:none;align-items:stretch;
+  padding:0 4px;
+}
+.mobile-nav-inner::-webkit-scrollbar{display:none}
+.mnav-btn{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:3px;flex-shrink:0;
+  min-width:64px;
+  border:none;border-radius:12px;
+  padding:6px 8px;cursor:pointer;
+  transition:background .15s,color .15s;
+  font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.02em;
+  background:transparent;color:var(--text3);
+}
+.mnav-btn.active{background:var(--gold-bg);color:var(--gold)}
+.mnav-btn .mnav-icon{font-size:20px;line-height:1}
+.mnav-btn .mnav-label{font-size:9px;max-width:56px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -43,10 +127,40 @@ main{padding:20px 16px 80px!important}
 <script type="text/babel">
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
-// ─── Helpers couleur ───
+function useWindowWidth(){
+const [w,setW]=useState(()=>typeof window!=='undefined'?window.innerWidth:1200);
+useEffect(()=>{const h=()=>setW(window.innerWidth);window.addEventListener('resize',h,{passive:true});return()=>window.removeEventListener('resize',h);},[]);
+return w;
+}
+
+// ─── Helpers ───
 const accent={dja:'var(--accent-dja)',liika:'var(--accent-liika)',couple:'var(--accent-couple)'};
 const accentBg={dja:'var(--accent-dja-bg)',liika:'var(--accent-liika-bg)',couple:'var(--accent-couple-bg)'};
 const accentBorder={dja:'var(--accent-dja-border)',liika:'var(--accent-liika-border)',couple:'var(--accent-couple-border)'};
+const clone=o=>typeof structuredClone==='function'?structuredClone(o):JSON.parse(JSON.stringify(o));
+const defaultUI={};
+
+// ─── Supabase ───
+const SB_URL='https://mvtwotbyphuxdkcwgime.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im12dHdvdGJ5cGh1eGRrY3dnaW1lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzMTA5NTIsImV4cCI6MjA5MDg4Njk1Mn0.pZvyjzD9Qpl4IKjBYJcL4ObqdH-UXu47tHLFIzxfde8';
+const sb=supabase.createClient(SB_URL,SB_KEY);
+
+// ID unique de cet appareil (généré une seule fois, persisté en localStorage)
+const DEVICE_ID=(()=>{
+  let id=localStorage.getItem('ld-device-id');
+  if(!id){id='dev_'+Math.random().toString(36).slice(2,10);localStorage.setItem('ld-device-id',id);}
+  return id;
+})();
+
+async function sbLoad(){
+  const {data,error}=await sb.from('app_state').select('data').eq('id','main').single();
+  if(error||!data||!data.data)throw error||new Error('no data');
+  return normalize(data.data);
+}
+async function sbSave(d){
+  const {error}=await sb.from('app_state').upsert({id:'main',data:d,updated_at:new Date().toISOString(),device_id:DEVICE_ID});
+  if(error)throw error;
+}
 
 // ─── Data ───
 const defaultData={
@@ -91,7 +205,13 @@ dja:{
       {id:'dd4',label:'Transport',montant:120,cat:'Transport'}
     ]
   },
-  vision:"Créer un écosystème d'apps caribéennes pour les créatifs TDAH. Identité visuelle antillaise forte dans la tech. Indépendance financière via le SaaS d'ici 2028. Vivre et créer depuis la Guadeloupe."
+  vision:"Créer un écosystème d'apps caribéennes pour les créatifs TDAH. Identité visuelle antillaise forte dans la tech. Indépendance financière via le SaaS d'ici 2028. Vivre et créer depuis la Guadeloupe.",
+  sport:[
+    {id:'ds1',jour:'Lundi',activite:'Yoga / étirements',duree:30,intensite:'Légère',fait:false},
+    {id:'ds2',jour:'Mercredi',activite:'Course à pied',duree:40,intensite:'Modérée',fait:false},
+    {id:'ds3',jour:'Vendredi',activite:'Musculation corps',duree:45,intensite:'Intense',fait:false},
+    {id:'ds4',jour:'Dimanche',activite:'Marche créative',duree:60,intensite:'Légère',fait:false},
+  ]
 },
 liika:{
   name:"Liika",
@@ -133,7 +253,13 @@ liika:{
       {id:'ld4',label:'Assurances',montant:180,cat:'Pro'}
     ]
   },
-  vision:"Devenir cheffe de flotte d'ici 2027 avec un second camion. Choisir mes tournées, rentrer chez moi le week-end. Construire un chez-nous solide avec Dja. Santé, équilibre et liberté sur la route."
+  vision:"Devenir cheffe de flotte d'ici 2027 avec un second camion. Choisir mes tournées, rentrer chez moi le week-end. Construire un chez-nous solide avec Dja. Santé, équilibre et liberté sur la route.",
+  sport:[
+    {id:'ls1',jour:'Mardi',activite:'Étirements cabine',duree:15,intensite:'Légère',fait:false},
+    {id:'ls2',jour:'Jeudi',activite:'Marche à l\'arrêt',duree:30,intensite:'Légère',fait:false},
+    {id:'ls3',jour:'Samedi',activite:'Sport maison',duree:40,intensite:'Modérée',fait:false},
+    {id:'ls4',jour:'Dimanche',activite:'Vélo ou natation',duree:45,intensite:'Modérée',fait:false},
+  ]
 },
 couple:{
   objectives:[
@@ -145,12 +271,84 @@ couple:{
     {id:"ca1",text:"Planifier une soiree objectifs couple",cat:"Couple",done:false},
     {id:"ca2",text:"Ouvrir un compte commun projets",cat:"Couple",done:false},
     {id:"ca3",text:"Choisir une destination vacances 2027",cat:"Couple",done:false},
+<<<<<<< HEAD
   ]
 }
+=======
+  ],
+  notes:[],
+  meals:[
+    {id:'cm1',jour:'Samedi',type:'Midi',plat:'Brunch maison ensemble',note:'Rituel hebdo'},
+    {id:'cm2',jour:'Samedi',type:'Soir',plat:'Barbecue / plats antillais',note:''},
+    {id:'cm3',jour:'Dimanche',type:'Midi',plat:'Repas en famille ou sortie',note:''},
+  ],
+  budget:{
+    revenus:[
+      {id:'cr1',label:'Contribution Dja',montant:800},
+      {id:'cr2',label:'Contribution Liika',montant:800}
+    ],
+    depenses:[
+      {id:'cd1',label:'Fond vacances 2027',montant:500,cat:'Projets'},
+      {id:'cd2',label:'Épargne logement',montant:600,cat:'Épargne'},
+      {id:'cd3',label:'Loisirs couple',montant:200,cat:'Vie'}
+    ]
+  },
+  vision:"Un foyer à nous, un voyage par an, des projets créatifs communs. Construire ensemble une vie entre la Guadeloupe et la route — Lanmou Douvan pour toujours.",
+  sport:[
+    {id:'cs1',jour:'Samedi',activite:'Sport ensemble / balade',duree:60,intensite:'Légère',fait:false},
+    {id:'cs2',jour:'Dimanche',activite:'Randonnée ou plage',duree:90,intensite:'Modérée',fait:false},
+  ],
+  planning:{},
+  ideeJour:{liste:[],custom:[]},
+  maison:{checked:{},custom:[],lastReset:''},
+  objMensuels:[]
+},
+recipes:[]
+>>>>>>> 9012e62c3d0f3ba48031d79836bb9224d171253f
 };
+const defaultUI={activeProfile:'dja'};
 
+<<<<<<< HEAD
+=======
+// ─── Supabase ───
+const SB_URL='https://mvtwotbyphuxdkcwgime.supabase.co';
+const SB_KEY='sb_publishable_3GTu11_-nrnYDyFY2Rl7eQ_bndRXVAz';
+const sb=supabase.createClient(SB_URL,SB_KEY);
+async function sbLoad(){
+try{
+  const {data,error}=await sb.from('app_state').select('data').eq('id','main').single();
+  if(error&&error.code==='PGRST116')return null; // no row yet
+  if(error)throw error;
+  const payload=data?.data||null;
+  if(!payload)return null;
+  if(payload.appData)return payload;
+  return {appData:payload,ui:null};
+}catch(e){console.warn('[Supabase] load error:',e);return null}
+}
+async function sbSave(d,ui){
+try{
+  const payload={appData:d,ui};
+  const {error}=await sb.from('app_state').upsert({id:'main',data:payload,updated_at:new Date().toISOString()});
+  if(error)throw error;
+  return true;
+}catch(e){console.warn('[Supabase] save error:',e);return false}
+}
+
+// Garantit que les données chargées/reçues ont toujours la forme attendue
+// (dja / liika / couple complets). Évite l'écran blanc si Supabase renvoie
+// un état partiel, null ou d'une ancienne version.
+function normalize(d){
+if(!d||typeof d!=='object')return clone(defaultData);
+const base=clone(defaultData);
+for(const k of ['dja','liika','couple']){
+  base[k]={...base[k],...(d[k]&&typeof d[k]==='object'?d[k]:{})};
+}
+if(Array.isArray(d.recipes))base.recipes=d.recipes;
+return base;
+}
+>>>>>>> 9012e62c3d0f3ba48031d79836bb9224d171253f
 function loadData(){
-try{const d=localStorage.getItem('dja-liika-goals');return d?JSON.parse(d):defaultData}catch(e){return defaultData}
+try{const d=localStorage.getItem('dja-liika-goals');return normalize(d?JSON.parse(d):defaultData);}catch(e){return clone(defaultData)}
 }
 function saveData(d){localStorage.setItem('dja-liika-goals',JSON.stringify(d))}
 function loadUI(){
@@ -169,35 +367,40 @@ return <svg width={size} height={size} style={{transform:'rotate(-90deg)'}}>
 }
 
 function StatCard({label,value,color,icon}){
-return <div style={{background:'var(--bg3)',borderRadius:'var(--radius)',padding:'16px 20px',display:'flex',alignItems:'center',gap:14}}>
-<div style={{width:40,height:40,borderRadius:10,background:accentBg[color],display:'flex',alignItems:'center',justifyContent:'center',fontSize:18}}>{icon}</div>
-<div><div style={{fontSize:13,color:'var(--text3)',marginBottom:2}}>{label}</div>
-<div style={{fontSize:22,fontWeight:600}}>{value}</div></div>
+return <div style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:'var(--radius)',padding:'16px 20px',display:'flex',alignItems:'center',gap:14,border:'1px solid var(--border)',boxShadow:'var(--shadow)'}}>
+<div style={{width:42,height:42,borderRadius:12,background:accentBg[color],border:`1px solid ${accentBorder[color]}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18}}>{icon}</div>
+<div><div style={{fontSize:11,color:'var(--text3)',marginBottom:3,letterSpacing:'.05em'}}>{label}</div>
+<div style={{fontSize:22,fontWeight:600,color:'var(--text)'}}>{value}</div></div>
 </div>
 }
 
 function ObjectiveCard({obj,color,onToggle,onProgress,onDelete}){
+<<<<<<< HEAD
 const accentVar=color==='dja'?'var(--accent-dja)':color==='liika'?'var(--accent-liika)':'var(--accent-couple)';
 const bgVar=color==='dja'?'var(--accent-dja-bg)':color==='liika'?'var(--accent-liika-bg)':'var(--accent-couple-bg)';
 return <div style={{background:'var(--bg3)',borderRadius:'var(--radius)',padding:'16px 20px',borderLeft:`3px solid ${obj.done?'var(--success)':accentVar}`,animation:'fadeUp .4s ease both',opacity:obj.done?.6:1,transition:'opacity .3s'}}>
+=======
+const av=accent[color];const bv=accentBg[color];
+return <div style={{background:'var(--bg3)',borderRadius:'var(--radius)',padding:'16px 20px',borderLeft:`3px solid ${obj.done?'var(--success)':av}`,animation:'fadeUp .4s ease both',opacity:obj.done?0.6:1,transition:'opacity .3s'}}>
+>>>>>>> 9012e62c3d0f3ba48031d79836bb9224d171253f
 <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
 <div style={{flex:1}}>
 <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
-<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:bv,color:av,fontWeight:500}}>{obj.cat}</span>
+<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:bgVar,color:accentVar,fontWeight:500}}>{obj.cat}</span>
 {obj.done&&<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:'var(--success-bg)',color:'var(--success)',fontWeight:500}}>Fait</span>}
 </div>
 <div style={{fontSize:15,fontWeight:500,marginBottom:4,textDecoration:obj.done?'line-through':'none'}}>{obj.title}</div>
 <div style={{fontSize:13,color:'var(--text3)'}}>{obj.desc}</div>
 </div>
 <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
-<ProgressRing pct={obj.progress} color={obj.done?'var(--success)':av}/>
-<span style={{fontSize:11,fontWeight:500,color:obj.done?'var(--success)':av}}>{obj.progress}%</span>
+<ProgressRing pct={obj.progress} color={obj.done?'var(--success)':accentVar}/>
+<span style={{fontSize:11,fontWeight:500,color:obj.done?'var(--success)':accentVar}}>{obj.progress}%</span>
 </div>
 </div>
 <div style={{marginTop:12,display:'flex',alignItems:'center',gap:8}}>
 <input type="range" min="0" max="100" step="5" value={obj.progress}
   onChange={e=>onProgress(obj.id,parseInt(e.target.value))}
-  style={{flex:1,height:4,accentColor:av,cursor:'pointer'}}/>
+  style={{flex:1,height:4,accentColor:accentVar,cursor:'pointer'}}/>
 <button onClick={()=>onToggle(obj.id)} style={{background:obj.done?'var(--success-bg)':'var(--bg4)',border:'none',borderRadius:'var(--radius-xs)',padding:'6px 12px',fontSize:12,color:obj.done?'var(--success)':'var(--text2)',cursor:'pointer',whiteSpace:'nowrap'}}>
 {obj.done?'Réactiver':'Valider'}</button>
 <button onClick={()=>onDelete(obj.id)} aria-label="Supprimer" style={{background:'none',border:'none',fontSize:14,color:'var(--text3)',cursor:'pointer',padding:'6px'}}>✕</button>
@@ -207,12 +410,12 @@ return <div style={{background:'var(--bg3)',borderRadius:'var(--radius)',padding
 
 function ActionItem({action,color,onToggle}){
 const av=accent[color];
-return <div style={{display:'flex',alignItems:'center',gap:12,padding:'12px 16px',background:'var(--bg3)',borderRadius:'var(--radius-sm)',cursor:'pointer',transition:'all .15s',animation:'slideIn .3s ease both'}} onClick={()=>onToggle(action.id)}>
+return <div style={{display:'flex',alignItems:'center',gap:12,padding:'12px 16px',background:'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:'var(--radius-sm)',border:'1px solid var(--border)',cursor:'pointer',transition:'all .15s',animation:'slideIn .3s ease both'}} onClick={()=>onToggle(action.id)}>
 <div style={{width:20,height:20,minWidth:20,borderRadius:6,border:action.done?'none':`2px solid var(--border2)`,background:action.done?'var(--success)':'transparent',display:'flex',alignItems:'center',justifyContent:'center',transition:'all .2s'}}>
 {action.done&&<span style={{color:'var(--bg)',fontSize:12,fontWeight:700}}>✓</span>}
 </div>
 <span style={{flex:1,fontSize:14,color:action.done?'var(--text3)':'var(--text)',textDecoration:action.done?'line-through':'none',transition:'all .2s'}}>{action.text}</span>
-<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:accentBg[color],color:av,fontWeight:500}}>{action.cat}</span>
+<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:accentBg[color],color:av,fontWeight:500}}>{action.cat}</span>
 </div>
 }
 
@@ -222,24 +425,25 @@ const av=accent[who];const bv=accentBorder[who];
 const fmt=iso=>{const d=new Date(iso);return d.toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'})+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});};
 const submit=()=>{if(draft.trim()){onAdd(who,draft);setDraft('');}};
 return <div style={{marginTop:32}}>
-<h3 style={{fontSize:16,fontWeight:500,marginBottom:14,color:'var(--text2)'}}>Notes</h3>
+<div className="gold-rule" style={{marginBottom:20}}/>
+<h3 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,fontWeight:600,marginBottom:14,color:'var(--gold2)',letterSpacing:'.02em'}}>Notes</h3>
 <div style={{display:'flex',gap:8,marginBottom:16}}>
 <textarea value={draft} onChange={e=>setDraft(e.target.value)}
   onKeyDown={e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey))submit();}}
   placeholder="Nouvelle note… (Ctrl+Entrée pour valider)"
   rows={3}
-  style={{flex:1,background:'var(--bg3)',border:`1px solid ${bv}`,borderRadius:'var(--radius-sm)',padding:'10px 12px',color:'var(--text)',fontSize:13,resize:'vertical',outline:'none',fontFamily:'inherit',lineHeight:1.5}}/>
+  style={{flex:1,background:'var(--bg3)',border:`1px solid ${bv}`,borderRadius:'var(--radius-sm)',padding:'10px 12px',color:'var(--text)',fontSize:13,resize:'vertical',outline:'none',fontFamily:'inherit',lineHeight:1.6}}/>
 <button onClick={submit}
-  style={{alignSelf:'flex-end',padding:'8px 14px',borderRadius:'var(--radius-sm)',border:'none',background:av,color:'#fff',cursor:'pointer',fontSize:13,fontWeight:500,whiteSpace:'nowrap'}}>
+  style={{alignSelf:'flex-end',padding:'8px 14px',borderRadius:'var(--radius-sm)',border:'none',background:`linear-gradient(135deg,${av},${av}cc)`,color:'#06120d',cursor:'pointer',fontSize:12,fontWeight:700,whiteSpace:'nowrap',letterSpacing:'.04em'}}>
   + Ajouter
 </button>
 </div>
-{!(notes||[]).length&&<p style={{fontSize:13,color:'var(--text3)',textAlign:'center',padding:'20px 0'}}>Aucune note pour l'instant.</p>}
+{!(notes||[]).length&&<p style={{fontSize:13,color:'var(--text3)',textAlign:'center',padding:'20px 0',fontStyle:'italic'}}>Aucune note pour l'instant.</p>}
 <div style={{display:'flex',flexDirection:'column',gap:10}}>
-{(notes||[]).map(n=><div key={n.id} style={{background:'var(--bg2)',border:`1px solid ${bv}`,borderRadius:'var(--radius-sm)',padding:'12px 14px'}}>
-  <p style={{fontSize:13,color:'var(--text)',lineHeight:1.6,whiteSpace:'pre-wrap',marginBottom:6}}>{n.text}</p>
+{(notes||[]).map(n=><div key={n.id} style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',border:`1px solid var(--border)`,borderLeft:`2px solid ${bv}`,borderRadius:'var(--radius-sm)',padding:'12px 14px',boxShadow:'var(--shadow)'}}>
+  <p style={{fontSize:13,color:'var(--text)',lineHeight:1.65,whiteSpace:'pre-wrap',marginBottom:7}}>{n.text}</p>
   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-    <span style={{fontSize:11,color:'var(--text3)'}}>{fmt(n.date)}</span>
+    <span style={{fontSize:10,color:'var(--text3)',fontFamily:"'Space Mono',monospace"}}>{fmt(n.date)}</span>
     <button onClick={()=>onDelete(who,n.id)} aria-label="Supprimer la note" style={{background:'none',border:'none',color:'var(--text3)',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 2px'}}>×</button>
   </div>
 </div>)}
@@ -254,19 +458,21 @@ const [cat,setCat]=useState('Carriere');
 if(!show)return null;
 const av=accent[color]||accent.dja;
 const cats=color==='couple'?['Couple']:['Carriere','Sante','Finances','Perso'];
-return <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.7)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:100,padding:20}} onClick={onClose}>
-<div style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:28,maxWidth:440,width:'100%',border:'1px solid var(--border2)'}} onClick={e=>e.stopPropagation()}>
-<h3 style={{fontSize:18,fontWeight:500,marginBottom:20}}>{type==='objective'?'Nouvel objectif':'Nouvelle action'}</h3>
+const sm=typeof window!=='undefined'&&window.innerWidth<=600;
+return <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.75)',backdropFilter:'blur(4px)',display:'flex',alignItems:sm?'flex-end':'center',justifyContent:'center',zIndex:200,padding:sm?0:20}} onClick={onClose}>
+<div style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:sm?'20px 20px 0 0':'var(--radius)',padding:sm?'24px 20px 32px':28,maxWidth:440,width:'100%',border:'1px solid var(--gold-border)',boxShadow:'0 -8px 40px rgba(0,0,0,.6)'}} onClick={e=>e.stopPropagation()}>
+<h3 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,fontWeight:600,marginBottom:4,color:'var(--gold2)'}}>{type==='objective'?'Nouvel objectif':'Nouvelle action'}</h3>
+<div className="gold-rule" style={{marginBottom:18}}/>
 <input placeholder={type==='objective'?'Titre de l\'objectif':'Action a realiser'} value={title} onChange={e=>setTitle(e.target.value)}
-  style={{width:'100%',padding:'10px 14px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'var(--bg3)',color:'var(--text)',fontSize:14,marginBottom:12,outline:'none'}}/>
+  style={{width:'100%',padding:'10px 14px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:14,marginBottom:12,outline:'none'}}/>
 {type==='objective'&&<input placeholder="Description" value={desc} onChange={e=>setDesc(e.target.value)}
-  style={{width:'100%',padding:'10px 14px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'var(--bg3)',color:'var(--text)',fontSize:14,marginBottom:12,outline:'none'}}/>}
+  style={{width:'100%',padding:'10px 14px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:14,marginBottom:12,outline:'none'}}/>}
 <div style={{display:'flex',gap:8,marginBottom:20,flexWrap:'wrap'}}>
-{cats.map(c=><button key={c} onClick={()=>setCat(c)} style={{padding:'6px 14px',borderRadius:20,border:cat===c?`2px solid ${av}`:'1px solid var(--border2)',background:cat===c?'var(--bg4)':'transparent',color:cat===c?'var(--text)':'var(--text3)',fontSize:13,cursor:'pointer'}}>{c}</button>)}
+{cats.map(c=><button key={c} onClick={()=>setCat(c)} style={{padding:'6px 14px',borderRadius:20,border:cat===c?`1px solid ${av}`:'1px solid var(--border)',background:cat===c?'rgba(0,0,0,.2)':'transparent',color:cat===c?av:'var(--text3)',fontSize:12,cursor:'pointer',transition:'all .15s'}}>{c}</button>)}
 </div>
 <div style={{display:'flex',gap:10,justifyContent:'flex-end'}}>
-<button onClick={onClose} style={{padding:'10px 20px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'transparent',color:'var(--text2)',cursor:'pointer',fontSize:14}}>Annuler</button>
-<button onClick={()=>{if(title.trim()){onAdd(title,desc,cat);setTitle('');setDesc('');onClose()}}} style={{padding:'10px 20px',borderRadius:'var(--radius-sm)',border:'none',background:av,color:'#fff',cursor:'pointer',fontSize:14,fontWeight:500}}>Ajouter</button>
+<button onClick={onClose} style={{padding:'10px 20px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'transparent',color:'var(--text2)',cursor:'pointer',fontSize:13}}>Annuler</button>
+<button onClick={()=>{if(title.trim()){onAdd(title,desc,cat);setTitle('');setDesc('');onClose()}}} style={{padding:'10px 20px',borderRadius:'var(--radius-sm)',border:'none',background:`linear-gradient(135deg,var(--gold),var(--gold2))`,color:'#06120d',cursor:'pointer',fontSize:13,fontWeight:700,letterSpacing:'.04em'}}>Ajouter</button>
 </div>
 </div>
 </div>
@@ -314,16 +520,1167 @@ return ()=>{if(chartRef.current)chartRef.current.destroy()};
 return <div style={{position:'relative',height:200}}><canvas ref={canvasRef}/></div>
 }
 
+// ─── Default idées du jour ───
+const DEFAULT_IDEES=[
+{id:'di1',text:'Cuisiner ensemble une nouvelle recette DrevmCook'},
+{id:'di2',text:'Planifier une sortie à la plage ce week-end'},
+{id:'di3',text:'Se dire 3 choses qu\'on apprécie l\'un chez l\'autre'},
+{id:'di4',text:'Essayer une nouvelle activité sportive ensemble'},
+{id:'di5',text:'Regarder un film de la liste culture'},
+{id:'di6',text:'Écrire ses objectifs de la semaine ensemble'},
+{id:'di7',text:'Préparer un batch cooking pour la semaine'},
+{id:'di8',text:'Explorer un nouveau coin de la Guadeloupe'},
+{id:'di9',text:'Méditer 10 minutes ensemble au lever'},
+{id:'di10',text:'Préparer un lait végétal maison DrevmCook'},
+{id:'di11',text:'Créer quelque chose ensemble (art, musique, cuisine)'},
+{id:'di12',text:'Appeler de la famille ou des amis proches'},
+{id:'di13',text:'Faire une liste de gratitude à deux'},
+{id:'di14',text:'Prendre soin de soi : bain, soin, relaxation'},
+{id:'di15',text:'Lancer une lactofermentation maison'},
+{id:'di16',text:'Écrire une vision 5 ans ensemble'},
+{id:'di17',text:'Préparer les mini baguettes sans gluten DrevmCook'},
+{id:'di18',text:'Faire une randonnée dans la nature guadeloupéenne'},
+{id:'di19',text:'Planifier les objectifs couple du mois'},
+{id:'di20',text:'Préparer un pique-nique végétalien pour une sortie'},
+{id:'di21',text:'Tester une infusion de feuilles de fruit à pain'},
+{id:'di22',text:'Regarder le coucher de soleil ensemble au Point des Châteaux'},
+];
+
+// ─── Default recipes DrevmCook ───
+const DEFAULT_RECIPES=[
+{id:'r1',nom:'Houmous Vivant',categorie:'Salés',tags:['vegan','sans-gluten'],
+ ingredients:['Pois chiches cuits','Ail','Citron vert','Tahini ou graines de courge mixées','Huile','Sel','Jus de lactofermentation (optionnel)'],
+ preparation:'Mixer tous les ingrédients jusqu\'à texture crémeuse. Ajuster l\'huile et le citron selon goût. Servir avec légumes crus ou pain maison.',
+ apports:'Pois chiche : protéines, fibres, fer. Ail : immunité. Citron vert : vitamine C. Graines de courge : zinc, magnésium.',
+ budget:'≈ 4 à 7 €'},
+{id:'r2',nom:'Rainbow Salad',categorie:'Salés',tags:['vegan','sans-gluten','cru'],
+ ingredients:['Chou rouge','Carotte','Betterave crue','Avocat','Tofu grillé ou pois chiches','Graines de courge','Sauce citron gingembre'],
+ preparation:'Assembler tous les ingrédients en bol coloré. Préparer la sauce en mixant citron vert, gingembre, huile et sel. Arroser et servir immédiatement.',
+ apports:'Chou rouge : anthocyanes, vitamine C. Betterave : circulation, fer végétal. Avocat : bons lipides, potassium. Gingembre : digestion, anti-inflammatoire.',
+ budget:'≈ 5 à 9 €'},
+{id:'r3',nom:'Mini Baguettes Maison',categorie:'Boulangerie',tags:['vegan','sans-gluten'],
+ ingredients:['350 g farine ou mélange sans gluten','1 sachet levure boulangère','Eau tiède','Huile de tournesol','Sel','Herbes aromatiques','Graines de courge (optionnel)'],
+ preparation:'1. Activer la levure dans l\'eau tiède avec l\'huile. 2. Ajouter farine, sel, herbes. 3. Mélanger. 4. Couvrir 30 min. 5. Faire des rabats toutes les 30 min (x3). 6. Former 4 mini baguettes. 7. Grifier le dessus. 8. Cuire à 200°C pendant 15-20 min.',
+ apports:'Farine : énergie, glucides, fibres. Levure : fermentation. Huile : vitamine E. Herbes : antioxydants. Graines de courge : zinc, magnésium.',
+ budget:'≈ 2,40 à 6 € (version SG)'},
+{id:'r4',nom:'Focaccia DrevmCook',categorie:'Boulangerie',tags:['vegan','sans-gluten'],
+ ingredients:['300 g farine sans gluten','100 g levain actif ou levure','250 ml eau tiède','3 c.s. huile','Sel','Ail','Thym / romarin / bouquet garni','Tomates ou oignons','Graines de courge (optionnel)'],
+ preparation:'1. Mélanger farine, levain, eau, huile et sel. 2. Laisser pousser 1-2 h. 3. Verser dans un plat huilé. 4. Faire des trous avec les doigts. 5. Ajouter ail, herbes, tomates ou oignons. 6. Cuire 20-25 min à 200°C.',
+ apports:'Ail : allicine, immunité. Tomate : lycopène, vitamine C. Oignon : quercétine, prébiotiques. Romarin/thym : antioxydants, digestion.',
+ budget:'≈ 5 à 8 €'},
+{id:'r5',nom:'Galettes Anti-Gaspillage',categorie:'Boulangerie',tags:['vegan','sans-gluten'],
+ ingredients:['Reste de levain','Farine de pois chiche ou riz','Eau','Sel','Herbes','Huile pour cuisson'],
+ preparation:'1. Mélanger le levain avec farine et eau. 2. Ajouter sel et herbes. 3. Cuire à la poêle comme une crêpe épaisse.',
+ apports:'Levain : fermentation, digestibilité. Pois chiche : protéines, fibres, fer. Herbes : antioxydants.',
+ budget:'≈ 1 à 2 €'},
+{id:'r6',nom:'Carottes Épicées Fermentées',categorie:'Fermentés',tags:['vegan','sans-gluten','fermenté'],
+ ingredients:['1 kg carottes','10 g sel marin','Gingembre','Cannelle','Ail'],
+ preparation:'1. Râper les carottes. 2. Ajouter sel et épices. 3. Malaxer pour faire sortir le jus. 4. Tasser en bocal. 5. Compléter avec eau si besoin. 6. Garder immergé. 7. Fermenter 2-3 semaines.',
+ apports:'Carotte : bêta-carotène, fibres, potassium. Gingembre : gingérols, digestion. Cannelle : antioxydants. Ail : allicine.',
+ budget:'≈ 4 à 6 €'},
+{id:'r7',nom:'Chou Rouge Lactofermenté',categorie:'Fermentés',tags:['vegan','sans-gluten','fermenté'],
+ ingredients:['Chou rouge','Sel marin (2% du poids)','Ail (optionnel)','Gingembre (optionnel)'],
+ preparation:'Émincer finement le chou, saler, malaxer vigoureusement jusqu\'à ce que le jus sorte. Tasser en bocal, garder immergé sous le liquide. Fermenter 1 à 3 semaines à température ambiante.',
+ apports:'Chou rouge : anthocyanes, vitamine C, fibres, antioxydants. Probiotiques naturels après fermentation.',
+ budget:'≈ 3 à 5 €'},
+{id:'r8',nom:'Sauce Piquante Fermentée',categorie:'Fermentés',tags:['vegan','sans-gluten','fermenté'],
+ ingredients:['Piments locaux (bonda man jak, habanero)','Ail','Sel','Eau filtrée','Gingembre (optionnel)'],
+ preparation:'Mettre piments et ail en saumure (eau + sel). Fermenter 1-2 semaines en bocal recouvert d\'un tissu. Mixer finement. Conserver au frais après ouverture.',
+ apports:'Piment : capsaïcine, circulation, métabolisme. Ail : allicine, immunité. Gingembre : anti-inflammatoire.',
+ budget:'≈ 4 à 6 €'},
+{id:'r9',nom:'Banane Givrée Cacao',categorie:'Desserts',tags:['vegan','sans-gluten','cru'],
+ ingredients:['Bananes mûres (congelées)','Cacao brut','Graines de courge trempées ou torréfiées','Cannelle','Lait végétal (optionnel)'],
+ preparation:'1. Couper les bananes. 2. Congeler 2h minimum. 3. Mixer avec cacao et un peu de lait végétal. 4. Ajouter graines de courge. Servir immédiatement ou remettre 20 min au congélateur.',
+ apports:'Banane : potassium, énergie. Cacao : magnésium, antioxydants. Graines de courge : zinc, protéines, magnésium.',
+ budget:'≈ 2 à 4 €'},
+{id:'r10',nom:'Tiramisu Banane Chocolat',categorie:'Desserts',tags:['vegan','sans-gluten'],
+ ingredients:['4 bananes mûres','200 g biscuits SG ou base riz/fruit à pain','Cacao brut','Café (optionnel)','Cannelle','Crème de coco ou mascarpone','Aquafaba (option vegan)','Sucre roux','Vanille','Chocolat noir fondu'],
+ preparation:'1. Préparer la crème (mascarpone + sucre + vanille, ou crème coco + aquafaba fouettée). 2. Préparer base biscuitée, tremper dans café léger. 3. Monter couches : biscuit, banane, crème, cacao. 4. Ajouter chocolat noir fondu. 5. Repos au frais 4h minimum.',
+ apports:'Banane : potassium, énergie, B6. Cacao brut : magnésium, flavonoïdes, fer. Crème de coco : bons lipides. Chocolat noir : antioxydants.',
+ budget:'≈ 11 à 18 €'},
+{id:'r11',nom:"M&M's Maison Naturels",categorie:'Desserts',tags:['vegan','sans-gluten'],
+ ingredients:['120-130 g poudre d\'amande','50 g cacao 100%','60 g sucre de coco','Pincée de sel','1 c.s. vanille liquide','3 c.s. lait végétal','Chocolat blanc ou noir + huile de coco (enrobage)','Colorants naturels : matcha, spiruline, betterave, maca, phycocyanine'],
+ preparation:'1. Mélanger amande, cacao, sucre et sel. 2. Ajouter vanille et lait végétal. 3. Former une boule. 4. Couper en petits morceaux d\'1 cm. 5. Congeler 10-20 min. 6. Fondre chocolat + huile + colorant naturel. 7. Enrober. 8. Congeler 10-30 min.',
+ apports:'Amande : vitamine E, magnésium, protéines. Cacao : magnésium, antioxydants, fer. Colorants : matcha/spiruline/betterave (antioxydants).',
+ budget:'≈ 11 à 23 €'},
+{id:'r12',nom:'Snickers DrevmCook',categorie:'Desserts',tags:['vegan','sans-gluten'],
+ ingredients:['Base nougat: poudre d\'amande, beurre de cacahuète, lait végétal, sirop naturel, sel, vanille','Caramel: dattes, beurre de cacahuète, eau chaude, sel, vanille','Cacahuètes grillées','Enrobage: chocolat noir + huile de coco'],
+ preparation:'1. Mélanger base nougat, étaler dans un moule. 2. Mixer dattes + beurre cacahuète + eau + sel (caramel). 3. Étaler caramel sur la base. 4. Ajouter cacahuètes. 5. Congeler. 6. Couper en barres. 7. Enrober de chocolat noir fondu. 8. Garder au frais.',
+ apports:'Dattes : potassium, énergie, fibres. Cacahuètes : protéines, bons lipides, magnésium. Amande : vitamine E. Chocolat noir : antioxydants.',
+ budget:'≈ 14 à 25 € pour 8-10 barres'},
+{id:'r13',nom:"Lait d'Amande Maison",categorie:'Boissons',tags:['vegan','sans-gluten','cru'],
+ ingredients:['100 g amandes (trempées 8-12h)','700 ml eau filtrée','1 pincée de sel','Vanille (optionnel)'],
+ preparation:'1. Faire tremper les amandes 8-12h. 2. Rincer. 3. Mixer avec l\'eau filtrée 2 min à puissance max. 4. Filtrer avec tissu propre ou sac à lait végétal. 5. Conserver 2-3 jours au frais dans une bouteille fermée.',
+ apports:'Amande : vitamine E, magnésium, protéines végétales, bons lipides. Eau filtrée : hydratation, base neutre.',
+ budget:'≈ 3,50 à 6 €'},
+{id:'r14',nom:'Lait de Graines de Courge',categorie:'Boissons',tags:['vegan','sans-gluten','cru'],
+ ingredients:['100 g graines de courge (trempées 4-8h)','700 ml eau filtrée','1 pincée de sel','Cannelle (optionnel)'],
+ preparation:'1. Tremper les graines 4-8h. 2. Rincer. 3. Mixer avec l\'eau. 4. Filtrer. 5. Assaisonner. 6. Conserver au frais 2-3 jours. Bien agiter avant de servir.',
+ apports:'Graines de courge : zinc, magnésium, protéines végétales, bons lipides. Cannelle : antioxydants, soutien glycémique.',
+ budget:'≈ 2,50 à 5 €'},
+{id:'r15',nom:'Infusion Feuilles Fruit à Pain',categorie:'Boissons',tags:['vegan','sans-gluten','tropical'],
+ ingredients:['4-6 feuilles de fruit à pain','1 L eau','Gingembre (optionnel)','Cannelle (optionnel)','Miel ou sirop de canne (optionnel)'],
+ preparation:'1. Nettoyer les feuilles. 2. Faire bouillir l\'eau. 3. Ajouter les feuilles. 4. Laisser frémir 10-15 min. 5. Filtrer. Servir chaud ou refroidi avec citron vert et menthe.',
+ apports:'Feuilles de fruit à pain : polyphénols, flavonoïdes, potassium, usage traditionnel digestif. Gingembre : digestion, anti-inflammatoire.',
+ budget:'≈ 0,80 à 1,50 €'},
+{id:'r16',nom:'Plantes & Herbier Créole',categorie:'Référence',tags:['tropical','guadeloupe','plantes'],
+ ingredients:['Pourpier : oméga-3 végétaux, fibres, minéraux','Atoumo : digestion, respiration, infusion traditionnelle créole','Moringa : fer, calcium, protéines partielles, chlorophylle','Feuilles de goyave : tanins, antioxydants, infusion digestive','Feuilles de patate douce : chlorophylle, fibres, brèdes sautées','Leaf of Life (Bryophyllum pinnatum) : usage traditionnel – voir précautions'],
+ preparation:'Répertoire des plantes traditionnelles antillaises utilisées en cuisine et médecine populaire DrevmCook. Toujours commencer à petite dose. Ces plantes ne remplacent pas un avis médical. Leaf of Life : contient des glycosides cardiaques — éviter grossesse, problèmes cardiaques, enfants.',
+ apports:'Patrimoine botanique caribéen : antioxydants, huiles essentielles, flavonoïdes, minéraux, polyphénols.',
+ budget:'Gratuit (cueillette) à ≈ 1-2 € (marché local)'},
+];
+
+// ─── Tab Views (proper React components to allow local useState) ───
+const JOURS=['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
+const TYPES=['Matin','Midi','Soir'];
+const INTENSITES=['Légère','Modérée','Intense'];
+const SPORT_CATS=['Cardio','Muscu','Souplesse','Sport co','Plein air','Autre'];
+
+function MealsView({data,upsertMeal,deleteMeal}){
+const [who,setWho]=useState('dja');
+const meals=(who==='couple'?data.couple.meals:data[who].meals)||[];
+const getMeal=(jour,type)=>meals.find(m=>m.jour===jour&&m.type===type);
+const [editId,setEditId]=useState(null);
+const [editVal,setEditVal]=useState('');
+const av=accent[who];
+const save=(jour,type,meal)=>{
+  if(editVal.trim()){upsertMeal(who,{id:meal?.id||Date.now().toString(),jour,type,plat:editVal.trim(),note:meal?.note||''});}
+  else if(meal){deleteMeal(who,meal.id);}
+  setEditId(null);
+};
+return <div>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24,flexWrap:'wrap',gap:12}}>
+<div>
+<p className="eyebrow" style={{marginBottom:6}}>🍃 Semaine en assiette</p>
+<h2 style={{fontSize:24,fontWeight:600,fontFamily:"'Cormorant Garamond',serif",marginBottom:4,color:'var(--text)'}}>Plans de repas</h2>
+<p style={{fontSize:13,color:'var(--text3)'}}>Planning alimentaire de la semaine</p>
+</div>
+<div style={{display:'flex',gap:6}}>{['dja','liika','couple'].map(w=><button key={w} onClick={()=>setWho(w)}
+style={{padding:'5px 14px',borderRadius:20,border:who===w?`1px solid ${accent[w]}`:'1px solid var(--border)',background:who===w?accentBg[w]:'transparent',color:who===w?accent[w]:'var(--text3)',fontSize:12,cursor:'pointer',transition:'all .15s'}}>
+{w==='dja'?'Dja':w==='liika'?'Liika':'Couple'}</button>)}</div>
+</div>
+<div style={{overflowX:'auto'}}>
+<table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+<thead><tr>
+<th style={{padding:'8px 12px',textAlign:'left',color:'var(--text3)',fontWeight:500,borderBottom:'1px solid var(--border)',whiteSpace:'nowrap'}}>Jour</th>
+{TYPES.map(t=><th key={t} style={{padding:'8px 12px',textAlign:'left',color:'var(--text3)',fontWeight:500,borderBottom:'1px solid var(--border)',minWidth:180}}>{t}</th>)}
+</tr></thead>
+<tbody>{JOURS.map(jour=><tr key={jour} style={{borderBottom:'1px solid var(--border)'}}>
+<td style={{padding:'10px 12px',fontWeight:600,color:av,whiteSpace:'nowrap',width:100}}>{jour}</td>
+{TYPES.map(type=>{
+  const meal=getMeal(jour,type);
+  const cid=meal?.id||`${jour}-${type}`;
+  return <td key={type} style={{padding:'4px 6px'}}>
+  {editId===cid
+    ?<div style={{display:'flex',gap:4}}>
+      <input autoFocus value={editVal} onChange={e=>setEditVal(e.target.value)}
+        onKeyDown={e=>{if(e.key==='Enter')save(jour,type,meal);if(e.key==='Escape')setEditId(null);}}
+        style={{flex:1,background:'var(--bg4)',border:`1px solid ${av}`,borderRadius:'var(--radius-xs)',padding:'4px 8px',color:'var(--text)',fontSize:12,outline:'none'}}/>
+      <button onClick={()=>save(jour,type,meal)} style={{padding:'4px 8px',borderRadius:'var(--radius-xs)',border:'none',background:av,color:'#fff',cursor:'pointer',fontSize:11}}>✓</button>
+      <button onClick={()=>setEditId(null)} style={{padding:'4px 6px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'transparent',color:'var(--text3)',cursor:'pointer',fontSize:11}}>✕</button>
+    </div>
+    :<div onClick={()=>{setEditId(cid);setEditVal(meal?.plat||'');}}
+      style={{padding:'6px 8px',borderRadius:'var(--radius-xs)',background:meal?'var(--bg3)':'transparent',border:`1px dashed ${meal?'transparent':'var(--border)'}`,cursor:'text',color:meal?'var(--text)':'var(--text3)',minHeight:34,display:'flex',alignItems:'center',gap:6}}>
+      {meal?meal.plat:<span style={{fontSize:11,opacity:.6}}>+ Ajouter</span>}
+    </div>}
+  </td>;})}
+</tr>)}</tbody>
+</table></div>
+<p style={{fontSize:11,color:'var(--text3)',marginTop:10}}>Cliquer pour modifier · Entrée pour valider · Échap pour annuler · Vider pour supprimer</p>
+</div>;
+}
+
+function BudgetView({data,upsertBudgetLine,deleteBudgetLine}){
+const [who,setWho]=useState('dja');
+const budget=(who==='couple'?data.couple.budget:data[who].budget)||{revenus:[],depenses:[]};
+const revenus=budget.revenus||[];
+const depenses=budget.depenses||[];
+const totRev=revenus.reduce((s,r)=>s+Number(r.montant),0);
+const totDep=depenses.reduce((s,d)=>s+Number(d.montant),0);
+const balance=totRev-totDep;
+const av=accent[who];
+const CATS=['Logement','Vie','Transport','Tech','Pro','Projets','Épargne','Autre'];
+function LineRow({line,type}){
+  return <div style={{display:'flex',alignItems:'center',gap:8,padding:'8px 0',borderBottom:'1px solid var(--border)'}}>
+    <div style={{flex:1}}><div style={{fontSize:13}}>{line.label}</div>{line.cat&&<div style={{fontSize:11,color:'var(--text3)'}}>{line.cat}</div>}</div>
+    <div style={{fontSize:14,fontWeight:600,color:type==='revenus'?'var(--success)':'#f87171',minWidth:90,textAlign:'right'}}>{type==='revenus'?'+':'-'}{Number(line.montant).toLocaleString('fr-FR')} €</div>
+    <button onClick={()=>deleteBudgetLine(who,type,line.id)} style={{background:'none',border:'none',color:'var(--text3)',cursor:'pointer',fontSize:16,padding:'0 4px'}}>×</button>
+  </div>;
+}
+function AddRow({type}){
+  const [open,setOpen]=useState(false);
+  const [f,setF]=useState({label:'',montant:'',cat:'Autre'});
+  if(!open)return <button onClick={()=>setOpen(true)} style={{marginTop:8,width:'100%',padding:'6px',borderRadius:'var(--radius-xs)',border:`1px dashed ${av}`,background:'transparent',color:av,cursor:'pointer',fontSize:12}}>+ Ajouter</button>;
+  return <div style={{marginTop:8,display:'flex',gap:6,flexWrap:'wrap'}}>
+    <input placeholder="Libellé" value={f.label} onChange={e=>setF(p=>({...p,label:e.target.value}))}
+      style={{flex:2,minWidth:100,padding:'5px 8px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:12,outline:'none'}}/>
+    <input type="number" placeholder="Montant €" value={f.montant} onChange={e=>setF(p=>({...p,montant:e.target.value}))}
+      style={{width:90,padding:'5px 8px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:12,outline:'none'}}/>
+    {type==='depenses'&&<select value={f.cat} onChange={e=>setF(p=>({...p,cat:e.target.value}))}
+      style={{padding:'5px 8px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:12,outline:'none'}}>
+      {CATS.map(c=><option key={c}>{c}</option>)}</select>}
+    <button onClick={()=>{if(f.label&&f.montant){upsertBudgetLine(who,type,{id:Date.now().toString(),label:f.label,montant:Number(f.montant),cat:f.cat});setOpen(false);setF({label:'',montant:'',cat:'Autre'});}}}
+      style={{padding:'5px 10px',borderRadius:'var(--radius-xs)',border:'none',background:av,color:'#fff',cursor:'pointer',fontSize:12}}>✓</button>
+    <button onClick={()=>setOpen(false)} style={{padding:'5px 10px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'transparent',color:'var(--text3)',cursor:'pointer',fontSize:12}}>✕</button>
+  </div>;
+}
+return <div>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24,flexWrap:'wrap',gap:12}}>
+<div>
+<p className="eyebrow" style={{marginBottom:6}}>💰 Finances</p>
+<h2 style={{fontSize:24,fontWeight:600,fontFamily:"'Cormorant Garamond',serif",marginBottom:4,color:'var(--text)'}}>Budget</h2>
+<p style={{fontSize:13,color:'var(--text3)'}}>Revenus, dépenses et balance mensuelle</p>
+</div>
+<div style={{display:'flex',gap:6}}>{['dja','liika','couple'].map(w=><button key={w} onClick={()=>setWho(w)}
+style={{padding:'5px 14px',borderRadius:20,border:who===w?`1px solid ${accent[w]}`:'1px solid var(--border)',background:who===w?accentBg[w]:'transparent',color:who===w?accent[w]:'var(--text3)',fontSize:12,cursor:'pointer',transition:'all .15s'}}>
+{w==='dja'?'Dja':w==='liika'?'Liika':'Couple'}</button>)}</div>
+</div>
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))',gap:12,marginBottom:24}}>
+<div style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:'var(--radius)',padding:16,textAlign:'center',border:'1px solid var(--border)',boxShadow:'var(--shadow)'}}>
+  <div style={{fontSize:11,color:'var(--text3)',marginBottom:5,letterSpacing:'.06em',textTransform:'uppercase'}}>Revenus</div>
+  <div style={{fontSize:22,fontWeight:700,color:'var(--success)'}}>+{totRev.toLocaleString('fr-FR')} €</div>
+</div>
+<div style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:'var(--radius)',padding:16,textAlign:'center',border:'1px solid var(--border)',boxShadow:'var(--shadow)'}}>
+  <div style={{fontSize:11,color:'var(--text3)',marginBottom:5,letterSpacing:'.06em',textTransform:'uppercase'}}>Dépenses</div>
+  <div style={{fontSize:22,fontWeight:700,color:'#f87171'}}>-{totDep.toLocaleString('fr-FR')} €</div>
+</div>
+<div style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:'var(--radius)',padding:16,textAlign:'center',border:`1px solid ${balance>=0?'var(--gold-border)':'rgba(248,113,113,.3)'}`,boxShadow:'var(--shadow)'}}>
+  <div style={{fontSize:11,color:'var(--text3)',marginBottom:5,letterSpacing:'.06em',textTransform:'uppercase'}}>Balance</div>
+  <div style={{fontSize:22,fontWeight:700,color:balance>=0?'var(--gold)':'#f87171'}}>{balance>=0?'+':''}{balance.toLocaleString('fr-FR')} €</div>
+</div>
+</div>
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:20}}>
+<div style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:'var(--radius)',padding:20,border:'1px solid var(--border)',boxShadow:'var(--shadow)'}}>
+  <h3 style={{fontSize:11,fontWeight:600,marginBottom:12,color:'var(--success)',letterSpacing:'.04em',textTransform:'uppercase'}}>Revenus</h3>
+  {revenus.map(r=><LineRow key={r.id} line={r} type="revenus"/>)}
+  <AddRow type="revenus"/>
+</div>
+<div style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:'var(--radius)',padding:20,border:'1px solid var(--border)',boxShadow:'var(--shadow)'}}>
+  <h3 style={{fontSize:14,fontWeight:600,marginBottom:12,color:'#f87171',letterSpacing:'.04em',textTransform:'uppercase',fontSize:11}}>Dépenses</h3>
+  {depenses.map(d=><LineRow key={d.id} line={d} type="depenses"/>)}
+  <AddRow type="depenses"/>
+</div>
+</div>
+</div>;
+}
+
+function VisionView({data,updateVision}){
+const [who,setWho]=useState('dja');
+const vision=(who==='couple'?data.couple.vision:data[who]?.vision)||'';
+const name=who==='dja'?data.dja.name:who==='liika'?data.liika.name:'Dja & Liika';
+const av=accent[who];
+return <div>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24,flexWrap:'wrap',gap:12}}>
+<div>
+<p className="eyebrow" style={{marginBottom:6}}>✦ Long terme</p>
+<h2 style={{fontSize:24,fontWeight:600,fontFamily:"'Cormorant Garamond',serif",marginBottom:4,color:'var(--text)'}}>Vision</h2>
+<p style={{fontSize:13,color:'var(--text3)'}}>Qui tu veux devenir — horizon 2027-2036</p>
+</div>
+<div style={{display:'flex',gap:6}}>{['dja','liika','couple'].map(w=><button key={w} onClick={()=>setWho(w)}
+style={{padding:'5px 14px',borderRadius:20,border:who===w?`1px solid ${accent[w]}`:'1px solid var(--border)',background:who===w?accentBg[w]:'transparent',color:who===w?accent[w]:'var(--text3)',fontSize:12,cursor:'pointer',transition:'all .15s'}}>
+{w==='dja'?'Dja':w==='liika'?'Liika':'Couple'}</button>)}</div>
+</div>
+<div style={{background:`linear-gradient(135deg,${accentBg[who]},var(--bg2))`,borderRadius:'var(--radius)',padding:28,border:`1px solid ${accentBorder[who]}`,marginBottom:20,boxShadow:'var(--shadow)'}}>
+<div className="eyebrow" style={{marginBottom:14}}>✦ Vision de {name}</div>
+<textarea value={vision} onChange={e=>updateVision(who,e.target.value)}
+  placeholder="Écris ta vision long-terme — qui tu veux être, ce que tu veux construire, où tu veux aller…"
+  rows={7}
+  style={{width:'100%',background:'transparent',border:'none',outline:'none',color:'var(--text)',fontSize:17,lineHeight:1.95,resize:'none',fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',fontWeight:400}}/>
+</div>
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:12}}>
+{[
+  {icon:'🎯',label:'Objectifs actifs',value:((who==='couple'?data.couple.objectives:data[who]?.objectives)||[]).filter(o=>!o.done).length},
+  {icon:'✅',label:'Terminés',value:((who==='couple'?data.couple.objectives:data[who]?.objectives)||[]).filter(o=>o.done).length},
+  {icon:'💪',label:'Séances sport',value:(()=>{const sp=(who==='couple'?data.couple.sport:data[who]?.sport)||[];return sp.filter(s=>s.fait).length+' / '+sp.length;})()},
+  {icon:'📝',label:'Notes',value:((who==='couple'?data.couple.notes:data[who]?.notes)||[]).length},
+].map(({icon,label,value})=><div key={label} style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:'var(--radius-sm)',padding:'14px 16px',display:'flex',alignItems:'center',gap:10,border:'1px solid var(--border)',boxShadow:'var(--shadow)'}}>
+  <span style={{fontSize:20}}>{icon}</span>
+  <div><div style={{fontSize:10,color:'var(--text3)',marginBottom:3,letterSpacing:'.04em'}}>{label}</div><div style={{fontSize:16,fontWeight:600,color:'var(--text)'}}>{value}</div></div>
+</div>)}
+</div>
+</div>;
+}
+
+function SportView({data,upsertSport,deleteSport}){
+const [who,setWho]=useState('dja');
+const sport=(who==='couple'?data.couple.sport:data[who]?.sport)||[];
+const av=accent[who];
+const [showForm,setShowForm]=useState(false);
+const [form,setForm]=useState({jour:'Lundi',activite:'',duree:30,intensite:'Modérée',cat:'Cardio'});
+const done=sport.filter(s=>s.fait).length;
+const total=sport.length;
+const pctWeek=total?Math.round(done/total*100):0;
+const colorIntens={Légère:'var(--success)',Modérée:'var(--accent-couple)',Intense:'#f87171'};
+return <div>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24,flexWrap:'wrap',gap:12}}>
+<div>
+<p className="eyebrow" style={{marginBottom:6}}>💪 Corps en mouvement</p>
+<h2 style={{fontSize:24,fontWeight:600,fontFamily:"'Cormorant Garamond',serif",marginBottom:4,color:'var(--text)'}}>Planning sportif</h2>
+<p style={{fontSize:13,color:'var(--text3)'}}>Activités physiques de la semaine</p>
+</div>
+<div style={{display:'flex',gap:6}}>{['dja','liika','couple'].map(w=><button key={w} onClick={()=>setWho(w)}
+style={{padding:'5px 14px',borderRadius:20,border:who===w?`1px solid ${accent[w]}`:'1px solid var(--border)',background:who===w?accentBg[w]:'transparent',color:who===w?accent[w]:'var(--text3)',fontSize:12,cursor:'pointer',transition:'all .15s'}}>
+{w==='dja'?'Dja':w==='liika'?'Liika':'Couple'}</button>)}</div>
+</div>
+{/* Stat hebdo */}
+<div style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:'var(--radius)',padding:20,marginBottom:20,border:`1px solid ${accentBorder[who]}`,boxShadow:'var(--shadow)',display:'flex',alignItems:'center',gap:20,flexWrap:'wrap'}}>
+<div style={{position:'relative',flexShrink:0}}>
+  <ProgressRing pct={pctWeek} size={72} stroke={6} color={av}/>
+  <span style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:700}}>{pctWeek}%</span>
+</div>
+<div style={{flex:1}}>
+  <div style={{fontSize:15,fontWeight:600,marginBottom:4}}>{done} / {total} séances cette semaine</div>
+  <div style={{height:6,background:'var(--border2)',borderRadius:3,overflow:'hidden'}}>
+    <div style={{height:6,width:`${pctWeek}%`,background:av,borderRadius:3,transition:'width .4s'}}/>
+  </div>
+  <div style={{display:'flex',gap:16,marginTop:10,fontSize:12,color:'var(--text3)'}}>
+    <span>🟢 Légère : {sport.filter(s=>s.intensite==='Légère').length}</span>
+    <span>🟡 Modérée : {sport.filter(s=>s.intensite==='Modérée').length}</span>
+    <span>🔴 Intense : {sport.filter(s=>s.intensite==='Intense').length}</span>
+  </div>
+</div>
+<button onClick={()=>setShowForm(p=>!p)} style={{padding:'8px 16px',borderRadius:'var(--radius-sm)',border:'none',background:av,color:'#fff',cursor:'pointer',fontSize:13,fontWeight:500,whiteSpace:'nowrap'}}>+ Séance</button>
+</div>
+{/* Formulaire ajout */}
+{showForm&&<div style={{background:'var(--bg3)',borderRadius:'var(--radius)',padding:20,marginBottom:20,border:`1px solid ${accentBorder[who]}`,display:'flex',gap:10,flexWrap:'wrap',alignItems:'flex-end'}}>
+<div style={{flex:2,minWidth:140}}>
+  <div style={{fontSize:11,color:'var(--text3)',marginBottom:4}}>Activité</div>
+  <input value={form.activite} onChange={e=>setForm(p=>({...p,activite:e.target.value}))} placeholder="Course, yoga, natation…"
+    style={{width:'100%',padding:'7px 10px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:13,outline:'none'}}/>
+</div>
+<div>
+  <div style={{fontSize:11,color:'var(--text3)',marginBottom:4}}>Jour</div>
+  <select value={form.jour} onChange={e=>setForm(p=>({...p,jour:e.target.value}))}
+    style={{padding:'7px 10px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:13,outline:'none'}}>
+    {JOURS.map(j=><option key={j}>{j}</option>)}
+  </select>
+</div>
+<div>
+  <div style={{fontSize:11,color:'var(--text3)',marginBottom:4}}>Durée (min)</div>
+  <input type="number" value={form.duree} onChange={e=>setForm(p=>({...p,duree:Number(e.target.value)}))} min={5} max={180}
+    style={{width:80,padding:'7px 10px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:13,outline:'none'}}/>
+</div>
+<div>
+  <div style={{fontSize:11,color:'var(--text3)',marginBottom:4}}>Intensité</div>
+  <select value={form.intensite} onChange={e=>setForm(p=>({...p,intensite:e.target.value}))}
+    style={{padding:'7px 10px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:13,outline:'none'}}>
+    {INTENSITES.map(i=><option key={i}>{i}</option>)}
+  </select>
+</div>
+<div style={{display:'flex',gap:6}}>
+  <button onClick={()=>{if(form.activite.trim()){upsertSport(who,{id:Date.now().toString(),...form,fait:false});setShowForm(false);setForm({jour:'Lundi',activite:'',duree:30,intensite:'Modérée',cat:'Cardio'});}}}
+    style={{padding:'7px 14px',borderRadius:'var(--radius-xs)',border:'none',background:av,color:'#fff',cursor:'pointer',fontSize:13,fontWeight:500}}>Ajouter</button>
+  <button onClick={()=>setShowForm(false)} style={{padding:'7px 10px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'transparent',color:'var(--text3)',cursor:'pointer',fontSize:13}}>✕</button>
+</div>
+</div>}
+{/* Liste par jour */}
+{JOURS.map(jour=>{
+const seances=sport.filter(s=>s.jour===jour);
+if(!seances.length)return null;
+return <div key={jour} style={{marginBottom:16}}>
+<div style={{fontSize:13,fontWeight:600,color:av,marginBottom:8,display:'flex',alignItems:'center',gap:8}}>
+  <span>{jour}</span>
+  <span style={{fontSize:11,color:'var(--text3)',fontWeight:400}}>{seances.filter(s=>s.fait).length}/{seances.length} faites</span>
+</div>
+<div style={{display:'grid',gap:8}}>
+{seances.map(s=><div key={s.id} style={{background:'var(--bg3)',borderRadius:'var(--radius-sm)',padding:'12px 16px',display:'flex',alignItems:'center',gap:12,opacity:s.fait?.7:1,transition:'opacity .2s'}}>
+  <button onClick={()=>upsertSport(who,{...s,fait:!s.fait})}
+    style={{width:24,height:24,minWidth:24,borderRadius:6,border:s.fait?'none':'2px solid var(--border2)',background:s.fait?'var(--success)':'transparent',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',transition:'all .2s'}}>
+    {s.fait&&<span style={{color:'var(--bg)',fontSize:13,fontWeight:700}}>✓</span>}
+  </button>
+  <div style={{flex:1}}>
+    <div style={{fontSize:14,fontWeight:500,textDecoration:s.fait?'line-through':'none',color:s.fait?'var(--text3)':'var(--text)'}}>{s.activite}</div>
+    <div style={{fontSize:12,color:'var(--text3)',marginTop:2}}>{s.duree} min</div>
+  </div>
+  <span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:'var(--bg4)',color:colorIntens[s.intensite],fontWeight:500}}>{s.intensite}</span>
+  <button onClick={()=>deleteSport(who,s.id)} style={{background:'none',border:'none',color:'var(--text3)',cursor:'pointer',fontSize:16,padding:'0 2px'}}>×</button>
+</div>)}
+</div></div>;})}
+{!sport.length&&<div style={{textAlign:'center',padding:40,color:'var(--text3)',fontSize:14}}>Aucune séance planifiée — clique sur "+ Séance" pour commencer</div>}
+</div>;
+}
+
+// ─── Planning View ───
+const PLAN_DAYS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+const PLAN_DAYS_FULL=['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
+const PLAN_CATEGORIES={
+sport:{label:'Sport',color:'#4ade80',icon:'💪'},
+pro:{label:'Pro',color:'#60a5fa',icon:'💼'},
+famille:{label:'Famille / Couple',color:'#f472b6',icon:'❤️'},
+nature:{label:'Nature & Sorties',color:'#facc15',icon:'🌿'},
+culture:{label:'Culture',color:'#c084fc',icon:'📚'},
+repos:{label:'Récup & Bien-être',color:'#fb923c',icon:'🌙'},
+};
+const INITIAL_PLANNING={
+0:[
+{time:'06:00',cat:'sport',title:'Running côtier',detail:'Gosier ou Sainte-Anne, 30–45 min ensemble',who:'both'},
+{time:'08:00',cat:'pro',title:'Départ Liika (PL)',detail:'Route du jour — trajets longue distance',who:'liika'},
+{time:'09:00',cat:'pro',title:'Studio / Direction artistique',detail:'Projets ingé son / vidéaste / applis',who:'dja'},
+{time:'19:00',cat:'famille',title:'Dîner végétalien',detail:'Cuisiner ensemble : recette de la semaine',who:'both'},
+{time:'21:00',cat:'culture',title:'Lecture ou film',detail:'15 min livre chacun ou épisode série',who:'both'},
+],
+1:[
+{time:'06:30',cat:'sport',title:'Yoga & Mobilité',detail:'30 min chez vous — flexibilité + récup lombaires (PL)',who:'both'},
+{time:'08:00',cat:'pro',title:'Liika en route',detail:'',who:'liika'},
+{time:'09:30',cat:'pro',title:'Bloc créatif Dja',detail:'Pomodoro x4 — développement applis / mix',who:'dja'},
+{time:'18:30',cat:'sport',title:'Musculation',detail:'Salle ou cour — haut du corps + gainage',who:'both'},
+{time:'20:30',cat:'famille',title:'Soirée plateau',detail:'Cuisine rapide, détente, échanges du jour',who:'both'},
+],
+2:[
+{time:'06:00',cat:'sport',title:'Natation / Mer',detail:'Plage Caravelle, Sainte-Anne — 45 min nage',who:'both'},
+{time:'09:00',cat:'pro',title:'Réunions / Clients Dja',detail:'Visios, briefs, coordination projets',who:'dja'},
+{time:'10:00',cat:'pro',title:'Admin Liika',detail:'Papiers transport, suivi camion, planning livraisons',who:'liika'},
+{time:'17:00',cat:'nature',title:'Rivière ou mangrove',detail:'Bras-David, Dolé-les-Bains, ou Allée Dumanoir',who:'both'},
+{time:'20:00',cat:'famille',title:'Dîner romantique maison',detail:'Recette végétalienne élaborée + bons ingrédients locaux',who:'both'},
+],
+3:[
+{time:'06:30',cat:'sport',title:'Cardio HIIT',detail:'20 min — cour ou bord de mer',who:'both'},
+{time:'08:00',cat:'pro',title:'Liika départ',detail:'',who:'liika'},
+{time:'09:00',cat:'pro',title:'Dev & création Dja',detail:'Focus profond — nouvelles features applis',who:'dja'},
+{time:'19:00',cat:'culture',title:'Club lecture / film',detail:'30 min lecture + discussion, ou film choisi ensemble',who:'both'},
+{time:'20:30',cat:'famille',title:'Planification semaine+1',detail:'Sorties, courses, objectifs couple',who:'both'},
+],
+4:[
+{time:'06:00',cat:'sport',title:'Randonnée légère',detail:'La Soufrière, Chutes du Carbet, ou Forêt de Sofaïa',who:'both'},
+{time:'10:00',cat:'pro',title:'Wrap-up semaine Dja',detail:'Bilan projets, mise à jour portfolio / GitHub',who:'dja'},
+{time:'10:00',cat:'pro',title:'Bilan Liika',detail:'Km, dépenses, incidents, planning flotte',who:'liika'},
+{time:'18:00',cat:'nature',title:'Coucher de soleil',detail:'Point des Châteaux, Vieux-Fort ou Deshaies',who:'both'},
+{time:'20:00',cat:'famille',title:'Soirée amis',detail:'Inviter des proches ou sortie bar / restaurant vegan-friendly',who:'both'},
+],
+5:[
+{time:'07:00',cat:'sport',title:'Sport intensif',detail:'Vélo côtier, kayak, ou escalade Basse-Terre',who:'both'},
+{time:'10:30',cat:'nature',title:'Plage journée',detail:'Plage de la Perle, Anse-Bertrand ou Petit-Havre',who:'both'},
+{time:'14:00',cat:'culture',title:'Marché / Exposition',detail:'Marché de Saint-François, galerie, brocante ou festival',who:'both'},
+{time:'19:00',cat:'famille',title:'BBQ végétalien',detail:'Légumes grillés, tofu fumé, brochettes banane-plantain',who:'both'},
+{time:'21:30',cat:'culture',title:'Film ou concert',detail:'Cinéma, concert local, ou soirée ciné maison',who:'both'},
+],
+6:[
+{time:'08:00',cat:'repos',title:'Grasse matinée',detail:'Réveil sans alarme, petit-déjeuner élaboré',who:'both'},
+{time:'10:00',cat:'sport',title:'Yoga doux ensemble',detail:'45 min — stretching, respiration, connexion',who:'both'},
+{time:'12:00',cat:'famille',title:'Grand repas végétalien',detail:'Recette nouvelle, préparation partagée, musique',who:'both'},
+{time:'15:00',cat:'nature',title:'Balade nature libre',detail:'Jardins botaniques, réserve Cousteau, ou cascade',who:'both'},
+{time:'18:00',cat:'repos',title:'Bain, soin, détente',detail:'Massage maison, huiles essentielles, bain au sel marin',who:'both'},
+{time:'20:00',cat:'famille',title:'Intention semaine',detail:'Écrire chacun ses 3 intentions pour la semaine à venir',who:'both'},
+],
+};
+const PLAN_WHO={
+both:{label:'Tous les deux',color:'#f472b6'},
+dja:{label:'Dja',color:'#60a5fa'},
+liika:{label:'Liika',color:'#4ade80'},
+};
+const OUTINGS=[
+{icon:'🏖️',title:'Plages',places:['Caravelle (Sainte-Anne)','Plage de la Perle (Deshaies)','Petit-Havre (Le Gosier)','Anse-Bertrand','Malendure (Bouillante)']},
+{icon:'🌊',title:'Rivières & Cascades',places:['Bras-David','Chutes du Carbet','Dolé-les-Bains','Saut de la Lézarde','Cascade aux Écrevisses']},
+{icon:'🏔️',title:'Randonnées',places:['La Soufrière (sommet)','Forêt de Sofaïa','Trace des Crêtes','Morne à Louis','Allée Dumanoir']},
+{icon:'🌅',title:'Couchers de soleil',places:['Point des Châteaux','Vieux-Fort','Désirade (vue)','Pointe Noire','Anse à la Barque']},
+{icon:'🎭',title:'Sorties culturelles',places:['Marché de Saint-François','Mémorial ACTe (Pointe-à-Pitre)','Festival Gwoka','Concerts locaux','Galeries Basse-Terre']},
+];
+const BOOKS=[
+{title:'La Nourriture végétaliste créole',author:'Collectif antillais',cat:'cuisine'},
+{title:'Atomic Habits',author:'James Clear',cat:'développement'},
+{title:'Moi, Tituba…',author:'Maryse Condé',cat:'littérature'},
+{title:"The Artist's Way",author:'Julia Cameron',cat:'créativité'},
+{title:'Daring Greatly',author:'Brené Brown',cat:'couple & croissance'},
+];
+const FILMS=[
+{title:'Kirikou et la Sorcière',genre:'Animation africaine — magie & origines'},
+{title:'The Big Sick',genre:'Romance — couple & différences culturelles'},
+{title:'Seaspiracy',genre:'Documentaire — océan & écologie'},
+{title:'Klaus',genre:'Animation — générosité & lien humain'},
+{title:'Okja',genre:'Drame végane — sensibilisation animale'},
+{title:'Marriage Story',genre:'Drame — communication & amour profond'},
+];
+
+// ─── Culture Guadeloupe ───
+const CULTURE_EVENTS=[
+{id:'ce1',titre:'Carnaval de Guadeloupe',periode:'Février — Mars',mois:2,lieu:'Pointe-à-Pitre & communes',desc:'Le plus grand carnaval des Antilles françaises : défilés de chars, groupes à pied, masques traditionnels et musique Gwo Ka.',cat:'Festivals',icon:'🎭',annuel:true},
+{id:'ce2',titre:'Festival Gwoka',periode:'Juillet',mois:7,lieu:'Sainte-Anne',desc:'Célébration du patrimoine immatériel de l\'UNESCO : tambours ka, chants lewòz et danses traditionnelles pendant 5 jours.',cat:'Musique',icon:'🥁',annuel:true},
+{id:'ce3',titre:'Fête de la Musique',periode:'21 Juin',mois:6,lieu:'Guadeloupe entière',desc:'Scènes ouvertes dans toutes les communes : zouk, gwo ka, reggae, jazz créole et musiques du monde au cœur de la Guadeloupe.',cat:'Musique',icon:'🎶',annuel:true},
+{id:'ce4',titre:'Fête des Cuisinières',periode:'Août',mois:8,lieu:'Pointe-à-Pitre',desc:'Tradition séculaire : les cuisinières en tenue créole défilent vers la cathédrale, puis grand festin de cuisine créole traditionnelle.',cat:'Gastronomie',icon:'👩‍🍳',annuel:true},
+{id:'ce5',titre:'Course de yoles traditionnelles',periode:'Juillet — Août',mois:7,lieu:'Communes côtières',desc:'Les embarcations de pêcheurs artisanaux en régate, symbole de la culture maritime guadeloupéenne.',cat:'Sport & Mer',icon:'⛵',annuel:true},
+{id:'ce6',titre:'Festival Jazz aux Antilles',periode:'Décembre',mois:12,lieu:'Pointe-à-Pitre',desc:'Figures internationales et artistes locaux se retrouvent pour une semaine de jazz, blues et soul sur fond de Caraïbe.',cat:'Musique',icon:'🎷',annuel:true},
+{id:'ce7',titre:'Festival International du Film de Guadeloupe',periode:'Novembre',mois:11,lieu:'Basse-Terre & Pointe-à-Pitre',desc:'Cinéma caribéen et francophone : films, courts-métrages, rencontres avec réalisateurs et projections en plein air.',cat:'Art & Cinéma',icon:'🎬',annuel:true},
+{id:'ce8',titre:'Semaine Créole',periode:'Octobre',mois:10,lieu:'Guadeloupe entière',desc:'Valorisation de la langue et de la culture créole : contes, lectures, spectacles et gastronomie pendant une semaine.',cat:'Patrimoine',icon:'📚',annuel:true},
+{id:'ce9',titre:'Mémorial ACTe — Expositions',periode:'Toute l\'année',mois:0,lieu:'Pointe-à-Pitre',desc:'Le plus grand centre caribéen de mémoire des traites et de l\'esclavage. Expositions immersives, ateliers pédagogiques.',cat:'Art & Cinéma',icon:'🏛️',annuel:false},
+{id:'ce10',titre:'Toussaint créole',periode:'Novembre',mois:11,lieu:'Cimetières de Guadeloupe',desc:'Tradition unique : illumination nocturne des cimetières avec des milliers de bougies, veillée familiale et recueillement.',cat:'Patrimoine',icon:'🕯️',annuel:true},
+{id:'ce11',titre:'Salon du Livre Guadeloupéen',periode:'Avril',mois:4,lieu:'Pointe-à-Pitre',desc:'Rencontre avec les auteurs antillais et caribéens : dédicaces, conférences et débats autour de la littérature créole.',cat:'Art & Cinéma',icon:'📖',annuel:true},
+{id:'ce12',titre:'Grand Prix automobile de Guadeloupe',periode:'Juin',mois:6,lieu:'Circuit du Lamentin',desc:'Compétition de rallye et de circuit réunissant pilotes locaux et continentaux, ambiance festive garantie.',cat:'Sport & Mer',icon:'🏎️',annuel:true},
+{id:'ce13',titre:'Fête de Marie-Galante — La Jeannette',periode:'Juin',mois:6,lieu:'Grand-Bourg, Marie-Galante',desc:'Festival de musique traditionnelle : gwo ka, biguine et quadrille sur l\'île aux cent moulins.',cat:'Musique',icon:'🌴',annuel:true},
+{id:'ce14',titre:'Festival Couleurs Caraïbe',periode:'Mai',mois:5,lieu:'Basse-Terre',desc:'Rencontre des arts visuels caribéens : peinture, sculpture, photographie et street art dans les rues de Basse-Terre.',cat:'Art & Cinéma',icon:'🎨',annuel:true},
+{id:'ce15',titre:'Fête Patronale de Sainte-Anne',periode:'Juillet',mois:7,lieu:'Sainte-Anne',desc:'Procession, messe en créole, exposition artisanale, marché nocturne et feux d\'artifice sur la plage.',cat:'Patrimoine',icon:'✨',annuel:true},
+{id:'ce16',titre:'Rando Nocturne de la Soufrière',periode:'Mai — Juin',mois:5,lieu:'La Soufrière, Basse-Terre',desc:'Randonnée nocturne organisée vers le sommet du volcan, lever du soleil spectaculaire sur l\'archipel.',cat:'Sport & Mer',icon:'🌋',annuel:true},
+{id:'ce17',titre:'Marché de Noël créole',periode:'Décembre',mois:12,lieu:'Saint-François & communes',desc:'Marchés artisanaux, spécialités locales (boudins, charandon, féroce), musique de Noël antillais.',cat:'Gastronomie',icon:'🎄',annuel:true},
+{id:'ce18',titre:'Festival du Bœuf de Marie-Galante',periode:'Août',mois:8,lieu:'Marie-Galante',desc:'Fête de l\'élevage bovin traditionnel sur l\'île : concours, défilé de bœufs décorés et gastronomie locale.',cat:'Gastronomie',icon:'🐂',annuel:true},
+];
+
+function CultureGwadView(){
+const CATS=['Tous','Festivals','Musique','Gastronomie','Art & Cinéma','Patrimoine','Sport & Mer'];
+const CAT_COLORS={Festivals:'var(--accent-liika)',Musique:'var(--gold)',Gastronomie:'var(--success)','Art & Cinéma':'var(--accent-dja)',Patrimoine:'#fb923c','Sport & Mer':'#38bdf8'};
+const [filterCat,setFilterCat]=useState('Tous');
+const today=new Date();
+const currentMonth=today.getMonth()+1;
+const filtered=filterCat==='Tous'?CULTURE_EVENTS:CULTURE_EVENTS.filter(e=>e.cat===filterCat);
+const isCurrent=e=>e.mois===currentMonth||e.mois===0;
+const isSoon=e=>!isCurrent(e)&&(e.mois===currentMonth+1||(currentMonth===12&&e.mois===1));
+
+return <div>
+<div style={{background:'linear-gradient(135deg,rgba(217,183,95,.09),rgba(74,222,128,.06))',borderRadius:'var(--radius)',padding:'24px',marginBottom:20,border:'1px solid var(--gold-border)',position:'relative',overflow:'hidden'}}>
+<div style={{position:'absolute',top:-50,right:-50,width:200,height:200,background:'radial-gradient(circle,rgba(217,183,95,.08),transparent 70%)',borderRadius:'50%',pointerEvents:'none'}}/>
+<p className="eyebrow" style={{marginBottom:8}}>🎭 Agenda culturel</p>
+<h2 style={{fontSize:26,fontFamily:"'Cormorant Garamond',serif",fontWeight:600,color:'var(--text)',marginBottom:4,lineHeight:1.2}}>Culture Guadeloupe</h2>
+<p style={{fontSize:13,color:'var(--text3)',fontStyle:'italic',fontFamily:"'Cormorant Garamond',serif"}}>Festivals, musique, art et patrimoine de l'archipel 🌴</p>
+</div>
+
+<div className="scroll-x" style={{display:'flex',gap:8,marginBottom:20,paddingBottom:4}}>
+{CATS.map(c=>{
+const active=filterCat===c;
+const col=CAT_COLORS[c]||'var(--text3)';
+return <button key={c} onClick={()=>setFilterCat(c)} style={{flexShrink:0,padding:'6px 14px',borderRadius:20,border:`1px solid ${active?col:'var(--border)'}`,background:active?col+'22':'transparent',color:active?col:'var(--text3)',fontSize:11,cursor:'pointer',fontFamily:"'Space Mono',monospace",whiteSpace:'nowrap',transition:'all .2s',fontWeight:active?700:400}}>{c}</button>;
+})}
+</div>
+
+<div style={{display:'grid',gap:12}}>
+{filtered.map((e,i)=>{
+const col=CAT_COLORS[e.cat]||'var(--text3)';
+const current=isCurrent(e);
+const soon=isSoon(e);
+return <div key={e.id} style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:'var(--radius)',padding:'16px 18px',border:`1px solid ${current?col+'44':'var(--border)'}`,borderLeft:`3px solid ${col}`,boxShadow:current?`0 4px 20px ${col}18`:'var(--shadow)',animation:`fadeUp .35s ease ${i*.06}s both`,position:'relative',overflow:'hidden'}}>
+{current&&<div style={{position:'absolute',top:12,right:12,fontSize:9,fontFamily:"'Space Mono',monospace",background:col+'22',color:col,padding:'2px 8px',borderRadius:10,letterSpacing:'.1em'}}>● CE MOIS</div>}
+{!current&&soon&&<div style={{position:'absolute',top:12,right:12,fontSize:9,fontFamily:"'Space Mono',monospace",background:'var(--gold-bg)',color:'var(--gold)',padding:'2px 8px',borderRadius:10,letterSpacing:'.1em'}}>À VENIR</div>}
+<div style={{display:'flex',gap:12,alignItems:'flex-start'}}>
+<span style={{fontSize:24,lineHeight:1,flexShrink:0,marginTop:2}}>{e.icon}</span>
+<div style={{flex:1}}>
+<h3 style={{fontSize:15,fontWeight:600,color:'var(--text)',fontFamily:"'Playfair Display',serif",lineHeight:1.2,marginBottom:6,paddingRight:current||soon?60:0}}>{e.titre}</h3>
+<div style={{display:'flex',gap:12,marginBottom:8,flexWrap:'wrap'}}>
+<span style={{fontSize:11,color:'var(--gold)',fontFamily:"'Space Mono',monospace"}}>📅 {e.periode}</span>
+<span style={{fontSize:11,color:'var(--text3)',fontFamily:"'Space Mono',monospace"}}>📍 {e.lieu}</span>
+</div>
+<p style={{fontSize:12,color:'var(--text2)',lineHeight:1.65,marginBottom:8}}>{e.desc}</p>
+<div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
+<span style={{fontSize:9,fontFamily:"'Space Mono',monospace",color:col,background:col+'15',padding:'2px 8px',borderRadius:8,border:`1px solid ${col}30`}}>{e.cat}</span>
+{e.annuel&&<span style={{fontSize:9,fontFamily:"'Space Mono',monospace",color:'var(--text3)',background:'var(--bg4)',padding:'2px 8px',borderRadius:8}}>Annuel</span>}
+</div>
+</div>
+</div>
+</div>;
+})}
+{filtered.length===0&&<div style={{textAlign:'center',padding:40,color:'var(--text3)',fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',fontSize:16}}>Aucun événement dans cette catégorie.</div>}
+</div>
+</div>;
+}
+
+// ─── Route Liika ───
+const ALERTES_FATIGUE=[
+{km:200,type:'pause',label:'Pause recommandée',detail:'20 min minimum — sortir du camion, marcher, s\'étirer',urgent:false},
+{km:400,type:'pause',label:'Grande pause + repas',detail:'45 min — manger assis, repos visuel, hydratation 500 ml',urgent:false},
+{km:550,type:'warn',label:'Zone de vigilance',detail:'Attention : concentration réduite. Ouvrir la fenêtre, boire de l\'eau, activer musique rythmée.',urgent:true},
+{km:600,type:'stop',label:'ARRÊT IMPÉRATIF',detail:'Dormir minimum 30 min. Ne pas ignorer cette alerte. La fatigue = danger réel.',urgent:true},
+];
+const CHECKLIST_DEPART=[
+{id:'cd1',text:'Thermos eau chaude + bouteille 1,5 L remplie'},
+{id:'cd2',text:'Tupperware repas préparé (recette créole du frigo)'},
+{id:'cd3',text:'Fruits frais + fruits secs + noix (snacks sains)'},
+{id:'cd4',text:'Coussin lombaire positionné dans le siège'},
+{id:'cd5',text:'Playlist ou podcast chargé pour la route'},
+{id:'cd6',text:'Heure de départ + itinéraire partagé avec Dja'},
+{id:'cd7',text:'Routine étirements 5 min faite avant montée'},
+{id:'cd8',text:'Téléphone chargé à 100 % + chargeur embarqué'},
+];
+const ETIREMENTS_PAUSE=[
+{nom:'Rotation du cou',duree:'30 sec',detail:'Cercles lents, gauche puis droite'},
+{nom:'Épaules en arrière',duree:'20 sec',detail:'10 rotations lentes vers l\'arrière'},
+{nom:'Étirement lombaires',duree:'40 sec',detail:'Mains sur les hanches, inclinaison douce'},
+{nom:'Quadriceps debout',duree:'30 sec/jambe',detail:'Tenir la cheville, garder l\'équilibre'},
+{nom:'Marche active',duree:'5 min',detail:'Marcher vite autour du camion ou de l\'aire'},
+{nom:'Respiration profonde',duree:'1 min',detail:'4 sec inspire, 4 sec expire — 3 cycles'},
+];
+
+// ─── Objectifs mensuels ───
+const MOIS_LABELS=['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+const CATS_OBJ_MENSUEL=['Nature','Cuisine','Culture','Finances','Sport','Voyage','Couple','Famille'];
+
+// ─── Maison ───
+const DEFAULT_MAISON_TASKS=[
+{id:'ht1',titre:'Faire les lits',icon:'🛏️',heure:'08:00',freq:'Quotidien',who:'both'},
+{id:'ht2',titre:'Vaisselle',icon:'🍽️',heure:'08:30',freq:'Quotidien',who:'both'},
+{id:'ht3',titre:'Nettoyage cuisine',icon:'🧹',heure:'09:00',freq:'Quotidien',who:'both'},
+{id:'ht4',titre:'Balai / aspirateur',icon:'🧺',heure:'10:00',freq:'Quotidien',who:'both'},
+{id:'ht5',titre:'Sortir les poubelles',icon:'🗑️',heure:'07:30',freq:'Quotidien',who:'both'},
+{id:'ht6',titre:'Arroser les plantes',icon:'🪴',heure:'09:00',freq:'Quotidien',who:'both'},
+{id:'ht7',titre:'Nettoyer salle de bain',icon:'🚿',heure:'10:30',freq:'Quotidien',who:'both'},
+{id:'ht8',titre:'Vider les corbeilles',icon:'📦',heure:'20:00',freq:'Quotidien',who:'both'},
+{id:'ht9',titre:'Lessive',icon:'👕',heure:'09:00',freq:'Hebdomadaire',who:'both'},
+{id:'ht10',titre:'Nettoyage sol complet',icon:'🧽',heure:'10:00',freq:'Hebdomadaire',who:'both'},
+{id:'ht11',titre:'Courses alimentaires',icon:'🛒',heure:'10:00',freq:'Hebdomadaire',who:'both'},
+{id:'ht12',titre:'Rangement général',icon:'📋',heure:'16:00',freq:'Hebdomadaire',who:'both'},
+{id:'ht13',titre:'Nettoyage vitres',icon:'🪟',heure:'10:00',freq:'Mensuel',who:'both'},
+{id:'ht14',titre:'Nettoyage four & réfrigérateur',icon:'🧊',heure:'11:00',freq:'Mensuel',who:'both'},
+{id:'ht15',titre:'Nettoyage salle de bain complet',icon:'🚿',heure:'10:00',freq:'Mensuel',who:'both'},
+{id:'ht16',titre:'Désencombrement & tri',icon:'📦',heure:'14:00',freq:'Mensuel',who:'both'},
+];
+
+function MaisonView({maison,toggleMaisonTask,addMaisonTask,deleteMaisonTask,resetMaisonChecked}){
+const [activeFreq,setActiveFreq]=useState('Quotidien');
+const [addingTask,setAddingTask]=useState(false);
+const [addForm,setAddForm]=useState({titre:'',icon:'🏠',heure:'09:00',freq:'Quotidien',who:'both'});
+const [notifPerm,setNotifPerm]=useState(()=>typeof Notification!=='undefined'?Notification.permission:'default');
+
+const maison_=maison||{};
+const checked=maison_.checked||{};
+const custom=maison_.custom||[];
+const allTasks=[...DEFAULT_MAISON_TASKS,...custom.filter(c=>!DEFAULT_MAISON_TASKS.some(d=>d.id===c.id))];
+
+// Ref always up-to-date for the interval (avoids stale closures)
+const stateRef=useRef({checked,allTasks});
+useEffect(()=>{stateRef.current={checked,allTasks};});
+
+// Daily auto-reset
+useEffect(()=>{
+  const today=new Date().toISOString().slice(0,10);
+  if((maison_.lastReset||'')!==today)resetMaisonChecked(today);
+},[]);
+
+// Notification interval — runs once, reads fresh values via stateRef
+useEffect(()=>{
+  if(typeof Notification==='undefined')return;
+  const iv=setInterval(()=>{
+    if(Notification.permission!=='granted')return;
+    const {checked:chk,allTasks:tasks}=stateRef.current;
+    const now=new Date();
+    const hhmm=`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    tasks.filter(t=>t.heure===hhmm&&!chk[t.id]).forEach(t=>{
+      try{new Notification(`🏠 ${t.titre}`,{body:`Rappel ${t.freq.toLowerCase()} · Lanmou Douvan`});}catch(_){}
+    });
+  },60000);
+  return()=>clearInterval(iv);
+},[]);
+
+const requestNotif=async()=>{
+  if(typeof Notification==='undefined')return;
+  const p=await Notification.requestPermission();
+  setNotifPerm(p);
+};
+
+const FREQS=['Quotidien','Hebdomadaire','Mensuel'];
+const filtered=allTasks.filter(t=>t.freq===activeFreq);
+const doneCount=filtered.filter(t=>!!checked[t.id]).length;
+const pct=filtered.length?Math.round(doneCount/filtered.length*100):0;
+const WHO_LABELS={dja:'Dja',liika:'Liika',both:'Ensemble'};
+const WHO_COLORS={dja:'var(--accent-dja)',liika:'var(--accent-liika)',both:'var(--gold)'};
+const FREQ_COLORS={'Quotidien':'var(--success)','Hebdomadaire':'var(--gold)','Mensuel':'var(--accent-dja)'};
+
+return <div>
+{/* Header */}
+<div style={{background:'linear-gradient(135deg,rgba(74,222,128,.08),rgba(217,183,95,.06))',borderRadius:'var(--radius)',padding:'22px 24px',marginBottom:20,border:'1px solid rgba(74,222,128,.22)',position:'relative',overflow:'hidden'}}>
+<div style={{position:'absolute',top:-40,right:-40,width:180,height:180,background:'radial-gradient(circle,rgba(74,222,128,.08),transparent 70%)',borderRadius:'50%',pointerEvents:'none'}}/>
+<p className="eyebrow" style={{marginBottom:8,color:'var(--success)'}}>🏠 Organisation</p>
+<h2 style={{fontSize:26,fontFamily:"'Cormorant Garamond',serif",fontWeight:600,color:'var(--text)',marginBottom:4,lineHeight:1.2}}>Tâches de la maison</h2>
+<p style={{fontSize:13,color:'var(--text3)',fontStyle:'italic',fontFamily:"'Cormorant Garamond',serif",marginBottom:14}}>Votre foyer, organisé ensemble ♡</p>
+<div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+<button onClick={requestNotif} style={{padding:'6px 14px',borderRadius:20,border:`1px solid ${notifPerm==='granted'?'var(--success)':'var(--border2)'}`,background:notifPerm==='granted'?'var(--success-bg)':'transparent',color:notifPerm==='granted'?'var(--success)':'var(--text3)',fontSize:11,cursor:'pointer',fontFamily:"'Space Mono',monospace",transition:'all .2s'}}>
+{notifPerm==='granted'?'🔔 Rappels actifs':'🔕 Activer les rappels'}
+</button>
+{notifPerm==='denied'&&<span style={{fontSize:10,color:'#e05050',fontFamily:"'Space Mono',monospace"}}>Autoriser dans les paramètres du navigateur</span>}
+</div>
+</div>
+
+{/* Freq tabs */}
+<div className="scroll-x" style={{display:'flex',gap:8,marginBottom:18}}>
+{FREQS.map(f=>{
+const active=activeFreq===f;
+const col=FREQ_COLORS[f];
+return <button key={f} onClick={()=>setActiveFreq(f)} style={{flexShrink:0,padding:'7px 16px',borderRadius:20,border:`1px solid ${active?col:'var(--border)'}`,background:active?col+'22':'transparent',color:active?col:'var(--text3)',fontSize:11,cursor:'pointer',fontFamily:"'Space Mono',monospace",fontWeight:active?700:400,transition:'all .2s'}}>{f}</button>;
+})}
+</div>
+
+{/* Progress bar */}
+{filtered.length>0&&<div style={{background:'var(--bg3)',borderRadius:'var(--radius-sm)',padding:'14px 18px',marginBottom:18,border:'1px solid var(--border)'}}>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+<span style={{fontSize:11,color:'var(--text3)',fontFamily:"'Space Mono',monospace"}}>{doneCount}/{filtered.length} tâches {activeFreq.toLowerCase()}s</span>
+<span style={{fontSize:14,fontWeight:700,color:pct===100?'var(--success)':'var(--gold)',fontFamily:"'Space Mono',monospace"}}>{pct}%{pct===100?' 🎉':''}</span>
+</div>
+<div style={{height:5,background:'var(--bg4)',borderRadius:4,overflow:'hidden'}}>
+<div style={{height:'100%',width:`${pct}%`,background:pct===100?'linear-gradient(90deg,var(--success),#22c55e)':'linear-gradient(90deg,var(--gold),var(--gold2))',borderRadius:4,transition:'width .45s ease'}}/>
+</div>
+</div>}
+
+{/* Task list */}
+<div style={{display:'grid',gap:10,marginBottom:20}}>
+{filtered.map((task,i)=>{
+const done=!!checked[task.id];
+const isCustom=!task.id.startsWith('ht');
+const wCol=WHO_COLORS[task.who||'both'];
+return <div key={task.id} onClick={()=>toggleMaisonTask(task.id)} style={{display:'flex',alignItems:'center',gap:12,background:done?'rgba(74,222,128,.05)':'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:'var(--radius-sm)',padding:'12px 16px',border:`1px solid ${done?'rgba(74,222,128,.25)':'var(--border)'}`,borderLeft:`3px solid ${done?'var(--success)':FREQ_COLORS[task.freq]}`,cursor:'pointer',transition:'all .2s',animation:`fadeUp .3s ease ${i*.05}s both`,opacity:done?.65:1}}>
+<span style={{fontSize:22,flexShrink:0}}>{task.icon}</span>
+<div style={{flex:1,minWidth:0}}>
+<div style={{fontSize:13,fontWeight:600,color:done?'var(--text3)':'var(--text)',textDecoration:done?'line-through':'none',marginBottom:4,transition:'all .2s'}}>{task.titre}</div>
+<div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+<span style={{fontSize:10,color:'var(--gold)',fontFamily:"'Space Mono',monospace"}}>⏰ {task.heure}</span>
+<span style={{fontSize:9,color:wCol,background:wCol+'18',padding:'1px 8px',borderRadius:8,fontFamily:"'Space Mono',monospace"}}>{WHO_LABELS[task.who||'both']}</span>
+</div>
+</div>
+<div style={{display:'flex',alignItems:'center',gap:6,flexShrink:0}}>
+{done?<span style={{fontSize:18}}>✅</span>:<div style={{width:20,height:20,borderRadius:'50%',border:'2px solid var(--border2)',flexShrink:0}}/>}
+{isCustom&&<button onClick={e=>{e.stopPropagation();deleteMaisonTask(task.id);}} style={{background:'none',border:'none',color:'var(--text3)',cursor:'pointer',fontSize:16,padding:'0 2px',lineHeight:1}}>×</button>}
+</div>
+</div>;})}
+{filtered.length===0&&<div style={{textAlign:'center',padding:32,color:'var(--text3)',fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',fontSize:15}}>Aucune tâche {activeFreq.toLowerCase()}.</div>}
+</div>
+
+{/* Add task */}
+<button onClick={()=>setAddingTask(p=>!p)} style={{padding:'8px 18px',borderRadius:'var(--radius-sm)',border:'1px solid var(--gold-border)',background:'transparent',color:'var(--gold)',cursor:'pointer',fontSize:12,fontFamily:"'Space Mono',monospace",letterSpacing:'.04em',marginBottom:addingTask?12:0,transition:'all .2s'}}>+ Ajouter une tâche</button>
+{addingTask&&<div style={{background:'rgba(217,183,95,.05)',borderRadius:'var(--radius)',padding:16,border:'1px solid var(--gold-border)'}}>
+<div style={{display:'grid',gridTemplateColumns:'44px 1fr',gap:8,marginBottom:8}}>
+<input value={addForm.icon} onChange={e=>setAddForm(p=>({...p,icon:e.target.value}))} style={{padding:'6px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'var(--bg3)',color:'var(--text)',fontSize:18,outline:'none',textAlign:'center'}}/>
+<input value={addForm.titre} onChange={e=>setAddForm(p=>({...p,titre:e.target.value}))} placeholder="Nom de la tâche" style={{padding:'7px 10px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'var(--bg3)',color:'var(--text)',fontSize:13,outline:'none'}}/>
+</div>
+<div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:12}}>
+<input value={addForm.heure} onChange={e=>setAddForm(p=>({...p,heure:e.target.value}))} type="time" style={{padding:'6px 8px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'var(--bg3)',color:'var(--text)',fontSize:12,outline:'none',fontFamily:"'Space Mono',monospace"}}/>
+<select value={addForm.freq} onChange={e=>setAddForm(p=>({...p,freq:e.target.value}))} style={{padding:'6px 8px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'var(--bg3)',color:'var(--text)',fontSize:12,outline:'none'}}>
+{FREQS.map(f=><option key={f} value={f}>{f}</option>)}
+</select>
+<select value={addForm.who} onChange={e=>setAddForm(p=>({...p,who:e.target.value}))} style={{padding:'6px 8px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border2)',background:'var(--bg3)',color:'var(--text)',fontSize:12,outline:'none'}}>
+<option value="both">Ensemble</option>
+<option value="dja">Dja</option>
+<option value="liika">Liika</option>
+</select>
+</div>
+<div style={{display:'flex',gap:8}}>
+<button onClick={()=>{if(!addForm.titre.trim())return;addMaisonTask({...addForm,id:Date.now().toString()});setAddForm({titre:'',icon:'🏠',heure:'09:00',freq:'Quotidien',who:'both'});setAddingTask(false);}} style={{flex:1,padding:'8px',borderRadius:'var(--radius-xs)',border:'none',background:'linear-gradient(135deg,var(--gold),var(--gold2))',color:'#06120d',cursor:'pointer',fontSize:12,fontWeight:700}}>✓ Ajouter</button>
+<button onClick={()=>setAddingTask(false)} style={{padding:'8px 14px',borderRadius:'var(--radius-xs)',border:'1px solid var(--border)',background:'transparent',color:'var(--text3)',cursor:'pointer',fontSize:12}}>✕</button>
+</div>
+</div>}
+</div>;
+}
+
+function PlanningView({planning,togglePlanningCheck,addPlanningCustomItem,deletePlanningCustomItem}){
+const [activeDay,setActiveDay]=useState(0);
+const [activeTab,setActiveTab]=useState('planning');
+const [addingItem,setAddingItem]=useState(false);
+const [addForm,setAddForm]=useState({time:'09:00',cat:'repos',title:'',detail:'',who:'both'});
+const planDay=(planning||{})[activeDay]||{checked:{},custom:[]};
+const checked=planDay.checked||{};
+const customItems=planDay.custom||[];
+const initItems=(INITIAL_PLANNING[activeDay]||[]).map((it,i)=>({...it,id:`i${activeDay}-${i}`}));
+const dayItems=[...initItems,...customItems];
+const doneCount=dayItems.filter(it=>!!checked[it.id]).length;
+const handleAdd=()=>{
+  if(!addForm.title.trim())return;
+  addPlanningCustomItem(activeDay,{...addForm,id:Date.now().toString()});
+  setAddForm({time:'09:00',cat:'repos',title:'',detail:'',who:'both'});
+  setAddingItem(false);
+};
+
+return <div style={{
+fontFamily:"'Playfair Display','Georgia',serif",
+color:'#e8f5e0',
+overflowX:'hidden',
+}}>
+<style>{`
+.plan-tab-btn{transition:all .25s ease;cursor:pointer;border:none;}
+.plan-tab-btn:hover{transform:translateY(-2px);}
+.plan-day-btn{transition:all .2s ease;cursor:pointer;}
+.plan-day-btn:hover{transform:scale(1.05);}
+.plan-item-card{transition:all .2s ease;cursor:pointer;}
+.plan-item-card:hover{transform:translateX(4px);}
+.plan-outing-card{transition:all .25s ease;cursor:pointer;}
+.plan-outing-card:hover{transform:translateY(-3px);}
+@keyframes planFadeIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+.plan-fade{animation:planFadeIn .4s ease forwards;}
+@keyframes planPulse{0%,100%{opacity:1;}50%{opacity:.6;}}
+.plan-heartbeat{animation:planPulse 2s infinite;}
+`}</style>
+
+{/* Header */}
+<div style={{padding:'24px 20px 16px',borderBottom:'1px solid #1e3a2a',background:'linear-gradient(180deg,#0a150e 0%,transparent 100%)',position:'relative',overflow:'hidden',borderRadius:'var(--radius) var(--radius) 0 0',marginBottom:0}}>
+<div style={{position:'absolute',top:-40,right:-30,width:180,height:180,background:'radial-gradient(circle,rgba(74,222,128,.08) 0%,transparent 70%)',borderRadius:'50%'}}/>
+<div style={{display:'flex',alignItems:'flex-end',gap:10,marginBottom:4}}>
+<span style={{fontSize:24}} className="plan-heartbeat">❤️</span>
+<div>
+<div style={{fontFamily:"'Space Mono',monospace",fontSize:9,color:'#4ade80',letterSpacing:4,textTransform:'uppercase',marginBottom:2}}>Lanmou Douvan</div>
+<h1 style={{margin:0,fontSize:22,fontWeight:700,color:'#f0faf0',lineHeight:1}}>Liika & Dja</h1>
+</div>
+</div>
+<p style={{margin:'6px 0 0',fontSize:12,color:'#6b9e7a',fontStyle:'italic'}}>Planning vie de couple • Guadeloupe 🌴</p>
+
+<div className="scroll-x" style={{display:'flex',gap:8,marginTop:16,paddingBottom:4}}>
+{[{id:'planning',label:'📅 Semaine'},{id:'sorties',label:'🌿 Sorties GWA'},{id:'culture',label:'📚 Culture'}].map(t=>(
+<button key={t.id} className="plan-tab-btn" onClick={()=>setActiveTab(t.id)} style={{
+flexShrink:0,padding:'7px 14px',borderRadius:20,fontSize:11,
+fontFamily:"'Space Mono',monospace",whiteSpace:'nowrap',
+background:activeTab===t.id?'#4ade80':'rgba(255,255,255,.05)',
+color:activeTab===t.id?'#0a0f0d':'#8bb89a',
+fontWeight:activeTab===t.id?700:400,
+border:activeTab===t.id?'none':'1px solid #1e3a2a',
+}}>{t.label}</button>
+))}
+</div>
+</div>
+
+{/* PLANNING TAB */}
+{activeTab==='planning'&&<div className="plan-fade">
+<div className="scroll-x" style={{padding:'14px 16px 8px',display:'flex',gap:6}}>
+{PLAN_DAYS.map((d,i)=>(
+<button key={i} className="plan-day-btn" onClick={()=>{setActiveDay(i);setAddingItem(false);}} style={{
+minWidth:44,padding:'9px 5px',borderRadius:10,border:'none',
+background:activeDay===i?'linear-gradient(135deg,#4ade80,#22c55e)':'rgba(255,255,255,.04)',
+color:activeDay===i?'#0a0f0d':'#6b9e7a',
+fontFamily:"'Space Mono',monospace",fontSize:10,fontWeight:700,textAlign:'center',
+boxShadow:activeDay===i?'0 4px 14px rgba(74,222,128,.3)':'none',outline:'none',
+}}>
+<div>{d}</div>
+<div style={{fontSize:7,marginTop:2,opacity:.7}}>{activeDay===i?'●':'○'}</div>
+</button>
+))}
+</div>
+<div style={{padding:'0 16px 6px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+<h2 style={{margin:0,fontSize:18,color:'#b7f7c8',fontWeight:700}}>{PLAN_DAYS_FULL[activeDay]}</h2>
+<button onClick={()=>setAddingItem(p=>!p)} style={{padding:'5px 12px',borderRadius:20,border:'1px solid #4ade80',background:'transparent',color:'#4ade80',cursor:'pointer',fontSize:11,fontFamily:"'Space Mono',monospace"}}>+ Ajouter</button>
+</div>
+{addingItem&&<div style={{margin:'0 16px 12px',background:'rgba(74,222,128,.06)',borderRadius:12,padding:14,border:'1px solid #2d5a3d'}}>
+<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
+<input value={addForm.time} onChange={e=>setAddForm(p=>({...p,time:e.target.value}))} type="time"
+  style={{padding:'6px 10px',borderRadius:8,border:'1px solid #2d5a3d',background:'rgba(0,0,0,.3)',color:'#e8f5e0',fontSize:12,outline:'none',fontFamily:"'Space Mono',monospace"}}/>
+<select value={addForm.cat} onChange={e=>setAddForm(p=>({...p,cat:e.target.value}))}
+  style={{padding:'6px 10px',borderRadius:8,border:'1px solid #2d5a3d',background:'rgba(10,20,14,.9)',color:'#e8f5e0',fontSize:12,outline:'none'}}>
+  {Object.entries(PLAN_CATEGORIES).map(([k,v])=><option key={k} value={k}>{v.icon} {v.label}</option>)}
+</select>
+<input value={addForm.title} onChange={e=>setAddForm(p=>({...p,title:e.target.value}))} placeholder="Titre de l'activité"
+  style={{gridColumn:'1/-1',padding:'6px 10px',borderRadius:8,border:'1px solid #2d5a3d',background:'rgba(0,0,0,.3)',color:'#e8f5e0',fontSize:12,outline:'none'}}/>
+<input value={addForm.detail} onChange={e=>setAddForm(p=>({...p,detail:e.target.value}))} placeholder="Détails (optionnel)"
+  style={{gridColumn:'1/-1',padding:'6px 10px',borderRadius:8,border:'1px solid #2d5a3d',background:'rgba(0,0,0,.3)',color:'#e8f5e0',fontSize:12,outline:'none'}}/>
+<select value={addForm.who} onChange={e=>setAddForm(p=>({...p,who:e.target.value}))}
+  style={{padding:'6px 10px',borderRadius:8,border:'1px solid #2d5a3d',background:'rgba(10,20,14,.9)',color:'#e8f5e0',fontSize:12,outline:'none'}}>
+  {Object.entries(PLAN_WHO).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+</select>
+<div style={{display:'flex',gap:6}}>
+<button onClick={handleAdd} style={{flex:1,padding:'7px',borderRadius:8,border:'none',background:'#4ade80',color:'#0a0f0d',cursor:'pointer',fontSize:12,fontWeight:700}}>✓ Ajouter</button>
+<button onClick={()=>setAddingItem(false)} style={{padding:'7px 12px',borderRadius:8,border:'1px solid #2d5a3d',background:'transparent',color:'#6b9e7a',cursor:'pointer',fontSize:12}}>✕</button>
+</div>
+</div>
+</div>}
+<div style={{padding:'0 16px 20px'}}>
+{dayItems.map((item,idx)=>{
+const cat=PLAN_CATEGORIES[item.cat]||PLAN_CATEGORIES.repos;
+const who=PLAN_WHO[item.who]||PLAN_WHO.both;
+const isDone=!!checked[item.id];
+const isCustom=!item.id.startsWith('i');
+return <div key={item.id} className="plan-item-card plan-fade" style={{
+display:'flex',gap:12,marginBottom:12,animationDelay:`${idx*.06}s`,
+}}>
+<div style={{display:'flex',flexDirection:'column',alignItems:'center',minWidth:40}}>
+<div style={{fontFamily:"'Space Mono',monospace",fontSize:9,color:'#4b7a5c',marginBottom:3,whiteSpace:'nowrap'}}>{item.time}</div>
+<div style={{width:9,height:9,borderRadius:'50%',background:isDone?cat.color:'transparent',border:`2px solid ${cat.color}`,flexShrink:0,boxShadow:isDone?`0 0 7px ${cat.color}60`:'none',transition:'all .2s'}}/>
+{idx<dayItems.length-1&&<div style={{width:1,flex:1,minHeight:16,background:'#1e3a2a',marginTop:3}}/>}
+</div>
+<div onClick={()=>togglePlanningCheck(activeDay,item.id)} style={{flex:1,background:isDone?'rgba(74,222,128,.05)':'rgba(255,255,255,.03)',border:`1px solid ${isDone?cat.color+'40':'#1a3028'}`,borderLeft:`3px solid ${cat.color}`,borderRadius:10,padding:'10px 12px',opacity:isDone?.65:1,transition:'all .2s',cursor:'pointer'}}>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+<div style={{display:'flex',alignItems:'center',gap:7,flex:1}}>
+<span style={{fontSize:14}}>{cat.icon}</span>
+<span style={{fontSize:13,fontWeight:700,color:isDone?'#4b7a5c':'#d4f5df',textDecoration:isDone?'line-through':'none',fontFamily:"'Playfair Display',serif"}}>{item.title}</span>
+</div>
+<div style={{display:'flex',alignItems:'center',gap:5}}>
+<div style={{fontSize:8,fontFamily:"'Space Mono',monospace",color:who.color,background:who.color+'18',padding:'2px 7px',borderRadius:10,flexShrink:0}}>{who.label}</div>
+{isCustom&&<button onClick={e=>{e.stopPropagation();deletePlanningCustomItem(activeDay,item.id);}} style={{background:'none',border:'none',color:'#4b7a5c',cursor:'pointer',fontSize:14,padding:'0 2px',lineHeight:1}}>×</button>}
+</div>
+</div>
+{item.detail&&<p style={{margin:'5px 0 0 21px',fontSize:11,color:'#5c8a6e',lineHeight:1.5,fontStyle:'italic'}}>{item.detail}</p>}
+<div style={{marginTop:7,marginLeft:21,display:'inline-block',fontSize:8,fontFamily:"'Space Mono',monospace",color:cat.color,background:cat.color+'15',padding:'2px 7px',borderRadius:7}}>{cat.label}</div>
+</div>
+</div>;})}
+<div style={{background:'rgba(255,255,255,.03)',border:'1px solid #1e3a2a',borderRadius:12,padding:14,marginTop:4}}>
+<div style={{fontFamily:"'Space Mono',monospace",fontSize:9,color:'#4ade80',marginBottom:8,letterSpacing:2}}>PROGRESSION DU JOUR</div>
+{(()=>{
+const total=dayItems.length;
+const pct=total>0?Math.round((doneCount/total)*100):0;
+return <>
+<div style={{display:'flex',justifyContent:'space-between',marginBottom:6}}>
+<span style={{fontSize:11,color:'#6b9e7a'}}>{doneCount}/{total} activités</span>
+<span style={{fontFamily:"'Space Mono',monospace",fontSize:13,color:'#4ade80',fontWeight:700}}>{pct}%</span>
+</div>
+<div style={{height:5,background:'#1a3028',borderRadius:4,overflow:'hidden'}}>
+<div style={{height:'100%',width:`${pct}%`,background:'linear-gradient(90deg,#4ade80,#22c55e)',borderRadius:4,transition:'width .4s ease',boxShadow:'0 0 10px rgba(74,222,128,.45)'}}/>
+</div></>;
+})()}
+</div>
+</div>
+</div>}
+
+{/* SORTIES TAB */}
+{activeTab==='sorties'&&<div className="plan-fade" style={{padding:'18px 16px 20px'}}>
+<h2 style={{margin:'0 0 5px',fontSize:18,color:'#b7f7c8'}}>Sorties Guadeloupe</h2>
+<p style={{margin:'0 0 16px',fontSize:12,color:'#5c8a6e',fontStyle:'italic'}}>Vos spots favoris pour explorer l'archipel ensemble 🌊</p>
+{OUTINGS.map((o,i)=>(
+<div key={i} className="plan-outing-card" style={{background:'rgba(255,255,255,.03)',border:'1px solid #1a3028',borderRadius:14,padding:14,marginBottom:12}}>
+<div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+<span style={{fontSize:20}}>{o.icon}</span>
+<span style={{fontSize:14,fontWeight:700,color:'#d4f5df'}}>{o.title}</span>
+</div>
+<div style={{display:'flex',flexWrap:'wrap',gap:7}}>
+{o.places.map((p,j)=>(
+<span key={j} style={{fontSize:10,fontFamily:"'Space Mono',monospace",background:'rgba(74,222,128,.1)',color:'#4ade80',padding:'3px 10px',borderRadius:18,border:'1px solid #2d5a3d'}}>{p}</span>
+))}
+</div>
+</div>
+))}
+<div style={{background:'linear-gradient(135deg,rgba(244,114,182,.08),rgba(74,222,128,.05))',border:'1px solid #3a1a2a',borderRadius:14,padding:14,marginTop:4}}>
+<div style={{fontSize:14,marginBottom:7}}>🎉 <span style={{fontWeight:700,color:'#f9c8e0'}}>Sorties entre amis</span></div>
+<div style={{display:'flex',flexWrap:'wrap',gap:7}}>
+{['Barbecue plage','Soirée dominos','Rando groupe','Pique-nique rivière','Karaoké zouk','Resto vegan friendly','Sortie kayak collectif'].map((s,i)=>(
+<span key={i} style={{fontSize:10,background:'rgba(244,114,182,.12)',color:'#f472b6',padding:'3px 10px',borderRadius:18,fontFamily:"'Space Mono',monospace",border:'1px solid #6b1e4a'}}>{s}</span>
+))}
+</div>
+</div>
+</div>}
+
+{/* CULTURE TAB */}
+{activeTab==='culture'&&<div className="plan-fade" style={{padding:'18px 16px 20px'}}>
+<h2 style={{margin:'0 0 5px',fontSize:18,color:'#b7f7c8'}}>Espace Culture</h2>
+<p style={{margin:'0 0 16px',fontSize:12,color:'#5c8a6e',fontStyle:'italic'}}>Livres & films à partager ensemble 🌙</p>
+<div style={{marginBottom:20}}>
+<div style={{display:'flex',alignItems:'center',gap:7,marginBottom:12,fontFamily:"'Space Mono',monospace",fontSize:10,color:'#c084fc',letterSpacing:2}}>
+<span>📖</span> LISTE DE LECTURE
+</div>
+{BOOKS.map((b,i)=>(
+<div key={i} className="plan-item-card" style={{display:'flex',alignItems:'center',gap:10,background:'rgba(192,132,252,.05)',border:'1px solid #2a1a3a',borderLeft:'3px solid #c084fc',borderRadius:10,padding:'11px 12px',marginBottom:9}}>
+<div style={{flex:1}}>
+<div style={{fontSize:12,fontWeight:700,color:'#e8d5ff',marginBottom:2}}>{b.title}</div>
+<div style={{fontSize:10,color:'#7a5a9a',fontStyle:'italic'}}>{b.author}</div>
+</div>
+<span style={{fontSize:8,fontFamily:"'Space Mono',monospace",color:'#c084fc',background:'rgba(192,132,252,.12)',padding:'2px 7px',borderRadius:9}}>{b.cat}</span>
+</div>
+))}
+</div>
+<div>
+<div style={{display:'flex',alignItems:'center',gap:7,marginBottom:12,fontFamily:"'Space Mono',monospace",fontSize:10,color:'#facc15',letterSpacing:2}}>
+<span>🎬</span> SÉLECTION FILMS
+</div>
+{FILMS.map((f,i)=>(
+<div key={i} className="plan-item-card" style={{display:'flex',alignItems:'center',gap:10,background:'rgba(250,204,21,.04)',border:'1px solid #2a2010',borderLeft:'3px solid #facc15',borderRadius:10,padding:'11px 12px',marginBottom:9}}>
+<span style={{fontSize:16,minWidth:24}}>🎞️</span>
+<div>
+<div style={{fontSize:12,fontWeight:700,color:'#fef9e0',marginBottom:2}}>{f.title}</div>
+<div style={{fontSize:10,color:'#7a6a3a',fontStyle:'italic'}}>{f.genre}</div>
+</div>
+</div>
+))}
+</div>
+</div>}
+
+{/* Légende */}
+<div style={{borderTop:'1px solid #1a3028',padding:'10px 16px',display:'flex',justifyContent:'center',gap:14,flexWrap:'wrap'}}>
+{Object.entries(PLAN_WHO).map(([k,v])=>(
+<div key={k} style={{display:'flex',alignItems:'center',gap:4}}>
+<div style={{width:6,height:6,borderRadius:'50%',background:v.color}}/>
+<span style={{fontSize:9,fontFamily:"'Space Mono',monospace",color:'#4b6a55'}}>{v.label}</span>
+</div>
+))}
+</div>
+</div>;
+}
+
+// ─── DrevmCook View ───
+function DrevmCookView({recipes,upsertRecipe,deleteRecipe}){
+const allRecipes=[...DEFAULT_RECIPES,...(recipes||[]).filter(r=>!DEFAULT_RECIPES.some(dr=>dr.id===r.id))];
+const [filterCat,setFilterCat]=useState('Tout');
+const [selected,setSelected]=useState(null);
+const [showAdd,setShowAdd]=useState(false);
+const [addForm,setAddForm]=useState({nom:'',categorie:'Salés',tags:'',ingredients:'',preparation:'',apports:'',budget:''});
+const cats=['Tout','Salés','Boulangerie','Fermentés','Desserts','Boissons','Référence'];
+const catColors={Salés:'var(--success)',Boulangerie:'var(--gold)',Fermentés:'#fb923c',Desserts:'var(--accent-liika)',Boissons:'var(--accent-dja)',Référence:'var(--text3)'};
+const filtered=filterCat==='Tout'?allRecipes:allRecipes.filter(r=>r.categorie===filterCat);
+
+if(selected){
+const r=allRecipes.find(x=>x.id===selected);
+if(!r)return <div><button onClick={()=>setSelected(null)} style={{background:'none',border:'none',color:'var(--gold)',cursor:'pointer',fontSize:13,padding:0}}>← Retour</button></div>;
+const cc=catColors[r.categorie]||'var(--gold)';
+return <div>
+<button onClick={()=>setSelected(null)} style={{display:'flex',alignItems:'center',gap:6,background:'none',border:'none',color:'var(--gold)',cursor:'pointer',fontSize:13,marginBottom:20,padding:0,fontFamily:"'Space Mono',monospace",letterSpacing:'.05em'}}>← Retour aux recettes</button>
+<div style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:'var(--radius)',padding:24,border:'1px solid var(--border)',boxShadow:'var(--shadow)'}}>
+<div className="eyebrow" style={{marginBottom:8,color:cc}}>{r.categorie}</div>
+<h2 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:26,fontWeight:600,marginBottom:6,color:'var(--text)'}}>{r.nom}</h2>
+<div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:16}}>
+{(r.tags||[]).map(t=><span key={t} style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'var(--gold-bg)',color:'var(--gold)',border:'1px solid var(--gold-border)',fontFamily:"'Space Mono',monospace"}}>{t}</span>)}
+</div>
+<div className="gold-rule" style={{marginBottom:20}}/>
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:20,marginBottom:20}}>
+<div>
+<p className="eyebrow" style={{marginBottom:12,color:cc}}>Ingrédients</p>
+<ul style={{listStyle:'none',padding:0,display:'flex',flexDirection:'column',gap:7}}>
+{(r.ingredients||[]).map((ing,i)=><li key={i} style={{display:'flex',gap:8,fontSize:13,color:'var(--text2)',alignItems:'flex-start'}}>
+<span style={{color:cc,marginTop:2,flexShrink:0,fontWeight:700}}>·</span>{ing}
+</li>)}
+</ul>
+</div>
+<div>
+<p className="eyebrow" style={{marginBottom:12,color:cc}}>Préparation</p>
+<p style={{fontSize:13,color:'var(--text2)',lineHeight:1.75,whiteSpace:'pre-wrap'}}>{r.preparation}</p>
+</div>
+</div>
+<div className="gold-rule" style={{marginBottom:16}}/>
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:12}}>
+<div style={{background:'var(--bg4)',borderRadius:'var(--radius-sm)',padding:14,border:'1px solid var(--border)'}}>
+<p style={{fontSize:10,color:'var(--text3)',marginBottom:6,letterSpacing:'.1em',textTransform:'uppercase',fontFamily:"'Space Mono',monospace"}}>Apports nutritifs</p>
+<p style={{fontSize:12,color:'var(--text2)',lineHeight:1.65}}>{r.apports}</p>
+</div>
+<div style={{background:'var(--bg4)',borderRadius:'var(--radius-sm)',padding:14,border:'1px solid var(--border)'}}>
+<p style={{fontSize:10,color:'var(--text3)',marginBottom:6,letterSpacing:'.1em',textTransform:'uppercase',fontFamily:"'Space Mono',monospace"}}>Budget Guadeloupe</p>
+<p style={{fontSize:15,color:'var(--gold)',fontWeight:600}}>{r.budget}</p>
+</div>
+</div>
+</div>
+</div>;
+}
+
+return <div>
+<div style={{marginBottom:24}}>
+<p className="eyebrow" style={{marginBottom:6}}>🌿 Cuisine végétale & tropicale</p>
+<h2 style={{fontSize:26,fontWeight:600,fontFamily:"'Cormorant Garamond',serif",marginBottom:4,color:'var(--text)'}}>DrevmCook</h2>
+<p style={{fontSize:13,color:'var(--text3)',fontStyle:'italic',fontFamily:"'Cormorant Garamond',serif"}}>Recettes végétales, sans gluten & autonomie alimentaire tropicale</p>
+</div>
+<div className="gold-rule" style={{marginBottom:20}}/>
+<div style={{display:'flex',gap:8,marginBottom:20,alignItems:'center'}}>
+<div className="scroll-x" style={{display:'flex',gap:6,flex:1}}>
+{cats.map(c=><button key={c} onClick={()=>setFilterCat(c)} style={{flexShrink:0,padding:'5px 14px',borderRadius:20,border:filterCat===c?`1px solid ${catColors[c]||'var(--gold)'}`:'1px solid var(--border)',background:filterCat===c?'rgba(0,0,0,.15)':'transparent',color:filterCat===c?catColors[c]||'var(--gold)':'var(--text3)',fontSize:12,cursor:'pointer',transition:'all .15s'}}>{c}</button>)}
+</div>
+<button onClick={()=>setShowAdd(p=>!p)} style={{flexShrink:0,padding:'5px 14px',borderRadius:20,border:'1px solid var(--border2)',background:'transparent',color:'var(--text2)',fontSize:12,cursor:'pointer'}}>+ Recette</button>
+</div>
+{showAdd&&<div style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:'var(--radius)',padding:20,marginBottom:20,border:'1px solid var(--gold-border)',boxShadow:'var(--shadow)'}}>
+<h3 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,fontWeight:600,marginBottom:4,color:'var(--gold2)'}}>Nouvelle recette</h3>
+<div className="gold-rule" style={{marginBottom:14}}/>
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:10,marginBottom:12}}>
+<input placeholder="Nom de la recette" value={addForm.nom} onChange={e=>setAddForm(p=>({...p,nom:e.target.value}))}
+  style={{gridColumn:'1/-1',padding:'9px 12px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:13,outline:'none'}}/>
+<select value={addForm.categorie} onChange={e=>setAddForm(p=>({...p,categorie:e.target.value}))}
+  style={{padding:'9px 12px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:13,outline:'none'}}>
+  {cats.filter(c=>c!=='Tout').map(c=><option key={c}>{c}</option>)}
+</select>
+<input placeholder="Tags (ex: vegan, sans-gluten)" value={addForm.tags} onChange={e=>setAddForm(p=>({...p,tags:e.target.value}))}
+  style={{padding:'9px 12px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:13,outline:'none'}}/>
+<textarea placeholder="Ingrédients (un par ligne)" value={addForm.ingredients} onChange={e=>setAddForm(p=>({...p,ingredients:e.target.value}))} rows={4}
+  style={{padding:'9px 12px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:13,outline:'none',resize:'vertical',fontFamily:'inherit',lineHeight:1.5}}/>
+<textarea placeholder="Préparation" value={addForm.preparation} onChange={e=>setAddForm(p=>({...p,preparation:e.target.value}))} rows={4}
+  style={{padding:'9px 12px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:13,outline:'none',resize:'vertical',fontFamily:'inherit',lineHeight:1.5}}/>
+<input placeholder="Apports nutritionnels" value={addForm.apports} onChange={e=>setAddForm(p=>({...p,apports:e.target.value}))}
+  style={{padding:'9px 12px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:13,outline:'none'}}/>
+<input placeholder="Budget" value={addForm.budget} onChange={e=>setAddForm(p=>({...p,budget:e.target.value}))}
+  style={{padding:'9px 12px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'var(--bg4)',color:'var(--text)',fontSize:13,outline:'none'}}/>
+</div>
+<div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
+<button onClick={()=>{setShowAdd(false);setAddForm({nom:'',categorie:'Salés',tags:'',ingredients:'',preparation:'',apports:'',budget:''});}} style={{padding:'8px 18px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border)',background:'transparent',color:'var(--text3)',cursor:'pointer',fontSize:13}}>Annuler</button>
+<button onClick={()=>{
+  if(!addForm.nom.trim())return;
+  upsertRecipe({id:Date.now().toString(),nom:addForm.nom,categorie:addForm.categorie,tags:addForm.tags.split(',').map(t=>t.trim()).filter(Boolean),ingredients:addForm.ingredients.split('\n').filter(Boolean),preparation:addForm.preparation,apports:addForm.apports,budget:addForm.budget});
+  setShowAdd(false);
+  setAddForm({nom:'',categorie:'Salés',tags:'',ingredients:'',preparation:'',apports:'',budget:''});
+}} style={{padding:'8px 18px',borderRadius:'var(--radius-sm)',border:'none',background:'linear-gradient(135deg,var(--gold),var(--gold2))',color:'#06120d',cursor:'pointer',fontSize:13,fontWeight:700,letterSpacing:'.04em'}}>Sauvegarder</button>
+</div>
+</div>}
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:14}}>
+{filtered.map(r=>{
+const cc=catColors[r.categorie]||'var(--gold)';
+const isDefault=DEFAULT_RECIPES.some(dr=>dr.id===r.id);
+return <div key={r.id} onClick={()=>setSelected(r.id)} style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:'var(--radius)',padding:'16px 18px',border:'1px solid var(--border)',borderTop:`2px solid ${cc}`,cursor:'pointer',transition:'all .2s',boxShadow:'var(--shadow)'}}>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
+<span style={{fontSize:10,color:cc,fontFamily:"'Space Mono',monospace",letterSpacing:'.1em',textTransform:'uppercase'}}>{r.categorie}</span>
+{!isDefault&&<button onClick={e=>{e.stopPropagation();if(confirm('Supprimer cette recette ?'))deleteRecipe(r.id);}} style={{background:'none',border:'none',color:'var(--text3)',cursor:'pointer',fontSize:16,padding:'0 2px',lineHeight:1}}>×</button>}
+</div>
+<h3 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,fontWeight:600,marginBottom:8,color:'var(--text)',lineHeight:1.2}}>{r.nom}</h3>
+<div style={{display:'flex',gap:4,flexWrap:'wrap',marginBottom:8}}>
+{(r.tags||[]).slice(0,3).map(t=><span key={t} style={{fontSize:9,padding:'1px 6px',borderRadius:20,background:'var(--gold-bg)',color:'var(--gold)',border:'1px solid var(--gold-border)',fontFamily:"'Space Mono',monospace"}}>{t}</span>)}
+</div>
+<div style={{fontSize:11,color:'var(--text3)',display:'flex',justifyContent:'space-between'}}>
+<span>{(r.ingredients||[]).length} ingrédients</span>
+<span style={{color:'var(--gold)'}}>{r.budget}</span>
+</div>
+</div>;})}
+</div>
+</div>;
+}
+
 // ─── Main App ───
 function App(){
+const vw=useWindowWidth();
+const isMobile=vw<=768;
+const isTablet=vw>768&&vw<=1024;
+const isSmall=vw<=1024;
 const [data,setData]=useState(loadData);
 const [ui,setUI]=useState(loadUI);
 const [view,setView]=useState('dashboard');
 const [modal,setModal]=useState(null);
+<<<<<<< HEAD
 
 useEffect(()=>saveData(data),[data]);
 
 const updateObj=(who,id,updates)=>{
+=======
+const [syncStatus,setSyncStatus]=useState('idle'); // idle | syncing | ok | error
+const activeProfile=ui?.activeProfile||'dja';
+const profileLabel=activeProfile==='dja'?'Dja':activeProfile==='liika'?'Liika':'Couple';
+const setActiveProfile=useCallback((who)=>setUI(prev=>({...prev,activeProfile:who})),[]);
+
+// Persiste localStorage à chaque changement
+useEffect(()=>saveData(data),[data]);
+
+// Chargement initial depuis Supabase
+useEffect(()=>{
+setSyncStatus('syncing');
+sbLoad().then(remote=>{
+  setData(remote);
+  saveData(remote);
+  setSyncStatus('ok');
+}).catch(()=>setSyncStatus('idle'));
+},[]);
+
+// Sync Supabase debounce 1.5s
+useEffect(()=>{
+const t=setTimeout(()=>{
+  setSyncStatus('syncing');
+  sbSave(data).then(()=>setSyncStatus('ok')).catch(()=>setSyncStatus('error'));
+},1500);
+return ()=>clearTimeout(t);
+},[data]);
+
+// ─── Realtime cross-device sync + présence ───
+useEffect(()=>{
+// Présence : lit les sessions actives (<5 min)
+const refreshOnline=()=>sb.from('app_sessions')
+  .select('id').gte('last_seen',new Date(Date.now()-300000).toISOString())
+  .then(({data:rows})=>rows&&setOnlineCount(rows.length)).catch(()=>{});
+// Ping : enregistre / met à jour cet appareil
+const ping=()=>sb.from('app_sessions').upsert({
+  id:DEVICE_ID,
+  user_name:localStorage.getItem('ld-username')||'Appareil',
+  last_seen:new Date().toISOString(),
+  is_online:true
+}).catch(()=>{});
+
+ping();refreshOnline();
+const iv=setInterval(()=>{ping();refreshOnline();},60000);
+
+const ch=sb.channel('ld-realtime')
+  // Réception des changements d'un AUTRE appareil
+  .on('postgres_changes',
+    {event:'UPDATE',schema:'public',table:'app_state',filter:'id=eq.main'},
+    (payload)=>{
+      if(!payload.new?.data)return;
+      if(payload.new.device_id===DEVICE_ID)return; // notre propre save → ignorer
+      const remote=normalize(payload.new.data);
+      setData(remote);
+      saveData(remote);
+      setSyncStatus('ok');
+    })
+  // Mise à jour du compteur d'appareils en ligne
+  .on('postgres_changes',
+    {event:'*',schema:'public',table:'app_sessions'},
+    ()=>refreshOnline())
+  .subscribe();
+
+return()=>{clearInterval(iv);sb.removeChannel(ch);};
+},[]);
+
+const updateObj=useCallback((who,id,updates)=>{
+>>>>>>> 9012e62c3d0f3ba48031d79836bb9224d171253f
 setData(prev=>{
 const next=clone(prev);
 const list=who==='couple'?next.couple.objectives:next[who].objectives;
@@ -428,12 +1785,137 @@ else next[who].vision=text;
 return next;
 });
 },[]);
+const upsertSport=useCallback((who,item)=>{
+setData(prev=>{
+const next=clone(prev);
+const src=who==='couple'?next.couple.sport:(next[who].sport||[]);
+const idx=src.findIndex(s=>s.id===item.id);
+if(idx>=0)src[idx]=item; else src.push(item);
+if(who==='couple')next.couple.sport=src; else next[who].sport=src;
+return next;
+});
+},[]);
+const deleteSport=useCallback((who,id)=>{
+setData(prev=>{
+const next=clone(prev);
+if(who==='couple')next.couple.sport=(next.couple.sport||[]).filter(s=>s.id!==id);
+else next[who].sport=(next[who].sport||[]).filter(s=>s.id!==id);
+return next;
+});
+},[]);
+const upsertRecipe=useCallback((recipe)=>{
+setData(prev=>{
+const next=clone(prev);
+if(!Array.isArray(next.recipes))next.recipes=[];
+const idx=next.recipes.findIndex(r=>r.id===recipe.id);
+if(idx>=0)next.recipes[idx]=recipe; else next.recipes.push(recipe);
+return next;
+});
+},[]);
+const deleteRecipe=useCallback((id)=>{
+setData(prev=>{
+const next=clone(prev);
+next.recipes=(next.recipes||[]).filter(r=>r.id!==id);
+return next;
+});
+},[]);
+const togglePlanningCheck=useCallback((day,itemId)=>{
+setData(prev=>{
+const next=clone(prev);
+if(!next.couple.planning)next.couple.planning={};
+const d=next.couple.planning[day]||{checked:{},custom:[]};
+d.checked={...d.checked,[itemId]:!d.checked[itemId]};
+next.couple.planning[day]=d;
+return next;
+});
+},[]);
+const addPlanningCustomItem=useCallback((day,item)=>{
+setData(prev=>{
+const next=clone(prev);
+if(!next.couple.planning)next.couple.planning={};
+const d=next.couple.planning[day]||{checked:{},custom:[]};
+d.custom=[...(d.custom||[]),item];
+next.couple.planning[day]=d;
+return next;
+});
+},[]);
+const deletePlanningCustomItem=useCallback((day,id)=>{
+setData(prev=>{
+const next=clone(prev);
+if(next.couple.planning&&next.couple.planning[day]){
+  next.couple.planning[day].custom=(next.couple.planning[day].custom||[]).filter(i=>i.id!==id);
+}
+return next;
+});
+},[]);
+const addIdeeCustom=useCallback((text)=>{
+if(!text.trim())return;
+setData(prev=>{
+const next=clone(prev);
+if(!next.couple.ideeJour)next.couple.ideeJour={liste:[],custom:[]};
+next.couple.ideeJour.custom=[...(next.couple.ideeJour.custom||[]),{id:Date.now().toString(),text:text.trim()}];
+return next;
+});
+},[]);
+const deleteIdeeCustom=useCallback((id)=>{
+setData(prev=>{
+const next=clone(prev);
+if(next.couple.ideeJour){
+  next.couple.ideeJour.custom=(next.couple.ideeJour.custom||[]).filter(i=>i.id!==id);
+}
+return next;
+});
+},[]);
+
+const toggleMaisonTask=useCallback((id)=>{
+setData(prev=>{
+const next=clone(prev);
+if(!next.couple.maison)next.couple.maison={checked:{},custom:[],lastReset:''};
+const c=next.couple.maison.checked||{};
+next.couple.maison.checked={...c,[id]:!c[id]};
+return next;
+});
+},[]);
+const addMaisonTask=useCallback((task)=>{
+setData(prev=>{
+const next=clone(prev);
+if(!next.couple.maison)next.couple.maison={checked:{},custom:[],lastReset:''};
+next.couple.maison.custom=[...(next.couple.maison.custom||[]),task];
+return next;
+});
+},[]);
+const deleteMaisonTask=useCallback((id)=>{
+setData(prev=>{
+const next=clone(prev);
+if(next.couple.maison)next.couple.maison.custom=(next.couple.maison.custom||[]).filter(t=>t.id!==id);
+return next;
+});
+},[]);
+const resetMaisonChecked=useCallback((dateStr)=>{
+setData(prev=>{
+const next=clone(prev);
+if(!next.couple.maison)next.couple.maison={checked:{},custom:[],lastReset:''};
+next.couple.maison.checked={};
+next.couple.maison.lastReset=dateStr;
+return next;
+});
+},[]);
+
+const updateObjMensuel=useCallback((id,updates)=>{
+setData(prev=>{const next=clone(prev);const list=next.couple.objMensuels||[];const idx=list.findIndex(o=>o.id===id);if(idx>=0)Object.assign(list[idx],updates);return next;});
+},[]);
+const addObjMensuel=useCallback((titre,detail,cat,mois)=>{
+setData(prev=>{const next=clone(prev);if(!next.couple.objMensuels)next.couple.objMensuels=[];next.couple.objMensuels.push({id:Date.now().toString(),mois,annee:new Date().getFullYear(),titre,detail,categorie:cat,statut:'en_cours',progress:0});return next;});
+},[]);
+const deleteObjMensuel=useCallback((id)=>{
+setData(prev=>{const next=clone(prev);next.couple.objMensuels=(next.couple.objMensuels||[]).filter(o=>o.id!==id);return next;});
+},[]);
 
 const {totalObj,totalDone,avgProgress,totalActions,actionsDone}=useMemo(()=>{
-const totalObj=[...data.dja.objectives,...data.liika.objectives,...data.couple.objectives];
+const totalObj=[...(data.dja?.objectives||[]),...(data.liika?.objectives||[]),...(data.couple?.objectives||[])];
 const totalDone=totalObj.filter(o=>o.done).length;
-const avgProgress=totalObj.length?Math.round(totalObj.reduce((s,o)=>s+o.progress,0)/totalObj.length):0;
-const totalActions=[...data.dja.actions,...data.liika.actions,...data.couple.actions];
+const avgProgress=totalObj.length?Math.round(totalObj.reduce((s,o)=>s+(o.progress||0),0)/totalObj.length):0;
+const totalActions=[...(data.dja?.actions||[]),...(data.liika?.actions||[]),...(data.couple?.actions||[])];
 const actionsDone=totalActions.filter(a=>a.done).length;
 return {totalObj,totalDone,avgProgress,totalActions,actionsDone};
 },[data]);
@@ -443,9 +1925,16 @@ const navItems=[
 {id:'dja',label:'Dja',icon:'◆'},
 {id:'liika',label:'Liika',icon:'◇'},
 {id:'couple',label:'Couple',icon:'♡'},
+{id:'maison',label:'Maison',icon:'🏠'},
 {id:'repas',label:'Repas',icon:'🍽'},
+{id:'sport',label:'Sport',icon:'💪'},
 {id:'budget',label:'Budget',icon:'💰'},
 {id:'vision',label:'Vision',icon:'✦'},
+{id:'planning',label:'Planning',icon:'🗓'},
+{id:'drevmcook',label:'DrevmCook',icon:'🌿'},
+{id:'culture',label:'Culture GWA',icon:'🎭'},
+{id:'route',label:'Route Liika',icon:'🚛'},
+{id:'objmensuel',label:'Objectifs mois',icon:'🎯'},
 {id:'charts',label:'Stats',icon:'▤'},
 {id:'cuisine',label:'DrevmCook',icon:'🌿'},
 ];
@@ -456,21 +1945,23 @@ const color=who;
 return <div>
 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24,flexWrap:'wrap',gap:12}}>
 <div>
-<h2 style={{fontSize:22,fontWeight:600,fontFamily:"'Playfair Display',serif"}}>{person.name}</h2>
-<p style={{fontSize:14,color:'var(--text3)',marginTop:2}}>{person.role}{person.location?` — ${person.location}`:''}</p>
+<p className="eyebrow" style={{marginBottom:6}}>{who==='dja'?'◆':'◇'} Profil</p>
+<h2 style={{fontSize:26,fontWeight:600,fontFamily:"'Cormorant Garamond',serif",color:'var(--text)',lineHeight:1.1}}>{person.name}</h2>
+<p style={{fontSize:13,color:'var(--text3)',marginTop:4}}>{person.role}{person.location?` · ${person.location}`:''}</p>
 </div>
-<div style={{display:'flex',gap:8}}>
-<button onClick={()=>setModal({type:'objective',who})} style={{padding:'8px 16px',borderRadius:'var(--radius-sm)',border:'none',background:accent[who],color:'#fff',cursor:'pointer',fontSize:13,fontWeight:500}}>+ Objectif</button>
-<button onClick={()=>setModal({type:'action',who})} style={{padding:'8px 16px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'transparent',color:'var(--text2)',cursor:'pointer',fontSize:13}}>+ Action</button>
+<div className="person-actions" style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+<button onClick={()=>setModal({type:'objective',who})} style={{padding:'8px 16px',borderRadius:'var(--radius-sm)',border:'none',background:`linear-gradient(135deg,${accent[who]},${accent[who]}cc)`,color:'#06120d',cursor:'pointer',fontSize:12,fontWeight:700,letterSpacing:'.04em'}}>+ Objectif</button>
+<button onClick={()=>setModal({type:'action',who})} style={{padding:'8px 16px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border)',background:'transparent',color:'var(--text3)',cursor:'pointer',fontSize:12,transition:'all .15s'}}>+ Action</button>
 </div>
 </div>
+<div className="gold-rule" style={{marginBottom:20}}/>
 <div style={{display:'grid',gap:12,marginBottom:28}}>
 {person.objectives.map(o=><ObjectiveCard key={o.id} obj={o} color={color}
   onToggle={id=>updateObj(who,id,{done:!o.done,progress:!o.done?100:o.progress})}
   onProgress={(id,p)=>updateObj(who,id,{progress:p,done:p>=100})}
   onDelete={id=>deleteObj(who,id)}/>)}
 </div>
-<h3 style={{fontSize:16,fontWeight:500,marginBottom:12,color:'var(--text2)'}}>Actions</h3>
+<p className="eyebrow" style={{marginBottom:12}}>▸ Actions</p>
 <div style={{display:'grid',gap:8}}>
 {person.actions.map(a=><ActionItem key={a.id} action={a} color={color} onToggle={id=>toggleAction(who,id)}/>)}
 </div>
@@ -482,21 +1973,23 @@ const renderCouple=()=>{
 return <div>
 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24,flexWrap:'wrap',gap:12}}>
 <div>
-<h2 style={{fontSize:22,fontWeight:600,fontFamily:"'Playfair Display',serif"}}>Dja & Liika</h2>
-<p style={{fontSize:14,color:'var(--text3)',marginTop:2}}>Lanmou Douvan — Vision commune</p>
+<p className="eyebrow" style={{marginBottom:6}}>♡ Lanmou</p>
+<h2 style={{fontSize:26,fontWeight:600,fontFamily:"'Cormorant Garamond',serif",color:'var(--gold)',lineHeight:1.1}}>Dja & Liika</h2>
+<p style={{fontSize:13,color:'var(--text3)',marginTop:4,fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic'}}>Lanmou Douvan — Vision commune</p>
 </div>
-<div style={{display:'flex',gap:8}}>
-<button onClick={()=>setModal({type:'objective',who:'couple'})} style={{padding:'8px 16px',borderRadius:'var(--radius-sm)',border:'none',background:'var(--accent-couple)',color:'var(--bg)',cursor:'pointer',fontSize:13,fontWeight:500}}>+ Objectif</button>
-<button onClick={()=>setModal({type:'action',who:'couple'})} style={{padding:'8px 16px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'transparent',color:'var(--text2)',cursor:'pointer',fontSize:13}}>+ Action</button>
+<div className="person-actions" style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+<button onClick={()=>setModal({type:'objective',who:'couple'})} style={{padding:'8px 16px',borderRadius:'var(--radius-sm)',border:'none',background:`linear-gradient(135deg,var(--gold),var(--gold2))`,color:'#06120d',cursor:'pointer',fontSize:12,fontWeight:700,letterSpacing:'.04em'}}>+ Objectif</button>
+<button onClick={()=>setModal({type:'action',who:'couple'})} style={{padding:'8px 16px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border)',background:'transparent',color:'var(--text3)',cursor:'pointer',fontSize:12}}>+ Action</button>
 </div>
 </div>
+<div className="gold-rule" style={{marginBottom:20}}/>
 <div style={{display:'grid',gap:12,marginBottom:28}}>
 {data.couple.objectives.map(o=><ObjectiveCard key={o.id} obj={o} color="couple"
   onToggle={id=>updateObj('couple',id,{done:!o.done,progress:!o.done?100:o.progress})}
   onProgress={(id,p)=>updateObj('couple',id,{progress:p,done:p>=100})}
   onDelete={id=>deleteObj('couple',id)}/>)}
 </div>
-<h3 style={{fontSize:16,fontWeight:500,marginBottom:12,color:'var(--text2)'}}>Actions</h3>
+<p className="eyebrow" style={{marginBottom:12}}>▸ Actions</p>
 <div style={{display:'grid',gap:8}}>
 {data.couple.actions.map(a=><ActionItem key={a.id} action={a} color="couple" onToggle={id=>toggleAction('couple',id)}/>)}
 </div>
@@ -506,11 +1999,34 @@ return <div>
 
 const renderDashboard=()=>{
 return <div>
-<div style={{marginBottom:28}}>
-<h2 style={{fontSize:26,fontWeight:600,fontFamily:"'Playfair Display',serif",marginBottom:4}}>Tableau de bord</h2>
-<p style={{fontSize:14,color:'var(--text3)'}}>Vue d'ensemble — Vision 2026-2036</p>
+{/* Hero tropical */}
+<div className="dash-hero" style={{background:'var(--grad-hero)',borderRadius:'var(--radius)',padding:'28px 28px 24px',marginBottom:24,border:'1px solid var(--gold-border)',boxShadow:'0 12px 40px rgba(0,0,0,.5)',position:'relative',overflow:'hidden'}}>
+<div style={{position:'absolute',top:-60,right:-60,width:240,height:240,background:'radial-gradient(circle,rgba(217,183,95,.10) 0%,transparent 70%)',borderRadius:'50%',pointerEvents:'none'}}/>
+<div className="eyebrow" style={{marginBottom:10}}>🌴 Lanmou Douvan · Guadeloupe</div>
+<h2 style={{fontSize:30,fontWeight:600,fontFamily:"'Cormorant Garamond',serif",marginBottom:6,color:'var(--text)',lineHeight:1.2}}>
+Tableau de bord
+</h2>
+<p style={{fontSize:13,color:'var(--text3)',marginBottom:0}}>Vue d'ensemble — Vision 2026-2036</p>
+<div style={{marginTop:16,height:1,background:'linear-gradient(90deg,var(--gold-border),transparent)'}}/>
 </div>
-<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:12,marginBottom:28}}>
+{(()=>{
+const ideeJour=(data.couple||{}).ideeJour||{liste:[],custom:[]};
+const allIdees=[...DEFAULT_IDEES,...(ideeJour.custom||[])];
+const today=new Date();
+const dayOfYear=Math.floor((today-new Date(today.getFullYear(),0,0))/864e5);
+const idee=allIdees.length?allIdees[dayOfYear%allIdees.length]:{text:'Prenez soin de vous aujourd\'hui ♡'};
+return <div style={{background:'linear-gradient(135deg,var(--bg3),var(--bg4))',borderRadius:'var(--radius)',padding:'20px 24px',marginBottom:24,border:'1px solid var(--gold-border)',boxShadow:'var(--shadow)',position:'relative',overflow:'hidden'}}>
+<div style={{position:'absolute',top:0,right:0,width:140,height:140,background:'radial-gradient(circle,rgba(217,183,95,.08),transparent 70%)',borderRadius:'50%',transform:'translate(35%,-35%)',pointerEvents:'none'}}/>
+<div className="eyebrow" style={{marginBottom:10}}>✨ Idée du jour</div>
+<p style={{fontSize:18,fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',color:'var(--text)',lineHeight:1.55,marginBottom:14}}>{idee.text}</p>
+<div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+<button onClick={()=>setView('planning')} style={{padding:'5px 14px',borderRadius:20,border:'1px solid var(--gold-border)',background:'transparent',color:'var(--gold)',fontSize:11,cursor:'pointer',fontFamily:"'Space Mono',monospace",letterSpacing:'.04em'}}>Voir planning →</button>
+<button onClick={()=>setView('drevmcook')} style={{padding:'5px 14px',borderRadius:20,border:'1px solid var(--border2)',background:'transparent',color:'var(--text3)',fontSize:11,cursor:'pointer',fontFamily:"'Space Mono',monospace",letterSpacing:'.04em'}}>🌿 DrevmCook</button>
+<span style={{fontSize:10,color:'var(--text3)',marginLeft:'auto',fontFamily:"'Space Mono',monospace"}}>{today.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})}</span>
+</div>
+</div>;
+})()}
+<div className="stat-grid" style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:12,marginBottom:28}}>
 <StatCard label="Progression moyenne" value={`${avgProgress}%`} color="dja" icon="◈"/>
 <StatCard label="Objectifs terminés" value={`${totalDone}/${totalObj.length}`} color="liika" icon="✓"/>
 <StatCard label="Actions faites" value={`${actionsDone}/${totalActions.length}`} color="couple" icon="▸"/>
@@ -518,23 +2034,23 @@ return <div>
 </div>
 
 {/* Vision rapide */}
-<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:12,marginBottom:28}}>
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(280px,100%),1fr))',gap:12,marginBottom:28}}>
 {['dja','liika','couple'].map(w=>{
 const v=w==='couple'?data.couple.vision:data[w].vision;
 const name=w==='dja'?data.dja.name:w==='liika'?data.liika.name:'Couple';
-return v?<div key={w} onClick={()=>setView('vision')} style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:16,border:`1px solid ${accentBorder[w]}`,cursor:'pointer',transition:'opacity .15s'}}>
-<div style={{fontSize:11,color:accent[w],letterSpacing:'.08em',textTransform:'uppercase',marginBottom:6}}>✦ Vision {name}</div>
-<p style={{fontSize:13,color:'var(--text2)',lineHeight:1.6,fontStyle:'italic',overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}}>{v}</p>
+return v?<div key={w} onClick={()=>setView('vision')} style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:'var(--radius)',padding:18,border:`1px solid ${accentBorder[w]}`,cursor:'pointer',transition:'all .2s',boxShadow:'var(--shadow)'}}>
+<div style={{fontSize:9,color:accent[w],letterSpacing:'.15em',textTransform:'uppercase',marginBottom:8,fontFamily:"'Space Mono',monospace"}}>✦ Vision {name}</div>
+<p style={{fontSize:13,color:'var(--text2)',lineHeight:1.65,fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic',fontSize:15,overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}}>{v}</p>
 </div>:null;})}
 </div>
 
-<h3 style={{fontSize:16,fontWeight:500,marginBottom:16,color:'var(--text2)'}}>Côte à côte</h3>
-<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:16,marginBottom:28}}>
+<h3 className="eyebrow" style={{marginBottom:16}}>◈ Côte à côte</h3>
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(280px,100%),1fr))',gap:16,marginBottom:28}}>
 {['dja','liika'].map(who=>{
 const p=data[who];
 const avg=p.objectives.length?Math.round(p.objectives.reduce((s,o)=>s+o.progress,0)/p.objectives.length):0;
 const av=accent[who];
-return <div key={who} style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:20,border:`1px solid ${accentBorder[who]}`}}>
+return <div key={who} style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:'var(--radius)',padding:20,border:`1px solid ${accentBorder[who]}`,boxShadow:'var(--shadow)'}}>
 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
 <div>
 <div style={{fontSize:16,fontWeight:600}}>{p.name}</div>
@@ -564,6 +2080,7 @@ return <div key={who} style={{background:'var(--bg2)',borderRadius:'var(--radius
 </div>)}
 <button onClick={()=>setView('couple')} style={{marginTop:12,width:'100%',padding:'8px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'transparent',color:'var(--text2)',cursor:'pointer',fontSize:13}}>Voir tout →</button>
 </div>
+<<<<<<< HEAD
 </div>
 };
 
@@ -922,82 +2439,269 @@ return <div>
   <div style={{marginTop:28,padding:'16px 20px',background:'var(--bg2)',borderRadius:'var(--radius)',border:'1px solid var(--border)',textAlign:'center'}}>
     <p style={{fontSize:13,color:'var(--text3)',fontStyle:'italic',lineHeight:1.6}}>DrevmCook : nourrir le corps, calmer le système, réveiller la créativité. 🌴</p>
   </div>
+=======
+>>>>>>> 9012e62c3d0f3ba48031d79836bb9224d171253f
 </div>
 };
 
 const renderCharts=()=>{
 return <div>
-<h2 style={{fontSize:22,fontWeight:600,fontFamily:"'Playfair Display',serif",marginBottom:4}}>Statistiques</h2>
-<p style={{fontSize:14,color:'var(--text3)',marginBottom:24}}>Progression par categorie et par personne</p>
-<div style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:20,marginBottom:20,border:'1px solid var(--border)'}}>
-<h3 style={{fontSize:15,fontWeight:500,marginBottom:16}}>Progression moyenne par categorie</h3>
+<p className="eyebrow" style={{marginBottom:8}}>▤ Données</p>
+<h2 style={{fontSize:26,fontWeight:600,fontFamily:"'Cormorant Garamond',serif",marginBottom:4,color:'var(--text)'}}>Statistiques</h2>
+<p style={{fontSize:13,color:'var(--text3)',marginBottom:24}}>Progression par catégorie et par personne</p>
+<div style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:'var(--radius)',padding:20,marginBottom:20,border:'1px solid var(--border)',boxShadow:'var(--shadow)'}}>
+<p className="eyebrow" style={{marginBottom:14}}>Progression par catégorie</p>
 <ChartPanel data={data}/>
 </div>
 <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(250px,1fr))',gap:16}}>
 {['dja','liika','couple'].map(who=>{
 const label=who==='dja'?'Dja':who==='liika'?'Liika':'Couple';
-const col=who==='dja'?'var(--accent-dja)':who==='liika'?'var(--accent-liika)':'var(--accent-couple)';
-return <div key={who} style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:20,border:'1px solid var(--border)'}}>
-<h3 style={{fontSize:15,fontWeight:500,marginBottom:16}}>{label}</h3>
+return <div key={who} style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:'var(--radius)',padding:20,border:`1px solid ${accentBorder[who]}`,boxShadow:'var(--shadow)'}}>
+<p className="eyebrow" style={{marginBottom:14,color:accent[who]}}>{label}</p>
 <DoughnutPanel data={data} who={who}/>
-<div style={{display:'flex',justifyContent:'center',gap:16,marginTop:12,fontSize:12,color:'var(--text3)'}}>
-<span style={{display:'flex',alignItems:'center',gap:4}}><span style={{width:8,height:8,borderRadius:2,background:'#34d399',display:'inline-block'}}/> Fait</span>
-<span style={{display:'flex',alignItems:'center',gap:4}}><span style={{width:8,height:8,borderRadius:2,background:'#8b5cf6',display:'inline-block'}}/> En cours</span>
-<span style={{display:'flex',alignItems:'center',gap:4}}><span style={{width:8,height:8,borderRadius:2,background:'#2a2a3a',display:'inline-block'}}/> A faire</span>
+<div style={{display:'flex',justifyContent:'center',gap:16,marginTop:12,fontSize:10,color:'var(--text3)',fontFamily:"'Space Mono',monospace"}}>
+<span style={{display:'flex',alignItems:'center',gap:4}}><span style={{width:7,height:7,borderRadius:2,background:'var(--success)',display:'inline-block'}}/> Fait</span>
+<span style={{display:'flex',alignItems:'center',gap:4}}><span style={{width:7,height:7,borderRadius:2,background:'var(--accent-dja)',display:'inline-block'}}/> En cours</span>
+<span style={{display:'flex',alignItems:'center',gap:4}}><span style={{width:7,height:7,borderRadius:2,background:'var(--bg4)',display:'inline-block'}}/> À faire</span>
 </div>
 </div>})}
 </div>
 </div>
 };
 
-return <div style={{display:'flex',minHeight:'100vh'}}>
-{/* Sidebar */}
-<nav style={{width:220,minWidth:220,background:'var(--bg2)',borderRight:'1px solid var(--border)',padding:'24px 0',display:'flex',flexDirection:'column',position:'sticky',top:0,height:'100vh'}}>
-<div style={{padding:'0 20px',marginBottom:32}}>
-<div style={{fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:600,letterSpacing:'-0.02em'}}>
-<span style={{color:'var(--accent-dja)'}}>Lanmou</span> <span style={{color:'var(--accent-liika)'}}>Douvan</span>
+// ─── Route Liika ───
+const renderRoute=()=>{
+const alertesActives=ALERTES_FATIGUE.filter(a=>routeKm>=a.km);
+const prochaine=ALERTES_FATIGUE.find(a=>routeKm<a.km);
+const pctRoute=Math.min(100,Math.round(routeKm/600*100));
+const checkDone=Object.values(routeChecklist).filter(Boolean).length;
+return <div>
+<div style={{background:'linear-gradient(135deg,rgba(244,114,182,.08),rgba(167,139,250,.06))',borderRadius:'var(--radius)',padding:'22px 24px',marginBottom:20,border:'1px solid var(--accent-liika-border)',position:'relative',overflow:'hidden'}}>
+<div style={{position:'absolute',top:-40,right:-40,width:160,height:160,background:'radial-gradient(circle,rgba(244,114,182,.08),transparent 70%)',borderRadius:'50%',pointerEvents:'none'}}/>
+<p className="eyebrow" style={{marginBottom:8,color:'var(--accent-liika)'}}>🚛 Sécurité & Bien-être</p>
+<h2 style={{fontSize:26,fontFamily:"'Cormorant Garamond',serif",fontWeight:600,color:'var(--text)',marginBottom:4,lineHeight:1.2}}>Mode Route — Liika</h2>
+<p style={{fontSize:13,color:'var(--text3)',fontStyle:'italic',fontFamily:"'Cormorant Garamond',serif"}}>Pauses intelligentes, alertes fatigue, checklist départ ♡</p>
 </div>
-<div style={{fontSize:11,color:'var(--text3)',marginTop:4,letterSpacing:'.05em',textTransform:'uppercase'}}>Mix Vibz</div>
+
+{/* Compteur km */}
+<div style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:'var(--radius)',padding:'20px 22px',marginBottom:16,border:`1px solid ${pctRoute>=92?'var(--danger-border)':pctRoute>=67?'var(--warn-border)':'var(--accent-liika-border)'}`,boxShadow:'var(--shadow)'}}>
+<p style={{fontSize:11,color:'var(--text3)',marginBottom:10,fontFamily:"'Space Mono',monospace",letterSpacing:'.1em'}}>KILOMÈTRES PARCOURUS AUJOURD'HUI</p>
+<div style={{display:'flex',alignItems:'center',gap:16,marginBottom:14,flexWrap:'wrap'}}>
+<span style={{fontSize:40,fontWeight:700,color:pctRoute>=92?'var(--danger)':pctRoute>=67?'var(--warn)':'var(--accent-liika)',fontFamily:"'Space Mono',monospace",lineHeight:1}}>{routeKm} km</span>
+<div style={{display:'flex',flexDirection:'column',gap:6}}>
+<button onClick={()=>setRouteKm(k=>k+50)} style={{padding:'6px 14px',borderRadius:'var(--radius-xs)',background:'var(--accent-liika-bg)',color:'var(--accent-liika)',border:'1px solid var(--accent-liika-border)',cursor:'pointer',fontSize:13,fontWeight:600}}>+50 km</button>
+<button onClick={()=>setRouteKm(k=>Math.max(0,k-50))} style={{padding:'6px 14px',borderRadius:'var(--radius-xs)',background:'var(--bg4)',color:'var(--text3)',border:'1px solid var(--border)',cursor:'pointer',fontSize:12}}>-50 km</button>
 </div>
+<button onClick={()=>{setRouteKm(0);setRouteChecklist({});}} style={{marginLeft:'auto',padding:'8px 14px',borderRadius:'var(--radius-sm)',background:'transparent',color:'var(--text3)',border:'1px solid var(--border)',cursor:'pointer',fontSize:11,fontFamily:"'Space Mono',monospace"}}>Reset journée</button>
+</div>
+<div style={{height:8,background:'var(--bg4)',borderRadius:4,overflow:'hidden',marginBottom:6}}>
+<div style={{height:'100%',width:`${pctRoute}%`,background:pctRoute>=92?'linear-gradient(90deg,var(--warn),var(--danger))':pctRoute>=67?'linear-gradient(90deg,var(--gold),var(--warn))':'linear-gradient(90deg,var(--accent-liika),var(--accent-liika2))',borderRadius:4,transition:'width .4s ease,background .4s ease'}}/>
+</div>
+<div style={{display:'flex',justifyContent:'space-between',fontSize:10,color:'var(--text3)',fontFamily:"'Space Mono',monospace"}}>
+<span>0 km</span><span>Limite : 600 km/jour</span>
+</div>
+{prochaine&&<div style={{marginTop:12,display:'flex',alignItems:'center',gap:10,padding:'9px 12px',background:'var(--bg4)',borderRadius:'var(--radius-sm)',border:'1px solid var(--border)'}}>
+<span style={{fontSize:14}}>🕐</span>
+<div style={{flex:1}}><span style={{fontSize:11,color:'var(--text3)'}}>Prochaine alerte : </span><span style={{fontSize:13,fontWeight:600,color:'var(--text)'}}>{prochaine.label}</span></div>
+<span style={{fontSize:11,color:'var(--success)',fontFamily:"'Space Mono',monospace",fontWeight:700}}>dans {prochaine.km-routeKm} km</span>
+</div>}
+</div>
+
+{/* Alertes actives */}
+{alertesActives.length>0&&<div style={{marginBottom:20}}>
+<p className="eyebrow" style={{marginBottom:10}}>⚠ Alertes en cours</p>
+{alertesActives.map((a,i)=><div key={i} style={{background:a.type==='stop'?'var(--danger-bg)':a.urgent?'var(--warn-bg)':'var(--bg3)',border:`1px solid ${a.type==='stop'?'var(--danger-border)':a.urgent?'var(--warn-border)':'var(--border)'}`,borderRadius:'var(--radius)',padding:'14px 18px',marginBottom:10,animation:'alertPop .4s ease both'}}>
+<div style={{display:'flex',alignItems:'center',gap:10,marginBottom:6}}>
+<span style={{fontSize:20}}>{a.type==='stop'?'🛑':a.urgent?'⚠️':'⏸️'}</span>
+<span style={{fontSize:15,fontWeight:600,color:a.type==='stop'?'var(--danger)':a.urgent?'var(--warn)':'var(--text)',flex:1}}>{a.label}</span>
+{a.urgent&&<span style={{fontSize:9,fontFamily:"'Space Mono',monospace",background:a.type==='stop'?'var(--danger-bg)':'var(--warn-bg)',color:a.type==='stop'?'var(--danger)':'var(--warn)',padding:'2px 8px',borderRadius:8,border:`1px solid ${a.type==='stop'?'var(--danger-border)':'var(--warn-border)'}`,animation:'blink 1.5s infinite'}}>ACTIF</span>}
+</div>
+<p style={{fontSize:12,color:'var(--text2)',lineHeight:1.65}}>{a.detail}</p>
+</div>)}
+</div>}
+
+{/* Étirements */}
+<div style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:'var(--radius)',padding:'18px 20px',marginBottom:16,border:'1px solid var(--border)',boxShadow:'var(--shadow)'}}>
+<p className="eyebrow" style={{marginBottom:4,color:'var(--success)'}}>🧘 Routine pause — 10 min</p>
+<p style={{fontSize:12,color:'var(--text3)',marginBottom:14,fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic'}}>Protège ton corps sur la longue distance</p>
+<div style={{display:'grid',gap:8}}>
+{ETIREMENTS_PAUSE.map((e,i)=><div key={i} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'var(--bg4)',borderRadius:'var(--radius-sm)',border:'1px solid var(--border)'}}>
+<span style={{fontSize:16,minWidth:22}}>💪</span>
 <div style={{flex:1}}>
-{navItems.map(n=><button key={n.id} onClick={()=>setView(n.id)}
-style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 20px',border:'none',background:view===n.id?'var(--bg3)':'transparent',color:view===n.id?'var(--text)':'var(--text3)',fontSize:14,fontWeight:view===n.id?500:400,cursor:'pointer',borderLeft:view===n.id?'2px solid var(--accent-dja)':'2px solid transparent',transition:'all .15s'}}>
-<span style={{fontSize:16,width:20,textAlign:'center'}}>{n.icon}</span>{n.label}
+<div style={{fontSize:13,fontWeight:500,color:'var(--text)'}}>{e.nom}</div>
+<div style={{fontSize:11,color:'var(--text3)'}}>{e.detail}</div>
+</div>
+<span style={{fontSize:10,fontFamily:"'Space Mono',monospace",color:'var(--accent-liika)',background:'var(--accent-liika-bg)',padding:'3px 10px',borderRadius:10,flexShrink:0}}>{e.duree}</span>
+</div>)}
+</div>
+</div>
+
+{/* Checklist départ */}
+<div style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:'var(--radius)',padding:'18px 20px',border:'1px solid var(--border)',boxShadow:'var(--shadow)'}}>
+<p className="eyebrow" style={{marginBottom:4,color:'var(--gold)'}}>✅ Checklist départ</p>
+<p style={{fontSize:12,color:'var(--text3)',marginBottom:14,fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic'}}>À cocher avant chaque prise de route</p>
+<div style={{display:'grid',gap:8,marginBottom:14}}>
+{CHECKLIST_DEPART.map(item=><div key={item.id} onClick={()=>setRouteChecklist(p=>({...p,[item.id]:!p[item.id]}))} style={{display:'flex',alignItems:'center',gap:12,padding:'11px 14px',background:routeChecklist[item.id]?'rgba(74,222,128,.05)':'var(--bg4)',borderRadius:'var(--radius-sm)',border:`1px solid ${routeChecklist[item.id]?'rgba(74,222,128,.25)':'var(--border)'}`,cursor:'pointer',transition:'all .2s',opacity:routeChecklist[item.id]?.7:1}}>
+<div style={{width:20,height:20,borderRadius:6,border:routeChecklist[item.id]?'none':'2px solid var(--border2)',background:routeChecklist[item.id]?'var(--success)':'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,transition:'all .2s'}}>
+{routeChecklist[item.id]&&<span style={{color:'var(--bg)',fontSize:12,fontWeight:700}}>✓</span>}
+</div>
+<span style={{fontSize:13,textDecoration:routeChecklist[item.id]?'line-through':'none',color:routeChecklist[item.id]?'var(--text3)':'var(--text)',transition:'all .2s'}}>{item.text}</span>
+</div>)}
+</div>
+<div style={{height:5,background:'var(--bg4)',borderRadius:4,overflow:'hidden',marginBottom:6}}>
+<div style={{height:'100%',width:`${checkDone/CHECKLIST_DEPART.length*100}%`,background:'linear-gradient(90deg,var(--gold),var(--gold2))',borderRadius:4,transition:'width .4s'}}/>
+</div>
+<div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'var(--text3)',fontFamily:"'Space Mono',monospace"}}>
+<span>{checkDone}/{CHECKLIST_DEPART.length} cochés</span>
+{checkDone===CHECKLIST_DEPART.length&&<span style={{color:'var(--success)',fontWeight:700}}>Prête à partir 🚛</span>}
+</div>
+</div>
+</div>;
+};
+
+// ─── Objectifs mensuels ───
+const renderObjMensuel=()=>{
+const annee=new Date().getFullYear();
+const currentMonth=new Date().getMonth();
+const objDuMois=(data.couple.objMensuels||[]).filter(o=>o.mois===objMoisFilter&&o.annee===annee);
+const STATUTS={en_cours:{label:'En cours',color:'var(--gold)'},termine:{label:'Terminé ✓',color:'var(--success)'},reporte:{label:'Reporté',color:'var(--text3)'}};
+return <div>
+<div style={{background:'linear-gradient(135deg,rgba(217,183,95,.09),rgba(74,222,128,.05))',borderRadius:'var(--radius)',padding:'22px 24px',marginBottom:20,border:'1px solid var(--gold-border)',position:'relative',overflow:'hidden'}}>
+<div style={{position:'absolute',top:-40,right:-40,width:160,height:160,background:'radial-gradient(circle,rgba(217,183,95,.08),transparent 70%)',borderRadius:'50%',pointerEvents:'none'}}/>
+<p className="eyebrow" style={{marginBottom:8}}>🎯 Vision mensuelle</p>
+<h2 style={{fontSize:26,fontFamily:"'Cormorant Garamond',serif",fontWeight:600,color:'var(--text)',marginBottom:4,lineHeight:1.2}}>Objectifs du mois</h2>
+<p style={{fontSize:13,color:'var(--text3)',fontStyle:'italic',fontFamily:"'Cormorant Garamond',serif"}}>Ce qu'on construit ensemble, mois après mois ♡</p>
+</div>
+
+{/* Sélecteur mois */}
+<div className="scroll-x" style={{display:'flex',gap:6,marginBottom:20,paddingBottom:4}}>
+{MOIS_LABELS.map((m,i)=><button key={i} onClick={()=>setObjMoisFilter(i)} style={{flexShrink:0,padding:'6px 12px',borderRadius:20,border:`1px solid ${objMoisFilter===i?'var(--gold)':'var(--border)'}`,background:objMoisFilter===i?'var(--gold-bg)':'transparent',color:objMoisFilter===i?'var(--gold)':'var(--text3)',fontSize:11,fontWeight:objMoisFilter===i?700:400,cursor:'pointer',fontFamily:"'Space Mono',monospace",whiteSpace:'nowrap',transition:'all .2s'}}>
+{m}{i===currentMonth?<span style={{marginLeft:3,fontSize:8,opacity:.7}}>●</span>:null}
 </button>)}
 </div>
-<div style={{padding:'0 20px',display:'flex',flexDirection:'column',gap:8}}>
-{/* Supabase sync status */}
-<div style={{display:'flex',alignItems:'center',gap:6,padding:'7px 10px',borderRadius:'var(--radius-sm)',border:'1px solid var(--accent-dja-border)',background:'var(--accent-dja-bg)'}}>
-<span style={{fontSize:13}}>🗄</span>
-<span style={{fontSize:12,color:'var(--accent-dja2)',flex:1}}>Supabase</span>
-<span style={{fontSize:10,fontWeight:500,color:syncStatus==='ok'?'var(--success)':syncStatus==='error'?'#f87171':syncStatus==='syncing'?'var(--accent-couple)':'var(--text3)'}}>
-{syncStatus==='ok'?'✓ sync':syncStatus==='error'?'✗ erreur':syncStatus==='syncing'?'sync…':'prêt'}
+
+{/* Stats */}
+{objDuMois.length>0&&<div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:20}}>
+{[{l:'Total',v:objDuMois.length,c:'var(--text2)'},{l:'Terminés',v:objDuMois.filter(o=>o.statut==='termine').length,c:'var(--success)'},{l:'En cours',v:objDuMois.filter(o=>o.statut==='en_cours').length,c:'var(--gold)'}].map((s,i)=><div key={i} style={{background:'var(--bg3)',borderRadius:'var(--radius-sm)',padding:'12px 14px',border:'1px solid var(--border)',textAlign:'center'}}>
+<div style={{fontSize:22,fontWeight:700,color:s.c,fontFamily:"'Space Mono',monospace"}}>{s.v}</div>
+<div style={{fontSize:10,color:'var(--text3)',fontFamily:"'Space Mono',monospace",marginTop:2}}>{s.l}</div>
+</div>)}
+</div>}
+
+{/* Liste des objectifs */}
+<div style={{display:'grid',gap:12,marginBottom:16}}>
+{objDuMois.length===0&&<div style={{textAlign:'center',padding:'32px 20px',color:'var(--text3)',fontSize:15,fontFamily:"'Cormorant Garamond',serif",fontStyle:'italic'}}>
+Aucun objectif pour {MOIS_LABELS[objMoisFilter]}.<br/>
+<span style={{fontSize:12}}>Ajoutez le premier objectif de ce mois ↓</span>
+</div>}
+{objDuMois.map((obj,i)=>{
+const st=STATUTS[obj.statut]||STATUTS.en_cours;
+return <div key={obj.id} style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',borderRadius:'var(--radius)',padding:'16px 18px',border:`1px solid ${obj.statut==='termine'?'rgba(74,222,128,.25)':'var(--border)'}`,borderLeft:`3px solid ${st.color}`,boxShadow:'var(--shadow)',animation:`fadeUp .3s ease ${i*.06}s both`}}>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:10,marginBottom:10}}>
+<div style={{flex:1}}>
+<div style={{display:'flex',gap:7,marginBottom:6,flexWrap:'wrap'}}>
+<span style={{fontSize:9,fontFamily:"'Space Mono',monospace",color:'var(--gold)',background:'var(--gold-bg)',padding:'2px 8px',borderRadius:8,border:'1px solid var(--gold-border)'}}>{obj.categorie}</span>
+<span style={{fontSize:9,fontFamily:"'Space Mono',monospace",color:st.color,background:st.color+'18',padding:'2px 8px',borderRadius:8}}>{st.label}</span>
+</div>
+<div style={{fontSize:15,fontWeight:600,color:'var(--text)',marginBottom:obj.detail?3:0}}>{obj.titre}</div>
+{obj.detail&&<div style={{fontSize:12,color:'var(--text3)',fontStyle:'italic'}}>{obj.detail}</div>}
+</div>
+<button onClick={()=>deleteObjMensuel(obj.id)} style={{background:'none',border:'none',color:'var(--text3)',cursor:'pointer',fontSize:16,padding:'2px 4px',flexShrink:0}}>×</button>
+</div>
+<div style={{display:'flex',alignItems:'center',gap:10}}>
+<input type="range" min="0" max="100" step="10" value={obj.progress} onChange={e=>{const v=parseInt(e.target.value);updateObjMensuel(obj.id,{progress:v,statut:v>=100?'termine':'en_cours'});}} style={{flex:1,height:4,accentColor:st.color,cursor:'pointer'}}/>
+<span style={{fontSize:12,fontWeight:700,color:obj.statut==='termine'?'var(--success)':'var(--gold)',fontFamily:"'Space Mono',monospace",minWidth:34}}>{obj.progress}%</span>
+<button onClick={()=>updateObjMensuel(obj.id,{statut:obj.statut==='termine'?'en_cours':'termine',progress:obj.statut==='termine'?obj.progress:100})} style={{fontSize:10,fontFamily:"'Space Mono',monospace",background:'var(--bg4)',border:'1px solid var(--border2)',borderRadius:'var(--radius-xs)',padding:'4px 10px',cursor:'pointer',color:'var(--text2)',whiteSpace:'nowrap'}}>
+{obj.statut==='termine'?'Réactiver':'Marquer fait'}
+</button>
+</div>
+</div>;})}
+</div>
+
+{/* Formulaire ajout */}
+{showAddObjM?<div style={{background:'var(--bg3)',borderRadius:'var(--radius)',padding:18,border:'1px solid var(--gold-border)'}}>
+<p className="eyebrow" style={{marginBottom:12,color:'var(--gold)'}}>+ Objectif — {MOIS_LABELS[objMoisFilter]}</p>
+<input placeholder="Titre de l'objectif" value={newObjM.titre} onChange={e=>setNewObjM(p=>({...p,titre:e.target.value}))} style={{width:'100%',padding:'9px 12px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'var(--bg2)',color:'var(--text)',fontSize:13,marginBottom:8,outline:'none'}}/>
+<input placeholder="Détails (optionnel)" value={newObjM.detail} onChange={e=>setNewObjM(p=>({...p,detail:e.target.value}))} style={{width:'100%',padding:'9px 12px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'var(--bg2)',color:'var(--text)',fontSize:13,marginBottom:12,outline:'none'}}/>
+<div className="scroll-x" style={{display:'flex',gap:6,marginBottom:14,paddingBottom:4}}>
+{CATS_OBJ_MENSUEL.map(c=><button key={c} onClick={()=>setNewObjM(p=>({...p,categorie:c}))} style={{flexShrink:0,padding:'5px 12px',borderRadius:20,border:`1px solid ${newObjM.categorie===c?'var(--gold)':'var(--border)'}`,background:newObjM.categorie===c?'var(--gold-bg)':'transparent',color:newObjM.categorie===c?'var(--gold)':'var(--text3)',fontSize:11,cursor:'pointer',fontFamily:"'Space Mono',monospace"}}>{c}</button>)}
+</div>
+<div style={{display:'flex',gap:8}}>
+<button onClick={()=>{setShowAddObjM(false);setNewObjM({titre:'',detail:'',categorie:'Nature'});}} style={{flex:1,padding:'9px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border)',background:'transparent',color:'var(--text3)',cursor:'pointer',fontSize:13}}>Annuler</button>
+<button onClick={()=>{if(!newObjM.titre.trim())return;addObjMensuel(newObjM.titre,newObjM.detail,newObjM.categorie,objMoisFilter);setNewObjM({titre:'',detail:'',categorie:'Nature'});setShowAddObjM(false);}} style={{flex:2,padding:'9px',borderRadius:'var(--radius-sm)',border:'none',background:'linear-gradient(135deg,var(--gold),var(--gold2))',color:'#06120d',cursor:'pointer',fontSize:13,fontWeight:700}}>Ajouter</button>
+</div>
+</div>:<button onClick={()=>setShowAddObjM(true)} style={{width:'100%',padding:'12px',borderRadius:'var(--radius-sm)',border:'1px dashed var(--gold-border)',background:'transparent',color:'var(--gold)',cursor:'pointer',fontSize:13,fontFamily:"'Space Mono',monospace",letterSpacing:'.04em'}}>+ Ajouter un objectif pour {MOIS_LABELS[objMoisFilter]}</button>}
+</div>;
+};
+
+return <div className="app-layout">
+{/* Sidebar */}
+<nav className="app-sidebar" style={{background:'var(--glass)',backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)',borderRight:'1px solid var(--gold-border)',padding:'28px 0',display:'flex',flexDirection:'column',position:'sticky',top:0,height:'100vh'}}>
+<div style={{padding:'0 20px',marginBottom:28}}>
+<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,letterSpacing:'.01em',lineHeight:1.15}}>
+<span style={{color:'var(--gold)'}}>Lanmou</span> <span style={{color:'var(--text)'}}>Douvan</span>
+</div>
+<div style={{marginTop:8,height:1,background:'linear-gradient(90deg,var(--gold-border),transparent)'}}/>
+<div className="eyebrow" style={{marginTop:8,opacity:.65}}>Mix Vibz · Guadeloupe</div>
+</div>
+<div style={{flex:1,overflowY:'auto'}}>
+{navItems.map(n=>{
+const active=view===n.id;
+return <button key={n.id} onClick={()=>setView(n.id)} style={{
+  display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 20px',
+  border:'none',borderLeft:active?'2px solid var(--gold)':'2px solid transparent',
+  background:active?'rgba(217,183,95,.08)':'transparent',
+  color:active?'var(--gold)':'var(--text3)',
+  fontSize:13,fontWeight:active?500:400,cursor:'pointer',transition:'all .15s',
+}}>
+<span style={{fontSize:15,width:20,textAlign:'center',opacity:active?1:.7}}>{n.icon}</span>
+<span>{n.label}</span>
+</button>;
+})}
+</div>
+<div style={{padding:'0 16px',display:'flex',flexDirection:'column',gap:8}}>
+<div style={{display:'flex',alignItems:'center',gap:6,padding:'7px 10px',borderRadius:'var(--radius-sm)',border:'1px solid var(--gold-border)',background:'var(--gold-bg)'}}>
+<span style={{fontSize:12}}>🗄</span>
+<span style={{fontSize:11,color:'var(--gold)',flex:1,letterSpacing:'.03em'}}>Supabase</span>
+<span style={{fontSize:9,fontWeight:600,fontFamily:"'Space Mono',monospace",color:syncStatus==='ok'?'var(--success)':syncStatus==='error'?'#f87171':syncStatus==='syncing'?'var(--gold)':'var(--text3)'}}>
+{syncStatus==='ok'?'✓ sync':syncStatus==='error'?'✗ err':syncStatus==='syncing'?'sync…':'idle'}
 </span>
+{onlineCount>0&&<span title={`${onlineCount} appareil(s) connecté(s)`} style={{display:'flex',alignItems:'center',gap:2,fontSize:9,fontFamily:"'Space Mono',monospace",color:'var(--success)',background:'var(--success-bg)',padding:'1px 6px',borderRadius:8,marginLeft:2}}>
+<span style={{width:5,height:5,borderRadius:'50%',background:'var(--success)',display:'inline-block',animation:'pulse 2s infinite'}}/>
+{onlineCount}
+</span>}
 </div>
 <button onClick={()=>{if(confirm('Réinitialiser toutes les données ?')){localStorage.removeItem('dja-liika-goals');setData(defaultData)}}}
-style={{width:'100%',padding:'8px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'transparent',color:'var(--text3)',cursor:'pointer',fontSize:12}}>Réinitialiser</button>
+style={{width:'100%',padding:'7px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border)',background:'transparent',color:'var(--text3)',cursor:'pointer',fontSize:11,letterSpacing:'.03em'}}>Réinitialiser</button>
 </div>
 </nav>
 
-{/* Mobile nav */}
-<div className="mobile-nav" style={{display:'none',position:'fixed',bottom:0,left:0,right:0,background:'var(--bg2)',borderTop:'1px solid var(--border)',padding:'8px 0',zIndex:50}}>
-<div style={{display:'flex',justifyContent:'space-around'}}>
-{navItems.map(n=><button key={n.id} onClick={()=>setView(n.id)}
-style={{display:'flex',flexDirection:'column',alignItems:'center',gap:2,border:'none',background:'transparent',color:view===n.id?'var(--accent-dja)':'var(--text3)',cursor:'pointer',padding:'4px 8px',fontSize:10}}>
-<span style={{fontSize:18}}>{n.icon}</span>{n.label}
+{/* Mobile / Tablet nav */}
+<div className="mobile-nav">
+<div className="mobile-nav-inner">
+{navItems.map(n=><button key={n.id} onClick={()=>setView(n.id)} className={`mnav-btn${view===n.id?' active':''}`}>
+<span className="mnav-icon">{n.icon}</span>
+<span className="mnav-label">{n.label}</span>
 </button>)}
 </div>
 </div>
 
 {/* Main */}
-<main style={{flex:1,padding:'32px 40px',maxWidth:900,minWidth:0}}>
+<main className="app-main">
 {view==='dashboard'&&renderDashboard()}
 {view==='dja'&&renderPerson('dja')}
 {view==='liika'&&renderPerson('liika')}
 {view==='couple'&&renderCouple()}
-{view==='repas'&&renderRepas()}
-{view==='budget'&&renderBudget()}
-{view==='vision'&&renderVision()}
+{view==='maison'&&<MaisonView maison={(data.couple||{}).maison} toggleMaisonTask={toggleMaisonTask} addMaisonTask={addMaisonTask} deleteMaisonTask={deleteMaisonTask} resetMaisonChecked={resetMaisonChecked}/>}
+{view==='repas'&&<MealsView data={data} upsertMeal={upsertMeal} deleteMeal={deleteMeal}/>}
+{view==='sport'&&<SportView data={data} upsertSport={upsertSport} deleteSport={deleteSport}/>}
+{view==='budget'&&<BudgetView data={data} upsertBudgetLine={upsertBudgetLine} deleteBudgetLine={deleteBudgetLine}/>}
+{view==='vision'&&<VisionView data={data} updateVision={updateVision}/>}
+{view==='planning'&&<PlanningView planning={(data.couple||{}).planning||{}} togglePlanningCheck={togglePlanningCheck} addPlanningCustomItem={addPlanningCustomItem} deletePlanningCustomItem={deletePlanningCustomItem}/>}
+{view==='drevmcook'&&<DrevmCookView recipes={data.recipes||[]} upsertRecipe={upsertRecipe} deleteRecipe={deleteRecipe}/>}
+{view==='culture'&&<CultureGwadView/>}
+{view==='route'&&renderRoute()}
+{view==='objmensuel'&&renderObjMensuel()}
 {view==='charts'&&renderCharts()}
 {view==='cuisine'&&renderCuisine()}
 </main>
