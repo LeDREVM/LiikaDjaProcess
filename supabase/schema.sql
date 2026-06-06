@@ -48,6 +48,26 @@ CREATE POLICY "allow_all"
 
 
 -- ================================================================
+-- SYNCHRONISATION TEMPS RÉEL
+-- Ajoute la table à la publication Realtime de Supabase.
+-- C'est ce qui permet aux modifs d'un appareil d'apparaître en direct
+-- sur l'autre (abonnement postgres_changes dans index.html).
+-- ================================================================
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime'
+      AND schemaname = 'public'
+      AND tablename = 'app_state'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE app_state;
+  END IF;
+END $$;
+
+
+-- ================================================================
 -- LIGNE INITIALE
 -- Créée uniquement si elle n'existe pas déjà.
 -- ================================================================
@@ -127,3 +147,8 @@ WHERE id = 'main';
 SELECT policyname, cmd, qual
 FROM pg_policies
 WHERE tablename = 'app_state';
+
+-- Confirmer que la table est bien en temps réel
+SELECT tablename
+FROM pg_publication_tables
+WHERE pubname = 'supabase_realtime' AND tablename = 'app_state';
