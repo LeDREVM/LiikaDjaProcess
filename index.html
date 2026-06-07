@@ -4997,16 +4997,82 @@ function PlanningView({
 }
 
 // ─── DrevmCook View ───
+// ─── CSV recettes (export / import) ───
+// Colonnes : id, nom, categorie, tags, ingredients, preparation, apports, budget
+// tags séparés par ";"  ·  ingredients séparés par " | "
+const RECIPE_CSV_COLS = ['id', 'nom', 'categorie', 'tags', 'ingredients', 'preparation', 'apports', 'budget'];
+function csvCell(v) { const s = String(v == null ? '' : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+function recipesToCsv(list) {
+  const rows = (list || []).map(r => [r.id, r.nom, r.categorie, (r.tags || []).join('; '), (r.ingredients || []).join(' | '), r.preparation, r.apports, r.budget].map(csvCell).join(','));
+  return [RECIPE_CSV_COLS.join(','), ...rows].join('\r\n');
+}
+function parseCsv(text) {
+  const rows = []; let row = [], cell = '', q = false;
+  text = String(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += c; }
+    else { if (c === '"') q = true; else if (c === ',') { row.push(cell); cell = ''; } else if (c === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; } else cell += c; }
+  }
+  if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+  return rows;
+}
+function csvToRecipes(text) {
+  const rows = parseCsv(text).filter(r => r.some(c => (c || '').trim() !== ''));
+  if (rows.length < 1) return [];
+  const head = rows[0].map(c => c.trim().toLowerCase());
+  const at = (cols, name) => { const i = head.indexOf(name); return i >= 0 ? (cols[i] || '').trim() : ''; };
+  return rows.slice(1).map(cols => {
+    const nom = at(cols, 'nom'); if (!nom) return null;
+    return {
+      id: at(cols, 'id') || ('csv_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7)),
+      nom,
+      categorie: at(cols, 'categorie') || 'Salés',
+      tags: at(cols, 'tags').split(';').map(t => t.trim()).filter(Boolean),
+      ingredients: at(cols, 'ingredients').split(/[|\n]/).map(t => t.trim()).filter(Boolean),
+      preparation: at(cols, 'preparation'),
+      apports: at(cols, 'apports'),
+      budget: at(cols, 'budget')
+    };
+  }).filter(Boolean);
+}
+
 function DrevmCookView({
   ferments,
   upsertFerment,
   deleteFerment,
   recipes,
   upsertRecipe,
-  deleteRecipe
+  deleteRecipe,
+  importRecipes
 }) {
   const h = React.createElement;
   const allRecipes = [...DEFAULT_RECIPES, ...(recipes || []).filter(r => !DEFAULT_RECIPES.some(dr => dr.id === r.id))];
+  const exportCsv = () => {
+    const blob = new Blob(['﻿' + recipesToCsv(recipes || [])], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'recettes-drevmcook.csv'; a.click();
+    URL.revokeObjectURL(url);
+  };
+  const onImportClick = () => {
+    const input = document.createElement('input');
+    input.type = 'file'; input.accept = '.csv,text/csv';
+    input.onchange = e => {
+      const f = e.target.files && e.target.files[0]; if (!f) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const list = csvToRecipes(reader.result);
+          if (!list.length) { alert('Aucune recette valide trouvée dans le CSV.\nColonnes attendues : ' + RECIPE_CSV_COLS.join(', ')); return; }
+          importRecipes(list);
+          alert(list.length + ' recette(s) importée(s).');
+        } catch (err) { alert('Erreur de lecture du CSV : ' + err.message); }
+      };
+      reader.readAsText(f);
+    };
+    input.click();
+  };
   const [filterCat, setFilterCat] = useState('Tout');
   const [selected, setSelected] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -5330,7 +5396,17 @@ function DrevmCookView({
       h('button', {
         onClick: () => setShowAdd(v => !v),
         style: { flexShrink: 0, padding: '5px 14px', borderRadius: 20, border: '1px solid var(--border2)', background: 'transparent', color: 'var(--text2)', fontSize: 12, cursor: 'pointer' }
-      }, '+ Recette')
+      }, '+ Recette'),
+      h('button', {
+        onClick: exportCsv,
+        title: 'Exporter tes recettes en CSV',
+        style: { flexShrink: 0, padding: '5px 12px', borderRadius: 20, border: '1px solid var(--border2)', background: 'transparent', color: 'var(--text2)', fontSize: 12, cursor: 'pointer' }
+      }, '⬇ CSV'),
+      h('button', {
+        onClick: onImportClick,
+        title: 'Importer des recettes depuis un CSV',
+        style: { flexShrink: 0, padding: '5px 12px', borderRadius: 20, border: '1px solid var(--border2)', background: 'transparent', color: 'var(--text2)', fontSize: 12, cursor: 'pointer' }
+      }, '⬆ CSV')
     ),
 
     showAdd && h('div', {
@@ -6337,6 +6413,18 @@ const ch=sb.channel('ld-realtime')
     setData(prev => {
       const next = clone(prev);
       next.recipes = (next.recipes || []).filter(r => r.id !== id);
+      return next;
+    });
+  }, []);
+  // Import CSV : fusionne (ajoute / met à jour par id), n'efface jamais
+  const importRecipes = useCallback(list => {
+    setData(prev => {
+      const next = clone(prev);
+      if (!Array.isArray(next.recipes)) next.recipes = [];
+      for (const r of list) {
+        const idx = next.recipes.findIndex(x => x.id === r.id);
+        if (idx >= 0) next.recipes[idx] = r;else next.recipes.push(r);
+      }
       return next;
     });
   }, []);
@@ -8421,7 +8509,8 @@ const ch=sb.channel('ld-realtime')
     deleteFerment: deleteFerment,
     recipes: data.recipes || [],
     upsertRecipe: upsertRecipe,
-    deleteRecipe: deleteRecipe
+    deleteRecipe: deleteRecipe,
+    importRecipes: importRecipes
   }), view === 'culture' && /*#__PURE__*/React.createElement(CultureGwadView, null), view === 'route' && renderRoute(), view === 'objmensuel' && renderObjMensuel(), view === 'charts' && renderCharts()), /*#__PURE__*/React.createElement(AddModal, {
     show: !!modal,
     onClose: () => setModal(null),
