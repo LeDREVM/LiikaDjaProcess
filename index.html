@@ -27,16 +27,17 @@
 --radius:16px;--radius-sm:11px;--radius-xs:8px;
 --nav-h:72px;
 }
-html,body,#root{height:100%;font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
+html,body{height:100%;font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
+#root{height:100%;font-family:'Outfit',sans-serif;background:transparent;color:var(--text);-webkit-font-smoothing:antialiased}
 body{
 overflow-x:hidden;
 background:
-  radial-gradient(ellipse 900px 500px at 85% -5%,rgba(217,183,95,.055),transparent),
-  radial-gradient(ellipse 700px 600px at -8% 95%,rgba(74,222,128,.045),transparent),
-  linear-gradient(rgba(6,18,13,.80),rgba(6,18,13,.80)),
+  radial-gradient(ellipse 900px 500px at 85% -5%,rgba(217,183,95,.075),transparent),
+  radial-gradient(ellipse 700px 600px at -8% 95%,rgba(74,222,128,.06),transparent),
+  linear-gradient(rgba(6,18,13,.18),rgba(6,18,13,.18)),
   url('liika sample.jpeg');
 background-size:auto,auto,auto,cover;
-background-position:0 0,0 0,0 0,center center;
+background-position:0 0,0 0,0 0,center top;
 background-repeat:no-repeat;
 }
 ::-webkit-scrollbar{width:4px}
@@ -219,18 +220,6 @@ async function sbSavePin(accountId, pin) {
       updated_at: new Date().toISOString()
     });
   } catch (_) {}
-}
-async function sbGetPin(accountId){
-  try{
-    const {data,error}=await sb.from('user_accounts').select('pin').eq('id',accountId).single();
-    if(error||!data||!data.pin)return null;
-    return data.pin;
-  }catch(_){return null;}
-}
-async function sbSavePin(accountId,pin){
-  try{
-    await sb.from('user_accounts').upsert({id:accountId,pin,updated_at:new Date().toISOString()});
-  }catch(_){}
 }
 
 // ─── Data ───
@@ -837,31 +826,129 @@ function StatCard({
 }
 
 function ObjectiveCard({obj,color,onToggle,onProgress,onDelete}){
-const av=accent[color];const bv=accentBg[color];const accentVar=av;const bgVar=bv;
-return <div style={{background:'var(--bg3)',borderRadius:'var(--radius)',padding:'16px 20px',borderLeft:`3px solid ${obj.done?'var(--success)':av}`,animation:'fadeUp .4s ease both',opacity:obj.done?0.6:1,transition:'opacity .3s'}}>
-<div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
-<div style={{flex:1}}>
-<div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
-<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:bgVar,color:accentVar,fontWeight:500}}>{obj.cat}</span>
-{obj.done&&<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:'var(--success-bg)',color:'var(--success)',fontWeight:500}}>Fait</span>}
-</div>
-<div style={{fontSize:15,fontWeight:500,marginBottom:4,textDecoration:obj.done?'line-through':'none'}}>{obj.title}</div>
-<div style={{fontSize:13,color:'var(--text3)'}}>{obj.desc}</div>
-</div>
-<div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
-<ProgressRing pct={obj.progress} color={obj.done?'var(--success)':accentVar}/>
-<span style={{fontSize:11,fontWeight:500,color:obj.done?'var(--success)':accentVar}}>{obj.progress}%</span>
-</div>
-</div>
-<div style={{marginTop:12,display:'flex',alignItems:'center',gap:8}}>
-<input type="range" min="0" max="100" step="5" value={obj.progress}
-  onChange={e=>onProgress(obj.id,parseInt(e.target.value))}
-  style={{flex:1,height:4,accentColor:accentVar,cursor:'pointer'}}/>
-<button onClick={()=>onToggle(obj.id)} style={{background:obj.done?'var(--success-bg)':'var(--bg4)',border:'none',borderRadius:'var(--radius-xs)',padding:'6px 12px',fontSize:12,color:obj.done?'var(--success)':'var(--text2)',cursor:'pointer',whiteSpace:'nowrap'}}>
-{obj.done?'Réactiver':'Valider'}</button>
-<button onClick={()=>onDelete(obj.id)} aria-label="Supprimer" style={{background:'none',border:'none',fontSize:14,color:'var(--text3)',cursor:'pointer',padding:'6px'}}>✕</button>
-</div>
-</div>
+  const h = React.createElement;
+  const av = accent[color];
+  const bv = accentBg[color];
+  const accentVar = av;
+  const bgVar = bv;
+  return h('div', {
+    style: {
+      background: 'var(--bg3)',
+      borderRadius: 'var(--radius)',
+      padding: '16px 20px',
+      borderLeft: `3px solid ${obj.done ? 'var(--success)' : av}`,
+      animation: 'fadeUp .4s ease both',
+      opacity: obj.done ? 0.6 : 1,
+      transition: 'opacity .3s'
+    }
+  }, h('div', {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      gap: 12
+    }
+  }, h('div', {
+    style: {
+      flex: 1
+    }
+  }, h('div', {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 8,
+      marginBottom: 6
+    }
+  }, h('span', {
+    style: {
+      fontSize: 11,
+      padding: '2px 8px',
+      borderRadius: 20,
+      background: bgVar,
+      color: accentVar,
+      fontWeight: 500
+    }
+  }, obj.cat), obj.done ? h('span', {
+    style: {
+      fontSize: 11,
+      padding: '2px 8px',
+      borderRadius: 20,
+      background: 'var(--success-bg)',
+      color: 'var(--success)',
+      fontWeight: 500
+    }
+  }, 'Fait') : null), h('div', {
+    style: {
+      fontSize: 15,
+      fontWeight: 500,
+      marginBottom: 4,
+      textDecoration: obj.done ? 'line-through' : 'none'
+    }
+  }, obj.title), h('div', {
+    style: {
+      fontSize: 13,
+      color: 'var(--text3)'
+    }
+  }, obj.desc)), h('div', {
+    style: {
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      gap: 4
+    }
+  }, h(ProgressRing, {
+    pct: obj.progress,
+    color: obj.done ? 'var(--success)' : accentVar
+  }), h('span', {
+    style: {
+      fontSize: 11,
+      fontWeight: 500,
+      color: obj.done ? 'var(--success)' : accentVar
+    }
+  }, obj.progress + '%'))), h('div', {
+    style: {
+      marginTop: 12,
+      display: 'flex',
+      alignItems: 'center',
+      gap: 8
+    }
+  }, h('input', {
+    type: 'range',
+    min: '0',
+    max: '100',
+    step: '5',
+    value: obj.progress,
+    onChange: e => onProgress(obj.id, parseInt(e.target.value, 10)),
+    style: {
+      flex: 1,
+      height: 4,
+      accentColor: accentVar,
+      cursor: 'pointer'
+    }
+  }), h('button', {
+    onClick: () => onToggle(obj.id),
+    style: {
+      background: obj.done ? 'var(--success-bg)' : 'var(--bg4)',
+      border: 'none',
+      borderRadius: 'var(--radius-xs)',
+      padding: '6px 12px',
+      fontSize: 12,
+      color: obj.done ? 'var(--success)' : 'var(--text2)',
+      cursor: 'pointer',
+      whiteSpace: 'nowrap'
+    }
+  }, obj.done ? 'Réactiver' : 'Valider'), h('button', {
+    onClick: () => onDelete(obj.id),
+    'aria-label': 'Supprimer',
+    style: {
+      background: 'none',
+      border: 'none',
+      fontSize: 14,
+      color: 'var(--text3)',
+      cursor: 'pointer',
+      padding: '6px'
+    }
+  }, '✕')));
 }
 function ActionItem({
   action,
@@ -5360,9 +5447,24 @@ function LoginScreen({
     if (next.length === 4) {
       const pin = next.join('');
       setTimeout(async () => {
-        const stored = localStorage.getItem(`ld-pin-${sel}`);
+        const key = `ld-pin-${sel}`;
+        const stored = localStorage.getItem(key);
         if (step === 'pin') {
           if (pin === stored) {
+            doLogin(acc, {
+              id: sel,
+              name: acc.name,
+              loggedAt: Date.now()
+            });
+            return;
+          }
+
+          // Fallback distant : évite les faux "code incorrect" quand le PIN local est périmé.
+          setLoading(true);
+          const remote = await sbGetPin(sel);
+          setLoading(false);
+          if (remote && pin === remote) {
+            localStorage.setItem(key, remote);
             doLogin(acc, {
               id: sel,
               name: acc.name,
@@ -5922,6 +6024,10 @@ const isTablet=vw>768&&vw<=1024;
 const isSmall=vw<=1024;
 const [data,setData]=useState(loadData);
 const [ui,setUI]=useState(loadUI);
+const [session,setSession]=useState(()=>{
+  try{return JSON.parse(localStorage.getItem('ld-session')||'null');}
+  catch(_){return null;}
+});
 const [view,setView]=useState('dashboard');
 const [modal,setModal]=useState(null);
 const [syncStatus,setSyncStatus]=useState('idle'); // idle | syncing | ok | error

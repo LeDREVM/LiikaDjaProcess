@@ -1,0 +1,12 @@
+# INVARIANTS CRITIQUES — saasDrevmBot (DREVM)
+
+> Ce fichier est ré-injecté automatiquement par le hook `context-pin.sh` après chaque compaction du
+> contexte. Mets-y UNIQUEMENT les 5-8 invariants qui ne doivent JAMAIS être perdus, même après une
+> longue session. Garde-le court : c'est un rappel, pas une doc.
+
+- Le fichier de page d'accueil canonique est `<chemin>` — ne pas le remplacer par une autre version.
+- Toutes les valeurs visuelles viennent du fichier de tokens `<chemin>` — jamais de valeur en dur.
+- (Si multilingue) parité stricte entre les langues — une modif dans l'une = la même dans l'autre.
+- Ne jamais déclarer « fini » sans test réel dans un vrai navigateur.
+- (Ajoute tes propres invariants : composition d'un collectif, faits canoniques, contraintes de
+  marque, etc.)
