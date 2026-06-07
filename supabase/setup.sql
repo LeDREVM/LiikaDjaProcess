@@ -87,7 +87,7 @@ END $$;
 --    À appeler manuellement ou via un cron / Edge Function.
 -- ================================================================
 CREATE OR REPLACE FUNCTION cleanup_offline_sessions()
-RETURNS void LANGUAGE plpgsql AS $$
+RETURNS void LANGUAGE plpgsql SET search_path = public AS $$
 BEGIN
   UPDATE app_sessions
   SET    is_online = FALSE
