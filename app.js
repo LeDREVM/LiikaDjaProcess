@@ -3448,117 +3448,118 @@ const MOIS_LABELS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', '
 const CATS_OBJ_MENSUEL = ['Nature', 'Cuisine', 'Culture', 'Finances', 'Sport', 'Voyage', 'Couple', 'Famille'];
 
 // ─── Maison ───
-const DEFAULT_MAISON_TASKS = [{
+const DEFAULT_MAISON_TASKS = [
+// ── Quotidiennement ──
+{
   id: 'ht1',
-  titre: 'Faire les lits',
+  titre: 'Faire son lit',
   icon: '🛏️',
   heure: '08:00',
   freq: 'Quotidien',
   who: 'both'
 }, {
   id: 'ht2',
-  titre: 'Vaisselle',
-  icon: '🍽️',
-  heure: '08:30',
+  titre: 'Ranger, ramasser, trier, jeter ce qui traîne (sols & tables)',
+  icon: '🧹',
+  heure: '08:15',
   freq: 'Quotidien',
   who: 'both'
 }, {
   id: 'ht3',
-  titre: 'Nettoyage cuisine',
-  icon: '🧹',
-  heure: '09:00',
+  titre: 'Nettoyer la salle de bain (éponge dédiée)',
+  icon: '🚿',
+  heure: '08:30',
   freq: 'Quotidien',
   who: 'both'
 }, {
   id: 'ht4',
-  titre: 'Balai / aspirateur',
-  icon: '🧺',
-  heure: '10:00',
+  titre: 'Nettoyer les toilettes (éponge dédiée)',
+  icon: '🚽',
+  heure: '08:45',
   freq: 'Quotidien',
   who: 'both'
 }, {
   id: 'ht5',
-  titre: 'Sortir les poubelles',
-  icon: '🗑️',
-  heure: '07:30',
+  titre: 'Faire la vaisselle',
+  icon: '🍽️',
+  heure: '09:00',
   freq: 'Quotidien',
   who: 'both'
 }, {
   id: 'ht6',
-  titre: 'Arroser les plantes',
-  icon: '🪴',
-  heure: '09:00',
+  titre: 'Ranger la vaisselle',
+  icon: '🍴',
+  heure: '09:15',
   freq: 'Quotidien',
   who: 'both'
 }, {
   id: 'ht7',
-  titre: 'Nettoyer salle de bain',
-  icon: '🚿',
-  heure: '10:30',
+  titre: 'Nettoyer les sols : couloir → salon → cuisine',
+  icon: '🧽',
+  heure: '09:30',
   freq: 'Quotidien',
   who: 'both'
 }, {
   id: 'ht8',
-  titre: 'Vider les corbeilles',
-  icon: '📦',
-  heure: '20:00',
+  titre: 'Balayer l\'extérieur (cuisine, fenêtre, chambre, devant la porte)',
+  icon: '🧺',
+  heure: '10:00',
+  freq: 'Quotidien',
+  who: 'both'
+},
+// ── Début de soirée ──
+{
+  id: 'ht9',
+  titre: 'Sortir la poubelle orange (lun. & ven. soir)',
+  icon: '🗑️',
+  heure: '19:00',
   freq: 'Quotidien',
   who: 'both'
 }, {
-  id: 'ht9',
-  titre: 'Lessive',
-  icon: '👕',
-  heure: '09:00',
-  freq: 'Hebdomadaire',
-  who: 'both'
-}, {
   id: 'ht10',
-  titre: 'Nettoyage sol complet',
-  icon: '🧽',
-  heure: '10:00',
-  freq: 'Hebdomadaire',
+  titre: 'Sortir la poubelle jaune (mer. soir)',
+  icon: '♻️',
+  heure: '19:00',
+  freq: 'Quotidien',
   who: 'both'
 }, {
   id: 'ht11',
-  titre: 'Courses alimentaires',
-  icon: '🛒',
-  heure: '10:00',
-  freq: 'Hebdomadaire',
+  titre: 'Tri du linge sale — lessive dès 20h (heures creuses)',
+  icon: '👕',
+  heure: '20:00',
+  freq: 'Quotidien',
   who: 'both'
-}, {
+},
+// ── Tous les 2 jours (sauf s'il a plu) ──
+{
   id: 'ht12',
-  titre: 'Rangement général',
-  icon: '📋',
-  heure: '16:00',
-  freq: 'Hebdomadaire',
+  titre: 'Arroser les plantes (sauf s\'il a plu)',
+  icon: '🪴',
+  heure: '09:00',
+  freq: 'Tous les 2 jours',
   who: 'both'
-}, {
+},
+// ── 1 fois par semaine ──
+{
   id: 'ht13',
-  titre: 'Nettoyage vitres',
-  icon: '🪟',
+  titre: 'Nettoyer les gouttières',
+  icon: '🪣',
   heure: '10:00',
-  freq: 'Mensuel',
+  freq: 'Hebdomadaire',
   who: 'both'
 }, {
   id: 'ht14',
-  titre: 'Nettoyage four & réfrigérateur',
-  icon: '🧊',
-  heure: '11:00',
-  freq: 'Mensuel',
+  titre: 'Retirer les toiles d\'araignées',
+  icon: '🕸️',
+  heure: '10:30',
+  freq: 'Hebdomadaire',
   who: 'both'
 }, {
   id: 'ht15',
-  titre: 'Nettoyage salle de bain complet',
-  icon: '🚿',
-  heure: '10:00',
-  freq: 'Mensuel',
-  who: 'both'
-}, {
-  id: 'ht16',
-  titre: 'Désencombrement & tri',
-  icon: '📦',
-  heure: '14:00',
-  freq: 'Mensuel',
+  titre: 'Nettoyer le réfrigérateur',
+  icon: '🧊',
+  heure: '11:00',
+  freq: 'Hebdomadaire',
   who: 'both'
 }];
 function MaisonView({
@@ -3627,7 +3628,7 @@ function MaisonView({
     const p = await Notification.requestPermission();
     setNotifPerm(p);
   };
-  const FREQS = ['Quotidien', 'Hebdomadaire', 'Mensuel'];
+  const FREQS = ['Quotidien', 'Tous les 2 jours', 'Hebdomadaire', 'Mensuel'];
   const filtered = allTasks.filter(t => t.freq === activeFreq);
   const doneCount = filtered.filter(t => !!checked[t.id]).length;
   const pct = filtered.length ? Math.round(doneCount / filtered.length * 100) : 0;
@@ -3643,6 +3644,7 @@ function MaisonView({
   };
   const FREQ_COLORS = {
     'Quotidien': 'var(--success)',
+    'Tous les 2 jours': 'var(--warn)',
     'Hebdomadaire': 'var(--gold)',
     'Mensuel': 'var(--accent-dja)'
   };
@@ -4889,6 +4891,172 @@ function csvToRecipes(text) {
       budget: at(cols, 'budget')
     };
   }).filter(Boolean);
+}
+
+// ─── Export ICS (calendrier) ───
+// Rassemble les données datées (ferments, objectifs mensuels, repas & sport hebdo)
+// dans un fichier .ics standard importable dans Google/Apple/Outlook Calendar.
+const ICS_DAY_CODE = { Lundi: 'MO', Mardi: 'TU', Mercredi: 'WE', Jeudi: 'TH', Vendredi: 'FR', Samedi: 'SA', Dimanche: 'SU' };
+const ICS_DAY_INDEX = { Dimanche: 0, Lundi: 1, Mardi: 2, Mercredi: 3, Jeudi: 4, Vendredi: 5, Samedi: 6 };
+const ICS_MEAL_TIME = { Matin: '080000', Midi: '120000', Soir: '193000' };
+function icsEscape(v) {
+  return String(v == null ? '' : v).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+}
+function icsFold(line) {
+  if (line.length <= 73) return line;
+  let out = '', i = 0;
+  while (i < line.length) { out += (i === 0 ? '' : '\r\n ') + line.slice(i, i + 73); i += 73; }
+  return out;
+}
+function icsDate(iso) { return String(iso || '').slice(0, 10).replace(/-/g, ''); }
+function icsDateAddDays(iso, n) {
+  const d = new Date(`${String(iso).slice(0, 10)}T00:00:00`);
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10).replace(/-/g, '');
+}
+function icsStamp() { return new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, ''); }
+function icsNextWeekdayIso(dayName) {
+  const target = ICS_DAY_INDEX[dayName];
+  if (target == null) return null;
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + ((target - d.getDay() + 7) % 7));
+  return d.toISOString().slice(0, 10);
+}
+function buildIcsEvents(data, opts) {
+  const o = opts || {};
+  const data2 = data || {};
+  const ev = [];
+  const dayMs = 86400000;
+  if (o.ferments) {
+    (data2.ferments || []).forEach(f => {
+      if (!f.startDate) return;
+      const start = new Date(`${f.startDate}T00:00:00`);
+      if (isNaN(start.getTime())) return;
+      const dur = Math.max(1, Number(f.durationDays) || 1);
+      const targetIso = new Date(start.getTime() + dur * dayMs).toISOString().slice(0, 10);
+      ev.push({ uid: 'ferment-' + f.id + '@lanmou-douvan', startIso: targetIso, summary: '🫙 ' + (f.nom || 'Ferment') + ' prêt', description: (f.type ? f.type + '. ' : '') + (f.notes || '') });
+    });
+  }
+  if (o.objMensuels) {
+    ((data2.couple || {}).objMensuels || []).forEach(m => {
+      if (m.mois == null || m.annee == null) return;
+      const startIso = `${m.annee}-${String(m.mois + 1).padStart(2, '0')}-01`;
+      ev.push({ uid: 'objm-' + m.id + '@lanmou-douvan', startIso, summary: '🎯 ' + (m.titre || 'Objectif'), description: (m.categorie ? m.categorie + '. ' : '') + (m.detail || '') });
+    });
+  }
+  if (o.meals) {
+    ['dja', 'liika'].forEach(who => {
+      ((data2[who] || {}).meals || []).forEach(m => {
+        if (!ICS_DAY_CODE[m.jour]) return;
+        ev.push({ uid: 'meal-' + who + '-' + m.id + '@lanmou-douvan', recurDay: m.jour, time: ICS_MEAL_TIME[m.type] || '120000', durationMin: 45, summary: '🍽 ' + (who === 'dja' ? 'Dja' : 'Liika') + ' · ' + (m.plat || 'Repas'), description: (m.type || '') + (m.note ? ' — ' + m.note : '') });
+      });
+    });
+  }
+  if (o.sport) {
+    ['dja', 'liika'].forEach(who => {
+      ((data2[who] || {}).sport || []).forEach(s => {
+        if (!ICS_DAY_CODE[s.jour]) return;
+        ev.push({ uid: 'sport-' + who + '-' + s.id + '@lanmou-douvan', recurDay: s.jour, time: '180000', durationMin: Math.max(15, Number(s.duree) || 30), summary: '💪 ' + (who === 'dja' ? 'Dja' : 'Liika') + ' · ' + (s.activite || 'Sport'), description: (s.intensite || '') + (s.duree ? ' · ' + s.duree + ' min' : '') });
+      });
+    });
+  }
+  return ev;
+}
+function eventsToIcs(events) {
+  const stamp = icsStamp();
+  const pad = n => String(n).padStart(2, '0');
+  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Lanmou Douvan//Mix Vibz//FR', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:Lanmou Douvan — Mix Vibz'];
+  (events || []).forEach((evnt, idx) => {
+    lines.push('BEGIN:VEVENT');
+    lines.push('UID:' + (evnt.uid || stamp + '-' + idx + '@lanmou-douvan'));
+    lines.push('DTSTAMP:' + stamp);
+    if (evnt.recurDay) {
+      const startIso = icsNextWeekdayIso(evnt.recurDay);
+      const time = evnt.time || '090000';
+      const startD = new Date(`${startIso}T${time.slice(0, 2)}:${time.slice(2, 4)}:${time.slice(4, 6)}`);
+      const endD = new Date(startD.getTime() + Math.max(5, evnt.durationMin || 30) * 60000);
+      const endStr = `${endD.getFullYear()}${pad(endD.getMonth() + 1)}${pad(endD.getDate())}T${pad(endD.getHours())}${pad(endD.getMinutes())}00`;
+      lines.push('DTSTART:' + startIso.replace(/-/g, '') + 'T' + time);
+      lines.push('DTEND:' + endStr);
+      lines.push('RRULE:FREQ=WEEKLY;BYDAY=' + ICS_DAY_CODE[evnt.recurDay]);
+    } else {
+      lines.push('DTSTART;VALUE=DATE:' + icsDate(evnt.startIso));
+      lines.push('DTEND;VALUE=DATE:' + icsDateAddDays(evnt.startIso, 1));
+    }
+    lines.push('SUMMARY:' + icsEscape(evnt.summary));
+    if (evnt.description && evnt.description.trim()) lines.push('DESCRIPTION:' + icsEscape(evnt.description.trim()));
+    lines.push('END:VEVENT');
+  });
+  lines.push('END:VCALENDAR');
+  return lines.map(icsFold).join('\r\n');
+}
+
+function CalendarView({ data }) {
+  const h = React.createElement;
+  const [opts, setOpts] = useState({ ferments: true, objMensuels: true, meals: false, sport: false });
+  const sources = [
+    { key: 'ferments', label: 'Ferments (date « prêt »)', icon: '🫙' },
+    { key: 'objMensuels', label: 'Objectifs du mois', icon: '🎯' },
+    { key: 'meals', label: 'Repas hebdo (récurrent)', icon: '🍽' },
+    { key: 'sport', label: 'Sport hebdo (récurrent)', icon: '💪' }
+  ];
+  const events = useMemo(() => buildIcsEvents(data, opts), [data, opts]);
+  const toggle = key => setOpts(prev => ({ ...prev, [key]: !prev[key] }));
+  const exportIcs = () => {
+    if (!events.length) { alert('Aucun événement à exporter. Active au moins une source avec des données datées.'); return; }
+    const blob = new Blob([eventsToIcs(events)], { type: 'text/calendar;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'lanmou-douvan.ics'; a.click();
+    URL.revokeObjectURL(url);
+  };
+  const fmtFr = iso => {
+    const d = new Date(`${String(iso).slice(0, 10)}T00:00:00`);
+    return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+  return h('div', null,
+    h('div', { style: { marginBottom: 24 } },
+      h('div', { className: 'eyebrow', style: { marginBottom: 8 } }, 'Calendrier'),
+      h('h2', { style: { fontFamily: "'Playfair Display', serif", fontSize: 28, fontWeight: 500, marginBottom: 6 } }, '📅 Calendrier exportable'),
+      h('p', { style: { color: 'var(--text3)', fontSize: 14, maxWidth: 560 } }, 'Génère un fichier .ics importable dans Google Agenda, Apple Calendrier ou Outlook. Choisis les sources puis exporte.')
+    ),
+    h('div', { className: 'lx-card', style: { padding: 20, marginBottom: 20 } },
+      h('div', { style: { fontFamily: "'Space Mono', monospace", fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--text3)', marginBottom: 14 } }, 'Sources à inclure'),
+      h('div', { style: { display: 'grid', gap: 10 } },
+        sources.map(s => h('label', {
+          key: s.key,
+          style: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', background: opts[s.key] ? 'var(--gold-bg)' : 'transparent', border: `1px solid ${opts[s.key] ? 'var(--gold-border)' : 'var(--border)'}`, transition: 'background .15s, border .15s' }
+        },
+          h('input', { type: 'checkbox', checked: opts[s.key], onChange: () => toggle(s.key), style: { width: 18, height: 18, accentColor: 'var(--gold)', cursor: 'pointer' } }),
+          h('span', { style: { fontSize: 18 } }, s.icon),
+          h('span', { style: { fontSize: 14, color: opts[s.key] ? 'var(--text)' : 'var(--text2)' } }, s.label)
+        ))
+      )
+    ),
+    h('div', { className: 'lx-card', style: { padding: 20, marginBottom: 20 } },
+      h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 } },
+        h('div', { style: { fontFamily: "'Space Mono', monospace", fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--text3)' } }, 'Aperçu · ' + events.length + ' événement' + (events.length > 1 ? 's' : '')),
+        h('button', {
+          onClick: exportIcs,
+          disabled: !events.length,
+          style: { fontFamily: "'Outfit', sans-serif", fontSize: 14, fontWeight: 600, padding: '10px 20px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--gold-border)', background: events.length ? 'var(--gold)' : 'var(--bg3)', color: events.length ? '#06120d' : 'var(--text3)', cursor: events.length ? 'pointer' : 'not-allowed' }
+        }, '⬇ Exporter .ics')
+      ),
+      events.length
+        ? h('div', { style: { display: 'grid', gap: 8 } },
+            events.slice(0, 40).map((evnt, i) => h('div', {
+              key: evnt.uid || i,
+              style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 'var(--radius-xs)', background: 'var(--bg2)', border: '1px solid var(--border)' }
+            },
+              h('span', { style: { fontSize: 14, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, evnt.summary),
+              h('span', { style: { fontFamily: "'Space Mono', monospace", fontSize: 12, color: 'var(--gold)', flexShrink: 0 } }, evnt.recurDay ? 'Chaque ' + evnt.recurDay.toLowerCase() : fmtFr(evnt.startIso))
+            ))
+          )
+        : h('div', { style: { padding: '20px 0', textAlign: 'center', color: 'var(--text3)', fontSize: 14 } }, 'Aucun événement. Active une source ou ajoute des données datées.'),
+      events.length > 40 ? h('div', { style: { marginTop: 10, fontSize: 12, color: 'var(--text3)', textAlign: 'center' } }, '… et ' + (events.length - 40) + ' de plus dans le fichier.') : null
+    )
+  );
 }
 
 function DrevmCookView({
@@ -6521,6 +6689,10 @@ const ch=sb.channel('ld-realtime')
     id: 'objmensuel',
     label: 'Objectifs mois',
     icon: '🎯'
+  }, {
+    id: 'calendar',
+    label: 'Calendrier',
+    icon: '📅'
   }, {
     id: 'charts',
     label: 'Stats',
@@ -8365,7 +8537,9 @@ const ch=sb.channel('ld-realtime')
     upsertRecipe: upsertRecipe,
     deleteRecipe: deleteRecipe,
     importRecipes: importRecipes
-  }), view === 'culture' && /*#__PURE__*/React.createElement(CultureGwadView, null), view === 'route' && renderRoute(), view === 'objmensuel' && renderObjMensuel(), view === 'charts' && renderCharts()), /*#__PURE__*/React.createElement(AddModal, {
+  }), view === 'culture' && /*#__PURE__*/React.createElement(CultureGwadView, null), view === 'route' && renderRoute(), view === 'objmensuel' && renderObjMensuel(), view === 'calendar' && /*#__PURE__*/React.createElement(CalendarView, {
+    data: data
+  }), view === 'charts' && renderCharts()), /*#__PURE__*/React.createElement(AddModal, {
     show: !!modal,
     onClose: () => setModal(null),
     type: modal?.type,
