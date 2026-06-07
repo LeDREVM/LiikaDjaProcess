@@ -5317,6 +5317,8 @@ function rayonForItem(name) {
   return 'Autre';
 }
 const normName = s => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+// Prix canonique : nombre valide, sinon '' (jamais une chaîne « en cours de frappe » ou NaN).
+const numOrEmpty = v => (v === '' || v == null || isNaN(Number(v))) ? '' : Number(v);
 
 function CoursesView({ courses, addCourse, upsertCourse, deleteCourse, toggleCourse, clearChecked, generateFromMeals, mergeDuplicates }) {
   const h = React.createElement;
@@ -5377,7 +5379,7 @@ function CoursesView({ courses, addCourse, upsertCourse, deleteCourse, toggleCou
       ? h('div', { className: 'lx-card', style: { padding: '28px 20px', textAlign: 'center', color: 'var(--text3)', fontSize: 14 } }, 'Liste vide. Ajoute un article ou génère-la depuis tes repas de la semaine.')
       : groups.map(g => h('div', { key: g.rayon, style: { marginBottom: 16 } },
           h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 } },
-            h('span', { style: { fontSize: 16 } }, COURSE_RAYON_ICON[g.rayon]),
+            h('span', { style: { fontSize: 16 } }, COURSE_RAYON_ICON[g.rayon] || '🛒'),
             h('span', { style: { fontFamily: "'Space Mono',monospace", fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--gold)' } }, g.rayon + ' · ' + g.items.length)
           ),
           h('div', { className: 'lx-card', style: { padding: 6 } },
@@ -6647,11 +6649,11 @@ const ch=sb.channel('ld-realtime')
   useEffect(() => {
     const ch = sb.channel('ld-drevmcook')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'recipes' },
-        async () => { try { const recs = await sbLoadRecipes(); setDataRaw(prev => ({ ...prev, recipes: recs })); } catch (_) {} })
+        async () => { try { const recs = await sbLoadRecipes(); remoteApplyRef.current = true; setDataRaw(prev => ({ ...prev, recipes: recs })); } catch (_) {} })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'ferments' },
-        async () => { try { const ferms = await sbLoadFerments(); setDataRaw(prev => ({ ...prev, ferments: ferms })); } catch (_) {} })
+        async () => { try { const ferms = await sbLoadFerments(); remoteApplyRef.current = true; setDataRaw(prev => ({ ...prev, ferments: ferms })); } catch (_) {} })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'courses' },
-        async () => { try { const crs = await sbLoadCourses(); setDataRaw(prev => ({ ...prev, courses: crs })); } catch (_) {} })
+        async () => { try { const crs = await sbLoadCourses(); remoteApplyRef.current = true; setDataRaw(prev => ({ ...prev, courses: crs })); } catch (_) {} })
       .subscribe();
     return () => { sb.removeChannel(ch); };
   }, []);
@@ -6844,7 +6846,8 @@ const ch=sb.channel('ld-realtime')
     sbDeleteFerment(id).catch(() => {});
   }, []);
   // ── Courses (table dédiée) ──
-  const addCourse = useCallback(item => {
+  const addCourse = useCallback(raw => {
+    const item = { ...raw, qte: Math.max(0, Number(raw.qte) || 1), prix: numOrEmpty(raw.prix) };
     setDataRaw(prev => {
       const next = clone(prev);
       if (!Array.isArray(next.courses)) next.courses = [];
@@ -6852,8 +6855,8 @@ const ch=sb.channel('ld-realtime')
       const i = next.courses.findIndex(c => !c.done && normName(c.nom) === normName(item.nom) && (c.unite || '') === (item.unite || ''));
       let row;
       if (i >= 0) {
-        row = { ...next.courses[i], qte: (Number(next.courses[i].qte) || 0) + (Number(item.qte) || 1) };
-        if (item.prix !== '' && item.prix != null) row.prix = item.prix;
+        row = { ...next.courses[i], qte: (Number(next.courses[i].qte) || 0) + item.qte };
+        if (item.prix !== '') row.prix = item.prix;
         next.courses[i] = row;
       } else {
         row = item;
@@ -6863,7 +6866,8 @@ const ch=sb.channel('ld-realtime')
       return next;
     });
   }, []);
-  const upsertCourse = useCallback(c => {
+  const upsertCourse = useCallback(raw => {
+    const c = { ...raw, qte: Math.max(0, Number(raw.qte) || 0), prix: numOrEmpty(raw.prix) };
     setDataRaw(prev => {
       const next = clone(prev);
       if (!Array.isArray(next.courses)) next.courses = [];
@@ -6934,11 +6938,12 @@ const ch=sb.channel('ld-realtime')
       const meals = [...((next.dja && next.dja.meals) || []), ...((next.liika && next.liika.meals) || []), ...((next.couple && next.couple.meals) || [])];
       const existing = new Set((next.courses || []).filter(c => !c.done).map(c => normName(c.nom)));
       const added = [];
+      let seq = 0;
       const addItem = nom => {
         const key = normName(nom);
         if (!nom || existing.has(key)) return;
         existing.add(key);
-        const item = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7), nom, qte: 1, unite: '', rayon: rayonForItem(nom), prix: '', done: false };
+        const item = { id: Date.now().toString(36) + (seq++).toString(36) + Math.random().toString(36).slice(2, 7), nom, qte: 1, unite: '', rayon: rayonForItem(nom), prix: '', done: false };
         next.courses.push(item);
         added.push(item);
       };
