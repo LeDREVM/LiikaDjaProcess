@@ -20,7 +20,17 @@
 -- Sans ça, les changements de l'un ne arrivent jamais sur l'autre.
 -- ================================================================
 
-ALTER PUBLICATION supabase_realtime ADD TABLE app_state;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime'
+      AND tablename = 'app_state'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE app_state;
+  END IF;
+END;
+$$;
 
 
 -- ================================================================
@@ -72,7 +82,17 @@ CREATE POLICY "allow_all"
 -- Permet au compteur "🟢 N appareils" de se mettre à jour en live.
 -- ================================================================
 
-ALTER PUBLICATION supabase_realtime ADD TABLE app_sessions;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime'
+      AND tablename = 'app_sessions'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE app_sessions;
+  END IF;
+END;
+$$;
 
 
 -- ================================================================
