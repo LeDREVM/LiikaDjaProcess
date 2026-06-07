@@ -582,7 +582,77 @@ function normalize(d) {
     };
   }
   if (Array.isArray(d.ferments)) base.ferments = d.ferments;
+  // Métadonnées de synchro : horodatages par section + date globale
+  if (d._t && typeof d._t === 'object') base._t = d._t;
+  if (typeof d.updatedAt === 'string') base.updatedAt = d.updatedAt;
   return base;
+}
+
+// ─── Synchro multi-appareils : fusion par section (le plus récent gagne) ───
+// Au lieu d'écraser tout le blob JSON, chaque section éditable porte un
+// horodatage dans data._t["chemin.section"]. À la fusion (chargement initial
+// ou réception temps réel), on garde pour CHAQUE section la version la plus
+// récemment modifiée → les éditions simultanées (Dja sur les repas, Liika sur
+// le sport…) ne s'effacent plus.
+const SYNC_TOP = ['dja', 'liika', 'couple'];
+const SYNC_FLAT = ['recipes', 'ferments', 'games'];
+function syncPaths(a, b) {
+  const set = new Set();
+  for (const top of SYNC_TOP) {
+    for (const k of Object.keys({ ...((a && a[top]) || {}), ...((b && b[top]) || {}) })) set.add(top + '.' + k);
+  }
+  for (const k of SYNC_FLAT) set.add(k);
+  return set;
+}
+function getPath(obj, path) {
+  const i = path.indexOf('.');
+  if (i < 0) return obj ? obj[path] : undefined;
+  const a = path.slice(0, i), b = path.slice(i + 1);
+  return obj && obj[a] ? obj[a][b] : undefined;
+}
+function setPath(obj, path, val) {
+  const i = path.indexOf('.');
+  if (i < 0) { obj[path] = val; return; }
+  const a = path.slice(0, i), b = path.slice(i + 1);
+  if (!obj[a] || typeof obj[a] !== 'object') obj[a] = {};
+  obj[a][b] = val;
+}
+// Horodate les sections qui ont changé entre prev et next ; met à jour updatedAt.
+function stampChanges(prev, next) {
+  if (!next || next === prev) return next;
+  const now = new Date().toISOString();
+  const t = { ...((prev && prev._t) || {}), ...(next._t || {}) };
+  let changed = false;
+  for (const p of syncPaths(prev, next)) {
+    if (JSON.stringify(getPath(prev, p)) !== JSON.stringify(getPath(next, p))) {
+      t[p] = now;
+      changed = true;
+    }
+  }
+  next._t = t;
+  if (changed) next.updatedAt = now;
+  else if (!next.updatedAt) next.updatedAt = (prev && prev.updatedAt) || now;
+  return next;
+}
+// Fusionne deux états : pour chaque section, garde la plus récemment modifiée.
+function mergeStates(local, remote) {
+  if (!remote) return local;
+  if (!local) return remote;
+  const out = clone(local);
+  const lt = local._t || {}, rt = remote._t || {};
+  out._t = { ...lt };
+  for (const p of syncPaths(local, remote)) {
+    const lts = Date.parse(lt[p] || '') || 0;
+    const rts = Date.parse(rt[p] || '') || 0;
+    if (rts > lts) {
+      setPath(out, p, clone(getPath(remote, p)));
+      out._t[p] = rt[p];
+    }
+  }
+  const lu = Date.parse(local.updatedAt || '') || 0;
+  const ru = Date.parse(remote.updatedAt || '') || 0;
+  out.updatedAt = ru > lu ? remote.updatedAt : local.updatedAt;
+  return out;
 }
 function loadData() {
   try {
@@ -6237,7 +6307,14 @@ const vw=useWindowWidth();
 const isMobile=vw<=768;
 const isTablet=vw>768&&vw<=1024;
 const isSmall=vw<=1024;
-const [data,setData]=useState(loadData);
+const [data,setDataRaw]=useState(loadData);
+// Tout changement d'état passe par ce wrapper : il horodate les sections
+// modifiées (data._t) pour que la fusion multi-appareils sache qui est le plus récent.
+const setData=useCallback((updater)=>{
+  setDataRaw(prev=>stampChanges(prev, typeof updater==='function'?updater(prev):updater));
+},[]);
+// Vrai juste après l'application d'un état reçu en temps réel → évite de le re-pousser (anti-écho).
+const remoteApplyRef=useRef(false);
 const [ui,setUI]=useState(loadUI);
 const [session,setSession]=useState(()=>{
   try{return JSON.parse(localStorage.getItem('ld-session')||'null');}
@@ -6307,14 +6384,13 @@ let alive=true;
     return;
   }
 
-  const localUpdated=Date.parse(data?.updatedAt||'')||0;
   const remoteData=normalize(remote);
-  const remoteUpdated=Date.parse(remoteData?.updatedAt||'')||0;
-
-  if(remoteUpdated>=localUpdated){
-    setData(remoteData);
-    saveData(remoteData);
-  }
+  remoteApplyRef.current=true; // état appliqué depuis le serveur → ne pas le re-pousser
+  setDataRaw(prev=>{
+    // Appareil sans historique d'édition local (_t vide) → le serveur fait foi.
+    const hasLocalEdits=prev&&prev._t&&Object.keys(prev._t).length>0;
+    return hasLocalEdits?mergeStates(prev,remoteData):remoteData;
+  });
   setSyncStatus('ok');
   setInitialSyncDone(true);
 })().catch(()=>{
@@ -6328,6 +6404,8 @@ return ()=>{alive=false;};
 // Sync Supabase debounce 1.5s
 useEffect(()=>{
 if(!initialSyncDone)return;
+// Cet état vient d'être reçu/fusionné depuis le serveur → déjà à jour côté distant, pas de re-push.
+if(remoteApplyRef.current){remoteApplyRef.current=false;return;}
 const t=setTimeout(()=>{
   setSyncStatus('syncing');
   sbSave(data).then(()=>setSyncStatus('ok')).catch(()=>setSyncStatus('error'));
@@ -6360,8 +6438,8 @@ const ch=sb.channel('ld-realtime')
       if(!payload.new?.data)return;
       if(payload.new.device_id===DEVICE_ID)return; // notre propre save → ignorer
       const remote=normalize(payload.new.data);
-      setData(remote);
-      saveData(remote);
+      remoteApplyRef.current=true; // anti-écho : ne pas re-pousser ce qu'on vient de recevoir
+      setDataRaw(prev=>mergeStates(prev,remote)); // fusion par section, pas d'écrasement global
       setSyncStatus('ok');
     })
     // Mise à jour du compteur d'appareils en ligne
