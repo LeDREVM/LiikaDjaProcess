@@ -3448,117 +3448,118 @@ const MOIS_LABELS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', '
 const CATS_OBJ_MENSUEL = ['Nature', 'Cuisine', 'Culture', 'Finances', 'Sport', 'Voyage', 'Couple', 'Famille'];
 
 // ─── Maison ───
-const DEFAULT_MAISON_TASKS = [{
+const DEFAULT_MAISON_TASKS = [
+// ── Quotidiennement ──
+{
   id: 'ht1',
-  titre: 'Faire les lits',
+  titre: 'Faire son lit',
   icon: '🛏️',
   heure: '08:00',
   freq: 'Quotidien',
   who: 'both'
 }, {
   id: 'ht2',
-  titre: 'Vaisselle',
-  icon: '🍽️',
-  heure: '08:30',
+  titre: 'Ranger, ramasser, trier, jeter ce qui traîne (sols & tables)',
+  icon: '🧹',
+  heure: '08:15',
   freq: 'Quotidien',
   who: 'both'
 }, {
   id: 'ht3',
-  titre: 'Nettoyage cuisine',
-  icon: '🧹',
-  heure: '09:00',
+  titre: 'Nettoyer la salle de bain (éponge dédiée)',
+  icon: '🚿',
+  heure: '08:30',
   freq: 'Quotidien',
   who: 'both'
 }, {
   id: 'ht4',
-  titre: 'Balai / aspirateur',
-  icon: '🧺',
-  heure: '10:00',
+  titre: 'Nettoyer les toilettes (éponge dédiée)',
+  icon: '🚽',
+  heure: '08:45',
   freq: 'Quotidien',
   who: 'both'
 }, {
   id: 'ht5',
-  titre: 'Sortir les poubelles',
-  icon: '🗑️',
-  heure: '07:30',
+  titre: 'Faire la vaisselle',
+  icon: '🍽️',
+  heure: '09:00',
   freq: 'Quotidien',
   who: 'both'
 }, {
   id: 'ht6',
-  titre: 'Arroser les plantes',
-  icon: '🪴',
-  heure: '09:00',
+  titre: 'Ranger la vaisselle',
+  icon: '🍴',
+  heure: '09:15',
   freq: 'Quotidien',
   who: 'both'
 }, {
   id: 'ht7',
-  titre: 'Nettoyer salle de bain',
-  icon: '🚿',
-  heure: '10:30',
+  titre: 'Nettoyer les sols : couloir → salon → cuisine',
+  icon: '🧽',
+  heure: '09:30',
   freq: 'Quotidien',
   who: 'both'
 }, {
   id: 'ht8',
-  titre: 'Vider les corbeilles',
-  icon: '📦',
-  heure: '20:00',
+  titre: 'Balayer l\'extérieur (cuisine, fenêtre, chambre, devant la porte)',
+  icon: '🧺',
+  heure: '10:00',
+  freq: 'Quotidien',
+  who: 'both'
+},
+// ── Début de soirée ──
+{
+  id: 'ht9',
+  titre: 'Sortir la poubelle orange (lun. & ven. soir)',
+  icon: '🗑️',
+  heure: '19:00',
   freq: 'Quotidien',
   who: 'both'
 }, {
-  id: 'ht9',
-  titre: 'Lessive',
-  icon: '👕',
-  heure: '09:00',
-  freq: 'Hebdomadaire',
-  who: 'both'
-}, {
   id: 'ht10',
-  titre: 'Nettoyage sol complet',
-  icon: '🧽',
-  heure: '10:00',
-  freq: 'Hebdomadaire',
+  titre: 'Sortir la poubelle jaune (mer. soir)',
+  icon: '♻️',
+  heure: '19:00',
+  freq: 'Quotidien',
   who: 'both'
 }, {
   id: 'ht11',
-  titre: 'Courses alimentaires',
-  icon: '🛒',
-  heure: '10:00',
-  freq: 'Hebdomadaire',
+  titre: 'Tri du linge sale — lessive dès 20h (heures creuses)',
+  icon: '👕',
+  heure: '20:00',
+  freq: 'Quotidien',
   who: 'both'
-}, {
+},
+// ── Tous les 2 jours (sauf s'il a plu) ──
+{
   id: 'ht12',
-  titre: 'Rangement général',
-  icon: '📋',
-  heure: '16:00',
-  freq: 'Hebdomadaire',
+  titre: 'Arroser les plantes (sauf s\'il a plu)',
+  icon: '🪴',
+  heure: '09:00',
+  freq: 'Tous les 2 jours',
   who: 'both'
-}, {
+},
+// ── 1 fois par semaine ──
+{
   id: 'ht13',
-  titre: 'Nettoyage vitres',
-  icon: '🪟',
+  titre: 'Nettoyer les gouttières',
+  icon: '🪣',
   heure: '10:00',
-  freq: 'Mensuel',
+  freq: 'Hebdomadaire',
   who: 'both'
 }, {
   id: 'ht14',
-  titre: 'Nettoyage four & réfrigérateur',
-  icon: '🧊',
-  heure: '11:00',
-  freq: 'Mensuel',
+  titre: 'Retirer les toiles d\'araignées',
+  icon: '🕸️',
+  heure: '10:30',
+  freq: 'Hebdomadaire',
   who: 'both'
 }, {
   id: 'ht15',
-  titre: 'Nettoyage salle de bain complet',
-  icon: '🚿',
-  heure: '10:00',
-  freq: 'Mensuel',
-  who: 'both'
-}, {
-  id: 'ht16',
-  titre: 'Désencombrement & tri',
-  icon: '📦',
-  heure: '14:00',
-  freq: 'Mensuel',
+  titre: 'Nettoyer le réfrigérateur',
+  icon: '🧊',
+  heure: '11:00',
+  freq: 'Hebdomadaire',
   who: 'both'
 }];
 function MaisonView({
@@ -3627,7 +3628,7 @@ function MaisonView({
     const p = await Notification.requestPermission();
     setNotifPerm(p);
   };
-  const FREQS = ['Quotidien', 'Hebdomadaire', 'Mensuel'];
+  const FREQS = ['Quotidien', 'Tous les 2 jours', 'Hebdomadaire', 'Mensuel'];
   const filtered = allTasks.filter(t => t.freq === activeFreq);
   const doneCount = filtered.filter(t => !!checked[t.id]).length;
   const pct = filtered.length ? Math.round(doneCount / filtered.length * 100) : 0;
@@ -3643,6 +3644,7 @@ function MaisonView({
   };
   const FREQ_COLORS = {
     'Quotidien': 'var(--success)',
+    'Tous les 2 jours': 'var(--warn)',
     'Hebdomadaire': 'var(--gold)',
     'Mensuel': 'var(--accent-dja)'
   };
