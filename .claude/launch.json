@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "lanmou",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["--yes", "serve", "-l", "4321", "."],
+      "port": 4321
+    },
+    {
+      "name": "lanmou-files",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["--yes", "serve", "-l", "4322", "./files"],
+      "port": 4322
+    }
+  ]
+}
