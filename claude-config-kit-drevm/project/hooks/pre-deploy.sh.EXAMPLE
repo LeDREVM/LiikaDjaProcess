@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# Hook: pre-deploy  [EXEMPLE — à adapter à TA commande de deploy et TON dossier de build]
+# PreToolUse:Bash — si la commande contient ta commande de deploy, valide le build AVANT.
+# Bloque le deploy si le build est manquant/incomplet. Détecte aussi une régression de taille.
+#
+# >>> ADAPTE : DEPLOY_PATTERN (le motif de ta commande de deploy), BUILD_DIR, ENTRY_FILE,
+#     MIN_SIZE (taille minimale attendue du fichier d'entrée, anti-régression).
+
+DEPLOY_PATTERN="docker compose up -d"   # ex: "vercel deploy", "netlify deploy", "rsync ... prod"
+BUILD_DIR="build"        # SvelteKit adapter-static / Netlify
+ENTRY_FILE="index.html"
+MIN_SIZE=0               # désactivé par défaut (front DREVM) ; règle si besoin                   # octets ; mets 0 pour désactiver le check de taille
+
+input=$(cat)
+
+command=$(echo "$input" | python3 -c "import json, sys
+try:
+    data = json.load(sys.stdin)
+    print(data.get('tool_input', {}).get('command', ''))
+except Exception:
+    print('')
+" 2>/dev/null || echo "")
+
+# Ne réagir qu'aux commandes de deploy (échappe les espaces/regex dans le motif au besoin).
+if echo "$command" | grep -qE "$DEPLOY_PATTERN"; then
+  project_dir="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+  dist_dir="$project_dir/$BUILD_DIR"
+
+  # Check 1 : le dossier de build existe
+  if [ ! -d "$dist_dir" ]; then
+    echo "[pre-deploy] BLOCKED : $dist_dir n'existe pas. Lance le build avant." >&2
+    exit 2
+  fi
+
+  # Check 2 : le fichier d'entrée est présent
+  if [ ! -f "$dist_dir/$ENTRY_FILE" ]; then
+    echo "[pre-deploy] BLOCKED : $dist_dir/$ENTRY_FILE manquant. Build incomplet." >&2
+    exit 2
+  fi
+
+  # Check 3 : taille minimale (anti-régression — détecte un build vide/cassé)
+  if [ "$MIN_SIZE" -gt 0 ]; then
+    size=$(wc -c < "$dist_dir/$ENTRY_FILE" | tr -d ' ')
+    if [ "$size" -lt "$MIN_SIZE" ]; then
+      echo "[pre-deploy] WARNING : $ENTRY_FILE = ${size} octets (attendu ≥ ${MIN_SIZE}). Vérifie la version." >&2
+    fi
+  fi
+
+  # Check 4 : build récent (< 60 min) — warning si périmé
+  if [ "$(find "$dist_dir/$ENTRY_FILE" -mmin +60 2>/dev/null | wc -l | tr -d ' ')" -gt 0 ]; then
+    echo "[pre-deploy] WARNING : $ENTRY_FILE a plus de 60 min. Pense à rebuild avant deploy." >&2
+  fi
+
+  echo "[pre-deploy] OK (build présent)" >&2
+fi
+
+exit 0

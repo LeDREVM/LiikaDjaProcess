@@ -1,0 +1,1017 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lanmou Douvan — Mix Vibz</title>
+<meta name="description" content="Tableau de bord partagé Dja & Liika — objectifs, actions et notes en commun.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♡</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,500;1,400&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+--bg:#0a0a0f;--bg2:#12121a;--bg3:#1a1a26;--bg4:#22222f;
+--text:#e8e6f0;--text2:#a8a4b8;--text3:#6e6a80;
+--accent-dja:#8b5cf6;--accent-dja2:#a78bfa;--accent-dja-bg:rgba(139,92,246,.1);--accent-dja-border:rgba(139,92,246,.25);
+--accent-liika:#f472b6;--accent-liika2:#f9a8d4;--accent-liika-bg:rgba(244,114,182,.1);--accent-liika-border:rgba(244,114,182,.25);
+--accent-couple:#fbbf24;--accent-couple-bg:rgba(251,191,36,.1);--accent-couple-border:rgba(251,191,36,.25);
+--success:#34d399;--success-bg:rgba(52,211,153,.12);
+--border:rgba(255,255,255,.06);--border2:rgba(255,255,255,.1);
+--radius:12px;--radius-sm:8px;--radius-xs:6px;
+}
+html,body,#root{height:100%;font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
+body{overflow-x:hidden}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
+@keyframes slideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
+@media(max-width:768px){
+nav{display:none!important}
+.mobile-nav{display:block!important}
+main{padding:20px 16px 80px!important}
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useCallback,useMemo}=React;
+
+// ─── Helpers couleur ───
+const accent={dja:'var(--accent-dja)',liika:'var(--accent-liika)',couple:'var(--accent-couple)'};
+const accentBg={dja:'var(--accent-dja-bg)',liika:'var(--accent-liika-bg)',couple:'var(--accent-couple-bg)'};
+const accentBorder={dja:'var(--accent-dja-border)',liika:'var(--accent-liika-border)',couple:'var(--accent-couple-border)'};
+
+// ─── Data ───
+const defaultData={
+dja:{
+  name:"Negus Dja",
+  role:"Directeur artistique & Dev",
+  location:"Guadeloupe",
+  color:"dja",
+  objectives:[
+    {id:"d1",cat:"Carriere",title:"Lancer la suite d'apps pour createurs TDAH",desc:"MVP, beta testeurs, premiers abonnes",progress:15,done:false},
+    {id:"d2",cat:"Carriere",title:"Identite visuelle caribeenne dans la tech",desc:"Se positionner comme DA de reference antillais",progress:20,done:false},
+    {id:"d3",cat:"Sante",title:"Routine alimentaire vegetalienne stable",desc:"Batch cooking hebdo, produits locaux",progress:30,done:false},
+    {id:"d4",cat:"Sante",title:"Systemes adaptes au TDAH",desc:"Micro-taches, automatisations, outils perso",progress:25,done:false},
+    {id:"d5",cat:"Finances",title:"Atteindre l'independance financiere",desc:"40% SaaS, 30% DA, 20% contenu, 10% autres",progress:10,done:false},
+    {id:"d6",cat:"Finances",title:"Monetiser la cuisine vegetale",desc:"Ateliers, contenu video, recettes",progress:5,done:false},
+  ],
+  actions:[
+    {id:"da1",text:"Definir le MVP de la premiere app",cat:"Carriere",done:false},
+    {id:"da2",text:"Lister 10 painpoints TDAH du workflow creatif",cat:"Sante",done:false},
+    {id:"da3",text:"Creer un planning batch cooking hebdo",cat:"Sante",done:false},
+    {id:"da4",text:"Calculer le revenu minimum pour quitter le freelance",cat:"Finances",done:false},
+    {id:"da5",text:"Prototyper l'interface principale",cat:"Carriere",done:false},
+    {id:"da6",text:"Tester 3 recettes vegetales guadeloupeennes",cat:"Sante",done:false},
+  ],
+  notes:[],
+  meals:[
+    {id:'dm1',jour:'Lundi',type:'Matin',plat:'Smoothie banane mangue',note:''},
+    {id:'dm2',jour:'Lundi',type:'Midi',plat:'Riz complet haricots rouges',note:''},
+    {id:'dm3',jour:'Lundi',type:'Soir',plat:'Soupe lentilles corail',note:''},
+    {id:'dm4',jour:'Mardi',type:'Midi',plat:'Salade quinoa légumes rôtis',note:''},
+    {id:'dm5',jour:'Mercredi',type:'Midi',plat:'Curry pois chiches',note:''},
+  ],
+  budget:{
+    revenus:[
+      {id:'dr1',label:'Freelance DA',montant:2500},
+      {id:'dr2',label:'SaaS / apps',montant:200}
+    ],
+    depenses:[
+      {id:'dd1',label:'Loyer',montant:800,cat:'Logement'},
+      {id:'dd2',label:'Alimentation',montant:350,cat:'Vie'},
+      {id:'dd3',label:'Abonnements tech',montant:80,cat:'Tech'},
+      {id:'dd4',label:'Transport',montant:120,cat:'Transport'}
+    ]
+  },
+  vision:"Créer un écosystème d'apps caribéennes pour les créatifs TDAH. Identité visuelle antillaise forte dans la tech. Indépendance financière via le SaaS d'ici 2028. Vivre et créer depuis la Guadeloupe."
+},
+liika:{
+  name:"Liika",
+  role:"Independante transport PL",
+  location:"",
+  color:"liika",
+  objectives:[
+    {id:"l1",cat:"Carriere",title:"Stabiliser le CA et fideliser les clients",desc:"Optimiser les tournees, negocier de meilleurs contrats",progress:30,done:false},
+    {id:"l2",cat:"Carriere",title:"Trouver sa niche de specialisation",desc:"Frigorifique, exceptionnel, evenementiel",progress:10,done:false},
+    {id:"l3",cat:"Carriere",title:"Passer de conductrice a cheffe de flotte",desc:"Second vehicule, recrutement, gestion",progress:5,done:false},
+    {id:"l4",cat:"Sante",title:"Routine sante adaptee a la route",desc:"Etirements, repas prepares, hydratation, sommeil",progress:20,done:false},
+    {id:"l5",cat:"Perso",title:"Equilibre route / maison",desc:"Choisir ses tournees, moins de nuits dehors",progress:15,done:false},
+    {id:"l6",cat:"Perso",title:"Construire a deux avec Dja",desc:"Temps de qualite, projets communs, logement",progress:20,done:false},
+  ],
+  actions:[
+    {id:"la1",text:"Bilan financier des 12 derniers mois",cat:"Carriere",done:false},
+    {id:"la2",text:"Identifier 3 niches de specialisation",cat:"Carriere",done:false},
+    {id:"la3",text:"Mettre en place un kit repas sains pour la route",cat:"Sante",done:false},
+    {id:"la4",text:"Routine etirements de 10 min aux pauses",cat:"Sante",done:false},
+    {id:"la5",text:"Planifier un week-end deconnexion avec Dja",cat:"Perso",done:false},
+    {id:"la6",text:"Se renseigner sur les formations capacitaire",cat:"Carriere",done:false},
+  ],
+  notes:[],
+  meals:[
+    {id:'lm1',jour:'Lundi',type:'Matin',plat:'Café thermos + pain de mie',note:'Route tôt'},
+    {id:'lm2',jour:'Lundi',type:'Midi',plat:'Tupperware riz poulet légumes',note:'Préparé la veille'},
+    {id:'lm3',jour:'Mardi',type:'Midi',plat:'Salade composée / wrap',note:'Repos aire autoroute'},
+    {id:'lm4',jour:'Mercredi',type:'Matin',plat:'Yaourt fruits secs noix',note:''},
+    {id:'lm5',jour:'Vendredi',type:'Soir',plat:'Repas maison avec Dja',note:'Rentré(e)'},
+  ],
+  budget:{
+    revenus:[
+      {id:'lr1',label:'Transport PL',montant:3200}
+    ],
+    depenses:[
+      {id:'ld1',label:'Charges véhicule',montant:900,cat:'Pro'},
+      {id:'ld2',label:'Carburant',montant:400,cat:'Transport'},
+      {id:'ld3',label:'Alimentation route',montant:250,cat:'Vie'},
+      {id:'ld4',label:'Assurances',montant:180,cat:'Pro'}
+    ]
+  },
+  vision:"Devenir cheffe de flotte d'ici 2027 avec un second camion. Choisir mes tournées, rentrer chez moi le week-end. Construire un chez-nous solide avec Dja. Santé, équilibre et liberté sur la route."
+},
+couple:{
+  objectives:[
+    {id:"c1",cat:"Couple",title:"Definir les objectifs communs 2027",desc:"Logement, voyages, finances partagees",progress:10,done:false},
+    {id:"c2",cat:"Couple",title:"Synchroniser les rythmes de vie",desc:"Adapter les plannings malgre deux metiers differents",progress:15,done:false},
+    {id:"c3",cat:"Couple",title:"Investir dans un logement",desc:"Creer un cocon solide a deux",progress:5,done:false},
+  ],
+  actions:[
+    {id:"ca1",text:"Planifier une soiree objectifs couple",cat:"Couple",done:false},
+    {id:"ca2",text:"Ouvrir un compte commun projets",cat:"Couple",done:false},
+    {id:"ca3",text:"Choisir une destination vacances 2027",cat:"Couple",done:false},
+  ]
+}
+};
+
+function loadData(){
+try{const d=localStorage.getItem('dja-liika-goals');return d?JSON.parse(d):defaultData}catch(e){return defaultData}
+}
+function saveData(d){localStorage.setItem('dja-liika-goals',JSON.stringify(d))}
+function loadUI(){
+try{const u=localStorage.getItem('dja-liika-ui');return u?{...defaultUI,...JSON.parse(u)}:defaultUI}catch(e){return defaultUI}
+}
+function saveUI(u){localStorage.setItem('dja-liika-ui',JSON.stringify(u))}
+
+// ─── Components ───
+
+function ProgressRing({pct,size=48,stroke=4,color}){
+const r=(size-stroke)/2;const circ=2*Math.PI*r;const off=circ-pct/100*circ;
+return <svg width={size} height={size} style={{transform:'rotate(-90deg)'}}>
+<circle cx={size/2} cy={size/2} r={r} fill="none" stroke="var(--border2)" strokeWidth={stroke}/>
+<circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke} strokeDasharray={circ} strokeDashoffset={off} strokeLinecap="round" style={{transition:'stroke-dashoffset .5s ease'}}/>
+</svg>
+}
+
+function StatCard({label,value,color,icon}){
+return <div style={{background:'var(--bg3)',borderRadius:'var(--radius)',padding:'16px 20px',display:'flex',alignItems:'center',gap:14}}>
+<div style={{width:40,height:40,borderRadius:10,background:accentBg[color],display:'flex',alignItems:'center',justifyContent:'center',fontSize:18}}>{icon}</div>
+<div><div style={{fontSize:13,color:'var(--text3)',marginBottom:2}}>{label}</div>
+<div style={{fontSize:22,fontWeight:600}}>{value}</div></div>
+</div>
+}
+
+function ObjectiveCard({obj,color,onToggle,onProgress,onDelete}){
+const accentVar=color==='dja'?'var(--accent-dja)':color==='liika'?'var(--accent-liika)':'var(--accent-couple)';
+const bgVar=color==='dja'?'var(--accent-dja-bg)':color==='liika'?'var(--accent-liika-bg)':'var(--accent-couple-bg)';
+return <div style={{background:'var(--bg3)',borderRadius:'var(--radius)',padding:'16px 20px',borderLeft:`3px solid ${obj.done?'var(--success)':accentVar}`,animation:'fadeUp .4s ease both',opacity:obj.done?.6:1,transition:'opacity .3s'}}>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
+<div style={{flex:1}}>
+<div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
+<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:bv,color:av,fontWeight:500}}>{obj.cat}</span>
+{obj.done&&<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:'var(--success-bg)',color:'var(--success)',fontWeight:500}}>Fait</span>}
+</div>
+<div style={{fontSize:15,fontWeight:500,marginBottom:4,textDecoration:obj.done?'line-through':'none'}}>{obj.title}</div>
+<div style={{fontSize:13,color:'var(--text3)'}}>{obj.desc}</div>
+</div>
+<div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
+<ProgressRing pct={obj.progress} color={obj.done?'var(--success)':av}/>
+<span style={{fontSize:11,fontWeight:500,color:obj.done?'var(--success)':av}}>{obj.progress}%</span>
+</div>
+</div>
+<div style={{marginTop:12,display:'flex',alignItems:'center',gap:8}}>
+<input type="range" min="0" max="100" step="5" value={obj.progress}
+  onChange={e=>onProgress(obj.id,parseInt(e.target.value))}
+  style={{flex:1,height:4,accentColor:av,cursor:'pointer'}}/>
+<button onClick={()=>onToggle(obj.id)} style={{background:obj.done?'var(--success-bg)':'var(--bg4)',border:'none',borderRadius:'var(--radius-xs)',padding:'6px 12px',fontSize:12,color:obj.done?'var(--success)':'var(--text2)',cursor:'pointer',whiteSpace:'nowrap'}}>
+{obj.done?'Réactiver':'Valider'}</button>
+<button onClick={()=>onDelete(obj.id)} aria-label="Supprimer" style={{background:'none',border:'none',fontSize:14,color:'var(--text3)',cursor:'pointer',padding:'6px'}}>✕</button>
+</div>
+</div>
+}
+
+function ActionItem({action,color,onToggle}){
+const av=accent[color];
+return <div style={{display:'flex',alignItems:'center',gap:12,padding:'12px 16px',background:'var(--bg3)',borderRadius:'var(--radius-sm)',cursor:'pointer',transition:'all .15s',animation:'slideIn .3s ease both'}} onClick={()=>onToggle(action.id)}>
+<div style={{width:20,height:20,minWidth:20,borderRadius:6,border:action.done?'none':`2px solid var(--border2)`,background:action.done?'var(--success)':'transparent',display:'flex',alignItems:'center',justifyContent:'center',transition:'all .2s'}}>
+{action.done&&<span style={{color:'var(--bg)',fontSize:12,fontWeight:700}}>✓</span>}
+</div>
+<span style={{flex:1,fontSize:14,color:action.done?'var(--text3)':'var(--text)',textDecoration:action.done?'line-through':'none',transition:'all .2s'}}>{action.text}</span>
+<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:accentBg[color],color:av,fontWeight:500}}>{action.cat}</span>
+</div>
+}
+
+function NotesPanel({who,notes,onAdd,onDelete}){
+const [draft,setDraft]=useState('');
+const av=accent[who];const bv=accentBorder[who];
+const fmt=iso=>{const d=new Date(iso);return d.toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'})+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});};
+const submit=()=>{if(draft.trim()){onAdd(who,draft);setDraft('');}};
+return <div style={{marginTop:32}}>
+<h3 style={{fontSize:16,fontWeight:500,marginBottom:14,color:'var(--text2)'}}>Notes</h3>
+<div style={{display:'flex',gap:8,marginBottom:16}}>
+<textarea value={draft} onChange={e=>setDraft(e.target.value)}
+  onKeyDown={e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey))submit();}}
+  placeholder="Nouvelle note… (Ctrl+Entrée pour valider)"
+  rows={3}
+  style={{flex:1,background:'var(--bg3)',border:`1px solid ${bv}`,borderRadius:'var(--radius-sm)',padding:'10px 12px',color:'var(--text)',fontSize:13,resize:'vertical',outline:'none',fontFamily:'inherit',lineHeight:1.5}}/>
+<button onClick={submit}
+  style={{alignSelf:'flex-end',padding:'8px 14px',borderRadius:'var(--radius-sm)',border:'none',background:av,color:'#fff',cursor:'pointer',fontSize:13,fontWeight:500,whiteSpace:'nowrap'}}>
+  + Ajouter
+</button>
+</div>
+{!(notes||[]).length&&<p style={{fontSize:13,color:'var(--text3)',textAlign:'center',padding:'20px 0'}}>Aucune note pour l'instant.</p>}
+<div style={{display:'flex',flexDirection:'column',gap:10}}>
+{(notes||[]).map(n=><div key={n.id} style={{background:'var(--bg2)',border:`1px solid ${bv}`,borderRadius:'var(--radius-sm)',padding:'12px 14px'}}>
+  <p style={{fontSize:13,color:'var(--text)',lineHeight:1.6,whiteSpace:'pre-wrap',marginBottom:6}}>{n.text}</p>
+  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+    <span style={{fontSize:11,color:'var(--text3)'}}>{fmt(n.date)}</span>
+    <button onClick={()=>onDelete(who,n.id)} aria-label="Supprimer la note" style={{background:'none',border:'none',color:'var(--text3)',cursor:'pointer',fontSize:16,lineHeight:1,padding:'0 2px'}}>×</button>
+  </div>
+</div>)}
+</div>
+</div>;
+}
+
+function AddModal({show,onClose,onAdd,type,color}){
+const [title,setTitle]=useState('');
+const [desc,setDesc]=useState('');
+const [cat,setCat]=useState('Carriere');
+if(!show)return null;
+const av=accent[color]||accent.dja;
+const cats=color==='couple'?['Couple']:['Carriere','Sante','Finances','Perso'];
+return <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.7)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:100,padding:20}} onClick={onClose}>
+<div style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:28,maxWidth:440,width:'100%',border:'1px solid var(--border2)'}} onClick={e=>e.stopPropagation()}>
+<h3 style={{fontSize:18,fontWeight:500,marginBottom:20}}>{type==='objective'?'Nouvel objectif':'Nouvelle action'}</h3>
+<input placeholder={type==='objective'?'Titre de l\'objectif':'Action a realiser'} value={title} onChange={e=>setTitle(e.target.value)}
+  style={{width:'100%',padding:'10px 14px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'var(--bg3)',color:'var(--text)',fontSize:14,marginBottom:12,outline:'none'}}/>
+{type==='objective'&&<input placeholder="Description" value={desc} onChange={e=>setDesc(e.target.value)}
+  style={{width:'100%',padding:'10px 14px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'var(--bg3)',color:'var(--text)',fontSize:14,marginBottom:12,outline:'none'}}/>}
+<div style={{display:'flex',gap:8,marginBottom:20,flexWrap:'wrap'}}>
+{cats.map(c=><button key={c} onClick={()=>setCat(c)} style={{padding:'6px 14px',borderRadius:20,border:cat===c?`2px solid ${av}`:'1px solid var(--border2)',background:cat===c?'var(--bg4)':'transparent',color:cat===c?'var(--text)':'var(--text3)',fontSize:13,cursor:'pointer'}}>{c}</button>)}
+</div>
+<div style={{display:'flex',gap:10,justifyContent:'flex-end'}}>
+<button onClick={onClose} style={{padding:'10px 20px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'transparent',color:'var(--text2)',cursor:'pointer',fontSize:14}}>Annuler</button>
+<button onClick={()=>{if(title.trim()){onAdd(title,desc,cat);setTitle('');setDesc('');onClose()}}} style={{padding:'10px 20px',borderRadius:'var(--radius-sm)',border:'none',background:av,color:'#fff',cursor:'pointer',fontSize:14,fontWeight:500}}>Ajouter</button>
+</div>
+</div>
+</div>
+}
+
+function ChartPanel({data}){
+const canvasRef=useRef(null);
+const chartRef=useRef(null);
+useEffect(()=>{
+if(!canvasRef.current)return;
+if(chartRef.current)chartRef.current.destroy();
+const all=[...data.dja.objectives,...data.liika.objectives,...data.couple.objectives];
+const cats=[...new Set(all.map(o=>o.cat))];
+const avgByCat=cats.map(c=>{const items=all.filter(o=>o.cat===c);return Math.round(items.reduce((s,i)=>s+i.progress,0)/items.length)});
+chartRef.current=new Chart(canvasRef.current,{
+type:'bar',
+data:{labels:cats,datasets:[{data:avgByCat,backgroundColor:['#8b5cf6','#34d399','#fbbf24','#f472b6','#60a5fa'],borderRadius:8,barPercentage:.6}]},
+options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{
+y:{beginAtZero:true,max:100,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#6e6a80',font:{family:'Outfit'}}},
+x:{grid:{display:false},ticks:{color:'#a8a4b8',font:{family:'Outfit',weight:500}}}
+}}
+});
+return ()=>{if(chartRef.current)chartRef.current.destroy()};
+},[data]);
+return <div style={{position:'relative',height:260}}><canvas ref={canvasRef}/></div>
+}
+
+function DoughnutPanel({data,who}){
+const canvasRef=useRef(null);
+const chartRef=useRef(null);
+useEffect(()=>{
+if(!canvasRef.current)return;
+if(chartRef.current)chartRef.current.destroy();
+const src=who==='couple'?data.couple.objectives:data[who].objectives;
+const done=src.filter(o=>o.done).length;
+const inProgress=src.filter(o=>!o.done&&o.progress>0).length;
+const notStarted=src.filter(o=>!o.done&&o.progress===0).length;
+chartRef.current=new Chart(canvasRef.current,{
+type:'doughnut',
+data:{labels:['Termines','En cours','A faire'],datasets:[{data:[done,inProgress,notStarted],backgroundColor:['#34d399','#8b5cf6','#2a2a3a'],borderWidth:0}]},
+options:{responsive:true,maintainAspectRatio:false,cutout:'70%',plugins:{legend:{display:false}}}
+});
+return ()=>{if(chartRef.current)chartRef.current.destroy()};
+},[data,who]);
+return <div style={{position:'relative',height:200}}><canvas ref={canvasRef}/></div>
+}
+
+// ─── Main App ───
+function App(){
+const [data,setData]=useState(loadData);
+const [ui,setUI]=useState(loadUI);
+const [view,setView]=useState('dashboard');
+const [modal,setModal]=useState(null);
+
+useEffect(()=>saveData(data),[data]);
+
+const updateObj=(who,id,updates)=>{
+setData(prev=>{
+const next=clone(prev);
+const list=who==='couple'?next.couple.objectives:next[who].objectives;
+const idx=list.findIndex(o=>o.id===id);
+if(idx>=0)Object.assign(list[idx],updates);
+return next;
+});
+},[]);
+const toggleAction=useCallback((who,id)=>{
+setData(prev=>{
+const next=clone(prev);
+const list=who==='couple'?next.couple.actions:next[who].actions;
+const idx=list.findIndex(a=>a.id===id);
+if(idx>=0)list[idx].done=!list[idx].done;
+return next;
+});
+},[]);
+const deleteObj=useCallback((who,id)=>{
+setData(prev=>{
+const next=clone(prev);
+if(who==='couple')next.couple.objectives=next.couple.objectives.filter(o=>o.id!==id);
+else next[who].objectives=next[who].objectives.filter(o=>o.id!==id);
+return next;
+});
+},[]);
+const addObjective=useCallback((who,title,desc,cat)=>{
+setData(prev=>{
+const next=clone(prev);
+const obj={id:Date.now().toString(),cat,title,desc,progress:0,done:false};
+if(who==='couple')next.couple.objectives.push(obj);
+else next[who].objectives.push(obj);
+return next;
+});
+},[]);
+const addAction=useCallback((who,text,_,cat)=>{
+setData(prev=>{
+const next=clone(prev);
+const act={id:Date.now().toString(),text,cat,done:false};
+if(who==='couple')next.couple.actions.push(act);
+else next[who].actions.push(act);
+return next;
+});
+},[]);
+const addNote=useCallback((who,text)=>{
+if(!text.trim())return;
+setData(prev=>{
+const next=clone(prev);
+const note={id:Date.now().toString(),text:text.trim(),date:new Date().toISOString()};
+if(who==='couple')next.couple.notes=[note,...(next.couple.notes||[])];
+else next[who].notes=[note,...(next[who].notes||[])];
+return next;
+});
+},[]);
+const deleteNote=useCallback((who,id)=>{
+setData(prev=>{
+const next=clone(prev);
+if(who==='couple')next.couple.notes=(next.couple.notes||[]).filter(n=>n.id!==id);
+else next[who].notes=(next[who].notes||[]).filter(n=>n.id!==id);
+return next;
+});
+},[]);
+const upsertMeal=useCallback((who,meal)=>{
+setData(prev=>{
+const next=clone(prev);
+const src=next[who]?.meals||next.couple?.meals||[];
+const idx=src.findIndex(m=>m.id===meal.id);
+if(idx>=0)src[idx]=meal; else src.push(meal);
+return next;
+});
+},[]);
+const deleteMeal=useCallback((who,id)=>{
+setData(prev=>{
+const next=clone(prev);
+if(who==='couple')next.couple.meals=(next.couple.meals||[]).filter(m=>m.id!==id);
+else next[who].meals=(next[who].meals||[]).filter(m=>m.id!==id);
+return next;
+});
+},[]);
+const upsertBudgetLine=useCallback((who,type,line)=>{
+setData(prev=>{
+const next=clone(prev);
+const src=who==='couple'?next.couple.budget:next[who].budget;
+const arr=src[type];
+const idx=arr.findIndex(l=>l.id===line.id);
+if(idx>=0)arr[idx]=line; else arr.push(line);
+return next;
+});
+},[]);
+const deleteBudgetLine=useCallback((who,type,id)=>{
+setData(prev=>{
+const next=clone(prev);
+const src=who==='couple'?next.couple.budget:next[who].budget;
+src[type]=src[type].filter(l=>l.id!==id);
+return next;
+});
+},[]);
+const updateVision=useCallback((who,text)=>{
+setData(prev=>{
+const next=clone(prev);
+if(who==='couple')next.couple.vision=text;
+else next[who].vision=text;
+return next;
+});
+},[]);
+
+const {totalObj,totalDone,avgProgress,totalActions,actionsDone}=useMemo(()=>{
+const totalObj=[...data.dja.objectives,...data.liika.objectives,...data.couple.objectives];
+const totalDone=totalObj.filter(o=>o.done).length;
+const avgProgress=totalObj.length?Math.round(totalObj.reduce((s,o)=>s+o.progress,0)/totalObj.length):0;
+const totalActions=[...data.dja.actions,...data.liika.actions,...data.couple.actions];
+const actionsDone=totalActions.filter(a=>a.done).length;
+return {totalObj,totalDone,avgProgress,totalActions,actionsDone};
+},[data]);
+
+const navItems=[
+{id:'dashboard',label:'Dashboard',icon:'◈'},
+{id:'dja',label:'Dja',icon:'◆'},
+{id:'liika',label:'Liika',icon:'◇'},
+{id:'couple',label:'Couple',icon:'♡'},
+{id:'repas',label:'Repas',icon:'🍽'},
+{id:'budget',label:'Budget',icon:'💰'},
+{id:'vision',label:'Vision',icon:'✦'},
+{id:'charts',label:'Stats',icon:'▤'},
+{id:'cuisine',label:'DrevmCook',icon:'🌿'},
+];
+
+const renderPerson=(who)=>{
+const person=data[who];
+const color=who;
+return <div>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24,flexWrap:'wrap',gap:12}}>
+<div>
+<h2 style={{fontSize:22,fontWeight:600,fontFamily:"'Playfair Display',serif"}}>{person.name}</h2>
+<p style={{fontSize:14,color:'var(--text3)',marginTop:2}}>{person.role}{person.location?` — ${person.location}`:''}</p>
+</div>
+<div style={{display:'flex',gap:8}}>
+<button onClick={()=>setModal({type:'objective',who})} style={{padding:'8px 16px',borderRadius:'var(--radius-sm)',border:'none',background:accent[who],color:'#fff',cursor:'pointer',fontSize:13,fontWeight:500}}>+ Objectif</button>
+<button onClick={()=>setModal({type:'action',who})} style={{padding:'8px 16px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'transparent',color:'var(--text2)',cursor:'pointer',fontSize:13}}>+ Action</button>
+</div>
+</div>
+<div style={{display:'grid',gap:12,marginBottom:28}}>
+{person.objectives.map(o=><ObjectiveCard key={o.id} obj={o} color={color}
+  onToggle={id=>updateObj(who,id,{done:!o.done,progress:!o.done?100:o.progress})}
+  onProgress={(id,p)=>updateObj(who,id,{progress:p,done:p>=100})}
+  onDelete={id=>deleteObj(who,id)}/>)}
+</div>
+<h3 style={{fontSize:16,fontWeight:500,marginBottom:12,color:'var(--text2)'}}>Actions</h3>
+<div style={{display:'grid',gap:8}}>
+{person.actions.map(a=><ActionItem key={a.id} action={a} color={color} onToggle={id=>toggleAction(who,id)}/>)}
+</div>
+<NotesPanel who={who} notes={person.notes} onAdd={addNote} onDelete={deleteNote}/>
+</div>
+};
+
+const renderCouple=()=>{
+return <div>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24,flexWrap:'wrap',gap:12}}>
+<div>
+<h2 style={{fontSize:22,fontWeight:600,fontFamily:"'Playfair Display',serif"}}>Dja & Liika</h2>
+<p style={{fontSize:14,color:'var(--text3)',marginTop:2}}>Lanmou Douvan — Vision commune</p>
+</div>
+<div style={{display:'flex',gap:8}}>
+<button onClick={()=>setModal({type:'objective',who:'couple'})} style={{padding:'8px 16px',borderRadius:'var(--radius-sm)',border:'none',background:'var(--accent-couple)',color:'var(--bg)',cursor:'pointer',fontSize:13,fontWeight:500}}>+ Objectif</button>
+<button onClick={()=>setModal({type:'action',who:'couple'})} style={{padding:'8px 16px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'transparent',color:'var(--text2)',cursor:'pointer',fontSize:13}}>+ Action</button>
+</div>
+</div>
+<div style={{display:'grid',gap:12,marginBottom:28}}>
+{data.couple.objectives.map(o=><ObjectiveCard key={o.id} obj={o} color="couple"
+  onToggle={id=>updateObj('couple',id,{done:!o.done,progress:!o.done?100:o.progress})}
+  onProgress={(id,p)=>updateObj('couple',id,{progress:p,done:p>=100})}
+  onDelete={id=>deleteObj('couple',id)}/>)}
+</div>
+<h3 style={{fontSize:16,fontWeight:500,marginBottom:12,color:'var(--text2)'}}>Actions</h3>
+<div style={{display:'grid',gap:8}}>
+{data.couple.actions.map(a=><ActionItem key={a.id} action={a} color="couple" onToggle={id=>toggleAction('couple',id)}/>)}
+</div>
+<NotesPanel who="couple" notes={data.couple.notes} onAdd={addNote} onDelete={deleteNote}/>
+</div>
+};
+
+const renderDashboard=()=>{
+return <div>
+<div style={{marginBottom:28}}>
+<h2 style={{fontSize:26,fontWeight:600,fontFamily:"'Playfair Display',serif",marginBottom:4}}>Tableau de bord</h2>
+<p style={{fontSize:14,color:'var(--text3)'}}>Vue d'ensemble — Vision 2026-2036</p>
+</div>
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:12,marginBottom:28}}>
+<StatCard label="Progression moyenne" value={`${avgProgress}%`} color="dja" icon="◈"/>
+<StatCard label="Objectifs terminés" value={`${totalDone}/${totalObj.length}`} color="liika" icon="✓"/>
+<StatCard label="Actions faites" value={`${actionsDone}/${totalActions.length}`} color="couple" icon="▸"/>
+{(()=>{const totRev=['dja','liika','couple'].reduce((s,w)=>{const b=w==='couple'?data.couple.budget:data[w].budget;return s+(b?.revenus||[]).reduce((a,r)=>a+Number(r.montant),0);},0);const totDep=['dja','liika','couple'].reduce((s,w)=>{const b=w==='couple'?data.couple.budget:data[w].budget;return s+(b?.depenses||[]).reduce((a,d)=>a+Number(d.montant),0);},0);return <StatCard label="Balance totale" value={`${(totRev-totDep)>=0?'+':''}${(totRev-totDep).toLocaleString('fr-FR')} €`} color={(totRev-totDep)>=0?'dja':'couple'} icon="💰"/>;})()}
+</div>
+
+{/* Vision rapide */}
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:12,marginBottom:28}}>
+{['dja','liika','couple'].map(w=>{
+const v=w==='couple'?data.couple.vision:data[w].vision;
+const name=w==='dja'?data.dja.name:w==='liika'?data.liika.name:'Couple';
+return v?<div key={w} onClick={()=>setView('vision')} style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:16,border:`1px solid ${accentBorder[w]}`,cursor:'pointer',transition:'opacity .15s'}}>
+<div style={{fontSize:11,color:accent[w],letterSpacing:'.08em',textTransform:'uppercase',marginBottom:6}}>✦ Vision {name}</div>
+<p style={{fontSize:13,color:'var(--text2)',lineHeight:1.6,fontStyle:'italic',overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical'}}>{v}</p>
+</div>:null;})}
+</div>
+
+<h3 style={{fontSize:16,fontWeight:500,marginBottom:16,color:'var(--text2)'}}>Côte à côte</h3>
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:16,marginBottom:28}}>
+{['dja','liika'].map(who=>{
+const p=data[who];
+const avg=p.objectives.length?Math.round(p.objectives.reduce((s,o)=>s+o.progress,0)/p.objectives.length):0;
+const av=accent[who];
+return <div key={who} style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:20,border:`1px solid ${accentBorder[who]}`}}>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+<div>
+<div style={{fontSize:16,fontWeight:600}}>{p.name}</div>
+<div style={{fontSize:12,color:'var(--text3)'}}>{p.role}</div>
+</div>
+<div style={{position:'relative',display:'flex',alignItems:'center',justifyContent:'center'}}>
+<ProgressRing pct={avg} size={56} stroke={5} color={av}/>
+<span style={{position:'absolute',fontSize:13,fontWeight:600}}>{avg}%</span>
+</div>
+</div>
+{p.objectives.slice(0,3).map(o=><div key={o.id} style={{display:'flex',alignItems:'center',gap:10,marginBottom:8}}>
+<div style={{width:6,height:6,borderRadius:3,background:o.done?'var(--success)':av,minWidth:6}}/>
+<span style={{fontSize:13,color:o.done?'var(--text3)':'var(--text)',flex:1,textDecoration:o.done?'line-through':'none'}}>{o.title}</span>
+<span style={{fontSize:11,color:'var(--text3)'}}>{o.progress}%</span>
+</div>)}
+<button onClick={()=>setView(who)} style={{marginTop:12,width:'100%',padding:'8px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'transparent',color:'var(--text2)',cursor:'pointer',fontSize:13}}>Voir tout →</button>
+</div>})}
+</div>
+
+<div style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:20,border:'1px solid var(--accent-couple-border)',marginBottom:28}}>
+<div style={{fontSize:16,fontWeight:600,marginBottom:4}}>Objectifs couple</div>
+<div style={{fontSize:12,color:'var(--text3)',marginBottom:16}}>Lanmou Douvan — projets communs</div>
+{data.couple.objectives.map(o=><div key={o.id} style={{display:'flex',alignItems:'center',gap:10,marginBottom:8}}>
+<div style={{width:6,height:6,borderRadius:3,background:o.done?'var(--success)':'var(--accent-couple)',minWidth:6}}/>
+<span style={{fontSize:13,color:o.done?'var(--text3)':'var(--text)',flex:1}}>{o.title}</span>
+<span style={{fontSize:11,color:'var(--text3)'}}>{o.progress}%</span>
+</div>)}
+<button onClick={()=>setView('couple')} style={{marginTop:12,width:'100%',padding:'8px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'transparent',color:'var(--text2)',cursor:'pointer',fontSize:13}}>Voir tout →</button>
+</div>
+</div>
+};
+
+// ─── DrevmCook Data ───
+const drevmCookData = {
+  categories: [
+    {id:'bases',label:'Bases maison',icon:'🥛',color:'#a78bfa'},
+    {id:'sales',label:'Recettes salées',icon:'🥖',color:'#34d399'},
+    {id:'fermentation',label:'Fermentation',icon:'🫙',color:'#fbbf24'},
+    {id:'boissons',label:'Boissons & Infusions',icon:'🍵',color:'#60a5fa'},
+    {id:'desserts',label:'Desserts & Snacks',icon:'🍫',color:'#f472b6'},
+    {id:'plantes',label:'Herbier alimentaire',icon:'🌿',color:'#34d399'},
+    {id:'orga',label:'Organisation TDAH',icon:'🧠',color:'#8b5cf6'},
+  ],
+  recettes: [
+    // BASES
+    {id:'r01',cat:'bases',name:'Lait d\'amande maison',temps:'15 min + trempage',budget:'3,50 à 6 €',vegan:true,sansGluten:true,
+      ingredients:['100 g amandes','700 ml eau filtrée','1 pincée de sel','vanille optionnelle'],
+      etapes:['Tremper les amandes 8 à 12 h','Rincer','Mixer avec l\'eau filtrée','Filtrer avec tissu propre','Conserver 2 à 3 jours au frais'],
+      apports:'Vitamine E, magnésium, protéines végétales, bons lipides'},
+    {id:'r02',cat:'bases',name:'Lait de graines de courge',temps:'15 min + trempage',budget:'2,50 à 5 €',vegan:true,sansGluten:true,
+      ingredients:['100 g graines de courge','700 ml eau filtrée','1 pincée de sel','cannelle optionnelle'],
+      etapes:['Tremper les graines 4 à 8 h','Rincer','Mixer avec l\'eau','Filtrer','Conserver au frais 2 à 3 jours'],
+      apports:'Zinc, magnésium, protéines végétales, bons lipides'},
+    {id:'r03',cat:'bases',name:'Levain naturel sans gluten',temps:'5 jours',budget:'3,80 à 6,80 €',vegan:true,sansGluten:true,
+      ingredients:['Farine de riz complet','Farine de fruit à pain / sarrasin / pois chiche','Eau filtrée','Bocal propre'],
+      etapes:['J1 : 30g farine riz + 20g farine fruit à pain + 50ml eau','J2 : Ajouter 25g farine + 25-40ml eau','J3 : Retirer un peu si déborde, nourrir','J4 : Nourrir encore — bulles apparaissent','J5 : Prêt si bulle, gonfle et sent acidulé'],
+      apports:'Fermentation = meilleure digestion, goût développé, meilleure assimilation'},
+    // SALÉES
+    {id:'r04',cat:'sales',name:'Mini baguettes maison (×4)',temps:'2h',budget:'2,40 à 6 €',vegan:true,sansGluten:true,
+      ingredients:['350 g farine ou mélange sans gluten','1 sachet levure boulangère','Eau tiède','Huile de tournesol','Sel, herbes','Graines de courge optionnelles'],
+      etapes:['Activer levure dans eau tiède + huile','Ajouter farine, sel, herbes','Mélanger, couvrir 30 min','Rabats toutes les 30 min × 3','Séparer en 4 baguettes, griffer','Cuire 200°C, 15-20 min'],
+      apports:'Énergie, zinc, magnésium, antioxydants'},
+    {id:'r05',cat:'sales',name:'Focaccia DrevmCook',temps:'2h30',budget:'5 à 8 €',vegan:true,sansGluten:true,
+      ingredients:['300 g farine sans gluten','100 g levain actif ou levure','250 ml eau tiède','3 c. à soupe huile','Sel, ail, thym, romarin','Tomates ou oignons'],
+      etapes:['Mélanger farine, levain, eau, huile, sel','Pousser 1-2h','Verser dans plat huilé, faire des trous','Ajouter ail, herbes, garniture','Cuire 200°C, 20-25 min'],
+      apports:'Allicine, lycopène, vitamine C, prébiotiques'},
+    {id:'r06',cat:'sales',name:'Galettes anti-gaspillage',temps:'15 min',budget:'1 à 2 €',vegan:true,sansGluten:true,
+      ingredients:['Reste de levain','Farine de pois chiche ou riz','Eau, sel, herbes','Huile pour cuisson'],
+      etapes:['Mélanger levain + farine + eau','Assaisonner','Cuire à la poêle comme crêpe épaisse'],
+      apports:'Protéines, fibres, fer, fermentation'},
+    {id:'r07',cat:'sales',name:'Crackers au levain',temps:'30 min',budget:'1,50 à 3 €',vegan:true,sansGluten:true,
+      ingredients:['Reste de levain','Graines de courge','Sel, herbes','Huile'],
+      etapes:['Étaler très finement','Ajouter graines et herbes','Cuire 180°C jusqu\'à croustillant'],
+      apports:'Zinc, protéines, fermentation'},
+    {id:'r08',cat:'sales',name:'Pizza rustique sans gluten',temps:'45 min',budget:'6 à 10 €',vegan:true,sansGluten:true,
+      ingredients:['Pâte focaccia ou levain','Sauce tomate','Oignons, légumes','Herbes'],
+      etapes:['Étaler la pâte','Précuire 8 min','Garnir','Cuire 12-15 min'],
+      apports:'Lycopène, fibres, énergie'},
+    {id:'r09',cat:'sales',name:'Houmous vivant',temps:'10 min',budget:'4 à 7 €',vegan:true,sansGluten:true,
+      ingredients:['Pois chiches cuits','Ail, citron vert','Tahini ou graines de courge mixées','Huile, sel','Jus de lactofermentation optionnel'],
+      etapes:['Mixer tous les ingrédients jusqu\'à texture crémeuse'],
+      apports:'Protéines, fibres, fer, zinc, vitamine C'},
+    {id:'r10',cat:'sales',name:'Rainbow Salad',temps:'15 min',budget:'5 à 8 €',vegan:true,sansGluten:true,
+      ingredients:['Chou rouge, carotte, betterave','Avocat','Tofu grillé ou pois chiches','Graines de courge','Sauce citron gingembre'],
+      etapes:['Assembler tous les ingrédients en bol coloré'],
+      apports:'Anthocyanes, fer, bons lipides, protéines'},
+    {id:'r11',cat:'sales',name:'Riz pilaf aux pickles',temps:'25 min',budget:'3 à 5 €',vegan:true,sansGluten:true,
+      ingredients:['Riz basmati ou sauvage','Oignon, ail','Bouquet garni','Pickles ou légumes fermentés','Huile'],
+      etapes:['Revenir oignon et ail','Ajouter riz + eau + bouquet garni','Servir avec pickles'],
+      apports:'Énergie, prébiotiques, acidité digestive'},
+    {id:'r12',cat:'sales',name:'Club sandwich végétal',temps:'10 min',budget:'4 à 7 €',vegan:true,sansGluten:true,
+      ingredients:['Pain sans gluten maison','Jacquier ou champignons','Chou fermenté','Roquette','Sauce végétale'],
+      etapes:['Griller le pain','Garnir, presser légèrement','Couper en triangles'],
+      apports:'Protéines, probiotiques, fibres'},
+    // FERMENTATION
+    {id:'r13',cat:'fermentation',name:'Carottes épicées fermentées',temps:'2-3 semaines',budget:'4 à 6 €',vegan:true,sansGluten:true,
+      ingredients:['1 kg carottes','10 g sel marin','Gingembre, cannelle, ail'],
+      etapes:['Râper les carottes','Ajouter sel et épices','Malaxer pour le jus','Tasser en bocal','Garder immergé','Fermenter 2-3 semaines'],
+      apports:'Bêta-carotène, gingérols, allicine'},
+    {id:'r14',cat:'fermentation',name:'Chou-fleur en saumure',temps:'2-3 semaines',budget:'5 à 7 €',vegan:true,sansGluten:true,
+      ingredients:['550 g chou-fleur','30 g sel','450 g eau'],
+      etapes:['Couper le chou-fleur','Dissoudre sel dans eau','Bocal, couvrir de saumure','Fermenter 2-3 semaines'],
+      apports:'Vitamine C, sulforaphane, fibres'},
+    {id:'r15',cat:'fermentation',name:'Chou rouge lactofermenté',temps:'1-3 semaines',budget:'3 à 5 €',vegan:true,sansGluten:true,
+      ingredients:['Chou rouge','Sel marin','Ail, gingembre optionnels'],
+      etapes:['Émincer, saler, malaxer','Tasser, garder immergé','Fermenter 1-3 semaines'],
+      apports:'Anthocyanes, vitamine C, antioxydants'},
+    {id:'r16',cat:'fermentation',name:'Pickles de chou rouge doux',temps:'30 min + repos',budget:'5 à 7 €',vegan:true,sansGluten:true,
+      ingredients:['1/2 chou rouge','Vinaigre de cidre','Eau, sel, sucre','Poivre, cardamome'],
+      etapes:['Chauffer eau + vinaigre + sel + sucre','Verser sur chou émincé','Laisser refroidir, conserver au frais'],
+      apports:'Antioxydants, digestion'},
+    {id:'r17',cat:'fermentation',name:'Sauce piquante fermentée',temps:'1-2 semaines',budget:'3 à 5 €',vegan:true,sansGluten:true,
+      ingredients:['Piments','Ail','Sel, eau','Gingembre optionnel'],
+      etapes:['Mettre en saumure','Fermenter 1-2 semaines','Mixer'],
+      apports:'Capsaïcine, allicine, anti-inflammatoire'},
+    {id:'r18',cat:'fermentation',name:'Ail fermenté au miel',temps:'Plusieurs semaines',budget:'6 à 10 €',vegan:false,sansGluten:true,
+      ingredients:['Ail cru','Miel brut'],
+      etapes:['Mettre gousses dans le miel','Retourner régulièrement','Attendre plusieurs semaines'],
+      apports:'Immunité, gorge, circulation'},
+    {id:'r19',cat:'fermentation',name:'Kombucha maison',temps:'7-14 jours',budget:'5 à 10 €',vegan:true,sansGluten:true,
+      ingredients:['Thé','Sucre','SCOBY','Starter de kombucha'],
+      etapes:['Préparer thé sucré','Laisser refroidir','Ajouter SCOBY + starter','Couvrir tissu, fermenter','Ne pas fermer hermétiquement'],
+      apports:'Boisson vivante, acidité digestive'},
+    {id:'r20',cat:'fermentation',name:'Kvass de betterave',temps:'3-5 jours',budget:'2 à 4 €',vegan:true,sansGluten:true,
+      ingredients:['Betterave','Eau','Sel'],
+      etapes:['Couper betterave en morceaux','Eau + sel','Fermenter quelques jours'],
+      apports:'Fer végétal, nitrates naturels, circulation'},
+    // BOISSONS
+    {id:'r21',cat:'boissons',name:'Infusion feuilles de fruit à pain',temps:'20 min',budget:'0,80 à 1,50 €',vegan:true,sansGluten:true,
+      ingredients:['4-6 feuilles de fruit à pain','1L eau','Gingembre optionnel','Cannelle, miel optionnels'],
+      etapes:['Nettoyer les feuilles','Faire bouillir l\'eau','Ajouter feuilles','Frémir 10-15 min','Filtrer'],
+      apports:'Polyphénols, flavonoïdes, potassium'},
+    {id:'r22',cat:'boissons',name:'Matcha énergie mentale',temps:'5 min',budget:'2 à 4 €',vegan:true,sansGluten:true,
+      ingredients:['Matcha en poudre','Lait végétal','Cannelle, vanille'],
+      etapes:['Fouetter matcha + eau chaude','Ajouter lait végétal chaud','Cannelle et vanille'],
+      apports:'Catéchines, L-théanine, concentration calme'},
+    {id:'r23',cat:'boissons',name:'Moringa récupération',temps:'5 min',budget:'1 à 3 €',vegan:true,sansGluten:true,
+      ingredients:['Moringa en poudre','Lait végétal','Cannelle, vanille'],
+      etapes:['Mélanger moringa + lait','Chauffer doucement','Aromatiser'],
+      apports:'Fer, calcium, chlorophylle, protéines partielles'},
+    // DESSERTS
+    {id:'r24',cat:'desserts',name:'Banoffee Pie Créole',temps:'1h + repos',budget:'13 à 16 €',vegan:true,sansGluten:true,
+      ingredients:['Farine de fruit à pain ou riz','Coco râpée, sucre roux','Huile de coco','Lait de coco réduit','Bananes mûres, cannelle','Aquafaba optionnel'],
+      etapes:['Préparer base farine + coco + sucre + huile','Presser dans moule, cuire légèrement','Réduire lait coco + sucre + vanille en caramel','Ajouter bananes','Couvrir de meringue ou aquafaba','Réfrigérer'],
+      apports:'Potassium, bons lipides, fibres, énergie'},
+    {id:'r25',cat:'desserts',name:'Tiramisu Banane Chocolat',temps:'30 min + 4h repos',budget:'11 à 18 €',vegan:true,sansGluten:true,
+      ingredients:['4 bananes mûres','Biscuits sans gluten ou base maison','Cacao brut, café optionnel','Cannelle','Crème de coco ou mascarpone'],
+      etapes:['Préparer crème coco + sucre + vanille','Préparer base biscuitée','Monter couches : biscuit, banane, crème, cacao','Chocolat noir fondu','Repos au frais 4h minimum'],
+      apports:'Magnésium, flavonoïdes, potassium, fer'},
+    {id:'r26',cat:'desserts',name:'M&M\'s maison naturels',temps:'1h',budget:'11 à 23 €',vegan:true,sansGluten:true,
+      ingredients:['120-130 g poudre d\'amande','50 g cacao 100%','60 g sucre de coco','Vanille, sel, lait végétal','Chocolat fondu + huile de coco','Poudres colorantes : matcha, spiruline, betterave'],
+      etapes:['Mélanger amande, cacao, sucre, sel','Ajouter vanille + lait végétal','Former boule, couper en morceaux de 1cm','Congeler 10-20 min','Fondre chocolat + huile + poudre colorante','Enrober, congeler 10-30 min'],
+      apports:'Vitamine E, magnésium, antioxydants, fer'},
+    {id:'r27',cat:'desserts',name:'Snickers maison DrevmCook',temps:'1h30',budget:'14 à 25 €',vegan:true,sansGluten:true,
+      ingredients:['Poudre d\'amande, beurre de cacahuète','Lait végétal, sirop naturel','Dattes, eau chaude','Cacahuètes grillées','Chocolat noir, huile de coco'],
+      etapes:['Mélanger base nougat, étaler en moule','Mixer dattes + beurre cacahuète + eau + sel','Étaler caramel, ajouter cacahuètes','Congeler, couper en barres','Enrober chocolat noir + huile coco'],
+      apports:'Potassium, protéines, magnésium, antioxydants'},
+    {id:'r28',cat:'desserts',name:'Banane givrée cacao courge',temps:'10 min + congélation',budget:'2 à 4 €',vegan:true,sansGluten:true,
+      ingredients:['Bananes mûres','Cacao brut','Graines de courge','Cannelle','Lait végétal optionnel'],
+      etapes:['Couper et congeler les bananes','Mixer avec cacao + lait végétal','Ajouter graines de courge'],
+      apports:'Potassium, magnésium, zinc, antioxydants'},
+  ],
+  plantes: [
+    {nom:'Pourpier',apports:'Oméga-3 végétaux, fibres, minéraux, hydratation',usage:'Salade, condiment, bowls'},
+    {nom:'Atoumo',apports:'Digestion, respiration, mémoire créole',usage:'Infusion, boisson fraîche, sirop léger'},
+    {nom:'Moringa',apports:'Fer, calcium, protéines partielles, chlorophylle',usage:'Poudre dans boissons, sauces, soupes, smoothies'},
+    {nom:'Feuilles de goyave',apports:'Tanins, antioxydants, digestion',usage:'Décoction légère, infusion digestive'},
+    {nom:'Feuilles de patate douce',apports:'Chlorophylle, fibres, minéraux, antioxydants',usage:'Brèdes sautées, soupe, bouillon'},
+    {nom:'Leaf of Life (Bryophyllum)',apports:'Respiration, toux, peau, digestion',usage:'Infusion très légère, cataplasme — PRÉCAUTION : contient glycosides cardiaques'},
+  ],
+  orga: [
+    {regle:'Une base par jour',detail:'Ne pas tout faire le même jour. Une seule action : nourrir, tremper, mixer, cuire, assembler.'},
+    {regle:'Préparer des modules',detail:'Un bocal de pickles, un levain, un lait végétal, une base de pâte, un snack sucré, une sauce.'},
+    {regle:'Rappels visibles',detail:'Sur chaque bocal : date, contenu, action suivante, odeur normale / alerte.'},
+    {regle:'Zéro culpabilité',detail:'Si une étape saute, on reprend simplement. DrevmCook doit aider, pas mettre la pression.'},
+    {regle:'Transformer les restes',detail:'Levain → crackers, riz → pilaf, légumes → pickles, banane mûre → dessert glacé, graines → lait végétal.'},
+  ]
+};
+
+const renderCuisine=()=>{
+const [selectedCat,setSelectedCat]=useState('all');
+const [selectedRecipe,setSelectedRecipe]=useState(null);
+const [searchTerm,setSearchTerm]=useState('');
+const [subView,setSubView]=useState('recettes'); // recettes, plantes, orga, planning
+
+const filteredRecipes=drevmCookData.recettes.filter(r=>{
+  const matchCat=selectedCat==='all'||r.cat===selectedCat;
+  const matchSearch=!searchTerm||r.name.toLowerCase().includes(searchTerm.toLowerCase())||r.ingredients.some(i=>i.toLowerCase().includes(searchTerm.toLowerCase()));
+  return matchCat&&matchSearch;
+});
+
+const catCounts=drevmCookData.categories.map(c=>({...c,count:drevmCookData.recettes.filter(r=>r.cat===c.id).length}));
+
+if(selectedRecipe){
+  const r=selectedRecipe;
+  return <div>
+    <button onClick={()=>setSelectedRecipe(null)} style={{background:'none',border:'none',color:'var(--accent-dja)',cursor:'pointer',fontSize:14,marginBottom:20,display:'flex',alignItems:'center',gap:6}}>← Retour aux recettes</button>
+    <div style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:28,border:'1px solid var(--border2)'}}>
+      <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:20,flexWrap:'wrap'}}>
+        <h2 style={{fontSize:22,fontWeight:600,fontFamily:"'Playfair Display',serif",flex:1}}>{r.name}</h2>
+        <div style={{display:'flex',gap:6}}>
+          {r.vegan&&<span style={{fontSize:11,padding:'3px 10px',borderRadius:20,background:'rgba(52,211,153,.12)',color:'#34d399',fontWeight:500}}>Vegan</span>}
+          {r.sansGluten&&<span style={{fontSize:11,padding:'3px 10px',borderRadius:20,background:'rgba(251,191,36,.12)',color:'#fbbf24',fontWeight:500}}>Sans gluten</span>}
+        </div>
+      </div>
+      <div style={{display:'flex',gap:20,marginBottom:24,flexWrap:'wrap'}}>
+        <div style={{display:'flex',alignItems:'center',gap:6}}><span style={{fontSize:16}}>⏱</span><span style={{fontSize:13,color:'var(--text2)'}}>{r.temps}</span></div>
+        <div style={{display:'flex',alignItems:'center',gap:6}}><span style={{fontSize:16}}>💰</span><span style={{fontSize:13,color:'var(--text2)'}}>{r.budget}</span></div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:20}}>
+        <div>
+          <h3 style={{fontSize:15,fontWeight:600,marginBottom:12,color:'var(--accent-dja2)'}}>Ingrédients</h3>
+          <div style={{display:'flex',flexDirection:'column',gap:6}}>
+            {r.ingredients.map((ing,i)=><div key={i} style={{display:'flex',alignItems:'center',gap:8,fontSize:13,color:'var(--text)'}}>
+              <span style={{width:6,height:6,borderRadius:3,background:'var(--accent-dja)',minWidth:6}}/>
+              {ing}
+            </div>)}
+          </div>
+        </div>
+        <div>
+          <h3 style={{fontSize:15,fontWeight:600,marginBottom:12,color:'var(--accent-liika2)'}}>Étapes</h3>
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {r.etapes.map((et,i)=><div key={i} style={{display:'flex',gap:10,fontSize:13,color:'var(--text)'}}>
+              <span style={{width:22,height:22,minWidth:22,borderRadius:12,background:'var(--bg4)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:600,color:'var(--accent-liika)'}}>{i+1}</span>
+              <span style={{lineHeight:1.6,paddingTop:2}}>{et}</span>
+            </div>)}
+          </div>
+        </div>
+      </div>
+      <div style={{marginTop:20,padding:'14px 18px',background:'var(--bg3)',borderRadius:'var(--radius-sm)',borderLeft:'3px solid var(--accent-couple)'}}>
+        <div style={{fontSize:12,color:'var(--accent-couple)',fontWeight:600,marginBottom:4,textTransform:'uppercase',letterSpacing:'.05em'}}>Apports nutritifs</div>
+        <p style={{fontSize:13,color:'var(--text2)',lineHeight:1.6}}>{r.apports}</p>
+      </div>
+    </div>
+  </div>;
+}
+
+return <div>
+  <div style={{marginBottom:24}}>
+    <h2 style={{fontSize:26,fontWeight:600,fontFamily:"'Playfair Display',serif",marginBottom:4}}>
+      <span style={{color:'var(--accent-dja)'}}>Drevm</span><span style={{color:'var(--accent-couple)'}}>Cook</span> 🌿
+    </h2>
+    <p style={{fontSize:14,color:'var(--text3)'}}>Cuisine végétale, locale, sans gluten & autonomie alimentaire tropicale</p>
+  </div>
+
+  {/* Sub-navigation */}
+  <div style={{display:'flex',gap:6,marginBottom:20,flexWrap:'wrap'}}>
+    {[{id:'recettes',label:'Recettes',icon:'📖'},{id:'plantes',label:'Herbier',icon:'🌿'},{id:'orga',label:'Organisation TDAH',icon:'🧠'},{id:'planning',label:'Planning 7j',icon:'📅'}].map(s=>
+      <button key={s.id} onClick={()=>setSubView(s.id)} style={{padding:'8px 16px',borderRadius:20,border:subView===s.id?'2px solid var(--accent-dja)':'1px solid var(--border2)',background:subView===s.id?'var(--accent-dja-bg)':'transparent',color:subView===s.id?'var(--text)':'var(--text3)',fontSize:13,cursor:'pointer',fontWeight:subView===s.id?500:400,display:'flex',alignItems:'center',gap:6}}>
+        <span>{s.icon}</span>{s.label}
+      </button>
+    )}
+  </div>
+
+  {subView==='recettes'&&<div>
+    {/* Search */}
+    <input value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} placeholder="Rechercher une recette ou un ingrédient…"
+      style={{width:'100%',padding:'12px 16px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'var(--bg3)',color:'var(--text)',fontSize:14,marginBottom:16,outline:'none',fontFamily:'inherit'}}/>
+
+    {/* Category filters */}
+    <div style={{display:'flex',gap:6,marginBottom:20,flexWrap:'wrap',overflowX:'auto'}}>
+      <button onClick={()=>setSelectedCat('all')} style={{padding:'6px 14px',borderRadius:20,border:selectedCat==='all'?'2px solid var(--accent-couple)':'1px solid var(--border2)',background:selectedCat==='all'?'var(--accent-couple-bg)':'transparent',color:selectedCat==='all'?'var(--accent-couple)':'var(--text3)',fontSize:12,cursor:'pointer',whiteSpace:'nowrap'}}>
+        Tout ({drevmCookData.recettes.length})
+      </button>
+      {catCounts.map(c=>
+        <button key={c.id} onClick={()=>setSelectedCat(c.id)} style={{padding:'6px 14px',borderRadius:20,border:selectedCat===c.id?`2px solid ${c.color}`:'1px solid var(--border2)',background:selectedCat===c.id?`${c.color}18`:'transparent',color:selectedCat===c.id?c.color:'var(--text3)',fontSize:12,cursor:'pointer',whiteSpace:'nowrap',display:'flex',alignItems:'center',gap:4}}>
+          <span>{c.icon}</span> {c.label} ({c.count})
+        </button>
+      )}
+    </div>
+
+    {/* Recipe grid */}
+    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:12}}>
+      {filteredRecipes.map(r=>{
+        const catInfo=drevmCookData.categories.find(c=>c.id===r.cat);
+        return <div key={r.id} onClick={()=>setSelectedRecipe(r)} style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:'18px 20px',border:'1px solid var(--border)',cursor:'pointer',transition:'all .2s',borderLeft:`3px solid ${catInfo?.color||'var(--accent-dja)'}'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
+            <h4 style={{fontSize:14,fontWeight:500,flex:1,lineHeight:1.4}}>{r.name}</h4>
+            <span style={{fontSize:16,marginLeft:8}}>{catInfo?.icon}</span>
+          </div>
+          <div style={{display:'flex',gap:12,fontSize:11,color:'var(--text3)',marginBottom:8}}>
+            <span>⏱ {r.temps}</span>
+            <span>💰 {r.budget}</span>
+          </div>
+          <div style={{display:'flex',gap:4}}>
+            {r.vegan&&<span style={{fontSize:10,padding:'2px 7px',borderRadius:10,background:'rgba(52,211,153,.1)',color:'#34d399'}}>V</span>}
+            {r.sansGluten&&<span style={{fontSize:10,padding:'2px 7px',borderRadius:10,background:'rgba(251,191,36,.1)',color:'#fbbf24'}}>SG</span>}
+          </div>
+        </div>
+      })}
+    </div>
+    {filteredRecipes.length===0&&<p style={{textAlign:'center',color:'var(--text3)',padding:'40px 0',fontSize:14}}>Aucune recette trouvée pour "{searchTerm}"</p>}
+  </div>}
+
+  {subView==='plantes'&&<div>
+    <div style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:20,marginBottom:16,border:'1px solid var(--border)',borderLeft:'3px solid #34d399'}}>
+      <p style={{fontSize:13,color:'var(--text2)',lineHeight:1.6,fontStyle:'italic'}}>Les plantes traditionnelles ne remplacent pas un avis médical. Toujours commencer petit, observer, éviter les mélanges risqués avec médicaments.</p>
+    </div>
+    <div style={{display:'grid',gap:12}}>
+      {drevmCookData.plantes.map((p,i)=>
+        <div key={i} style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:'18px 22px',border:'1px solid var(--border)',animation:`fadeUp .3s ease ${i*0.05}s both`}}>
+          <h3 style={{fontSize:16,fontWeight:600,marginBottom:8,color:'var(--text)'}}>{p.nom} 🌿</h3>
+          <div style={{marginBottom:8}}>
+            <span style={{fontSize:11,color:'#34d399',fontWeight:600,textTransform:'uppercase',letterSpacing:'.05em'}}>Apports</span>
+            <p style={{fontSize:13,color:'var(--text2)',marginTop:4,lineHeight:1.5}}>{p.apports}</p>
+          </div>
+          <div>
+            <span style={{fontSize:11,color:'var(--accent-couple)',fontWeight:600,textTransform:'uppercase',letterSpacing:'.05em'}}>Usage</span>
+            <p style={{fontSize:13,color:'var(--text2)',marginTop:4,lineHeight:1.5}}>{p.usage}</p>
+          </div>
+        </div>
+      )}
+    </div>
+  </div>}
+
+  {subView==='orga'&&<div>
+    <div style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:20,marginBottom:20,border:'1px solid var(--accent-dja-border)',borderLeft:'3px solid var(--accent-dja)'}}>
+      <div style={{fontSize:13,color:'var(--accent-dja2)',fontWeight:500,marginBottom:6}}>🧠 Philosophie TDAH-friendly</div>
+      <p style={{fontSize:13,color:'var(--text2)',lineHeight:1.6}}>DrevmCook doit aider, pas mettre la pression. Une seule action par jour suffit pour avancer.</p>
+    </div>
+    <div style={{display:'grid',gap:12}}>
+      {drevmCookData.orga.map((o,i)=>
+        <div key={i} style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:'18px 22px',border:'1px solid var(--border)',display:'flex',gap:16,alignItems:'flex-start',animation:`fadeUp .3s ease ${i*0.06}s both`}}>
+          <div style={{width:36,height:36,minWidth:36,borderRadius:10,background:'var(--accent-dja-bg)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,fontWeight:700,color:'var(--accent-dja)'}}>{i+1}</div>
+          <div>
+            <h4 style={{fontSize:15,fontWeight:600,marginBottom:4}}>{o.regle}</h4>
+            <p style={{fontSize:13,color:'var(--text2)',lineHeight:1.6}}>{o.detail}</p>
+          </div>
+        </div>
+      )}
+    </div>
+
+    <div style={{marginTop:28}}>
+      <h3 style={{fontSize:16,fontWeight:600,marginBottom:12,color:'var(--text)'}}>Équation DrevmCook</h3>
+      <div style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:20,border:'1px solid var(--accent-couple-border)',textAlign:'center'}}>
+        <p style={{fontSize:15,color:'var(--accent-couple)',fontWeight:500,lineHeight:1.8}}>Produit péyi + fermentation + bonnes graisses + protéines végétales + épices = énergie durable</p>
+      </div>
+    </div>
+  </div>}
+
+  {subView==='planning'&&<div>
+    <div style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:20,marginBottom:16,border:'1px solid var(--border2)'}}>
+      <h3 style={{fontSize:16,fontWeight:600,marginBottom:12}}>Planning Pain & Focaccia — 7 jours</h3>
+      <div style={{display:'grid',gap:10}}>
+        {[
+          {jour:'Jour 1',action:'Lancer le levain',detail:'30g farine riz + 20g farine fruit à pain + 50ml eau'},
+          {jour:'Jour 2',action:'Nourrir le levain',detail:'25g farine + 25-50ml eau'},
+          {jour:'Jour 3',action:'Renforcer',detail:'Retirer un peu si besoin, nourrir farine + eau'},
+          {jour:'Jour 4',action:'Préparer pâte baguettes',detail:'350g farine, levure/levain, eau tiède, huile, sel, herbes'},
+          {jour:'Jour 5',action:'Cuire mini baguettes',detail:'200°C, 15-20 min'},
+          {jour:'Jour 6',action:'Focaccia',detail:'300g farine, levain, eau, huile, ail, herbes — 200°C, 20-25 min'},
+          {jour:'Jour 7',action:'Anti-gaspillage',detail:'Galettes rapides, crackers, pizza rustique'},
+        ].map((j,i)=>
+          <div key={i} style={{display:'flex',gap:14,alignItems:'flex-start',padding:'12px 16px',background:'var(--bg3)',borderRadius:'var(--radius-sm)'}}>
+            <div style={{width:32,height:32,minWidth:32,borderRadius:8,background:i<5?'var(--accent-dja-bg)':i===5?'var(--accent-liika-bg)':'var(--accent-couple-bg)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,color:i<5?'var(--accent-dja)':i===5?'var(--accent-liika)':'var(--accent-couple)'}}>{j.jour.split(' ')[1]}</div>
+            <div>
+              <div style={{fontSize:14,fontWeight:500,marginBottom:2}}>{j.action}</div>
+              <div style={{fontSize:12,color:'var(--text3)'}}>{j.detail}</div>
+            </div>
+          </div>
+        )}
+      </div>
+      <div style={{marginTop:16,padding:'12px 16px',background:'var(--bg3)',borderRadius:'var(--radius-sm)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <span style={{fontSize:13,color:'var(--text2)'}}>Budget semaine</span>
+        <span style={{fontSize:14,fontWeight:600,color:'var(--accent-couple)'}}>≈ 12 à 22 €</span>
+      </div>
+    </div>
+
+    <div style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:20,border:'1px solid var(--border2)'}}>
+      <h3 style={{fontSize:16,fontWeight:600,marginBottom:12}}>Budget global de départ</h3>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:12}}>
+        <div style={{padding:'14px 18px',background:'var(--bg3)',borderRadius:'var(--radius-sm)'}}>
+          <div style={{fontSize:12,color:'var(--text3)',marginBottom:4}}>Base DrevmCook complète</div>
+          <div style={{fontSize:18,fontWeight:600,color:'var(--accent-dja)'}}>45 à 90 €</div>
+        </div>
+        <div style={{padding:'14px 18px',background:'var(--bg3)',borderRadius:'var(--radius-sm)'}}>
+          <div style={{fontSize:12,color:'var(--text3)',marginBottom:4}}>Budget semaine pain/fermentation/snacks</div>
+          <div style={{fontSize:18,fontWeight:600,color:'var(--accent-couple)'}}>20 à 45 €</div>
+        </div>
+      </div>
+    </div>
+  </div>}
+
+  {/* Quote */}
+  <div style={{marginTop:28,padding:'16px 20px',background:'var(--bg2)',borderRadius:'var(--radius)',border:'1px solid var(--border)',textAlign:'center'}}>
+    <p style={{fontSize:13,color:'var(--text3)',fontStyle:'italic',lineHeight:1.6}}>DrevmCook : nourrir le corps, calmer le système, réveiller la créativité. 🌴</p>
+  </div>
+</div>
+};
+
+const renderCharts=()=>{
+return <div>
+<h2 style={{fontSize:22,fontWeight:600,fontFamily:"'Playfair Display',serif",marginBottom:4}}>Statistiques</h2>
+<p style={{fontSize:14,color:'var(--text3)',marginBottom:24}}>Progression par categorie et par personne</p>
+<div style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:20,marginBottom:20,border:'1px solid var(--border)'}}>
+<h3 style={{fontSize:15,fontWeight:500,marginBottom:16}}>Progression moyenne par categorie</h3>
+<ChartPanel data={data}/>
+</div>
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(250px,1fr))',gap:16}}>
+{['dja','liika','couple'].map(who=>{
+const label=who==='dja'?'Dja':who==='liika'?'Liika':'Couple';
+const col=who==='dja'?'var(--accent-dja)':who==='liika'?'var(--accent-liika)':'var(--accent-couple)';
+return <div key={who} style={{background:'var(--bg2)',borderRadius:'var(--radius)',padding:20,border:'1px solid var(--border)'}}>
+<h3 style={{fontSize:15,fontWeight:500,marginBottom:16}}>{label}</h3>
+<DoughnutPanel data={data} who={who}/>
+<div style={{display:'flex',justifyContent:'center',gap:16,marginTop:12,fontSize:12,color:'var(--text3)'}}>
+<span style={{display:'flex',alignItems:'center',gap:4}}><span style={{width:8,height:8,borderRadius:2,background:'#34d399',display:'inline-block'}}/> Fait</span>
+<span style={{display:'flex',alignItems:'center',gap:4}}><span style={{width:8,height:8,borderRadius:2,background:'#8b5cf6',display:'inline-block'}}/> En cours</span>
+<span style={{display:'flex',alignItems:'center',gap:4}}><span style={{width:8,height:8,borderRadius:2,background:'#2a2a3a',display:'inline-block'}}/> A faire</span>
+</div>
+</div>})}
+</div>
+</div>
+};
+
+return <div style={{display:'flex',minHeight:'100vh'}}>
+{/* Sidebar */}
+<nav style={{width:220,minWidth:220,background:'var(--bg2)',borderRight:'1px solid var(--border)',padding:'24px 0',display:'flex',flexDirection:'column',position:'sticky',top:0,height:'100vh'}}>
+<div style={{padding:'0 20px',marginBottom:32}}>
+<div style={{fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:600,letterSpacing:'-0.02em'}}>
+<span style={{color:'var(--accent-dja)'}}>Lanmou</span> <span style={{color:'var(--accent-liika)'}}>Douvan</span>
+</div>
+<div style={{fontSize:11,color:'var(--text3)',marginTop:4,letterSpacing:'.05em',textTransform:'uppercase'}}>Mix Vibz</div>
+</div>
+<div style={{flex:1}}>
+{navItems.map(n=><button key={n.id} onClick={()=>setView(n.id)}
+style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 20px',border:'none',background:view===n.id?'var(--bg3)':'transparent',color:view===n.id?'var(--text)':'var(--text3)',fontSize:14,fontWeight:view===n.id?500:400,cursor:'pointer',borderLeft:view===n.id?'2px solid var(--accent-dja)':'2px solid transparent',transition:'all .15s'}}>
+<span style={{fontSize:16,width:20,textAlign:'center'}}>{n.icon}</span>{n.label}
+</button>)}
+</div>
+<div style={{padding:'0 20px',display:'flex',flexDirection:'column',gap:8}}>
+{/* Supabase sync status */}
+<div style={{display:'flex',alignItems:'center',gap:6,padding:'7px 10px',borderRadius:'var(--radius-sm)',border:'1px solid var(--accent-dja-border)',background:'var(--accent-dja-bg)'}}>
+<span style={{fontSize:13}}>🗄</span>
+<span style={{fontSize:12,color:'var(--accent-dja2)',flex:1}}>Supabase</span>
+<span style={{fontSize:10,fontWeight:500,color:syncStatus==='ok'?'var(--success)':syncStatus==='error'?'#f87171':syncStatus==='syncing'?'var(--accent-couple)':'var(--text3)'}}>
+{syncStatus==='ok'?'✓ sync':syncStatus==='error'?'✗ erreur':syncStatus==='syncing'?'sync…':'prêt'}
+</span>
+</div>
+<button onClick={()=>{if(confirm('Réinitialiser toutes les données ?')){localStorage.removeItem('dja-liika-goals');setData(defaultData)}}}
+style={{width:'100%',padding:'8px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border2)',background:'transparent',color:'var(--text3)',cursor:'pointer',fontSize:12}}>Réinitialiser</button>
+</div>
+</nav>
+
+{/* Mobile nav */}
+<div className="mobile-nav" style={{display:'none',position:'fixed',bottom:0,left:0,right:0,background:'var(--bg2)',borderTop:'1px solid var(--border)',padding:'8px 0',zIndex:50}}>
+<div style={{display:'flex',justifyContent:'space-around'}}>
+{navItems.map(n=><button key={n.id} onClick={()=>setView(n.id)}
+style={{display:'flex',flexDirection:'column',alignItems:'center',gap:2,border:'none',background:'transparent',color:view===n.id?'var(--accent-dja)':'var(--text3)',cursor:'pointer',padding:'4px 8px',fontSize:10}}>
+<span style={{fontSize:18}}>{n.icon}</span>{n.label}
+</button>)}
+</div>
+</div>
+
+{/* Main */}
+<main style={{flex:1,padding:'32px 40px',maxWidth:900,minWidth:0}}>
+{view==='dashboard'&&renderDashboard()}
+{view==='dja'&&renderPerson('dja')}
+{view==='liika'&&renderPerson('liika')}
+{view==='couple'&&renderCouple()}
+{view==='repas'&&renderRepas()}
+{view==='budget'&&renderBudget()}
+{view==='vision'&&renderVision()}
+{view==='charts'&&renderCharts()}
+{view==='cuisine'&&renderCuisine()}
+</main>
+
+<AddModal show={!!modal} onClose={()=>setModal(null)} type={modal?.type} color={modal?.who}
+  onAdd={(t,d,c)=>{
+    if(modal.type==='objective')addObjective(modal.who,t,d,c);
+    else addAction(modal.who,t,d,c);
+  }}/>
+
+</div>
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
