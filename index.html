@@ -301,32 +301,6 @@ couple:{
 },
 recipes:[]
 };
-const defaultUI={activeProfile:'dja'};
-
-// ─── Supabase ───
-const SB_URL='https://mvtwotbyphuxdkcwgime.supabase.co';
-const SB_KEY='sb_publishable_3GTu11_-nrnYDyFY2Rl7eQ_bndRXVAz';
-const sb=supabase.createClient(SB_URL,SB_KEY);
-async function sbLoad(){
-try{
-  const {data,error}=await sb.from('app_state').select('data').eq('id','main').single();
-  if(error&&error.code==='PGRST116')return null; // no row yet
-  if(error)throw error;
-  const payload=data?.data||null;
-  if(!payload)return null;
-  if(payload.appData)return payload;
-  return {appData:payload,ui:null};
-}catch(e){console.warn('[Supabase] load error:',e);return null}
-}
-async function sbSave(d,ui){
-try{
-  const payload={appData:d,ui};
-  const {error}=await sb.from('app_state').upsert({id:'main',data:payload,updated_at:new Date().toISOString()});
-  if(error)throw error;
-  return true;
-}catch(e){console.warn('[Supabase] save error:',e);return false}
-}
-
 // Garantit que les données chargées/reçues ont toujours la forme attendue
 // (dja / liika / couple complets). Évite l'écran blanc si Supabase renvoie
 // un état partiel, null ou d'une ancienne version.
@@ -367,7 +341,7 @@ return <div style={{background:'linear-gradient(160deg,var(--bg3),var(--bg2))',b
 }
 
 function ObjectiveCard({obj,color,onToggle,onProgress,onDelete}){
-const av=accent[color];const bv=accentBg[color];
+const av=accent[color];const bv=accentBg[color];const accentVar=av;const bgVar=bv;
 return <div style={{background:'var(--bg3)',borderRadius:'var(--radius)',padding:'16px 20px',borderLeft:`3px solid ${obj.done?'var(--success)':av}`,animation:'fadeUp .4s ease both',opacity:obj.done?0.6:1,transition:'opacity .3s'}}>
 <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
 <div style={{flex:1}}>
@@ -1595,6 +1569,14 @@ const [ui,setUI]=useState(loadUI);
 const [view,setView]=useState('dashboard');
 const [modal,setModal]=useState(null);
 const [syncStatus,setSyncStatus]=useState('idle'); // idle | syncing | ok | error
+const [onlineCount,setOnlineCount]=useState(0); // nb d'appareils connectés (présence)
+// État de la vue "Objectifs du mois" (perdu lors d'une fusion, restauré ici au niveau App)
+const [objMoisFilter,setObjMoisFilter]=useState(()=>new Date().getMonth());
+const [showAddObjM,setShowAddObjM]=useState(false);
+const [newObjM,setNewObjM]=useState({titre:'',detail:'',categorie:'Nature'});
+// État de la vue "Route Liika" (perdu lors d'une fusion, restauré ici au niveau App)
+const [routeKm,setRouteKm]=useState(0);
+const [routeChecklist,setRouteChecklist]=useState({});
 const activeProfile=ui?.activeProfile||'dja';
 const profileLabel=activeProfile==='dja'?'Dja':activeProfile==='liika'?'Liika':'Couple';
 const setActiveProfile=useCallback((who)=>setUI(prev=>({...prev,activeProfile:who})),[]);
@@ -1633,7 +1615,7 @@ const ping=()=>sb.from('app_sessions').upsert({
   user_name:localStorage.getItem('ld-username')||'Appareil',
   last_seen:new Date().toISOString(),
   is_online:true
-}).catch(()=>{});
+}).then(undefined,()=>{});
 
 ping();refreshOnline();
 const iv=setInterval(()=>{ping();refreshOnline();},60000);
