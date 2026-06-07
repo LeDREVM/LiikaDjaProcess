@@ -59,11 +59,13 @@ async function sbLoad() {
   return normalize(data.data);
 }
 async function sbSave(d) {
+  // recipes & ferments vivent dans leurs tables dédiées → hors du blob app_state
+  const { recipes, ferments, ...rest } = d || {};
   const {
     error
   } = await sb.from('app_state').upsert({
     id: 'main',
-    data: d,
+    data: rest,
     updated_at: new Date().toISOString(),
     device_id: DEVICE_ID
   });
@@ -90,6 +92,52 @@ async function sbSavePin(accountId, pin) {
     });
   } catch (_) {}
 }
+
+// ─── DrevmCook : tables dédiées (recipes / ferments) ───
+// Les recettes & ferments vivent dans leurs propres tables (pas dans le blob
+// app_state). Mapping entre la forme app (camelCase, journal imbriqué) et la
+// forme SQL (snake_case).
+async function sbLoadRecipes() {
+  const { data, error } = await sb.from('recipes').select('*');
+  if (error) throw error;
+  return (data || []).map(r => ({
+    id: r.id, nom: r.nom || '', categorie: r.categorie || 'Salés',
+    tags: Array.isArray(r.tags) ? r.tags : [],
+    ingredients: Array.isArray(r.ingredients) ? r.ingredients : [],
+    preparation: r.preparation || '', apports: r.apports || '', budget: r.budget || ''
+  }));
+}
+async function sbUpsertRecipe(r) {
+  return sb.from('recipes').upsert({
+    id: r.id, nom: r.nom || '', categorie: r.categorie || 'Salés',
+    tags: Array.isArray(r.tags) ? r.tags : [],
+    ingredients: Array.isArray(r.ingredients) ? r.ingredients : [],
+    preparation: r.preparation || '', apports: r.apports || '', budget: r.budget || '',
+    updated_at: new Date().toISOString(), device_id: DEVICE_ID
+  });
+}
+async function sbDeleteRecipe(id) { return sb.from('recipes').delete().eq('id', id); }
+async function sbLoadFerments() {
+  const { data, error } = await sb.from('ferments').select('*');
+  if (error) throw error;
+  return (data || []).map(f => ({
+    id: f.id, nom: f.nom || '', type: f.type || 'Légumes',
+    startDate: f.start_date || '', durationDays: Math.max(1, Number(f.duration_days) || 1),
+    notes: f.notes || '', done: !!f.done,
+    journal: Array.isArray(f.journal) ? f.journal : []
+  }));
+}
+async function sbUpsertFerment(f) {
+  return sb.from('ferments').upsert({
+    id: f.id, nom: f.nom || '', type: f.type || 'Légumes',
+    start_date: f.startDate || null,
+    duration_days: Math.max(1, Number(f.durationDays) || 1),
+    notes: f.notes || '', done: !!f.done,
+    journal: Array.isArray(f.journal) ? f.journal : [],
+    updated_at: new Date().toISOString(), device_id: DEVICE_ID
+  });
+}
+async function sbDeleteFerment(id) { return sb.from('ferments').delete().eq('id', id); }
 
 // ─── Data ───
 const defaultData = {
@@ -595,7 +643,9 @@ function normalize(d) {
 // récemment modifiée → les éditions simultanées (Dja sur les repas, Liika sur
 // le sport…) ne s'effacent plus.
 const SYNC_TOP = ['dja', 'liika', 'couple'];
-const SYNC_FLAT = ['recipes', 'ferments', 'games'];
+// recipes & ferments NE sont PAS ici : ils ont leurs propres tables (DrevmCook)
+// et ne transitent plus par le blob app_state.
+const SYNC_FLAT = ['games'];
 function syncPaths(a, b) {
   const set = new Set();
   for (const top of SYNC_TOP) {
@@ -6391,6 +6441,18 @@ let alive=true;
     const hasLocalEdits=prev&&prev._t&&Object.keys(prev._t).length>0;
     return hasLocalEdits?mergeStates(prev,remoteData):remoteData;
   });
+
+  // ── DrevmCook : charge les tables dédiées (+ migration depuis le blob si vides) ──
+  // Fait ICI car remoteData (ancien blob) contient encore recipes/ferments avant strip.
+  try{
+    let [recs,ferms]=await Promise.all([sbLoadRecipes(),sbLoadFerments()]);
+    const srcRecs=(Array.isArray(remoteData.recipes)&&remoteData.recipes.length)?remoteData.recipes:(Array.isArray(data.recipes)?data.recipes:[]);
+    const srcFerms=(Array.isArray(remoteData.ferments)&&remoteData.ferments.length)?remoteData.ferments:(Array.isArray(data.ferments)?data.ferments:[]);
+    if(recs.length===0&&srcRecs.length>0){ await Promise.all(srcRecs.map(r=>sbUpsertRecipe(r).catch(()=>{}))); recs=srcRecs; }
+    if(ferms.length===0&&srcFerms.length>0){ await Promise.all(srcFerms.map(f=>sbUpsertFerment(f).catch(()=>{}))); ferms=srcFerms; }
+    if(alive){ remoteApplyRef.current=true; setDataRaw(prev=>({...prev,recipes:recs,ferments:ferms})); }
+  }catch(_){}
+
   setSyncStatus('ok');
   setInitialSyncDone(true);
 })().catch(()=>{
@@ -6452,6 +6514,17 @@ const ch=sb.channel('ld-realtime')
       clearInterval(iv);
       sb.removeChannel(ch);
     };
+  }, []);
+
+  // ─── DrevmCook : temps réel (refetch simple sur tout changement) ───
+  useEffect(() => {
+    const ch = sb.channel('ld-drevmcook')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'recipes' },
+        async () => { try { const recs = await sbLoadRecipes(); setDataRaw(prev => ({ ...prev, recipes: recs })); } catch (_) {} })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ferments' },
+        async () => { try { const ferms = await sbLoadFerments(); setDataRaw(prev => ({ ...prev, ferments: ferms })); } catch (_) {} })
+      .subscribe();
+    return () => { sb.removeChannel(ch); };
   }, []);
   const updateGames = useCallback(fn => {
     setData(prev => {
@@ -6591,25 +6664,28 @@ const ch=sb.channel('ld-realtime')
       return next;
     });
   }, []);
+  // recipes/ferments : état local immédiat (setDataRaw, hors synchro blob) + écriture table dédiée.
   const upsertRecipe = useCallback(recipe => {
-    setData(prev => {
+    setDataRaw(prev => {
       const next = clone(prev);
       if (!Array.isArray(next.recipes)) next.recipes = [];
       const idx = next.recipes.findIndex(r => r.id === recipe.id);
       if (idx >= 0) next.recipes[idx] = recipe;else next.recipes.push(recipe);
       return next;
     });
+    sbUpsertRecipe(recipe).catch(() => {});
   }, []);
   const deleteRecipe = useCallback(id => {
-    setData(prev => {
+    setDataRaw(prev => {
       const next = clone(prev);
       next.recipes = (next.recipes || []).filter(r => r.id !== id);
       return next;
     });
+    sbDeleteRecipe(id).catch(() => {});
   }, []);
   // Import CSV : fusionne (ajoute / met à jour par id), n'efface jamais
   const importRecipes = useCallback(list => {
-    setData(prev => {
+    setDataRaw(prev => {
       const next = clone(prev);
       if (!Array.isArray(next.recipes)) next.recipes = [];
       for (const r of list) {
@@ -6618,22 +6694,25 @@ const ch=sb.channel('ld-realtime')
       }
       return next;
     });
+    (list || []).forEach(r => sbUpsertRecipe(r).catch(() => {}));
   }, []);
   const upsertFerment = useCallback(ferment => {
-    setData(prev => {
+    setDataRaw(prev => {
       const next = clone(prev);
       if (!Array.isArray(next.ferments)) next.ferments = [];
       const idx = next.ferments.findIndex(f => f.id === ferment.id);
       if (idx >= 0) next.ferments[idx] = ferment;else next.ferments.push(ferment);
       return next;
     });
+    sbUpsertFerment(ferment).catch(() => {});
   }, []);
   const deleteFerment = useCallback(id => {
-    setData(prev => {
+    setDataRaw(prev => {
       const next = clone(prev);
       next.ferments = (next.ferments || []).filter(f => f.id !== id);
       return next;
     });
+    sbDeleteFerment(id).catch(() => {});
   }, []);
   const togglePlanningCheck = useCallback((day, itemId) => {
     setData(prev => {
