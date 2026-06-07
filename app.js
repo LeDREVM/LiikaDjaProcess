@@ -1505,6 +1505,84 @@ const JOURS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dim
 const TYPES = ['Matin', 'Midi', 'Soir'];
 const INTENSITES = ['Légère', 'Modérée', 'Intense'];
 const SPORT_CATS = ['Cardio', 'Muscu', 'Souplesse', 'Sport co', 'Plein air', 'Autre'];
+
+// ─── Plan de repas imprimable (PDF via fenêtre d'impression) ───
+// Génère un document HTML autonome au thème de l'app (bandeau vert profond,
+// or, couleur d'accent par personne) puis déclenche window.print() — l'utilisateur
+// enregistre en PDF. Pas de dépendance externe (CDN bloqués hors-ligne).
+function htmlEsc(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+const MEAL_TYPE_META = { Matin: { c: '#3f9e63', ic: '☀️' }, Midi: { c: '#c79a3e', ic: '🍽️' }, Soir: { c: '#8a63b0', ic: '🌙' } };
+const MEAL_PERSON_META = { dja: { label: 'Dja', c: '#7c5cf0' }, liika: { label: 'Liika', c: '#e0559b' }, couple: { label: 'Couple', c: '#c19a3d' } };
+function buildMealPlanHtml(who, meals) {
+  const days = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+  const types = ['Matin', 'Midi', 'Soir'];
+  const pm = MEAL_PERSON_META[who] || MEAL_PERSON_META.couple;
+  const get = (j, t) => (meals || []).find(m => m.jour === j && m.type === t);
+  const today = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const headRow = types.map(t => {
+    const mt = MEAL_TYPE_META[t];
+    return `<th class="th-type" style="border-bottom-color:${mt.c};color:${mt.c}"><span class="ic">${mt.ic}</span> ${t}</th>`;
+  }).join('');
+  const bodyRows = days.map((j, idx) => {
+    const cells = types.map(t => {
+      const m = get(j, t);
+      if (!m || !(m.plat || '').trim()) return '<td class="cell empty">—</td>';
+      const note = (m.note || '').trim();
+      return `<td class="cell"><div class="plat">${htmlEsc(m.plat)}</div>${note ? `<div class="note">${htmlEsc(note)}</div>` : ''}</td>`;
+    }).join('');
+    return `<tr class="${idx % 2 ? 'alt' : ''}"><td class="day" style="border-left-color:${pm.c};color:${pm.c}">${j}</td>${cells}</tr>`;
+  }).join('');
+  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Plan de repas — ${pm.label}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{font-family:'Helvetica Neue',Arial,sans-serif;color:#16261c;background:#fff;padding:34px 30px}
+.band{background:linear-gradient(135deg,#0c1f16,#122b1e 55%,#0a1a10);border-radius:16px;padding:22px 26px;color:#f3efe2;position:relative;overflow:hidden;border:1px solid rgba(217,183,95,.35)}
+.band:after{content:'';position:absolute;top:-50px;right:-30px;width:180px;height:180px;background:radial-gradient(circle,rgba(217,183,95,.18),transparent 70%)}
+.eyebrow{font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:#d9b75f;font-weight:700;margin-bottom:8px}
+.title{font-size:27px;font-weight:700;letter-spacing:.5px}
+.title b{color:${pm.c}}
+.sub{font-size:12px;color:#c2c9b6;margin-top:5px;font-style:italic}
+table{width:100%;border-collapse:collapse;margin-top:22px}
+th,td{text-align:left;vertical-align:top}
+.th-day{padding:0 10px 10px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#6b7d70;font-weight:600}
+.th-type{padding:0 12px 9px;font-size:13px;font-weight:700;border-bottom:2px solid}
+.th-type .ic{font-size:13px}
+.day{padding:12px 10px;font-weight:700;font-size:13.5px;border-left:3px solid;white-space:nowrap;width:108px}
+.cell{padding:11px 12px;font-size:12.5px;border-bottom:1px solid #ece7d6}
+.plat{font-weight:600;color:#1d3326;line-height:1.3}
+.note{font-size:10.5px;color:#7d8a7f;font-style:italic;margin-top:3px}
+.empty{color:#cbd3c4}
+tr.alt .cell{background:#faf8f0}
+.foot{margin-top:22px;display:flex;justify-content:space-between;align-items:center;font-size:10.5px;color:#86a08f;border-top:1px solid #ece7d6;padding-top:12px}
+.foot .heart{color:${pm.c}}
+@page{size:A4 portrait;margin:14mm}
+@media print{body{padding:0}}
+</style></head>
+<body>
+<div class="band">
+  <div class="eyebrow">🍃 Lanmou Douvan — Mix Vibz</div>
+  <div class="title">Plan de repas — <b>${pm.label}</b></div>
+  <div class="sub">Planning alimentaire de la semaine</div>
+</div>
+<table>
+<thead><tr><th class="th-day">Jour</th>${headRow}</tr></thead>
+<tbody>${bodyRows}</tbody>
+</table>
+<div class="foot"><span><span class="heart">♡</span> Préparé ensemble · Guadeloupe</span><span>Généré le ${today}</span></div>
+</body></html>`;
+}
+function printMealPlan(who, meals) {
+  const html = buildMealPlanHtml(who, meals);
+  const w = window.open('', '_blank');
+  if (!w) { alert('Autorise les fenêtres pop-up pour imprimer / exporter le plan de repas en PDF.'); return; }
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+  setTimeout(() => { try { w.print(); } catch (_) {} }, 350);
+}
 function MealsView({
   data,
   upsertMeal,
@@ -1562,7 +1640,20 @@ function MealsView({
       display: 'flex',
       gap: 6
     }
-  }, ['dja', 'liika', 'couple'].map(w => /*#__PURE__*/React.createElement("button", {
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => printMealPlan(who, meals),
+    title: 'Imprimer / exporter le plan de repas en PDF',
+    style: {
+      padding: '5px 14px',
+      borderRadius: 20,
+      border: '1px solid var(--gold-border)',
+      background: 'var(--gold-bg)',
+      color: 'var(--gold)',
+      fontSize: 12,
+      cursor: 'pointer',
+      transition: 'all .15s'
+    }
+  }, "⎙ Imprimer / PDF"), ['dja', 'liika', 'couple'].map(w => /*#__PURE__*/React.createElement("button", {
     key: w,
     onClick: () => setWho(w),
     style: {
