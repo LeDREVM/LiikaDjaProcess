@@ -680,7 +680,8 @@ const defaultData = {
     },
     objMensuels: []
   },
-  recipes: []
+  recipes: [],
+  ferments: []
 };
 
 // Garantit que les données chargées/reçues ont toujours la forme attendue
@@ -696,6 +697,7 @@ function normalize(d) {
     };
   }
   if (Array.isArray(d.recipes)) base.recipes = d.recipes;
+  if (Array.isArray(d.ferments)) base.ferments = d.ferments;
   return base;
 }
 function loadData() {
@@ -4972,14 +4974,31 @@ function PlanningView({
 
 // ─── DrevmCook View ───
 function DrevmCookView({
+  ferments,
+  upsertFerment,
+  deleteFerment,
   recipes,
   upsertRecipe,
   deleteRecipe
 }) {
+  const h = React.createElement;
   const allRecipes = [...DEFAULT_RECIPES, ...(recipes || []).filter(r => !DEFAULT_RECIPES.some(dr => dr.id === r.id))];
   const [filterCat, setFilterCat] = useState('Tout');
   const [selected, setSelected] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [showAddFerment, setShowAddFerment] = useState(false);
+  const [fermentStatusFilter, setFermentStatusFilter] = useState('Tous');
+  const [newReadyAlerts, setNewReadyAlerts] = useState([]);
+  const [journalOpenId, setJournalOpenId] = useState(null);
+  const [journalDrafts, setJournalDrafts] = useState({});
+  const alertedReadyRef = useRef(new Set());
+  const [fermentForm, setFermentForm] = useState({
+    nom: '',
+    type: 'Légumes',
+    startDate: new Date().toISOString().slice(0, 10),
+    durationDays: 14,
+    notes: ''
+  });
   const [addForm, setAddForm] = useState({
     nom: '',
     categorie: 'Salés',
@@ -4989,572 +5008,363 @@ function DrevmCookView({
     apports: '',
     budget: ''
   });
+
   const cats = ['Tout', 'Salés', 'Boulangerie', 'Fermentés', 'Desserts', 'Boissons', 'Référence'];
-  const catColors = {
-    Salés: 'var(--success)',
-    Boulangerie: 'var(--gold)',
-    Fermentés: '#fb923c',
-    Desserts: 'var(--accent-liika)',
-    Boissons: 'var(--accent-dja)',
-    Référence: 'var(--text3)'
-  };
+  const fermentStatusFilters = ['Tous', 'En cours', 'Prêts', 'Terminés'];
+  const fermentTypes = ['Légumes', 'Sauce', 'Boisson', 'Levain', 'Autre'];
   const filtered = filterCat === 'Tout' ? allRecipes : allRecipes.filter(r => r.categorie === filterCat);
+  const fermentList = (ferments || []).slice().sort((a, b) => String(b.startDate || '').localeCompare(String(a.startDate || '')));
+
+  const fmtDate = iso => {
+    if (!iso) return '—';
+    const d = new Date(`${iso}T00:00:00`);
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+  };
+
+  const getFermentMeta = item => {
+    const dayMs = 86400000;
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const start = new Date(`${item.startDate || ''}T00:00:00`);
+    const duration = Math.max(1, Number(item.durationDays) || 1);
+    const target = new Date(start.getTime() + duration * dayMs);
+    const elapsed = Math.max(0, Math.floor((startOfToday.getTime() - start.getTime()) / dayMs));
+    const left = Math.ceil((target.getTime() - startOfToday.getTime()) / dayMs);
+    const progress = Math.max(0, Math.min(100, Math.round(elapsed / duration * 100)));
+    let status = 'En cours';
+    let statusColor = 'var(--gold)';
+    if (item.done) {
+      status = 'Terminé';
+      statusColor = 'var(--text3)';
+    } else if (left <= 0) {
+      status = 'Prêt';
+      statusColor = 'var(--success)';
+    } else if (left <= 2) {
+      status = 'Bientôt prêt';
+      statusColor = 'var(--warn)';
+    }
+    return { target, left, progress, status, statusColor };
+  };
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('ld-ferment-ready-alerted');
+      const ids = raw ? JSON.parse(raw) : [];
+      alertedReadyRef.current = new Set(Array.isArray(ids) ? ids : []);
+    } catch (_) {
+      alertedReadyRef.current = new Set();
+    }
+  }, []);
+
+  useEffect(() => {
+    const alerted = alertedReadyRef.current;
+    const fresh = [];
+    fermentList.forEach(item => {
+      const meta = getFermentMeta(item);
+      const isReady = !item.done && meta.status === 'Prêt';
+      if (isReady && !alerted.has(item.id)) {
+        alerted.add(item.id);
+        fresh.push({ id: item.id, nom: item.nom, type: item.type });
+      }
+    });
+    if (fresh.length) {
+      setNewReadyAlerts(prev => [...fresh, ...prev].slice(0, 6));
+      try {
+        localStorage.setItem('ld-ferment-ready-alerted', JSON.stringify([...alerted]));
+      } catch (_) {}
+    }
+  }, [ferments]);
+
+  const filteredFerments = fermentList.filter(item => {
+    const s = getFermentMeta(item).status;
+    if (fermentStatusFilter === 'En cours') return s === 'En cours' || s === 'Bientôt prêt';
+    if (fermentStatusFilter === 'Prêts') return s === 'Prêt';
+    if (fermentStatusFilter === 'Terminés') return s === 'Terminé';
+    return true;
+  });
+
+  const fermentStats = {
+    total: fermentList.length,
+    enCours: fermentList.filter(f => {
+      const s = getFermentMeta(f).status;
+      return s === 'En cours' || s === 'Bientôt prêt';
+    }).length,
+    pret: fermentList.filter(f => getFermentMeta(f).status === 'Prêt').length
+  };
+
   if (selected) {
     const r = allRecipes.find(x => x.id === selected);
-    if (!r) return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("button", {
-      onClick: () => setSelected(null),
-      style: {
-        background: 'none',
-        border: 'none',
-        color: 'var(--gold)',
-        cursor: 'pointer',
-        fontSize: 13,
-        padding: 0
-      }
-    }, "\u2190 Retour"));
-    const cc = catColors[r.categorie] || 'var(--gold)';
-    return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("button", {
-      onClick: () => setSelected(null),
-      style: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: 6,
-        background: 'none',
-        border: 'none',
-        color: 'var(--gold)',
-        cursor: 'pointer',
-        fontSize: 13,
-        marginBottom: 20,
-        padding: 0,
-        fontFamily: "'Space Mono',monospace",
-        letterSpacing: '.05em'
-      }
-    }, "\u2190 Retour aux recettes"), /*#__PURE__*/React.createElement("div", {
-      style: {
-        background: 'linear-gradient(160deg,var(--bg3),var(--bg2))',
-        borderRadius: 'var(--radius)',
-        padding: 24,
-        border: '1px solid var(--border)',
-        boxShadow: 'var(--shadow)'
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "eyebrow",
-      style: {
-        marginBottom: 8,
-        color: cc
-      }
-    }, r.categorie), /*#__PURE__*/React.createElement("h2", {
-      style: {
-        fontFamily: "'Cormorant Garamond',serif",
-        fontSize: 26,
-        fontWeight: 600,
-        marginBottom: 6,
-        color: 'var(--text)'
-      }
-    }, r.nom), /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: 'flex',
-        gap: 6,
-        flexWrap: 'wrap',
-        marginBottom: 16
-      }
-    }, (r.tags || []).map(t => /*#__PURE__*/React.createElement("span", {
-      key: t,
-      style: {
-        fontSize: 10,
-        padding: '2px 8px',
-        borderRadius: 20,
-        background: 'var(--gold-bg)',
-        color: 'var(--gold)',
-        border: '1px solid var(--gold-border)',
-        fontFamily: "'Space Mono',monospace"
-      }
-    }, t))), /*#__PURE__*/React.createElement("div", {
-      className: "gold-rule",
-      style: {
-        marginBottom: 20
-      }
-    }), /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))',
-        gap: 20,
-        marginBottom: 20
-      }
-    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
-      className: "eyebrow",
-      style: {
-        marginBottom: 12,
-        color: cc
-      }
-    }, "Ingr\xE9dients"), /*#__PURE__*/React.createElement("ul", {
-      style: {
-        listStyle: 'none',
-        padding: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 7
-      }
-    }, (r.ingredients || []).map((ing, i) => /*#__PURE__*/React.createElement("li", {
-      key: i,
-      style: {
-        display: 'flex',
-        gap: 8,
-        fontSize: 13,
-        color: 'var(--text2)',
-        alignItems: 'flex-start'
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: cc,
-        marginTop: 2,
-        flexShrink: 0,
-        fontWeight: 700
-      }
-    }, "\xB7"), ing)))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
-      className: "eyebrow",
-      style: {
-        marginBottom: 12,
-        color: cc
-      }
-    }, "Pr\xE9paration"), /*#__PURE__*/React.createElement("p", {
-      style: {
-        fontSize: 13,
-        color: 'var(--text2)',
-        lineHeight: 1.75,
-        whiteSpace: 'pre-wrap'
-      }
-    }, r.preparation))), /*#__PURE__*/React.createElement("div", {
-      className: "gold-rule",
-      style: {
-        marginBottom: 16
-      }
-    }), /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))',
-        gap: 12
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        background: 'var(--bg4)',
-        borderRadius: 'var(--radius-sm)',
-        padding: 14,
-        border: '1px solid var(--border)'
-      }
-    }, /*#__PURE__*/React.createElement("p", {
-      style: {
-        fontSize: 10,
-        color: 'var(--text3)',
-        marginBottom: 6,
-        letterSpacing: '.1em',
-        textTransform: 'uppercase',
-        fontFamily: "'Space Mono',monospace"
-      }
-    }, "Apports nutritifs"), /*#__PURE__*/React.createElement("p", {
-      style: {
-        fontSize: 12,
-        color: 'var(--text2)',
-        lineHeight: 1.65
-      }
-    }, r.apports)), /*#__PURE__*/React.createElement("div", {
-      style: {
-        background: 'var(--bg4)',
-        borderRadius: 'var(--radius-sm)',
-        padding: 14,
-        border: '1px solid var(--border)'
-      }
-    }, /*#__PURE__*/React.createElement("p", {
-      style: {
-        fontSize: 10,
-        color: 'var(--text3)',
-        marginBottom: 6,
-        letterSpacing: '.1em',
-        textTransform: 'uppercase',
-        fontFamily: "'Space Mono',monospace"
-      }
-    }, "Budget Guadeloupe"), /*#__PURE__*/React.createElement("p", {
-      style: {
-        fontSize: 15,
-        color: 'var(--gold)',
-        fontWeight: 600
-      }
-    }, r.budget)))));
+    if (!r) return h('div', null, h('button', { onClick: () => setSelected(null) }, '← Retour'));
+    return h('div', null,
+      h('button', { onClick: () => setSelected(null), style: { marginBottom: 12, background: 'none', border: 'none', color: 'var(--gold)', cursor: 'pointer' } }, '← Retour aux recettes'),
+      h('h2', { style: { marginBottom: 8 } }, r.nom),
+      h('p', { style: { color: 'var(--text3)', marginBottom: 8 } }, r.categorie),
+      h('p', { style: { whiteSpace: 'pre-wrap', color: 'var(--text2)', marginBottom: 10 } }, r.preparation || '—'),
+      h('p', { style: { color: 'var(--text2)', marginBottom: 10 } }, r.apports || '—'),
+      h('ul', { style: { paddingLeft: 18 } }, (r.ingredients || []).map((x, i) => h('li', { key: i, style: { color: 'var(--text2)' } }, x)))
+    );
   }
-  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginBottom: 24
-    }
-  }, /*#__PURE__*/React.createElement("p", {
-    className: "eyebrow",
-    style: {
-      marginBottom: 6
-    }
-  }, "\uD83C\uDF3F Cuisine v\xE9g\xE9tale & tropicale"), /*#__PURE__*/React.createElement("h2", {
-    style: {
-      fontSize: 26,
-      fontWeight: 600,
-      fontFamily: "'Cormorant Garamond',serif",
-      marginBottom: 4,
-      color: 'var(--text)'
-    }
-  }, "DrevmCook"), /*#__PURE__*/React.createElement("p", {
-    style: {
-      fontSize: 13,
-      color: 'var(--text3)',
-      fontStyle: 'italic',
-      fontFamily: "'Cormorant Garamond',serif"
-    }
-  }, "Recettes v\xE9g\xE9tales, sans gluten & autonomie alimentaire tropicale")), /*#__PURE__*/React.createElement("div", {
-    className: "gold-rule",
-    style: {
-      marginBottom: 20
-    }
-  }), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      gap: 8,
-      marginBottom: 20,
-      alignItems: 'center'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "scroll-x",
-    style: {
-      display: 'flex',
-      gap: 6,
-      flex: 1
-    }
-  }, cats.map(c => /*#__PURE__*/React.createElement("button", {
-    key: c,
-    onClick: () => setFilterCat(c),
-    style: {
-      flexShrink: 0,
-      padding: '5px 14px',
-      borderRadius: 20,
-      border: filterCat === c ? `1px solid ${catColors[c] || 'var(--gold)'}` : '1px solid var(--border)',
-      background: filterCat === c ? 'rgba(0,0,0,.15)' : 'transparent',
-      color: filterCat === c ? catColors[c] || 'var(--gold)' : 'var(--text3)',
-      fontSize: 12,
-      cursor: 'pointer',
-      transition: 'all .15s'
-    }
-  }, c))), /*#__PURE__*/React.createElement("button", {
-    onClick: () => setShowAdd(p => !p),
-    style: {
-      flexShrink: 0,
-      padding: '5px 14px',
-      borderRadius: 20,
-      border: '1px solid var(--border2)',
-      background: 'transparent',
-      color: 'var(--text2)',
-      fontSize: 12,
-      cursor: 'pointer'
-    }
-  }, "+ Recette")), showAdd && /*#__PURE__*/React.createElement("div", {
-    style: {
-      background: 'linear-gradient(160deg,var(--bg3),var(--bg2))',
-      borderRadius: 'var(--radius)',
-      padding: 20,
-      marginBottom: 20,
-      border: '1px solid var(--gold-border)',
-      boxShadow: 'var(--shadow)'
-    }
-  }, /*#__PURE__*/React.createElement("h3", {
-    style: {
-      fontFamily: "'Cormorant Garamond',serif",
-      fontSize: 18,
-      fontWeight: 600,
-      marginBottom: 4,
-      color: 'var(--gold2)'
-    }
-  }, "Nouvelle recette"), /*#__PURE__*/React.createElement("div", {
-    className: "gold-rule",
-    style: {
-      marginBottom: 14
-    }
-  }), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))',
-      gap: 10,
-      marginBottom: 12
-    }
-  }, /*#__PURE__*/React.createElement("input", {
-    placeholder: "Nom de la recette",
-    value: addForm.nom,
-    onChange: e => setAddForm(p => ({
-      ...p,
-      nom: e.target.value
-    })),
-    style: {
-      gridColumn: '1/-1',
-      padding: '9px 12px',
-      borderRadius: 'var(--radius-sm)',
-      border: '1px solid var(--border2)',
-      background: 'var(--bg4)',
-      color: 'var(--text)',
-      fontSize: 13,
-      outline: 'none'
-    }
-  }), /*#__PURE__*/React.createElement("select", {
-    value: addForm.categorie,
-    onChange: e => setAddForm(p => ({
-      ...p,
-      categorie: e.target.value
-    })),
-    style: {
-      padding: '9px 12px',
-      borderRadius: 'var(--radius-sm)',
-      border: '1px solid var(--border2)',
-      background: 'var(--bg4)',
-      color: 'var(--text)',
-      fontSize: 13,
-      outline: 'none'
-    }
-  }, cats.filter(c => c !== 'Tout').map(c => /*#__PURE__*/React.createElement("option", {
-    key: c
-  }, c))), /*#__PURE__*/React.createElement("input", {
-    placeholder: "Tags (ex: vegan, sans-gluten)",
-    value: addForm.tags,
-    onChange: e => setAddForm(p => ({
-      ...p,
-      tags: e.target.value
-    })),
-    style: {
-      padding: '9px 12px',
-      borderRadius: 'var(--radius-sm)',
-      border: '1px solid var(--border2)',
-      background: 'var(--bg4)',
-      color: 'var(--text)',
-      fontSize: 13,
-      outline: 'none'
-    }
-  }), /*#__PURE__*/React.createElement("textarea", {
-    placeholder: "Ingr\xE9dients (un par ligne)",
-    value: addForm.ingredients,
-    onChange: e => setAddForm(p => ({
-      ...p,
-      ingredients: e.target.value
-    })),
-    rows: 4,
-    style: {
-      padding: '9px 12px',
-      borderRadius: 'var(--radius-sm)',
-      border: '1px solid var(--border2)',
-      background: 'var(--bg4)',
-      color: 'var(--text)',
-      fontSize: 13,
-      outline: 'none',
-      resize: 'vertical',
-      fontFamily: 'inherit',
-      lineHeight: 1.5
-    }
-  }), /*#__PURE__*/React.createElement("textarea", {
-    placeholder: "Pr\xE9paration",
-    value: addForm.preparation,
-    onChange: e => setAddForm(p => ({
-      ...p,
-      preparation: e.target.value
-    })),
-    rows: 4,
-    style: {
-      padding: '9px 12px',
-      borderRadius: 'var(--radius-sm)',
-      border: '1px solid var(--border2)',
-      background: 'var(--bg4)',
-      color: 'var(--text)',
-      fontSize: 13,
-      outline: 'none',
-      resize: 'vertical',
-      fontFamily: 'inherit',
-      lineHeight: 1.5
-    }
-  }), /*#__PURE__*/React.createElement("input", {
-    placeholder: "Apports nutritionnels",
-    value: addForm.apports,
-    onChange: e => setAddForm(p => ({
-      ...p,
-      apports: e.target.value
-    })),
-    style: {
-      padding: '9px 12px',
-      borderRadius: 'var(--radius-sm)',
-      border: '1px solid var(--border2)',
-      background: 'var(--bg4)',
-      color: 'var(--text)',
-      fontSize: 13,
-      outline: 'none'
-    }
-  }), /*#__PURE__*/React.createElement("input", {
-    placeholder: "Budget",
-    value: addForm.budget,
-    onChange: e => setAddForm(p => ({
-      ...p,
-      budget: e.target.value
-    })),
-    style: {
-      padding: '9px 12px',
-      borderRadius: 'var(--radius-sm)',
-      border: '1px solid var(--border2)',
-      background: 'var(--bg4)',
-      color: 'var(--text)',
-      fontSize: 13,
-      outline: 'none'
-    }
-  })), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      gap: 8,
-      justifyContent: 'flex-end'
-    }
-  }, /*#__PURE__*/React.createElement("button", {
-    onClick: () => {
-      setShowAdd(false);
-      setAddForm({
-        nom: '',
-        categorie: 'Salés',
-        tags: '',
-        ingredients: '',
-        preparation: '',
-        apports: '',
-        budget: ''
-      });
-    },
-    style: {
-      padding: '8px 18px',
-      borderRadius: 'var(--radius-sm)',
-      border: '1px solid var(--border)',
-      background: 'transparent',
-      color: 'var(--text3)',
-      cursor: 'pointer',
-      fontSize: 13
-    }
-  }, "Annuler"), /*#__PURE__*/React.createElement("button", {
-    onClick: () => {
-      if (!addForm.nom.trim()) return;
-      upsertRecipe({
-        id: Date.now().toString(),
-        nom: addForm.nom,
-        categorie: addForm.categorie,
-        tags: addForm.tags.split(',').map(t => t.trim()).filter(Boolean),
-        ingredients: addForm.ingredients.split('\n').filter(Boolean),
-        preparation: addForm.preparation,
-        apports: addForm.apports,
-        budget: addForm.budget
-      });
-      setShowAdd(false);
-      setAddForm({
-        nom: '',
-        categorie: 'Salés',
-        tags: '',
-        ingredients: '',
-        preparation: '',
-        apports: '',
-        budget: ''
-      });
-    },
-    style: {
-      padding: '8px 18px',
-      borderRadius: 'var(--radius-sm)',
-      border: 'none',
-      background: 'linear-gradient(135deg,var(--gold),var(--gold2))',
-      color: '#06120d',
-      cursor: 'pointer',
-      fontSize: 13,
-      fontWeight: 700,
-      letterSpacing: '.04em'
-    }
-  }, "Sauvegarder"))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))',
-      gap: 14
-    }
-  }, filtered.map(r => {
-    const cc = catColors[r.categorie] || 'var(--gold)';
-    const isDefault = DEFAULT_RECIPES.some(dr => dr.id === r.id);
-    return /*#__PURE__*/React.createElement("div", {
-      key: r.id,
-      onClick: () => setSelected(r.id),
+
+  return h('div', null,
+    h('div', { style: { marginBottom: 16 } },
+      h('p', { className: 'eyebrow' }, '🌿 Cuisine végétale & tropicale'),
+      h('h2', null, 'DrevmCook')
+    ),
+    newReadyAlerts.length > 0 && h('div', { style: { display: 'grid', gap: 6, marginBottom: 12 } },
+      newReadyAlerts.map(al => h('div', {
+        key: `a-${al.id}`,
+        style: {
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          background: 'rgba(74,222,128,.1)',
+          border: '1px solid rgba(74,222,128,.28)',
+          borderRadius: 'var(--radius-sm)',
+          padding: '8px 10px'
+        }
+      },
+      h('span', null, '✅'),
+      h('span', { style: { flex: 1, color: 'var(--text2)', fontSize: 12 } }, `${al.nom} (${al.type}) est prêt.`),
+      h('button', {
+        onClick: () => setNewReadyAlerts(prev => prev.filter(x => x.id !== al.id)),
+        style: { border: '1px solid rgba(74,222,128,.3)', background: 'transparent', color: 'var(--success)', borderRadius: 8, fontSize: 11, cursor: 'pointer' }
+      }, 'OK')))
+    ),
+
+    h('div', {
       style: {
         background: 'linear-gradient(160deg,var(--bg3),var(--bg2))',
         borderRadius: 'var(--radius)',
         padding: '16px 18px',
-        border: '1px solid var(--border)',
-        borderTop: `2px solid ${cc}`,
-        cursor: 'pointer',
-        transition: 'all .2s',
-        boxShadow: 'var(--shadow)'
+        marginBottom: 20,
+        border: '1px solid var(--warn-border)'
       }
-    }, /*#__PURE__*/React.createElement("div", {
+    },
+    h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 8, flexWrap: 'wrap' } },
+      h('h3', { style: { margin: 0 } }, '🫙 Trackeur de lactofermentation'),
+      h('button', {
+        onClick: () => setShowAddFerment(v => !v),
+        style: { padding: '5px 10px', borderRadius: 20, border: '1px solid var(--warn-border)', background: 'transparent', color: 'var(--warn)', cursor: 'pointer', fontSize: 12 }
+      }, showAddFerment ? 'Fermer' : '+ Bocal')
+    ),
+    h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 8, marginBottom: 10 } },
+      h('div', { style: { background: 'var(--bg4)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '8px 10px' } }, h('small', { style: { color: 'var(--text3)' } }, 'Total'), h('div', { style: { color: 'var(--text2)', fontWeight: 700 } }, fermentStats.total)),
+      h('div', { style: { background: 'var(--bg4)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '8px 10px' } }, h('small', { style: { color: 'var(--text3)' } }, 'En cours'), h('div', { style: { color: 'var(--warn)', fontWeight: 700 } }, fermentStats.enCours)),
+      h('div', { style: { background: 'var(--bg4)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '8px 10px' } }, h('small', { style: { color: 'var(--text3)' } }, 'Prêts'), h('div', { style: { color: 'var(--success)', fontWeight: 700 } }, fermentStats.pret))
+    ),
+    h('div', { className: 'scroll-x', style: { display: 'flex', gap: 6, marginBottom: 10 } },
+      fermentStatusFilters.map(s => h('button', {
+        key: s,
+        onClick: () => setFermentStatusFilter(s),
+        style: {
+          flexShrink: 0,
+          padding: '4px 9px',
+          borderRadius: 999,
+          border: fermentStatusFilter === s ? '1px solid var(--warn)' : '1px solid var(--border)',
+          background: fermentStatusFilter === s ? 'rgba(251,146,60,.12)' : 'transparent',
+          color: fermentStatusFilter === s ? 'var(--warn)' : 'var(--text3)',
+          fontSize: 10,
+          cursor: 'pointer'
+        }
+      }, s))
+    ),
+    showAddFerment && h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 8, marginBottom: 10 } },
+      h('input', { value: fermentForm.nom, onChange: e => setFermentForm(p => ({ ...p, nom: e.target.value })), placeholder: 'Nom du bocal', style: { padding: '7px 9px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)' } }),
+      h('select', { value: fermentForm.type, onChange: e => setFermentForm(p => ({ ...p, type: e.target.value })), style: { padding: '7px 9px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)' } }, fermentTypes.map(t => h('option', { key: t }, t))),
+      h('input', { type: 'date', value: fermentForm.startDate, onChange: e => setFermentForm(p => ({ ...p, startDate: e.target.value })), style: { padding: '7px 9px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)' } }),
+      h('input', { type: 'number', min: 1, max: 120, value: fermentForm.durationDays, onChange: e => setFermentForm(p => ({ ...p, durationDays: e.target.value })), placeholder: 'Jours', style: { padding: '7px 9px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)' } }),
+      h('input', { value: fermentForm.notes, onChange: e => setFermentForm(p => ({ ...p, notes: e.target.value })), placeholder: 'Notes', style: { gridColumn: '1/-1', padding: '7px 9px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)' } }),
+      h('div', { style: { gridColumn: '1/-1', display: 'flex', justifyContent: 'flex-end', gap: 8 } },
+        h('button', { onClick: () => setShowAddFerment(false), style: { padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text3)', cursor: 'pointer' } }, 'Annuler'),
+        h('button', {
+          onClick: () => {
+            if (!fermentForm.nom.trim() || !fermentForm.startDate) return;
+            upsertFerment({
+              id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+              nom: fermentForm.nom.trim(),
+              type: fermentForm.type,
+              startDate: fermentForm.startDate,
+              durationDays: Math.max(1, Number(fermentForm.durationDays) || 1),
+              notes: fermentForm.notes.trim(),
+              journal: [],
+              done: false
+            });
+            setShowAddFerment(false);
+            setFermentForm({ nom: '', type: 'Légumes', startDate: new Date().toISOString().slice(0, 10), durationDays: 14, notes: '' });
+          },
+          style: { padding: '6px 10px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,var(--warn),#fdba74)', color: '#06120d', cursor: 'pointer', fontWeight: 700 }
+        }, 'Ajouter')
+      )
+    ),
+    filteredFerments.length === 0 ? h('p', { style: { color: 'var(--text3)', fontStyle: 'italic', fontSize: 12 } }, fermentList.length ? 'Aucun bocal pour ce filtre.' : 'Aucun bocal suivi pour l’instant.') : h('div', { style: { display: 'grid', gap: 8 } },
+      filteredFerments.map(item => {
+        const meta = getFermentMeta(item);
+        const logs = Array.isArray(item.journal) ? item.journal : [];
+        const latestLog = logs[0] || null;
+        const jd = journalDrafts[item.id] || { date: new Date().toISOString().slice(0, 10), ph: '', odeur: '', couleur: '', note: '' };
+        return h('div', { key: item.id, style: { background: 'var(--bg4)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', padding: '10px 12px' } },
+          h('div', { style: { display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginBottom: 8 } },
+            h('div', { style: { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' } },
+              h('strong', { style: { fontSize: 13 } }, item.nom),
+              h('span', { style: { fontSize: 10, color: 'var(--text3)' } }, item.type),
+              h('span', { style: { fontSize: 10, color: meta.statusColor, background: `${meta.statusColor}20`, borderRadius: 999, padding: '2px 8px' } }, meta.status)
+            ),
+            h('div', { style: { display: 'flex', gap: 6 } },
+              h('button', { onClick: () => upsertFerment({ ...item, done: !item.done }), style: { padding: '4px 8px', borderRadius: 8, border: '1px solid var(--border2)', background: 'transparent', color: 'var(--text2)', cursor: 'pointer', fontSize: 11 } }, item.done ? 'Réactiver' : 'Terminer'),
+              h('button', { onClick: () => confirm('Supprimer ce bocal ?') && deleteFerment(item.id), style: { padding: '4px 8px', borderRadius: 8, border: '1px solid var(--danger-border)', background: 'transparent', color: 'var(--danger)', cursor: 'pointer', fontSize: 11 } }, 'Supprimer')
+            )
+          ),
+          h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 8, fontSize: 11, color: 'var(--text3)', marginBottom: 8 } },
+            h('span', null, `Départ: ${fmtDate(item.startDate)}`),
+            h('span', null, `Prêt le: ${fmtDate(meta.target.toISOString().slice(0, 10))}`),
+            h('span', null, meta.left > 0 ? `J-${meta.left}` : 'À maturité')
+          ),
+          h('div', { style: { height: 6, borderRadius: 6, overflow: 'hidden', background: 'rgba(255,255,255,.06)', marginBottom: 8 } }, h('div', { style: { width: `${meta.progress}%`, height: '100%', background: 'linear-gradient(90deg,var(--warn),#fdba74)' } })),
+          item.notes && h('p', { style: { fontSize: 12, color: 'var(--text2)', marginBottom: 8 } }, item.notes),
+          h('div', { style: { display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 6 } },
+            latestLog ? h('div', { style: { fontSize: 11, color: 'var(--text3)', display: 'flex', gap: 8, flexWrap: 'wrap' } }, h('span', null, `pH: ${latestLog.ph || '—'}`), h('span', null, `Odeur: ${latestLog.odeur || '—'}`), h('span', null, `Couleur: ${latestLog.couleur || '—'}`)) : h('span', { style: { fontSize: 11, color: 'var(--text3)', fontStyle: 'italic' } }, 'Aucun relevé pH/odeur/couleur'),
+            h('button', {
+              onClick: () => {
+                if (journalOpenId === item.id) {
+                  setJournalOpenId(null);
+                  return;
+                }
+                setJournalOpenId(item.id);
+                setJournalDrafts(prev => ({ ...prev, [item.id]: prev[item.id] || { date: new Date().toISOString().slice(0, 10), ph: '', odeur: '', couleur: '', note: '' } }));
+              },
+              style: { padding: '4px 8px', borderRadius: 8, border: '1px solid var(--warn-border)', background: 'transparent', color: 'var(--warn)', cursor: 'pointer', fontSize: 11 }
+            }, journalOpenId === item.id ? 'Fermer suivi' : '+ Relevé')
+          ),
+          journalOpenId === item.id && h('div', { style: { marginTop: 8, padding: 10, borderRadius: 8, border: '1px solid var(--border)', background: 'rgba(0,0,0,.12)' } },
+            h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(110px,1fr))', gap: 8, marginBottom: 8 } },
+              h('input', { type: 'date', value: jd.date, onChange: e => setJournalDrafts(prev => ({ ...prev, [item.id]: { ...jd, date: e.target.value } })), style: { padding: '6px 8px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)', fontSize: 11 } }),
+              h('input', { value: jd.ph, onChange: e => setJournalDrafts(prev => ({ ...prev, [item.id]: { ...jd, ph: e.target.value } })), placeholder: 'pH', style: { padding: '6px 8px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)', fontSize: 11 } }),
+              h('input', { value: jd.odeur, onChange: e => setJournalDrafts(prev => ({ ...prev, [item.id]: { ...jd, odeur: e.target.value } })), placeholder: 'Odeur', style: { padding: '6px 8px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)', fontSize: 11 } }),
+              h('input', { value: jd.couleur, onChange: e => setJournalDrafts(prev => ({ ...prev, [item.id]: { ...jd, couleur: e.target.value } })), placeholder: 'Couleur', style: { padding: '6px 8px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)', fontSize: 11 } }),
+              h('input', { value: jd.note, onChange: e => setJournalDrafts(prev => ({ ...prev, [item.id]: { ...jd, note: e.target.value } })), placeholder: 'Note (optionnel)', style: { gridColumn: '1/-1', padding: '6px 8px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)', fontSize: 11 } })
+            ),
+            h('div', { style: { display: 'flex', justifyContent: 'flex-end', marginBottom: logs.length ? 8 : 0 } },
+              h('button', {
+                onClick: () => {
+                  if (!jd.ph && !jd.odeur && !jd.couleur) return;
+                  const entry = {
+                    id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                    date: jd.date || new Date().toISOString().slice(0, 10),
+                    ph: (jd.ph || '').trim(),
+                    odeur: (jd.odeur || '').trim(),
+                    couleur: (jd.couleur || '').trim(),
+                    note: (jd.note || '').trim()
+                  };
+                  upsertFerment({ ...item, journal: [entry, ...(Array.isArray(item.journal) ? item.journal : [])] });
+                  setJournalDrafts(prev => ({ ...prev, [item.id]: { date: new Date().toISOString().slice(0, 10), ph: '', odeur: '', couleur: '', note: '' } }));
+                },
+                style: { padding: '5px 10px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,var(--warn),#fdba74)', color: '#06120d', cursor: 'pointer', fontSize: 11, fontWeight: 700 }
+              }, 'Enregistrer relevé')
+            ),
+            logs.length > 0 && h('div', { style: { display: 'grid', gap: 6 } }, logs.slice(0, 4).map(log => h('div', {
+              key: log.id,
+              style: { border: '1px solid var(--border)', borderRadius: 8, padding: '6px 8px', fontSize: 11, color: 'var(--text3)', background: 'rgba(0,0,0,.08)' }
+            },
+            h('div', { style: { marginBottom: 4 } }, `${fmtDate(log.date)} · pH ${log.ph || '—'} · Odeur ${log.odeur || '—'} · Couleur ${log.couleur || '—'}`),
+            log.note && h('div', null, log.note)
+            )))
+          )
+        );
+      })
+    )
+    ),
+
+    h('div', { style: { display: 'flex', gap: 8, marginBottom: 20, alignItems: 'center' } },
+      h('div', { className: 'scroll-x', style: { display: 'flex', gap: 6, flex: 1 } },
+        cats.map(c => h('button', {
+          key: c,
+          onClick: () => setFilterCat(c),
+          style: {
+            flexShrink: 0,
+            padding: '5px 14px',
+            borderRadius: 20,
+            border: filterCat === c ? '1px solid var(--gold)' : '1px solid var(--border)',
+            background: filterCat === c ? 'rgba(0,0,0,.15)' : 'transparent',
+            color: filterCat === c ? 'var(--gold)' : 'var(--text3)',
+            fontSize: 12,
+            cursor: 'pointer'
+          }
+        }, c))
+      ),
+      h('button', {
+        onClick: () => setShowAdd(v => !v),
+        style: { flexShrink: 0, padding: '5px 14px', borderRadius: 20, border: '1px solid var(--border2)', background: 'transparent', color: 'var(--text2)', fontSize: 12, cursor: 'pointer' }
+      }, '+ Recette')
+    ),
+
+    showAdd && h('div', {
       style: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        marginBottom: 8
+        background: 'linear-gradient(160deg,var(--bg3),var(--bg2))',
+        borderRadius: 'var(--radius)',
+        padding: 20,
+        marginBottom: 20,
+        border: '1px solid var(--gold-border)'
       }
-    }, /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: 10,
-        color: cc,
-        fontFamily: "'Space Mono',monospace",
-        letterSpacing: '.1em',
-        textTransform: 'uppercase'
-      }
-    }, r.categorie), !isDefault && /*#__PURE__*/React.createElement("button", {
-      onClick: e => {
-        e.stopPropagation();
-        if (confirm('Supprimer cette recette ?')) deleteRecipe(r.id);
-      },
-      style: {
-        background: 'none',
-        border: 'none',
-        color: 'var(--text3)',
-        cursor: 'pointer',
-        fontSize: 16,
-        padding: '0 2px',
-        lineHeight: 1
-      }
-    }, "\xD7")), /*#__PURE__*/React.createElement("h3", {
-      style: {
-        fontFamily: "'Cormorant Garamond',serif",
-        fontSize: 17,
-        fontWeight: 600,
-        marginBottom: 8,
-        color: 'var(--text)',
-        lineHeight: 1.2
-      }
-    }, r.nom), /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: 'flex',
-        gap: 4,
-        flexWrap: 'wrap',
-        marginBottom: 8
-      }
-    }, (r.tags || []).slice(0, 3).map(t => /*#__PURE__*/React.createElement("span", {
-      key: t,
-      style: {
-        fontSize: 9,
-        padding: '1px 6px',
-        borderRadius: 20,
-        background: 'var(--gold-bg)',
-        color: 'var(--gold)',
-        border: '1px solid var(--gold-border)',
-        fontFamily: "'Space Mono',monospace"
-      }
-    }, t))), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 11,
-        color: 'var(--text3)',
-        display: 'flex',
-        justifyContent: 'space-between'
-      }
-    }, /*#__PURE__*/React.createElement("span", null, (r.ingredients || []).length, " ingr\xE9dients"), /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: 'var(--gold)'
-      }
-    }, r.budget)));
-  })));
+    },
+    h('h3', { style: { marginBottom: 8 } }, 'Nouvelle recette'),
+    h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 10, marginBottom: 12 } },
+      h('input', { value: addForm.nom, onChange: e => setAddForm(p => ({ ...p, nom: e.target.value })), placeholder: 'Nom', style: { gridColumn: '1/-1', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)' } }),
+      h('select', { value: addForm.categorie, onChange: e => setAddForm(p => ({ ...p, categorie: e.target.value })), style: { padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)' } }, cats.filter(c => c !== 'Tout').map(c => h('option', { key: c }, c))),
+      h('input', { value: addForm.tags, onChange: e => setAddForm(p => ({ ...p, tags: e.target.value })), placeholder: 'Tags', style: { padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)' } }),
+      h('textarea', { value: addForm.ingredients, onChange: e => setAddForm(p => ({ ...p, ingredients: e.target.value })), rows: 4, placeholder: 'Ingrédients (un par ligne)', style: { padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)', resize: 'vertical', fontFamily: 'inherit' } }),
+      h('textarea', { value: addForm.preparation, onChange: e => setAddForm(p => ({ ...p, preparation: e.target.value })), rows: 4, placeholder: 'Préparation', style: { padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)', resize: 'vertical', fontFamily: 'inherit' } }),
+      h('input', { value: addForm.apports, onChange: e => setAddForm(p => ({ ...p, apports: e.target.value })), placeholder: 'Apports', style: { padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)' } }),
+      h('input', { value: addForm.budget, onChange: e => setAddForm(p => ({ ...p, budget: e.target.value })), placeholder: 'Budget', style: { padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)' } })
+    ),
+    h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end' } },
+      h('button', { onClick: () => setShowAdd(false), style: { padding: '8px 18px', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text3)', cursor: 'pointer' } }, 'Annuler'),
+      h('button', {
+        onClick: () => {
+          if (!addForm.nom.trim()) return;
+          upsertRecipe({
+            id: Date.now().toString(),
+            nom: addForm.nom,
+            categorie: addForm.categorie,
+            tags: addForm.tags.split(',').map(t => t.trim()).filter(Boolean),
+            ingredients: addForm.ingredients.split('\n').filter(Boolean),
+            preparation: addForm.preparation,
+            apports: addForm.apports,
+            budget: addForm.budget
+          });
+          setShowAdd(false);
+          setAddForm({ nom: '', categorie: 'Salés', tags: '', ingredients: '', preparation: '', apports: '', budget: '' });
+        },
+        style: { padding: '8px 18px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,var(--gold),var(--gold2))', color: '#06120d', cursor: 'pointer', fontWeight: 700 }
+      }, 'Sauvegarder')
+    )
+    ),
+
+    h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: 14 } },
+      filtered.map(r => {
+        const isDefault = DEFAULT_RECIPES.some(dr => dr.id === r.id);
+        return h('div', {
+          key: r.id,
+          onClick: () => setSelected(r.id),
+          style: { background: 'linear-gradient(160deg,var(--bg3),var(--bg2))', borderRadius: 'var(--radius)', padding: '16px 18px', border: '1px solid var(--border)', cursor: 'pointer' }
+        },
+        h('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 8 } },
+          h('span', { style: { fontSize: 10, color: 'var(--gold)' } }, r.categorie),
+          !isDefault && h('button', {
+            onClick: e => {
+              e.stopPropagation();
+              if (confirm('Supprimer cette recette ?')) deleteRecipe(r.id);
+            },
+            style: { background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 16, lineHeight: 1 }
+          }, '×')
+        ),
+        h('h3', { style: { fontSize: 17, marginBottom: 8 } }, r.nom),
+        h('div', { style: { display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 8 } }, (r.tags || []).slice(0, 3).map(t => h('span', { key: t, style: { fontSize: 9, padding: '1px 6px', borderRadius: 20, background: 'var(--gold-bg)', color: 'var(--gold)', border: '1px solid var(--gold-border)' } }, t))),
+        h('div', { style: { fontSize: 11, color: 'var(--text3)', display: 'flex', justifyContent: 'space-between' } }, h('span', null, `${(r.ingredients || []).length} ingrédients`), h('span', { style: { color: 'var(--gold)' } }, r.budget))
+        );
+      })
+    )
+  );
 }
 
 // ─── Auth — Comptes & Login ───
@@ -6209,6 +6019,22 @@ function App() {
     setData(prev => {
       const next = clone(prev);
       next.recipes = (next.recipes || []).filter(r => r.id !== id);
+      return next;
+    });
+  }, []);
+  const upsertFerment = useCallback(ferment => {
+    setData(prev => {
+      const next = clone(prev);
+      if (!Array.isArray(next.ferments)) next.ferments = [];
+      const idx = next.ferments.findIndex(f => f.id === ferment.id);
+      if (idx >= 0) next.ferments[idx] = ferment;else next.ferments.push(ferment);
+      return next;
+    });
+  }, []);
+  const deleteFerment = useCallback(id => {
+    setData(prev => {
+      const next = clone(prev);
+      next.ferments = (next.ferments || []).filter(f => f.id !== id);
       return next;
     });
   }, []);
@@ -8265,6 +8091,9 @@ function App() {
     addPlanningCustomItem: addPlanningCustomItem,
     deletePlanningCustomItem: deletePlanningCustomItem
   }), view === 'drevmcook' && /*#__PURE__*/React.createElement(DrevmCookView, {
+    ferments: data.ferments || [],
+    upsertFerment: upsertFerment,
+    deleteFerment: deleteFerment,
     recipes: data.recipes || [],
     upsertRecipe: upsertRecipe,
     deleteRecipe: deleteRecipe
