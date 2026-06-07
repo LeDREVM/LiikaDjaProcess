@@ -26,6 +26,7 @@
 --grad-hero:linear-gradient(135deg,#0c1f16 0%,#122b1e 55%,#0a1a10 100%);
 --radius:16px;--radius-sm:11px;--radius-xs:8px;
 --nav-h:72px;
+--bg-parallax-y:0px;
 }
 html,body{height:100%;font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
 #root{height:100%;font-family:'Outfit',sans-serif;background:transparent;color:var(--text);-webkit-font-smoothing:antialiased}
@@ -37,7 +38,7 @@ background:
   linear-gradient(rgba(6,18,13,.18),rgba(6,18,13,.18)),
   url('liika sample.jpeg');
 background-size:auto,auto,auto,cover;
-background-position:0 0,0 0,0 0,center top;
+background-position:0 0,0 0,0 0,center calc(0px + var(--bg-parallax-y));
 background-repeat:no-repeat;
 }
 ::-webkit-scrollbar{width:4px}
@@ -65,6 +66,10 @@ background-repeat:no-repeat;
 
 /* Tablette (769 → 1024px) : sidebar cachée, bottom nav */
 @media(min-width:769px) and (max-width:1024px){
+  body{
+    background-size:130% auto,120% auto,auto,cover;
+    background-position:78% -10%,-12% 104%,0 0,center calc(14% + var(--bg-parallax-y));
+  }
   .app-sidebar{display:none!important}
   .mobile-nav{display:flex!important}
   .app-main{padding:28px 28px calc(var(--nav-h) + 16px)!important;max-width:100%}
@@ -73,6 +78,10 @@ background-repeat:no-repeat;
 
 /* Mobile (≤768px) */
 @media(max-width:768px){
+  body{
+    background-size:160% auto,150% auto,auto,cover;
+    background-position:82% -16%,-22% 108%,0 0,58% calc(18% + var(--bg-parallax-y));
+  }
   .app-sidebar{display:none!important}
   .mobile-nav{display:flex!important}
   .app-main{padding:20px 16px calc(var(--nav-h) + 12px)!important;max-width:100%}
@@ -85,6 +94,10 @@ background-repeat:no-repeat;
 
 /* Petit mobile (≤480px) */
 @media(max-width:480px){
+  body{
+    background-size:190% auto,170% auto,auto,cover;
+    background-position:86% -22%,-35% 112%,0 0,62% calc(22% + var(--bg-parallax-y));
+  }
   .app-main{padding:14px 12px calc(var(--nav-h) + 10px)!important}
   .dash-hero h2{font-size:19px!important}
 }
@@ -6042,6 +6055,37 @@ const [routeChecklist,setRouteChecklist]=useState({});
 const activeProfile=ui?.activeProfile||'dja';
 const profileLabel=activeProfile==='dja'?'Dja':activeProfile==='liika'?'Liika':'Couple';
 const setActiveProfile=useCallback((who)=>setUI(prev=>({...prev,activeProfile:who})),[]);
+
+// Parallax cinématique du fond (preset 2)
+useEffect(()=>{
+  if(typeof window==='undefined' || !document?.body) return;
+  const prefersReduced=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(prefersReduced){
+    document.body.style.setProperty('--bg-parallax-y','0px');
+    return;
+  }
+
+  let rafId=0;
+  const getFactor=()=>window.innerWidth<=480?-0.12:window.innerWidth<=1024?-0.18:-0.24;
+  const update=()=>{
+    rafId=0;
+    const y=window.scrollY||window.pageYOffset||0;
+    const offset=Math.max(-260,Math.round(y*getFactor()));
+    document.body.style.setProperty('--bg-parallax-y',`${offset}px`);
+  };
+  const onScroll=()=>{
+    if(!rafId) rafId=window.requestAnimationFrame(update);
+  };
+
+  update();
+  window.addEventListener('scroll',onScroll,{passive:true});
+  window.addEventListener('resize',update,{passive:true});
+  return ()=>{
+    window.removeEventListener('scroll',onScroll);
+    window.removeEventListener('resize',update);
+    if(rafId) window.cancelAnimationFrame(rafId);
+  };
+},[]);
 
 // Persiste localStorage à chaque changement
 useEffect(()=>saveData(data),[data]);
