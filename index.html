@@ -198,6 +198,27 @@ async function sbSave(d) {
   });
   if (error) throw error;
 }
+async function sbGetPin(accountId) {
+  try {
+    const {
+      data,
+      error
+    } = await sb.from('user_accounts').select('pin').eq('id', accountId).single();
+    if (error || !data || !data.pin) return null;
+    return data.pin;
+  } catch (_) {
+    return null;
+  }
+}
+async function sbSavePin(accountId, pin) {
+  try {
+    await sb.from('user_accounts').upsert({
+      id: accountId,
+      pin,
+      updated_at: new Date().toISOString()
+    });
+  } catch (_) {}
+}
 
 // ─── Data ───
 const defaultData = {
@@ -5587,6 +5608,7 @@ function LoginScreen({
   const [first, setFirst] = useState('');
   const [err, setErr] = useState('');
   const [shake, setShake] = useState(false);
+  const [loading, setLoading] = useState(false);
   const acc = ACCOUNTS.find(a => a.id === sel);
   const doShake = msg => {
     setErr(msg);
@@ -5594,24 +5616,26 @@ function LoginScreen({
     setDigits([]);
     setTimeout(() => setShake(false), 500);
   };
+  const doLogin = (a, s) => {
+    localStorage.setItem('ld-session', JSON.stringify(s));
+    localStorage.setItem('ld-username', a.name);
+    onLogin(s);
+  };
   const handleDigit = d => {
-    if (digits.length >= 4) return;
+    if (digits.length >= 4 || loading) return;
     const next = [...digits, d];
     setDigits(next);
     if (next.length === 4) {
       const pin = next.join('');
-      setTimeout(() => {
+      setTimeout(async () => {
         const stored = localStorage.getItem(`ld-pin-${sel}`);
         if (step === 'pin') {
           if (pin === stored) {
-            const s = {
+            doLogin(acc, {
               id: sel,
               name: acc.name,
               loggedAt: Date.now()
-            };
-            localStorage.setItem('ld-session', JSON.stringify(s));
-            localStorage.setItem('ld-username', acc.name);
-            onLogin(s);
+            });
           } else doShake('Code incorrect, réessaie');
         } else if (step === 'create') {
           setFirst(pin);
@@ -5620,30 +5644,41 @@ function LoginScreen({
           setErr('');
         } else if (step === 'confirm') {
           if (pin === first) {
-            const stored2 = localStorage.getItem(`ld-pin-${sel}`);
-            if (!stored2) localStorage.setItem(`ld-pin-${sel}`, pin);
-            const s = {
+            localStorage.setItem(`ld-pin-${sel}`, pin);
+            sbSavePin(sel, pin);
+            doLogin(acc, {
               id: sel,
               name: acc.name,
               loggedAt: Date.now()
-            };
-            localStorage.setItem('ld-session', JSON.stringify(s));
-            localStorage.setItem('ld-username', acc.name);
-            onLogin(s);
+            });
           } else doShake('Les codes ne correspondent pas');
         }
       }, 150);
     }
   };
   const del = () => setDigits(d => d.slice(0, -1));
-  const selectAcc = id => {
+  const selectAcc = async id => {
     setSel(id);
     setDigits([]);
     setFirst('');
     setErr('');
-    setStep(localStorage.getItem(`ld-pin-${id}`) ? 'pin' : 'create');
+    const local = localStorage.getItem(`ld-pin-${id}`);
+    if (local) {
+      setStep('pin');
+      return;
+    }
+    // Pas de PIN local → cherche sur Supabase
+    setLoading(true);
+    setStep('loading');
+    const remote = await sbGetPin(id);
+    setLoading(false);
+    if (remote) {
+      localStorage.setItem(`ld-pin-${id}`, remote);
+      setStep('pin');
+    } else setStep('create');
   };
   const pinTitle = step === 'create' ? 'Crée ton code PIN (4 chiffres)' : step === 'confirm' ? 'Confirme ton code PIN' : 'Entre ton code PIN';
+  const pinSub = step === 'create' ? 'Premier accès sur cet appareil' : step === 'confirm' ? 'Répète le même code' : 'Synchronisé avec Supabase ☁';
   return /*#__PURE__*/React.createElement("div", {
     style: {
       minHeight: '100vh',
@@ -5776,7 +5811,49 @@ function LoginScreen({
       fontFamily: "'Space Mono',monospace",
       letterSpacing: '.1em'
     }
-  }, a.sub))))), step !== 'pick' && acc && /*#__PURE__*/React.createElement("div", {
+  }, a.sub))))), step === 'loading' && acc && /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: '100%',
+      maxWidth: 300,
+      animation: 'fadeUp .4s ease both',
+      textAlign: 'center'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: acc.grad,
+      borderRadius: 'var(--radius)',
+      padding: '16px 18px',
+      border: `1px solid ${acc.accentBorder}`,
+      marginBottom: 24,
+      display: 'flex',
+      alignItems: 'center',
+      gap: 12
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 26
+    }
+  }, acc.icon), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'Cormorant Garamond',serif",
+      fontSize: 19,
+      fontWeight: 600,
+      color: acc.accent
+    }
+  }, acc.name)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: 'var(--gold)',
+      fontSize: 13,
+      animation: 'pulse 1.2s infinite'
+    }
+  }, "\u2601 V\xE9rification du compte\u2026"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 8,
+      fontSize: 11,
+      color: 'var(--text3)',
+      fontFamily: "'Space Mono',monospace"
+    }
+  }, "Connexion \xE0 Supabase")), step !== 'pick' && step !== 'loading' && acc && /*#__PURE__*/React.createElement("div", {
     style: {
       width: '100%',
       maxWidth: 300,
@@ -5811,7 +5888,14 @@ function LoginScreen({
       opacity: .65,
       marginTop: 2
     }
-  }, pinTitle))), err && /*#__PURE__*/React.createElement("div", {
+  }, pinTitle), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: 'var(--text3)',
+      marginTop: 3,
+      fontFamily: "'Space Mono',monospace"
+    }
+  }, pinSub))), err && /*#__PURE__*/React.createElement("div", {
     style: {
       textAlign: 'center',
       color: 'var(--danger)',
@@ -5835,7 +5919,7 @@ function LoginScreen({
   }, [1, 2, 3, 4, 5, 6, 7, 8, 9, '', 0, '⌫'].map((d, i) => /*#__PURE__*/React.createElement("button", {
     key: i,
     onClick: () => d === '' ? null : d === '⌫' ? del() : handleDigit(String(d)),
-    disabled: d === '',
+    disabled: d === '' || loading,
     style: {
       height: 58,
       borderRadius: 'var(--radius-sm)',
@@ -5844,12 +5928,12 @@ function LoginScreen({
       color: 'var(--text)',
       fontSize: d === '⌫' ? 20 : 22,
       fontWeight: 600,
-      cursor: d === '' ? 'default' : 'pointer',
+      cursor: d === '' || loading ? 'default' : 'pointer',
       opacity: d === '' ? 0 : 1,
       transition: 'background .12s'
     },
     onMouseEnter: e => {
-      if (d !== '') e.currentTarget.style.background = 'var(--bg4)';
+      if (d !== '' && !loading) e.currentTarget.style.background = 'var(--bg4)';
     },
     onMouseLeave: e => {
       if (d !== '') e.currentTarget.style.background = 'var(--bg3)';
