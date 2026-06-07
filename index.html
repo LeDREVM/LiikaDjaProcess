@@ -161,6 +161,18 @@ async function sbSave(d){
   const {error}=await sb.from('app_state').upsert({id:'main',data:d,updated_at:new Date().toISOString(),device_id:DEVICE_ID});
   if(error)throw error;
 }
+async function sbGetPin(accountId){
+  try{
+    const {data,error}=await sb.from('user_accounts').select('pin').eq('id',accountId).single();
+    if(error||!data||!data.pin)return null;
+    return data.pin;
+  }catch(_){return null;}
+}
+async function sbSavePin(accountId,pin){
+  try{
+    await sb.from('user_accounts').upsert({id:accountId,pin,updated_at:new Date().toISOString()});
+  }catch(_){}
+}
 
 // ─── Data ───
 const defaultData={
@@ -1583,35 +1595,53 @@ const [digits,setDigits]=useState([]);
 const [first,setFirst]=useState('');
 const [err,setErr]=useState('');
 const [shake,setShake]=useState(false);
+const [loading,setLoading]=useState(false);
 const acc=ACCOUNTS.find(a=>a.id===sel);
 
 const doShake=(msg)=>{setErr(msg);setShake(true);setDigits([]);setTimeout(()=>setShake(false),500);};
 
+const doLogin=(a,s)=>{localStorage.setItem('ld-session',JSON.stringify(s));localStorage.setItem('ld-username',a.name);onLogin(s);};
+
 const handleDigit=(d)=>{
-  if(digits.length>=4)return;
+  if(digits.length>=4||loading)return;
   const next=[...digits,d];
   setDigits(next);
   if(next.length===4){
     const pin=next.join('');
-    setTimeout(()=>{
+    setTimeout(async()=>{
       const stored=localStorage.getItem(`ld-pin-${sel}`);
       if(step==='pin'){
-        if(pin===stored){const s={id:sel,name:acc.name,loggedAt:Date.now()};localStorage.setItem('ld-session',JSON.stringify(s));localStorage.setItem('ld-username',acc.name);onLogin(s);}
+        if(pin===stored){doLogin(acc,{id:sel,name:acc.name,loggedAt:Date.now()});}
         else doShake('Code incorrect, réessaie');
       } else if(step==='create'){
         setFirst(pin);setDigits([]);setStep('confirm');setErr('');
       } else if(step==='confirm'){
-        if(pin===first){const stored2=localStorage.getItem(`ld-pin-${sel}`);if(!stored2)localStorage.setItem(`ld-pin-${sel}`,pin);const s={id:sel,name:acc.name,loggedAt:Date.now()};localStorage.setItem('ld-session',JSON.stringify(s));localStorage.setItem('ld-username',acc.name);onLogin(s);}
-        else doShake('Les codes ne correspondent pas');
+        if(pin===first){
+          localStorage.setItem(`ld-pin-${sel}`,pin);
+          sbSavePin(sel,pin);
+          doLogin(acc,{id:sel,name:acc.name,loggedAt:Date.now()});
+        } else doShake('Les codes ne correspondent pas');
       }
     },150);
   }
 };
 
 const del=()=>setDigits(d=>d.slice(0,-1));
-const selectAcc=(id)=>{setSel(id);setDigits([]);setFirst('');setErr('');setStep(localStorage.getItem(`ld-pin-${id}`)?'pin':'create');};
+
+const selectAcc=async(id)=>{
+  setSel(id);setDigits([]);setFirst('');setErr('');
+  const local=localStorage.getItem(`ld-pin-${id}`);
+  if(local){setStep('pin');return;}
+  // Pas de PIN local → cherche sur Supabase
+  setLoading(true);setStep('loading');
+  const remote=await sbGetPin(id);
+  setLoading(false);
+  if(remote){localStorage.setItem(`ld-pin-${id}`,remote);setStep('pin');}
+  else setStep('create');
+};
 
 const pinTitle=step==='create'?'Crée ton code PIN (4 chiffres)':step==='confirm'?'Confirme ton code PIN':'Entre ton code PIN';
+const pinSub=step==='create'?'Premier accès sur cet appareil':step==='confirm'?'Répète le même code':'Synchronisé avec Supabase ☁';
 
 return <div style={{minHeight:'100vh',background:'radial-gradient(ellipse 800px 500px at 80% -10%,rgba(217,183,95,.07),transparent),radial-gradient(ellipse 600px 500px at -10% 90%,rgba(74,222,128,.05),transparent),var(--bg)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'24px 16px',overflow:'hidden',position:'relative'}}>
 <div style={{position:'absolute',top:-80,right:-80,width:300,height:300,background:'radial-gradient(circle,rgba(217,183,95,.07),transparent 70%)',borderRadius:'50%',pointerEvents:'none'}}/>
@@ -1641,12 +1671,22 @@ onMouseLeave={e=>{e.currentTarget.style.transform='';e.currentTarget.style.boxSh
 </div>
 </>}
 
-{step!=='pick'&&acc&&<div style={{width:'100%',maxWidth:300,animation:'fadeUp .4s ease both'}}>
+{step==='loading'&&acc&&<div style={{width:'100%',maxWidth:300,animation:'fadeUp .4s ease both',textAlign:'center'}}>
+<div style={{background:acc.grad,borderRadius:'var(--radius)',padding:'16px 18px',border:`1px solid ${acc.accentBorder}`,marginBottom:24,display:'flex',alignItems:'center',gap:12}}>
+<span style={{fontSize:26}}>{acc.icon}</span>
+<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:19,fontWeight:600,color:acc.accent}}>{acc.name}</div>
+</div>
+<div style={{color:'var(--gold)',fontSize:13,animation:'pulse 1.2s infinite'}}>☁ Vérification du compte…</div>
+<div style={{marginTop:8,fontSize:11,color:'var(--text3)',fontFamily:"'Space Mono',monospace"}}>Connexion à Supabase</div>
+</div>}
+
+{step!=='pick'&&step!=='loading'&&acc&&<div style={{width:'100%',maxWidth:300,animation:'fadeUp .4s ease both'}}>
 <div style={{background:acc.grad,borderRadius:'var(--radius)',padding:'16px 18px',border:`1px solid ${acc.accentBorder}`,marginBottom:20,display:'flex',alignItems:'center',gap:12}}>
 <span style={{fontSize:26}}>{acc.icon}</span>
 <div>
 <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:19,fontWeight:600,color:acc.accent}}>{acc.name}</div>
 <div className="eyebrow" style={{color:acc.accent,opacity:.65,marginTop:2}}>{pinTitle}</div>
+<div style={{fontSize:10,color:'var(--text3)',marginTop:3,fontFamily:"'Space Mono',monospace"}}>{pinSub}</div>
 </div>
 </div>
 
@@ -1658,9 +1698,9 @@ onMouseLeave={e=>{e.currentTarget.style.transform='';e.currentTarget.style.boxSh
 <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:9,marginTop:14}}>
 {[1,2,3,4,5,6,7,8,9,'',0,'⌫'].map((d,i)=><button key={i}
 onClick={()=>d===''?null:d==='⌫'?del():handleDigit(String(d))}
-disabled={d===''}
-style={{height:58,borderRadius:'var(--radius-sm)',border:d===''?'none':`1px solid var(--border2)`,background:d===''?'transparent':digits.length===4?'var(--bg2)':'var(--bg3)',color:'var(--text)',fontSize:d==='⌫'?20:22,fontWeight:600,cursor:d===''?'default':'pointer',opacity:d===''?0:1,transition:'background .12s'}}
-onMouseEnter={e=>{if(d!=='')e.currentTarget.style.background='var(--bg4)';}}
+disabled={d===''||loading}
+style={{height:58,borderRadius:'var(--radius-sm)',border:d===''?'none':`1px solid var(--border2)`,background:d===''?'transparent':digits.length===4?'var(--bg2)':'var(--bg3)',color:'var(--text)',fontSize:d==='⌫'?20:22,fontWeight:600,cursor:d===''||loading?'default':'pointer',opacity:d===''?0:1,transition:'background .12s'}}
+onMouseEnter={e=>{if(d!==''&&!loading)e.currentTarget.style.background='var(--bg4)';}}
 onMouseLeave={e=>{if(d!=='')e.currentTarget.style.background='var(--bg3)';}}>
 {d}</button>)}
 </div>
