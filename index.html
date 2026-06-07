@@ -694,7 +694,6 @@ const defaultData = {
   },
   recipes: []
 };
-
 // Garantit que les données chargées/reçues ont toujours la forme attendue
 // (dja / liika / couple complets). Évite l'écran blanc si Supabase renvoie
 // un état partiel, null ou d'une ancienne version.
@@ -819,137 +818,33 @@ function StatCard({
     }
   }, value)));
 }
-function ObjectiveCard({
-  obj,
-  color,
-  onToggle,
-  onProgress,
-  onDelete
-}) {
-  const accentVar = color === 'dja' ? 'var(--accent-dja)' : color === 'liika' ? 'var(--accent-liika)' : 'var(--accent-couple)';
-  const bgVar = color === 'dja' ? 'var(--accent-dja-bg)' : color === 'liika' ? 'var(--accent-liika-bg)' : 'var(--accent-couple-bg)';
-  return /*#__PURE__*/React.createElement("div", {
-    style: {
-      background: 'linear-gradient(160deg,var(--bg3),var(--bg2))',
-      borderRadius: 'var(--radius)',
-      padding: '16px 20px',
-      borderLeft: `3px solid ${obj.done ? 'var(--success)' : accentVar}`,
-      border: `1px solid var(--border)`,
-      borderLeftWidth: 3,
-      borderLeftColor: obj.done ? 'var(--success)' : accentVar,
-      animation: 'fadeUp .4s ease both',
-      opacity: obj.done ? .65 : 1,
-      transition: 'opacity .3s',
-      boxShadow: 'var(--shadow)'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
-      gap: 12
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      flex: 1
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: 8,
-      marginBottom: 6
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 11,
-      padding: '2px 8px',
-      borderRadius: 20,
-      background: bgVar,
-      color: accentVar,
-      fontWeight: 500
-    }
-  }, obj.cat), obj.done && /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 11,
-      padding: '2px 8px',
-      borderRadius: 20,
-      background: 'var(--success-bg)',
-      color: 'var(--success)',
-      fontWeight: 500
-    }
-  }, "Fait")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 15,
-      fontWeight: 500,
-      marginBottom: 4,
-      textDecoration: obj.done ? 'line-through' : 'none'
-    }
-  }, obj.title), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 13,
-      color: 'var(--text3)'
-    }
-  }, obj.desc)), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      gap: 4
-    }
-  }, /*#__PURE__*/React.createElement(ProgressRing, {
-    pct: obj.progress,
-    color: obj.done ? 'var(--success)' : accentVar
-  }), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 11,
-      fontWeight: 500,
-      color: obj.done ? 'var(--success)' : accentVar
-    }
-  }, obj.progress, "%"))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginTop: 12,
-      display: 'flex',
-      alignItems: 'center',
-      gap: 8
-    }
-  }, /*#__PURE__*/React.createElement("input", {
-    type: "range",
-    min: "0",
-    max: "100",
-    step: "5",
-    value: obj.progress,
-    onChange: e => onProgress(obj.id, parseInt(e.target.value)),
-    style: {
-      flex: 1,
-      height: 4,
-      accentColor: accentVar,
-      cursor: 'pointer'
-    }
-  }), /*#__PURE__*/React.createElement("button", {
-    onClick: () => onToggle(obj.id),
-    style: {
-      background: obj.done ? 'var(--success-bg)' : 'var(--bg4)',
-      border: 'none',
-      borderRadius: 'var(--radius-xs)',
-      padding: '6px 12px',
-      fontSize: 12,
-      color: obj.done ? 'var(--success)' : 'var(--text2)',
-      cursor: 'pointer',
-      whiteSpace: 'nowrap'
-    }
-  }, obj.done ? 'Réactiver' : 'Valider'), /*#__PURE__*/React.createElement("button", {
-    onClick: () => onDelete(obj.id),
-    "aria-label": "Supprimer",
-    style: {
-      background: 'none',
-      border: 'none',
-      fontSize: 14,
-      color: 'var(--text3)',
-      cursor: 'pointer',
-      padding: '6px'
-    }
-  }, "\u2715")));
+
+function ObjectiveCard({obj,color,onToggle,onProgress,onDelete}){
+const av=accent[color];const bv=accentBg[color];const accentVar=av;const bgVar=bv;
+return <div style={{background:'var(--bg3)',borderRadius:'var(--radius)',padding:'16px 20px',borderLeft:`3px solid ${obj.done?'var(--success)':av}`,animation:'fadeUp .4s ease both',opacity:obj.done?0.6:1,transition:'opacity .3s'}}>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
+<div style={{flex:1}}>
+<div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
+<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:bgVar,color:accentVar,fontWeight:500}}>{obj.cat}</span>
+{obj.done&&<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:'var(--success-bg)',color:'var(--success)',fontWeight:500}}>Fait</span>}
+</div>
+<div style={{fontSize:15,fontWeight:500,marginBottom:4,textDecoration:obj.done?'line-through':'none'}}>{obj.title}</div>
+<div style={{fontSize:13,color:'var(--text3)'}}>{obj.desc}</div>
+</div>
+<div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
+<ProgressRing pct={obj.progress} color={obj.done?'var(--success)':accentVar}/>
+<span style={{fontSize:11,fontWeight:500,color:obj.done?'var(--success)':accentVar}}>{obj.progress}%</span>
+</div>
+</div>
+<div style={{marginTop:12,display:'flex',alignItems:'center',gap:8}}>
+<input type="range" min="0" max="100" step="5" value={obj.progress}
+  onChange={e=>onProgress(obj.id,parseInt(e.target.value))}
+  style={{flex:1,height:4,accentColor:accentVar,cursor:'pointer'}}/>
+<button onClick={()=>onToggle(obj.id)} style={{background:obj.done?'var(--success-bg)':'var(--bg4)',border:'none',borderRadius:'var(--radius-xs)',padding:'6px 12px',fontSize:12,color:obj.done?'var(--success)':'var(--text2)',cursor:'pointer',whiteSpace:'nowrap'}}>
+{obj.done?'Réactiver':'Valider'}</button>
+<button onClick={()=>onDelete(obj.id)} aria-label="Supprimer" style={{background:'none',border:'none',fontSize:14,color:'var(--text3)',cursor:'pointer',padding:'6px'}}>✕</button>
+</div>
+</div>
 }
 function ActionItem({
   action,
@@ -6124,14 +6019,18 @@ const [data,setData]=useState(loadData);
 const [ui,setUI]=useState(loadUI);
 const [view,setView]=useState('dashboard');
 const [modal,setModal]=useState(null);
-const [syncStatus,setSyncStatus]=useState('idle');
-const [onlineCount,setOnlineCount]=useState(0);
-const [session,setSession]=useState(()=>{try{return JSON.parse(localStorage.getItem('ld-session')||'null');}catch(_){return null;}});
-const [routeKm,setRouteKm]=useState(0);
-const [routeChecklist,setRouteChecklist]=useState({});
+const [syncStatus,setSyncStatus]=useState('idle'); // idle | syncing | ok | error
+const [onlineCount,setOnlineCount]=useState(0); // nb d'appareils connectés (présence)
+// État de la vue "Objectifs du mois" (perdu lors d'une fusion, restauré ici au niveau App)
 const [objMoisFilter,setObjMoisFilter]=useState(()=>new Date().getMonth());
 const [showAddObjM,setShowAddObjM]=useState(false);
 const [newObjM,setNewObjM]=useState({titre:'',detail:'',categorie:'Nature'});
+// État de la vue "Route Liika" (perdu lors d'une fusion, restauré ici au niveau App)
+const [routeKm,setRouteKm]=useState(0);
+const [routeChecklist,setRouteChecklist]=useState({});
+const activeProfile=ui?.activeProfile||'dja';
+const profileLabel=activeProfile==='dja'?'Dja':activeProfile==='liika'?'Liika':'Couple';
+const setActiveProfile=useCallback((who)=>setUI(prev=>({...prev,activeProfile:who})),[]);
 
 // Persiste localStorage à chaque changement
 useEffect(()=>saveData(data),[data]);
@@ -6151,56 +6050,28 @@ return ()=>clearTimeout(t);
 // ─── Realtime cross-device sync + présence ───
 useEffect(()=>{
 // Présence : lit les sessions actives (<5 min)
-const refreshOnline=async()=>{try{const {data:rows}=await sb.from('app_sessions').select('id').gte('last_seen',new Date(Date.now()-300000).toISOString());if(rows)setOnlineCount(rows.length);}catch(_){}};
-const ping=async()=>{try{await sb.from('app_sessions').upsert({id:DEVICE_ID,user_name:localStorage.getItem('ld-username')||'Appareil',last_seen:new Date().toISOString(),is_online:true});}catch(_){}};
+const refreshOnline=()=>sb.from('app_sessions')
+  .select('id').gte('last_seen',new Date(Date.now()-300000).toISOString())
+  .then(({data:rows})=>rows&&setOnlineCount(rows.length)).catch(()=>{});
+// Ping : enregistre / met à jour cet appareil
+const ping=()=>sb.from('app_sessions').upsert({
+  id:DEVICE_ID,
+  user_name:localStorage.getItem('ld-username')||'Appareil',
+  last_seen:new Date().toISOString(),
+  is_online:true
+}).then(undefined,()=>{});
 
-  // Sync Supabase debounce 1.5s
-  useEffect(() => {
-    const t = setTimeout(() => {
-      setSyncStatus('syncing');
-      sbSave(data).then(() => setSyncStatus('ok')).catch(() => setSyncStatus('error'));
-    }, 1500);
-    return () => clearTimeout(t);
-  }, [data]);
+ping();refreshOnline();
+const iv=setInterval(()=>{ping();refreshOnline();},60000);
 
-  // ─── Realtime cross-device sync + présence ───
-  useEffect(() => {
-    // Présence : lit les sessions actives (<5 min)
-    const refreshOnline = async () => {
-      try {
-        const {
-          data: rows
-        } = await sb.from('app_sessions').select('id').gte('last_seen', new Date(Date.now() - 300000).toISOString());
-        if (rows) setOnlineCount(rows.length);
-      } catch (_) {}
-    };
-    const ping = async () => {
-      try {
-        await sb.from('app_sessions').upsert({
-          id: DEVICE_ID,
-          user_name: localStorage.getItem('ld-username') || 'Appareil',
-          last_seen: new Date().toISOString(),
-          is_online: true
-        });
-      } catch (_) {}
-    };
-    ping();
-    refreshOnline();
-    const iv = setInterval(() => {
-      ping();
-      refreshOnline();
-    }, 60000);
-    const ch = sb.channel('ld-realtime')
-    // Réception des changements d'un AUTRE appareil
-    .on('postgres_changes', {
-      event: 'UPDATE',
-      schema: 'public',
-      table: 'app_state',
-      filter: 'id=eq.main'
-    }, payload => {
-      if (!payload.new?.data) return;
-      if (payload.new.device_id === DEVICE_ID) return; // notre propre save → ignorer
-      const remote = normalize(payload.new.data);
+const ch=sb.channel('ld-realtime')
+  // Réception des changements d'un AUTRE appareil
+  .on('postgres_changes',
+    {event:'UPDATE',schema:'public',table:'app_state',filter:'id=eq.main'},
+    (payload)=>{
+      if(!payload.new?.data)return;
+      if(payload.new.device_id===DEVICE_ID)return; // notre propre save → ignorer
+      const remote=normalize(payload.new.data);
       setData(remote);
       saveData(remote);
       setSyncStatus('ok');

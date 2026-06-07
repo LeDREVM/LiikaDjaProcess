@@ -17,13 +17,17 @@
 CREATE TABLE IF NOT EXISTS app_state (
   id          TEXT        PRIMARY KEY DEFAULT 'main',
   data        JSONB       NOT NULL    DEFAULT '{}',
-  updated_at  TIMESTAMPTZ NOT NULL    DEFAULT NOW()
+  updated_at  TIMESTAMPTZ NOT NULL    DEFAULT NOW(),
+  device_id   TEXT
 );
+-- Pour les bases déjà créées sans la colonne :
+ALTER TABLE app_state ADD COLUMN IF NOT EXISTS device_id TEXT;
 
 COMMENT ON TABLE  app_state           IS 'État global de l''application Lanmou Douvan (une ligne unique)';
 COMMENT ON COLUMN app_state.id        IS 'Toujours "main" — la ligne unique de l''app';
 COMMENT ON COLUMN app_state.data      IS 'JSON complet : dja, liika, couple, recipes, planning, ideeJour';
 COMMENT ON COLUMN app_state.updated_at IS 'Mis à jour automatiquement à chaque sauvegarde';
+COMMENT ON COLUMN app_state.device_id IS 'Appareil ayant fait la dernière sauvegarde (anti-écho Realtime)';
 
 -- Index GIN pour les requêtes JSONB (optionnel, utile si tu recherches dans le JSON)
 CREATE INDEX IF NOT EXISTS idx_app_state_data ON app_state USING GIN (data);
@@ -63,6 +67,36 @@ BEGIN
       AND tablename = 'app_state'
   ) THEN
     ALTER PUBLICATION supabase_realtime ADD TABLE app_state;
+  END IF;
+END $$;
+
+
+-- ================================================================
+-- PRÉSENCE : qui est connecté en ce moment
+-- Chaque appareil "ping" sa session ; le front compte les sessions
+-- vues il y a moins de 5 min pour afficher le nb d'appareils en ligne.
+-- ================================================================
+
+CREATE TABLE IF NOT EXISTS app_sessions (
+  id         TEXT        PRIMARY KEY,
+  user_name  TEXT,
+  last_seen  TIMESTAMPTZ DEFAULT NOW(),
+  is_online  BOOLEAN     DEFAULT TRUE
+);
+
+ALTER TABLE app_sessions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "allow_all" ON app_sessions;
+CREATE POLICY "allow_all" ON app_sessions FOR ALL USING (true) WITH CHECK (true);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime'
+      AND schemaname = 'public'
+      AND tablename = 'app_sessions'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE app_sessions;
   END IF;
 END $$;
 
