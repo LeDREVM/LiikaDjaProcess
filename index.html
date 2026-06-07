@@ -127,6 +127,7 @@ background-repeat:no-repeat;
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chess.js@0.12.1/chess.js"></script>
 <script>const {
   useState,
   useEffect,
@@ -218,6 +219,18 @@ async function sbSavePin(accountId, pin) {
       updated_at: new Date().toISOString()
     });
   } catch (_) {}
+}
+async function sbGetPin(accountId){
+  try{
+    const {data,error}=await sb.from('user_accounts').select('pin').eq('id',accountId).single();
+    if(error||!data||!data.pin)return null;
+    return data.pin;
+  }catch(_){return null;}
+}
+async function sbSavePin(accountId,pin){
+  try{
+    await sb.from('user_accounts').upsert({id:accountId,pin,updated_at:new Date().toISOString()});
+  }catch(_){}
 }
 
 // ─── Data ───
@@ -681,9 +694,14 @@ const defaultData = {
     objMensuels: []
   },
   recipes: [],
-  ferments: []
+  ferments: [],
+  games: {
+    chess: { fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', lastBy: '', result: '' },
+    crossword: { filled: {}, done: false },
+    streak: { count: 0, lastDay: '' },
+    badges: []
+  }
 };
-
 // Garantit que les données chargées/reçues ont toujours la forme attendue
 // (dja / liika / couple complets). Évite l'écran blanc si Supabase renvoie
 // un état partiel, null ou d'une ancienne version.
@@ -697,6 +715,14 @@ function normalize(d) {
     };
   }
   if (Array.isArray(d.recipes)) base.recipes = d.recipes;
+  if (d.games && typeof d.games === 'object') {
+    base.games = {
+      chess: { ...base.games.chess, ...(d.games.chess || {}) },
+      crossword: { ...base.games.crossword, ...(d.games.crossword || {}) },
+      streak: { ...base.games.streak, ...(d.games.streak || {}) },
+      badges: Array.isArray(d.games.badges) ? d.games.badges : []
+    };
+  }
   if (Array.isArray(d.ferments)) base.ferments = d.ferments;
   return base;
 }
@@ -809,137 +835,33 @@ function StatCard({
     }
   }, value)));
 }
-function ObjectiveCard({
-  obj,
-  color,
-  onToggle,
-  onProgress,
-  onDelete
-}) {
-  const accentVar = color === 'dja' ? 'var(--accent-dja)' : color === 'liika' ? 'var(--accent-liika)' : 'var(--accent-couple)';
-  const bgVar = color === 'dja' ? 'var(--accent-dja-bg)' : color === 'liika' ? 'var(--accent-liika-bg)' : 'var(--accent-couple-bg)';
-  return /*#__PURE__*/React.createElement("div", {
-    style: {
-      background: 'linear-gradient(160deg,var(--bg3),var(--bg2))',
-      borderRadius: 'var(--radius)',
-      padding: '16px 20px',
-      borderLeft: `3px solid ${obj.done ? 'var(--success)' : accentVar}`,
-      border: `1px solid var(--border)`,
-      borderLeftWidth: 3,
-      borderLeftColor: obj.done ? 'var(--success)' : accentVar,
-      animation: 'fadeUp .4s ease both',
-      opacity: obj.done ? .65 : 1,
-      transition: 'opacity .3s',
-      boxShadow: 'var(--shadow)'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
-      gap: 12
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      flex: 1
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: 8,
-      marginBottom: 6
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 11,
-      padding: '2px 8px',
-      borderRadius: 20,
-      background: bgVar,
-      color: accentVar,
-      fontWeight: 500
-    }
-  }, obj.cat), obj.done && /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 11,
-      padding: '2px 8px',
-      borderRadius: 20,
-      background: 'var(--success-bg)',
-      color: 'var(--success)',
-      fontWeight: 500
-    }
-  }, "Fait")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 15,
-      fontWeight: 500,
-      marginBottom: 4,
-      textDecoration: obj.done ? 'line-through' : 'none'
-    }
-  }, obj.title), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 13,
-      color: 'var(--text3)'
-    }
-  }, obj.desc)), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      gap: 4
-    }
-  }, /*#__PURE__*/React.createElement(ProgressRing, {
-    pct: obj.progress,
-    color: obj.done ? 'var(--success)' : accentVar
-  }), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 11,
-      fontWeight: 500,
-      color: obj.done ? 'var(--success)' : accentVar
-    }
-  }, obj.progress, "%"))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginTop: 12,
-      display: 'flex',
-      alignItems: 'center',
-      gap: 8
-    }
-  }, /*#__PURE__*/React.createElement("input", {
-    type: "range",
-    min: "0",
-    max: "100",
-    step: "5",
-    value: obj.progress,
-    onChange: e => onProgress(obj.id, parseInt(e.target.value)),
-    style: {
-      flex: 1,
-      height: 4,
-      accentColor: accentVar,
-      cursor: 'pointer'
-    }
-  }), /*#__PURE__*/React.createElement("button", {
-    onClick: () => onToggle(obj.id),
-    style: {
-      background: obj.done ? 'var(--success-bg)' : 'var(--bg4)',
-      border: 'none',
-      borderRadius: 'var(--radius-xs)',
-      padding: '6px 12px',
-      fontSize: 12,
-      color: obj.done ? 'var(--success)' : 'var(--text2)',
-      cursor: 'pointer',
-      whiteSpace: 'nowrap'
-    }
-  }, obj.done ? 'Réactiver' : 'Valider'), /*#__PURE__*/React.createElement("button", {
-    onClick: () => onDelete(obj.id),
-    "aria-label": "Supprimer",
-    style: {
-      background: 'none',
-      border: 'none',
-      fontSize: 14,
-      color: 'var(--text3)',
-      cursor: 'pointer',
-      padding: '6px'
-    }
-  }, "\u2715")));
+
+function ObjectiveCard({obj,color,onToggle,onProgress,onDelete}){
+const av=accent[color];const bv=accentBg[color];const accentVar=av;const bgVar=bv;
+return <div style={{background:'var(--bg3)',borderRadius:'var(--radius)',padding:'16px 20px',borderLeft:`3px solid ${obj.done?'var(--success)':av}`,animation:'fadeUp .4s ease both',opacity:obj.done?0.6:1,transition:'opacity .3s'}}>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
+<div style={{flex:1}}>
+<div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
+<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:bgVar,color:accentVar,fontWeight:500}}>{obj.cat}</span>
+{obj.done&&<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:'var(--success-bg)',color:'var(--success)',fontWeight:500}}>Fait</span>}
+</div>
+<div style={{fontSize:15,fontWeight:500,marginBottom:4,textDecoration:obj.done?'line-through':'none'}}>{obj.title}</div>
+<div style={{fontSize:13,color:'var(--text3)'}}>{obj.desc}</div>
+</div>
+<div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
+<ProgressRing pct={obj.progress} color={obj.done?'var(--success)':accentVar}/>
+<span style={{fontSize:11,fontWeight:500,color:obj.done?'var(--success)':accentVar}}>{obj.progress}%</span>
+</div>
+</div>
+<div style={{marginTop:12,display:'flex',alignItems:'center',gap:8}}>
+<input type="range" min="0" max="100" step="5" value={obj.progress}
+  onChange={e=>onProgress(obj.id,parseInt(e.target.value))}
+  style={{flex:1,height:4,accentColor:accentVar,cursor:'pointer'}}/>
+<button onClick={()=>onToggle(obj.id)} style={{background:obj.done?'var(--success-bg)':'var(--bg4)',border:'none',borderRadius:'var(--radius-xs)',padding:'6px 12px',fontSize:12,color:obj.done?'var(--success)':'var(--text2)',cursor:'pointer',whiteSpace:'nowrap'}}>
+{obj.done?'Réactiver':'Valider'}</button>
+<button onClick={()=>onDelete(obj.id)} aria-label="Supprimer" style={{background:'none',border:'none',fontSize:14,color:'var(--text3)',cursor:'pointer',padding:'6px'}}>✕</button>
+</div>
+</div>
 }
 function ActionItem({
   action,
@@ -5771,95 +5693,290 @@ function LoginScreen({
   }, "\u2190 Changer de compte")));
 }
 
-// ─── Main App ───
-function App() {
-  const vw = useWindowWidth();
-  const isMobile = vw <= 768;
-  const isTablet = vw > 768 && vw <= 1024;
-  const isSmall = vw <= 1024;
-  const [data, setData] = useState(loadData);
-  const [ui, setUI] = useState(loadUI);
-  const [view, setView] = useState('dashboard');
-  const [modal, setModal] = useState(null);
-  const [syncStatus, setSyncStatus] = useState('idle');
-  const [onlineCount, setOnlineCount] = useState(0);
-  const [session, setSession] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem('ld-session') || 'null');
-    } catch (_) {
-      return null;
+// ─── Jeux (vue pilote gamifiée) ───
+const CHESS_START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+const GLYPH = { wp:'♙', wn:'♘', wb:'♗', wr:'♖', wq:'♕', wk:'♔',
+                bp:'♟', bn:'♞', bb:'♝', br:'♜', bq:'♛', bk:'♚' };
+const BADGES = [
+  { id:'first_move',     icon:'♟', label:'Premier coup',  desc:'Jouer ton 1er coup aux échecs' },
+  { id:'checkmate',      icon:'♚', label:'Échec et mat', desc:'Gagner une partie d’échecs' },
+  { id:'crossword_done', icon:'🧩', label:'Grille bouclée', desc:'Compléter les mots fléchés' },
+  { id:'streak3',        icon:'🔥', label:'Série de 3',  desc:'Jouer 3 jours d’affilée' }
+];
+// Mini grille de mots croisés gwada/couple — les mots se croisent sur AMOUR (vertical)
+const CW_WORDS = [
+  { num:1, dir:'across', r:0, c:0, answer:'DJA',   clue:'Negus ___, ton nom d’artiste' },
+  { num:2, dir:'down',   r:0, c:2, answer:'AMOUR', clue:'Ce qui vous lie ♡' },
+  { num:3, dir:'across', r:2, c:0, answer:'GWO',   clue:'« Gros » en créole' },
+  { num:4, dir:'across', r:4, c:2, answer:'RIVYE', clue:'« Rivière » en créole' }
+];
+const CW_SOL = {}, CW_START = {}, CW_ROWS = 5, CW_COLS = 7;
+CW_WORDS.forEach(w => {
+  CW_START[w.r + '-' + w.c] = w.num;
+  for (let i = 0; i < w.answer.length; i++) {
+    const r = w.dir === 'down' ? w.r + i : w.r;
+    const c = w.dir === 'across' ? w.c + i : w.c;
+    CW_SOL[r + '-' + c] = w.answer[i];
+  }
+});
+const todayStr = () => new Date().toISOString().slice(0, 10);
+const awardBadge = (g, id) => { if (!g.badges.includes(id)) g.badges = [...g.badges, id]; };
+const touchStreak = g => {
+  const t = todayStr();
+  if (g.streak.lastDay === t) return;
+  const y = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  g.streak = { count: g.streak.lastDay === y ? (g.streak.count || 0) + 1 : 1, lastDay: t };
+  if (g.streak.count >= 3) awardBadge(g, 'streak3');
+};
+
+function JeuxView({ games, updateGames }) {
+  const h = React.createElement;
+  const [tab, setTab] = useState('chess');
+  const [sel, setSel] = useState(null);
+  const me = localStorage.getItem('ld-username') || 'Joueur';
+  const hasChess = typeof window.Chess === 'function';
+
+  // Reconstruit la partie depuis le FEN stocké (sync via Supabase)
+  const chess = useMemo(() => {
+    if (!hasChess) return null;
+    const c = new window.Chess();
+    try { c.load(games.chess.fen || CHESS_START); } catch (_) { c.reset(); }
+    return c;
+  }, [games.chess.fen, hasChess]);
+
+  const turn = chess ? chess.turn() : 'w';
+  const legal = chess && sel ? chess.moves({ square: sel, verbose: true }) : [];
+  const targets = new Set(legal.map(m => m.to));
+
+  const doMove = (from, to) => {
+    const c = new window.Chess();
+    try { c.load(games.chess.fen || CHESS_START); } catch (_) {}
+    const mv = c.move({ from, to, promotion: 'q' });
+    if (!mv) return;
+    updateGames(g => {
+      const ng = clone(g);
+      ng.chess.fen = c.fen();
+      ng.chess.lastBy = me;
+      awardBadge(ng, 'first_move');
+      if (c.in_checkmate()) { ng.chess.result = (c.turn() === 'w' ? 'Noirs' : 'Blancs') + ' gagnent — échec et mat'; awardBadge(ng, 'checkmate'); }
+      else if (c.in_draw()) ng.chess.result = 'Partie nulle';
+      else ng.chess.result = '';
+      touchStreak(ng);
+      return ng;
+    });
+    setSel(null);
+  };
+
+  const clickSquare = (sq, piece) => {
+    if (games.chess.result) return;
+    if (sel && targets.has(sq)) { doMove(sel, sq); return; }
+    if (piece && piece.color === turn) { setSel(sq === sel ? null : sq); return; }
+    setSel(null);
+  };
+
+  const resetChess = () => updateGames(g => {
+    const ng = clone(g);
+    ng.chess = { fen: CHESS_START, lastBy: me, result: '' };
+    return ng;
+  });
+
+  const setCell = (key, val) => updateGames(g => {
+    const ng = clone(g);
+    const f = { ...ng.crossword.filled };
+    if (val) f[key] = val; else delete f[key];
+    ng.crossword.filled = f;
+    const done = Object.keys(CW_SOL).every(k => (f[k] || '') === CW_SOL[k]);
+    ng.crossword.done = done;
+    if (done) awardBadge(ng, 'crossword_done');
+    touchStreak(ng);
+    return ng;
+  });
+
+  // ── Sous-onglets ──
+  const subTabs = [{ id:'chess', label:'♞ Échecs' }, { id:'crossword', label:'🧩 Mots fléchés' }, { id:'rewards', label:'🏆 Récompenses' }];
+  const tabBar = h('div', { style:{ display:'flex', gap:8, marginBottom:20, flexWrap:'wrap' } },
+    subTabs.map(t => h('button', {
+      key:t.id, onClick:() => setSel(null) || setTab(t.id),
+      style:{ padding:'10px 16px', minHeight:44, borderRadius:'var(--radius-sm)', cursor:'pointer',
+        fontFamily:"'Space Mono',monospace", fontSize:12, letterSpacing:'.04em',
+        background: tab === t.id ? 'var(--gold-bg)' : 'rgba(255,255,255,.04)',
+        color: tab === t.id ? 'var(--gold2)' : 'var(--text3)',
+        border: '1px solid ' + (tab === t.id ? 'var(--gold-border)' : 'var(--border)') }
+    }, t.label)));
+
+  // ── Échiquier ──
+  const renderChess = () => {
+    if (!hasChess) return h('div', { className:'lx-card', style:{ padding:20, color:'var(--text2)' } },
+      'Le moteur d’échecs n’a pas pu se charger (connexion ?). Réessaie en rechargeant la page.');
+    const board = chess.board();
+    const status = games.chess.result
+      ? games.chess.result
+      : (chess.in_check() ? 'Échec — ' : '') + 'Au tour des ' + (turn === 'w' ? 'Blancs ◆ (Dja)' : 'Noirs ◇ (Liika)');
+    const cells = [];
+    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+      const sq = 'abcdefgh'[c] + (8 - r);
+      const p = board[r][c];
+      const dark = (r + c) % 2 === 1;
+      const isSel = sel === sq;
+      const isTarget = targets.has(sq);
+      cells.push(h('button', {
+        key:sq, onClick:() => clickSquare(sq, p),
+        style:{ aspectRatio:'1', border:'none', cursor:'pointer', position:'relative',
+          display:'flex', alignItems:'center', justifyContent:'center',
+          fontSize:'clamp(20px,7vw,34px)', lineHeight:1,
+          background: isSel ? 'var(--gold-border)' : dark ? '#2c5740' : '#e7e2cf',
+          color: p && p.color === 'b' ? '#1a1a1a' : '#3a3a3a',
+          boxShadow: isSel ? 'inset 0 0 0 3px var(--gold2)' : 'none' }
+      },
+        p ? GLYPH[p.color + p.type] : '',
+        isTarget ? h('span', { style:{ position:'absolute', width:p ? '100%' : 14, height:p ? '100%' : 14,
+          borderRadius: p ? '0' : '50%',
+          background: p ? 'rgba(217,183,95,.30)' : 'rgba(217,183,95,.55)',
+          boxShadow: p ? 'inset 0 0 0 3px var(--gold)' : 'none', pointerEvents:'none' } }) : null
+      ));
     }
-  });
-  const [routeKm, setRouteKm] = useState(0);
-  const [routeChecklist, setRouteChecklist] = useState({});
-  const [objMoisFilter, setObjMoisFilter] = useState(() => new Date().getMonth());
-  const [showAddObjM, setShowAddObjM] = useState(false);
-  const [newObjM, setNewObjM] = useState({
-    titre: '',
-    detail: '',
-    categorie: 'Nature'
-  });
+    return h('div', null,
+      h('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, marginBottom:12, flexWrap:'wrap' } },
+        h('span', { style:{ fontFamily:"'Space Mono',monospace", fontSize:13, color: games.chess.result ? 'var(--gold2)' : 'var(--text)', fontWeight:700 } }, status),
+        h('button', { onClick:resetChess, style:{ padding:'8px 14px', minHeight:40, borderRadius:'var(--radius-xs)', cursor:'pointer',
+          background:'rgba(255,255,255,.05)', color:'var(--text2)', border:'1px solid var(--border2)', fontSize:12 } }, 'Nouvelle partie')),
+      h('div', { style:{ display:'grid', gridTemplateColumns:'repeat(8,1fr)', maxWidth:440, width:'100%',
+        borderRadius:'var(--radius-xs)', overflow:'hidden', border:'1px solid var(--border2)', boxShadow:'var(--shadow)' } }, cells),
+      games.chess.lastBy ? h('div', { style:{ marginTop:10, fontSize:11, color:'var(--text3)', fontFamily:"'Space Mono',monospace" } }, 'Dernier coup : ' + games.chess.lastBy) : null);
+  };
+
+  // ── Mots fléchés ──
+  const renderCrossword = () => {
+    const filled = games.crossword.filled || {};
+    const rows = [];
+    for (let r = 0; r < CW_ROWS; r++) {
+      const row = [];
+      for (let c = 0; c < CW_COLS; c++) {
+        const key = r + '-' + c;
+        const active = CW_SOL[key] !== undefined;
+        if (!active) { row.push(h('div', { key:c, style:{ aspectRatio:'1', background:'transparent' } })); continue; }
+        const num = CW_START[key];
+        const val = filled[key] || '';
+        const ok = games.crossword.done;
+        row.push(h('div', { key:c, style:{ position:'relative', aspectRatio:'1' } },
+          num ? h('span', { style:{ position:'absolute', top:2, left:3, fontSize:9, color:'var(--gold)', fontFamily:"'Space Mono',monospace", pointerEvents:'none' } }, num) : null,
+          h('input', { value:val, maxLength:1, inputMode:'text',
+            onChange:e => setCell(key, (e.target.value || '').toUpperCase().replace(/[^A-Z]/g, '')),
+            style:{ width:'100%', height:'100%', textAlign:'center', textTransform:'uppercase',
+              fontFamily:"'Cormorant Garamond',serif", fontSize:'clamp(16px,5vw,24px)', fontWeight:700,
+              border:'1px solid var(--border2)', borderRadius:4, outline:'none',
+              background: ok ? 'var(--success-bg)' : 'rgba(243,239,226,.06)',
+              color: ok ? 'var(--success)' : 'var(--text)' } })));
+      }
+      rows.push(h('div', { key:r, style:{ display:'grid', gridTemplateColumns:'repeat(' + CW_COLS + ',1fr)', gap:3 } }, row));
+    }
+    const clue = (dir) => CW_WORDS.filter(w => w.dir === dir).map(w =>
+      h('li', { key:w.num, style:{ marginBottom:6, fontSize:13, color:'var(--text2)' } },
+        h('b', { style:{ color:'var(--gold)' } }, w.num + '. '), w.clue));
+    return h('div', null,
+      games.crossword.done ? h('div', { style:{ marginBottom:14, padding:'10px 14px', borderRadius:'var(--radius-sm)', background:'var(--success-bg)', color:'var(--success)', fontWeight:700, fontSize:13 } }, '✓ Grille complétée ensemble !') : null,
+      h('div', { style:{ display:'grid', gap:3, maxWidth:360, width:'100%', marginBottom:20 } }, rows),
+      h('div', { style:{ display:'flex', gap:28, flexWrap:'wrap' } },
+        h('div', null, h('div', { className:'eyebrow', style:{ marginBottom:8 } }, 'Horizontal'), h('ul', { style:{ listStyle:'none' } }, clue('across'))),
+        h('div', null, h('div', { className:'eyebrow', style:{ marginBottom:8 } }, 'Vertical'), h('ul', { style:{ listStyle:'none' } }, clue('down')))));
+  };
+
+  // ── Récompenses (streak + badges) ──
+  const renderRewards = () => {
+    const unlocked = games.badges || [];
+    return h('div', null,
+      h('div', { className:'lx-card', style:{ padding:'20px 22px', marginBottom:20, display:'flex', alignItems:'center', gap:18 } },
+        h('div', { style:{ fontSize:44, lineHeight:1, filter: games.streak.count > 0 ? 'none' : 'grayscale(1) opacity(.4)' } }, '🔥'),
+        h('div', null,
+          h('div', { style:{ fontFamily:"'Cormorant Garamond',serif", fontSize:32, fontWeight:700, color:'var(--gold2)' } }, (games.streak.count || 0) + (games.streak.count > 1 ? ' jours' : ' jour')),
+          h('div', { className:'eyebrow' }, 'Série de jeu à deux'))),
+      h('div', { className:'eyebrow', style:{ marginBottom:12 } }, 'Badges — ' + unlocked.length + ' / ' + BADGES.length),
+      h('div', { style:{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))', gap:12 } },
+        BADGES.map(b => {
+          const got = unlocked.includes(b.id);
+          return h('div', { key:b.id, className:'lx-card', style:{ padding:'16px 14px', textAlign:'center', opacity: got ? 1 : .45,
+            border: '1px solid ' + (got ? 'var(--gold-border)' : 'var(--border)') } },
+            h('div', { style:{ fontSize:34, marginBottom:8, filter: got ? 'none' : 'grayscale(1)' } }, b.icon),
+            h('div', { style:{ fontSize:13, fontWeight:700, color: got ? 'var(--gold2)' : 'var(--text3)', marginBottom:4 } }, b.label),
+            h('div', { style:{ fontSize:11, color:'var(--text3)' } }, got ? '✓ Débloqué' : b.desc));
+        })));
+  };
+
+  return h('div', null,
+    h('div', { className:'dash-hero lx-card', style:{ padding:'22px 24px', marginBottom:22 } },
+      h('div', { className:'eyebrow', style:{ marginBottom:8 } }, 'Espace jeu — à deux'),
+      h('h2', { style:{ fontFamily:"'Playfair Display',serif", fontSize:28, fontWeight:700, margin:0 } }, 'Jeux 🎮'),
+      h('p', { style:{ color:'var(--text2)', marginTop:8, fontSize:14, maxWidth:560 } },
+        'Jouez ensemble, chacun de son côté : chaque coup se synchronise en direct. Gagnez des badges et tenez votre série 🔥.')),
+    tabBar,
+    tab === 'chess' && renderChess(),
+    tab === 'crossword' && renderCrossword(),
+    tab === 'rewards' && renderRewards());
+}
+
+// ─── Main App ───
+function App(){
+const vw=useWindowWidth();
+const isMobile=vw<=768;
+const isTablet=vw>768&&vw<=1024;
+const isSmall=vw<=1024;
+const [data,setData]=useState(loadData);
+const [ui,setUI]=useState(loadUI);
+const [view,setView]=useState('dashboard');
+const [modal,setModal]=useState(null);
+const [syncStatus,setSyncStatus]=useState('idle'); // idle | syncing | ok | error
+const [onlineCount,setOnlineCount]=useState(0); // nb d'appareils connectés (présence)
+// État de la vue "Objectifs du mois" (perdu lors d'une fusion, restauré ici au niveau App)
+const [objMoisFilter,setObjMoisFilter]=useState(()=>new Date().getMonth());
+const [showAddObjM,setShowAddObjM]=useState(false);
+const [newObjM,setNewObjM]=useState({titre:'',detail:'',categorie:'Nature'});
+// État de la vue "Route Liika" (perdu lors d'une fusion, restauré ici au niveau App)
+const [routeKm,setRouteKm]=useState(0);
+const [routeChecklist,setRouteChecklist]=useState({});
+const activeProfile=ui?.activeProfile||'dja';
+const profileLabel=activeProfile==='dja'?'Dja':activeProfile==='liika'?'Liika':'Couple';
+const setActiveProfile=useCallback((who)=>setUI(prev=>({...prev,activeProfile:who})),[]);
+
+// Persiste localStorage à chaque changement
+useEffect(()=>saveData(data),[data]);
 
   // Persiste localStorage à chaque changement
   useEffect(() => saveData(data), [data]);
 
-  // Chargement initial depuis Supabase
-  useEffect(() => {
-    setSyncStatus('syncing');
-    sbLoad().then(remote => {
-      setData(remote);
-      saveData(remote);
-      setSyncStatus('ok');
-    }).catch(() => setSyncStatus('idle'));
-  }, []);
+// Sync Supabase debounce 1.5s
+useEffect(()=>{
+const t=setTimeout(()=>{
+  setSyncStatus('syncing');
+  sbSave(data).then(()=>setSyncStatus('ok')).catch(()=>setSyncStatus('error'));
+},1500);
+return ()=>clearTimeout(t);
+},[data]);
 
-  // Sync Supabase debounce 1.5s
-  useEffect(() => {
-    const t = setTimeout(() => {
-      setSyncStatus('syncing');
-      sbSave(data).then(() => setSyncStatus('ok')).catch(() => setSyncStatus('error'));
-    }, 1500);
-    return () => clearTimeout(t);
-  }, [data]);
+// ─── Realtime cross-device sync + présence ───
+useEffect(()=>{
+// Présence : lit les sessions actives (<5 min)
+const refreshOnline=()=>sb.from('app_sessions')
+  .select('id').gte('last_seen',new Date(Date.now()-300000).toISOString())
+  .then(({data:rows})=>rows&&setOnlineCount(rows.length)).catch(()=>{});
+// Ping : enregistre / met à jour cet appareil
+const ping=()=>sb.from('app_sessions').upsert({
+  id:DEVICE_ID,
+  user_name:localStorage.getItem('ld-username')||'Appareil',
+  last_seen:new Date().toISOString(),
+  is_online:true
+}).then(undefined,()=>{});
 
-  // ─── Realtime cross-device sync + présence ───
-  useEffect(() => {
-    // Présence : lit les sessions actives (<5 min)
-    const refreshOnline = async () => {
-      try {
-        const {
-          data: rows
-        } = await sb.from('app_sessions').select('id').gte('last_seen', new Date(Date.now() - 300000).toISOString());
-        if (rows) setOnlineCount(rows.length);
-      } catch (_) {}
-    };
-    const ping = async () => {
-      try {
-        await sb.from('app_sessions').upsert({
-          id: DEVICE_ID,
-          user_name: localStorage.getItem('ld-username') || 'Appareil',
-          last_seen: new Date().toISOString(),
-          is_online: true
-        });
-      } catch (_) {}
-    };
-    ping();
-    refreshOnline();
-    const iv = setInterval(() => {
-      ping();
-      refreshOnline();
-    }, 60000);
-    const ch = sb.channel('ld-realtime')
-    // Réception des changements d'un AUTRE appareil
-    .on('postgres_changes', {
-      event: 'UPDATE',
-      schema: 'public',
-      table: 'app_state',
-      filter: 'id=eq.main'
-    }, payload => {
-      if (!payload.new?.data) return;
-      if (payload.new.device_id === DEVICE_ID) return; // notre propre save → ignorer
-      const remote = normalize(payload.new.data);
+ping();refreshOnline();
+const iv=setInterval(()=>{ping();refreshOnline();},60000);
+
+const ch=sb.channel('ld-realtime')
+  // Réception des changements d'un AUTRE appareil
+  .on('postgres_changes',
+    {event:'UPDATE',schema:'public',table:'app_state',filter:'id=eq.main'},
+    (payload)=>{
+      if(!payload.new?.data)return;
+      if(payload.new.device_id===DEVICE_ID)return; // notre propre save → ignorer
+      const remote=normalize(payload.new.data);
       setData(remote);
       saveData(remote);
       setSyncStatus('ok');
@@ -5874,6 +5991,13 @@ function App() {
       clearInterval(iv);
       sb.removeChannel(ch);
     };
+  }, []);
+  const updateGames = useCallback(fn => {
+    setData(prev => {
+      const next = clone(prev);
+      next.games = fn(next.games);
+      return next;
+    });
   }, []);
   const updateObj = useCallback((who, id, updates) => {
     setData(prev => {
@@ -6217,6 +6341,10 @@ function App() {
     id: 'couple',
     label: 'Couple',
     icon: '♡'
+  }, {
+    id: 'jeux',
+    label: 'Jeux',
+    icon: '🎮'
   }, {
     id: 'maison',
     label: 'Maison',
@@ -8064,7 +8192,10 @@ function App() {
     className: "mnav-label"
   }, n.label))))), /*#__PURE__*/React.createElement("main", {
     className: "app-main"
-  }, view === 'dashboard' && renderDashboard(), view === 'dja' && renderPerson('dja'), view === 'liika' && renderPerson('liika'), view === 'couple' && renderCouple(), view === 'maison' && /*#__PURE__*/React.createElement(MaisonView, {
+  }, view === 'dashboard' && renderDashboard(), view === 'dja' && renderPerson('dja'), view === 'liika' && renderPerson('liika'), view === 'couple' && renderCouple(), view === 'jeux' && /*#__PURE__*/React.createElement(JeuxView, {
+    games: data.games,
+    updateGames: updateGames
+  }), view === 'maison' && /*#__PURE__*/React.createElement(MaisonView, {
     maison: (data.couple || {}).maison,
     toggleMaisonTask: toggleMaisonTask,
     addMaisonTask: addMaisonTask,
