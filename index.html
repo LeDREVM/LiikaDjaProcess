@@ -5034,8 +5034,8 @@ function DrevmCookView({
   const cats = ['Tout', 'Salés', 'Boulangerie', 'Fermentés', 'Desserts', 'Boissons', 'Référence'];
   const fermentStatusFilters = ['Tous', 'En cours', 'Prêts', 'Terminés'];
   const fermentTypes = ['Légumes', 'Sauce', 'Boisson', 'Levain', 'Autre'];
-  const filtered = filterCat === 'Tout' ? allRecipes : allRecipes.filter(r => r.categorie === filterCat);
-  const fermentList = (ferments || []).slice().sort((a, b) => String(b.startDate || '').localeCompare(String(a.startDate || '')));
+  const filtered = useMemo(() => filterCat === 'Tout' ? allRecipes : allRecipes.filter(r => r.categorie === filterCat), [allRecipes, filterCat]);
+  const fermentList = useMemo(() => (ferments || []).slice().sort((a, b) => String(b.startDate || '').localeCompare(String(a.startDate || ''))), [ferments]);
 
   const fmtDate = iso => {
     if (!iso) return '—';
@@ -5044,30 +5044,41 @@ function DrevmCookView({
     return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
   };
 
-  const getFermentMeta = item => {
+  const fermentMetaById = useMemo(() => {
     const dayMs = 86400000;
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
-    const start = new Date(`${item.startDate || ''}T00:00:00`);
-    const duration = Math.max(1, Number(item.durationDays) || 1);
-    const target = new Date(start.getTime() + duration * dayMs);
-    const elapsed = Math.max(0, Math.floor((startOfToday.getTime() - start.getTime()) / dayMs));
-    const left = Math.ceil((target.getTime() - startOfToday.getTime()) / dayMs);
-    const progress = Math.max(0, Math.min(100, Math.round(elapsed / duration * 100)));
-    let status = 'En cours';
-    let statusColor = 'var(--gold)';
-    if (item.done) {
-      status = 'Terminé';
-      statusColor = 'var(--text3)';
-    } else if (left <= 0) {
-      status = 'Prêt';
-      statusColor = 'var(--success)';
-    } else if (left <= 2) {
-      status = 'Bientôt prêt';
-      statusColor = 'var(--warn)';
-    }
-    return { target, left, progress, status, statusColor };
-  };
+    const map = new Map();
+
+    fermentList.forEach(item => {
+      const duration = Math.max(1, Number(item.durationDays) || 1);
+      const start = new Date(`${item.startDate || ''}T00:00:00`);
+      const startValid = !isNaN(start.getTime());
+      const target = startValid ? new Date(start.getTime() + duration * dayMs) : null;
+      const targetValid = !!target && !isNaN(target.getTime());
+      const targetIso = targetValid ? target.toISOString().slice(0, 10) : '';
+      const elapsed = startValid ? Math.max(0, Math.floor((startOfToday.getTime() - start.getTime()) / dayMs)) : 0;
+      const left = targetValid ? Math.ceil((target.getTime() - startOfToday.getTime()) / dayMs) : duration;
+      const progress = Math.max(0, Math.min(100, Math.round(elapsed / duration * 100)));
+
+      let status = 'En cours';
+      let statusColor = 'var(--gold)';
+      if (item.done) {
+        status = 'Terminé';
+        statusColor = 'var(--text3)';
+      } else if (targetValid && left <= 0) {
+        status = 'Prêt';
+        statusColor = 'var(--success)';
+      } else if (targetValid && left <= 2) {
+        status = 'Bientôt prêt';
+        statusColor = 'var(--warn)';
+      }
+
+      map.set(item.id, { left, progress, status, statusColor, targetIso });
+    });
+
+    return map;
+  }, [fermentList]);
 
   useEffect(() => {
     try {
@@ -5083,8 +5094,8 @@ function DrevmCookView({
     const alerted = alertedReadyRef.current;
     const fresh = [];
     fermentList.forEach(item => {
-      const meta = getFermentMeta(item);
-      const isReady = !item.done && meta.status === 'Prêt';
+      const meta = fermentMetaById.get(item.id);
+      const isReady = !item.done && meta && meta.status === 'Prêt';
       if (isReady && !alerted.has(item.id)) {
         alerted.add(item.id);
         fresh.push({ id: item.id, nom: item.nom, type: item.type });
@@ -5096,24 +5107,24 @@ function DrevmCookView({
         localStorage.setItem('ld-ferment-ready-alerted', JSON.stringify([...alerted]));
       } catch (_) {}
     }
-  }, [ferments]);
+  }, [fermentList, fermentMetaById]);
 
-  const filteredFerments = fermentList.filter(item => {
-    const s = getFermentMeta(item).status;
+  const filteredFerments = useMemo(() => fermentList.filter(item => {
+    const s = (fermentMetaById.get(item.id) || {}).status;
     if (fermentStatusFilter === 'En cours') return s === 'En cours' || s === 'Bientôt prêt';
     if (fermentStatusFilter === 'Prêts') return s === 'Prêt';
     if (fermentStatusFilter === 'Terminés') return s === 'Terminé';
     return true;
-  });
+  }), [fermentList, fermentStatusFilter, fermentMetaById]);
 
-  const fermentStats = {
+  const fermentStats = useMemo(() => ({
     total: fermentList.length,
     enCours: fermentList.filter(f => {
-      const s = getFermentMeta(f).status;
+      const s = (fermentMetaById.get(f.id) || {}).status;
       return s === 'En cours' || s === 'Bientôt prêt';
     }).length,
-    pret: fermentList.filter(f => getFermentMeta(f).status === 'Prêt').length
-  };
+    pret: fermentList.filter(f => (fermentMetaById.get(f.id) || {}).status === 'Prêt').length
+  }), [fermentList, fermentMetaById]);
 
   if (selected) {
     const r = allRecipes.find(x => x.id === selected);
@@ -5221,7 +5232,7 @@ function DrevmCookView({
     ),
     filteredFerments.length === 0 ? h('p', { style: { color: 'var(--text3)', fontStyle: 'italic', fontSize: 12 } }, fermentList.length ? 'Aucun bocal pour ce filtre.' : 'Aucun bocal suivi pour l’instant.') : h('div', { style: { display: 'grid', gap: 8 } },
       filteredFerments.map(item => {
-        const meta = getFermentMeta(item);
+        const meta = fermentMetaById.get(item.id) || { left: 0, progress: 0, status: 'En cours', statusColor: 'var(--gold)', targetIso: '' };
         const logs = Array.isArray(item.journal) ? item.journal : [];
         const latestLog = logs[0] || null;
         const jd = journalDrafts[item.id] || { date: new Date().toISOString().slice(0, 10), ph: '', odeur: '', couleur: '', note: '' };
@@ -5239,7 +5250,7 @@ function DrevmCookView({
           ),
           h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 8, fontSize: 11, color: 'var(--text3)', marginBottom: 8 } },
             h('span', null, `Départ: ${fmtDate(item.startDate)}`),
-            h('span', null, `Prêt le: ${fmtDate(meta.target.toISOString().slice(0, 10))}`),
+            h('span', null, `Prêt le: ${fmtDate(meta.targetIso)}`),
             h('span', null, meta.left > 0 ? `J-${meta.left}` : 'À maturité')
           ),
           h('div', { style: { height: 6, borderRadius: 6, overflow: 'hidden', background: 'rgba(255,255,255,.06)', marginBottom: 8 } }, h('div', { style: { width: `${meta.progress}%`, height: '100%', background: 'linear-gradient(90deg,var(--warn),#fdba74)' } })),
