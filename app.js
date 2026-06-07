@@ -59,8 +59,8 @@ async function sbLoad() {
   return normalize(data.data);
 }
 async function sbSave(d) {
-  // recipes & ferments vivent dans leurs tables dédiées → hors du blob app_state
-  const { recipes, ferments, ...rest } = d || {};
+  // recipes, ferments & courses vivent dans leurs tables dédiées → hors du blob app_state
+  const { recipes, ferments, courses, ...rest } = d || {};
   const {
     error
   } = await sb.from('app_state').upsert({
@@ -138,6 +138,30 @@ async function sbUpsertFerment(f) {
   });
 }
 async function sbDeleteFerment(id) { return sb.from('ferments').delete().eq('id', id); }
+
+// ─── Courses : table dédiée ───
+async function sbLoadCourses() {
+  const { data, error } = await sb.from('courses').select('*');
+  if (error) throw error;
+  return (data || []).map(c => ({
+    id: c.id, nom: c.nom || '', rayon: c.rayon || 'Autre',
+    qte: Number(c.qte) || 1, unite: c.unite || '',
+    prix: c.prix == null ? '' : Number(c.prix), done: !!c.done
+  }));
+}
+async function sbUpsertCourse(c) {
+  return sb.from('courses').upsert({
+    id: c.id, nom: c.nom || '', rayon: c.rayon || 'Autre',
+    qte: Math.max(0, Number(c.qte) || 1), unite: c.unite || '',
+    prix: (c.prix === '' || c.prix == null || isNaN(Number(c.prix))) ? null : Number(c.prix),
+    done: !!c.done, updated_at: new Date().toISOString(), device_id: DEVICE_ID
+  });
+}
+async function sbDeleteCourse(id) { return sb.from('courses').delete().eq('id', id); }
+async function sbDeleteCoursesByIds(ids) {
+  if (!ids || !ids.length) return;
+  return sb.from('courses').delete().in('id', ids);
+}
 
 // ─── Data ───
 const defaultData = {
@@ -601,6 +625,7 @@ const defaultData = {
   },
   recipes: [],
   ferments: [],
+  courses: [],
   games: {
     chess: { fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', lastBy: '', result: '' },
     crossword: { filled: {}, done: false },
@@ -630,6 +655,7 @@ function normalize(d) {
     };
   }
   if (Array.isArray(d.ferments)) base.ferments = d.ferments;
+  if (Array.isArray(d.courses)) base.courses = d.courses;
   // Métadonnées de synchro : horodatages par section + date globale
   if (d._t && typeof d._t === 'object') base._t = d._t;
   if (typeof d.updatedAt === 'string') base.updatedAt = d.updatedAt;
@@ -5270,6 +5296,107 @@ function CalendarView({ data }) {
   );
 }
 
+// ─── Module Courses ───
+const COURSE_RAYONS = ['Fruits & Légumes', 'Boucherie & Poisson', 'Crèmerie & Frais', 'Épicerie salée', 'Épicerie sucrée', 'Boissons', 'Surgelés', 'Boulangerie', 'Hygiène & Maison', 'Autre'];
+const COURSE_RAYON_ICON = { 'Fruits & Légumes': '🥬', 'Boucherie & Poisson': '🥩', 'Crèmerie & Frais': '🧀', 'Épicerie salée': '🥫', 'Épicerie sucrée': '🍫', 'Boissons': '🧃', 'Surgelés': '🧊', 'Boulangerie': '🥖', 'Hygiène & Maison': '🧼', 'Autre': '🛒' };
+const COURSE_UNITES = ['', 'u', 'g', 'kg', 'mL', 'L', 'pq', 'boîte', 'botte'];
+const RAYON_KEYWORDS = [
+  ['Fruits & Légumes', ['tomate', 'salade', 'carotte', 'oignon', 'ail', 'citron', 'pomme', 'banane', 'mangue', 'courgette', 'poivron', 'épinard', 'chou', 'brocoli', 'patate', 'pomme de terre', 'avocat', 'concombre', 'persil', 'coriandre', 'gingembre', 'légume', 'fruit', 'champignon', 'betterave', 'radis', 'céleri', 'poireau', 'piment']],
+  ['Boucherie & Poisson', ['poulet', 'boeuf', 'bœuf', 'porc', 'agneau', 'dinde', 'viande', 'steak', 'poisson', 'saumon', 'thon', 'crevette', 'jambon', 'lardon', 'saucisse', 'escalope']],
+  ['Crèmerie & Frais', ['lait', 'yaourt', 'fromage', 'beurre', 'crème', 'oeuf', 'œuf', 'tofu', 'mozzarella', 'feta', 'parmesan']],
+  ['Épicerie salée', ['riz', 'pâte', 'pates', 'farine', 'huile', 'sel', 'poivre', 'épice', 'conserve', 'haricot', 'lentille', 'pois chiche', 'quinoa', 'semoule', 'bouillon', 'soja', 'vinaigre', 'moutarde', 'olive']],
+  ['Épicerie sucrée', ['sucre', 'chocolat', 'miel', 'confiture', 'biscuit', 'gâteau', 'céréale', 'levure', 'vanille', 'cacao', 'compote', 'cannelle']],
+  ['Boissons', ['eau', 'jus', 'café', 'thé', 'vin', 'bière', 'soda', 'sirop', 'boisson']],
+  ['Surgelés', ['surgelé', 'glace', 'congelé']],
+  ['Boulangerie', ['pain', 'baguette', 'focaccia', 'viennoiserie', 'croissant', 'brioche']],
+  ['Hygiène & Maison', ['savon', 'shampoing', 'dentifrice', 'éponge', 'papier', 'lessive', 'vaisselle', 'poubelle', 'nettoyant']]
+];
+function rayonForItem(name) {
+  const s = String(name || '').toLowerCase();
+  for (const [rayon, kws] of RAYON_KEYWORDS) if (kws.some(k => s.includes(k))) return rayon;
+  return 'Autre';
+}
+const normName = s => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+function CoursesView({ courses, addCourse, upsertCourse, deleteCourse, toggleCourse, clearChecked, generateFromMeals, mergeDuplicates }) {
+  const h = React.createElement;
+  const [form, setForm] = useState({ nom: '', qte: '1', unite: '', rayon: 'Autre', prix: '' });
+  const list = Array.isArray(courses) ? courses : [];
+  const total = list.reduce((s, c) => s + (Number(c.prix) || 0) * (Number(c.qte) || 1), 0);
+  const doneCount = list.filter(c => c.done).length;
+  const groups = COURSE_RAYONS.map(r => ({ rayon: r, items: list.filter(c => c.rayon === r) })).filter(g => g.items.length);
+
+  const submit = () => {
+    const nom = form.nom.trim();
+    if (!nom) return;
+    addCourse({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      nom, qte: Math.max(0, Number(form.qte) || 1), unite: form.unite,
+      rayon: form.rayon !== 'Autre' ? form.rayon : rayonForItem(nom),
+      prix: form.prix, done: false
+    });
+    setForm({ nom: '', qte: '1', unite: '', rayon: 'Autre', prix: '' });
+  };
+  const inputStyle = { padding: '8px 10px', borderRadius: 'var(--radius-xs)', border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)', fontSize: 13 };
+  const barBtn = (bg, col, bd) => ({ padding: '8px 12px', borderRadius: 'var(--radius-sm)', border: `1px solid ${bd}`, background: bg, color: col, fontSize: 12.5, cursor: 'pointer', fontWeight: 600 });
+
+  return h('div', null,
+    // En-tête
+    h('div', { style: { marginBottom: 18 } },
+      h('div', { className: 'eyebrow', style: { marginBottom: 8 } }, '🛒 Provisions'),
+      h('h2', { style: { fontFamily: "'Playfair Display',serif", fontSize: 28, fontWeight: 500, marginBottom: 6 } }, 'Liste de courses'),
+      h('p', { style: { color: 'var(--text3)', fontSize: 14, maxWidth: 560 } }, 'Partagée et synchronisée — triée par rayon pour faire les courses dans l\'ordre.')
+    ),
+    // Barre d'actions + total
+    h('div', { className: 'lx-card', style: { padding: 16, marginBottom: 16 } },
+      h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between' } },
+        h('div', { style: { display: 'flex', gap: 8, flexWrap: 'wrap' } },
+          h('button', { onClick: generateFromMeals, style: barBtn('var(--gold-bg)', 'var(--gold)', 'var(--gold-border)') }, '🍽 Générer depuis les repas'),
+          h('button', { onClick: mergeDuplicates, style: barBtn('transparent', 'var(--text2)', 'var(--border2)') }, '⊕ Regrouper doublons'),
+          h('button', { onClick: () => { if (doneCount && confirm('Retirer les ' + doneCount + ' article(s) coché(s) ?')) clearChecked(); }, style: barBtn('transparent', doneCount ? 'var(--danger)' : 'var(--text3)', doneCount ? 'var(--danger-border)' : 'var(--border)') }, '🗑 Effacer cochés' + (doneCount ? ' (' + doneCount + ')' : ''))
+        ),
+        h('div', { style: { textAlign: 'right' } },
+          h('div', { style: { fontFamily: "'Space Mono',monospace", fontSize: 11, color: 'var(--text3)' } }, list.length + ' article' + (list.length > 1 ? 's' : '') + ' · ' + doneCount + ' ✓'),
+          total > 0 ? h('div', { style: { fontFamily: "'Cormorant Garamond',serif", fontSize: 22, fontWeight: 700, color: 'var(--gold2)' } }, '≈ ' + total.toFixed(2) + ' €') : null
+        )
+      )
+    ),
+    // Formulaire d'ajout
+    h('div', { className: 'lx-card', style: { padding: 14, marginBottom: 18 } },
+      h('div', { style: { display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' } },
+        h('input', { value: form.nom, placeholder: 'Article (ex: tomates)', onChange: e => setForm(p => ({ ...p, nom: e.target.value })), onKeyDown: e => { if (e.key === 'Enter') submit(); }, style: { ...inputStyle, flex: '2 1 160px' } }),
+        h('input', { type: 'number', min: 0, step: 'any', value: form.qte, onChange: e => setForm(p => ({ ...p, qte: e.target.value })), style: { ...inputStyle, width: 64 } }),
+        h('select', { value: form.unite, onChange: e => setForm(p => ({ ...p, unite: e.target.value })), style: { ...inputStyle, width: 80 } }, COURSE_UNITES.map(u => h('option', { key: u, value: u }, u || 'unité'))),
+        h('select', { value: form.rayon, onChange: e => setForm(p => ({ ...p, rayon: e.target.value })), style: { ...inputStyle, flex: '1 1 130px' } }, COURSE_RAYONS.map(r => h('option', { key: r, value: r }, r))),
+        h('input', { type: 'number', min: 0, step: 'any', value: form.prix, placeholder: '€', onChange: e => setForm(p => ({ ...p, prix: e.target.value })), style: { ...inputStyle, width: 70 } }),
+        h('button', { onClick: submit, style: { ...barBtn('var(--gold)', '#06120d', 'var(--gold)'), padding: '9px 16px' } }, '+ Ajouter')
+      )
+    ),
+    // Liste groupée par rayon
+    groups.length === 0
+      ? h('div', { className: 'lx-card', style: { padding: '28px 20px', textAlign: 'center', color: 'var(--text3)', fontSize: 14 } }, 'Liste vide. Ajoute un article ou génère-la depuis tes repas de la semaine.')
+      : groups.map(g => h('div', { key: g.rayon, style: { marginBottom: 16 } },
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 } },
+            h('span', { style: { fontSize: 16 } }, COURSE_RAYON_ICON[g.rayon]),
+            h('span', { style: { fontFamily: "'Space Mono',monospace", fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--gold)' } }, g.rayon + ' · ' + g.items.length)
+          ),
+          h('div', { className: 'lx-card', style: { padding: 6 } },
+            g.items.map(c => h('div', {
+              key: c.id,
+              style: { display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 'var(--radius-xs)', opacity: c.done ? 0.5 : 1 }
+            },
+              h('input', { type: 'checkbox', checked: !!c.done, onChange: () => toggleCourse(c.id), style: { width: 18, height: 18, accentColor: 'var(--success)', cursor: 'pointer', flexShrink: 0 } }),
+              h('span', { style: { flex: 1, fontSize: 14, color: 'var(--text)', textDecoration: c.done ? 'line-through' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, c.nom),
+              h('input', { type: 'number', min: 0, step: 'any', value: c.qte, onChange: e => upsertCourse({ ...c, qte: Math.max(0, Number(e.target.value) || 0) }), title: 'Quantité', style: { width: 52, padding: '4px 6px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text2)', fontSize: 12, textAlign: 'right' } }),
+              c.unite ? h('span', { style: { fontSize: 11, color: 'var(--text3)', width: 28 } }, c.unite) : h('span', { style: { width: 28 } }),
+              h('input', { type: 'number', min: 0, step: 'any', value: c.prix === '' || c.prix == null ? '' : c.prix, placeholder: '€', onChange: e => upsertCourse({ ...c, prix: e.target.value }), title: 'Prix unitaire', style: { width: 56, padding: '4px 6px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--gold2)', fontSize: 12, textAlign: 'right' } }),
+              h('button', { onClick: () => deleteCourse(c.id), title: 'Supprimer', style: { background: 'transparent', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 16, flexShrink: 0, padding: '0 4px' } }, '×')
+            ))
+          )
+        ))
+  );
+}
+
 function DrevmCookView({
   ferments,
   upsertFerment,
@@ -6445,12 +6572,12 @@ let alive=true;
   // ── DrevmCook : charge les tables dédiées (+ migration depuis le blob si vides) ──
   // Fait ICI car remoteData (ancien blob) contient encore recipes/ferments avant strip.
   try{
-    let [recs,ferms]=await Promise.all([sbLoadRecipes(),sbLoadFerments()]);
+    let [recs,ferms,crs]=await Promise.all([sbLoadRecipes(),sbLoadFerments(),sbLoadCourses().catch(()=>[])]);
     const srcRecs=(Array.isArray(remoteData.recipes)&&remoteData.recipes.length)?remoteData.recipes:(Array.isArray(data.recipes)?data.recipes:[]);
     const srcFerms=(Array.isArray(remoteData.ferments)&&remoteData.ferments.length)?remoteData.ferments:(Array.isArray(data.ferments)?data.ferments:[]);
     if(recs.length===0&&srcRecs.length>0){ await Promise.all(srcRecs.map(r=>sbUpsertRecipe(r).catch(()=>{}))); recs=srcRecs; }
     if(ferms.length===0&&srcFerms.length>0){ await Promise.all(srcFerms.map(f=>sbUpsertFerment(f).catch(()=>{}))); ferms=srcFerms; }
-    if(alive){ remoteApplyRef.current=true; setDataRaw(prev=>({...prev,recipes:recs,ferments:ferms})); }
+    if(alive){ remoteApplyRef.current=true; setDataRaw(prev=>({...prev,recipes:recs,ferments:ferms,courses:crs})); }
   }catch(_){}
 
   setSyncStatus('ok');
@@ -6523,6 +6650,8 @@ const ch=sb.channel('ld-realtime')
         async () => { try { const recs = await sbLoadRecipes(); setDataRaw(prev => ({ ...prev, recipes: recs })); } catch (_) {} })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'ferments' },
         async () => { try { const ferms = await sbLoadFerments(); setDataRaw(prev => ({ ...prev, ferments: ferms })); } catch (_) {} })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'courses' },
+        async () => { try { const crs = await sbLoadCourses(); setDataRaw(prev => ({ ...prev, courses: crs })); } catch (_) {} })
       .subscribe();
     return () => { sb.removeChannel(ch); };
   }, []);
@@ -6713,6 +6842,116 @@ const ch=sb.channel('ld-realtime')
       return next;
     });
     sbDeleteFerment(id).catch(() => {});
+  }, []);
+  // ── Courses (table dédiée) ──
+  const addCourse = useCallback(item => {
+    setDataRaw(prev => {
+      const next = clone(prev);
+      if (!Array.isArray(next.courses)) next.courses = [];
+      // Regroupement : même nom (normalisé) + même unité + non coché → cumuler la quantité
+      const i = next.courses.findIndex(c => !c.done && normName(c.nom) === normName(item.nom) && (c.unite || '') === (item.unite || ''));
+      let row;
+      if (i >= 0) {
+        row = { ...next.courses[i], qte: (Number(next.courses[i].qte) || 0) + (Number(item.qte) || 1) };
+        if (item.prix !== '' && item.prix != null) row.prix = item.prix;
+        next.courses[i] = row;
+      } else {
+        row = item;
+        next.courses.push(row);
+      }
+      sbUpsertCourse(row).catch(() => {});
+      return next;
+    });
+  }, []);
+  const upsertCourse = useCallback(c => {
+    setDataRaw(prev => {
+      const next = clone(prev);
+      if (!Array.isArray(next.courses)) next.courses = [];
+      const i = next.courses.findIndex(x => x.id === c.id);
+      if (i >= 0) next.courses[i] = c;else next.courses.push(c);
+      return next;
+    });
+    sbUpsertCourse(c).catch(() => {});
+  }, []);
+  const deleteCourse = useCallback(id => {
+    setDataRaw(prev => {
+      const next = clone(prev);
+      next.courses = (next.courses || []).filter(c => c.id !== id);
+      return next;
+    });
+    sbDeleteCourse(id).catch(() => {});
+  }, []);
+  const toggleCourse = useCallback(id => {
+    setDataRaw(prev => {
+      const next = clone(prev);
+      const i = (next.courses || []).findIndex(c => c.id === id);
+      if (i >= 0) {
+        next.courses[i] = { ...next.courses[i], done: !next.courses[i].done };
+        sbUpsertCourse(next.courses[i]).catch(() => {});
+      }
+      return next;
+    });
+  }, []);
+  const clearCheckedCourses = useCallback(() => {
+    setDataRaw(prev => {
+      const next = clone(prev);
+      const checked = (next.courses || []).filter(c => c.done).map(c => c.id);
+      next.courses = (next.courses || []).filter(c => !c.done);
+      sbDeleteCoursesByIds(checked).catch(() => {});
+      return next;
+    });
+  }, []);
+  const mergeDuplicateCourses = useCallback(() => {
+    setDataRaw(prev => {
+      const next = clone(prev);
+      const map = new Map();
+      const result = [];
+      const toDelete = [];
+      for (const c of next.courses || []) {
+        const key = c.done ? 'done:' + c.id : normName(c.nom) + '|' + (c.unite || '');
+        if (!c.done && map.has(key)) {
+          const ex = map.get(key);
+          ex.qte = (Number(ex.qte) || 0) + (Number(c.qte) || 1);
+          if ((ex.prix === '' || ex.prix == null) && c.prix !== '' && c.prix != null) ex.prix = c.prix;
+          toDelete.push(c.id);
+          sbUpsertCourse(ex).catch(() => {});
+        } else {
+          map.set(key, c);
+          result.push(c);
+        }
+      }
+      next.courses = result;
+      sbDeleteCoursesByIds(toDelete).catch(() => {});
+      return next;
+    });
+  }, []);
+  const generateCoursesFromMeals = useCallback(() => {
+    setDataRaw(prev => {
+      const next = clone(prev);
+      if (!Array.isArray(next.courses)) next.courses = [];
+      const allRecipes = [...DEFAULT_RECIPES, ...(next.recipes || [])];
+      const recByName = new Map(allRecipes.map(r => [normName(r.nom), r]));
+      const meals = [...((next.dja && next.dja.meals) || []), ...((next.liika && next.liika.meals) || []), ...((next.couple && next.couple.meals) || [])];
+      const existing = new Set((next.courses || []).filter(c => !c.done).map(c => normName(c.nom)));
+      const added = [];
+      const addItem = nom => {
+        const key = normName(nom);
+        if (!nom || existing.has(key)) return;
+        existing.add(key);
+        const item = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7), nom, qte: 1, unite: '', rayon: rayonForItem(nom), prix: '', done: false };
+        next.courses.push(item);
+        added.push(item);
+      };
+      for (const m of meals) {
+        const plat = (m.plat || '').trim();
+        if (!plat) continue;
+        const rec = recByName.get(normName(plat));
+        if (rec && Array.isArray(rec.ingredients) && rec.ingredients.length) rec.ingredients.forEach(addItem);else addItem(plat);
+      }
+      if (!added.length) { try { alert('Aucun nouvel article à ajouter depuis les repas (déjà dans la liste, ou plans de repas vides).'); } catch (_) {} }
+      added.forEach(it => sbUpsertCourse(it).catch(() => {}));
+      return next;
+    });
   }, []);
   const togglePlanningCheck = useCallback((day, itemId) => {
     setData(prev => {
@@ -6905,6 +7144,10 @@ const ch=sb.channel('ld-realtime')
     id: 'repas',
     label: 'Repas',
     icon: '🍽'
+  }, {
+    id: 'courses',
+    label: 'Courses',
+    icon: '🛒'
   }, {
     id: 'sport',
     label: 'Sport',
@@ -8761,6 +9004,15 @@ const ch=sb.channel('ld-realtime')
     data: data,
     upsertMeal: upsertMeal,
     deleteMeal: deleteMeal
+  }), view === 'courses' && /*#__PURE__*/React.createElement(CoursesView, {
+    courses: data.courses || [],
+    addCourse: addCourse,
+    upsertCourse: upsertCourse,
+    deleteCourse: deleteCourse,
+    toggleCourse: toggleCourse,
+    clearChecked: clearCheckedCourses,
+    generateFromMeals: generateCoursesFromMeals,
+    mergeDuplicates: mergeDuplicateCourses
   }), view === 'sport' && /*#__PURE__*/React.createElement(SportView, {
     data: data,
     upsertSport: upsertSport,
