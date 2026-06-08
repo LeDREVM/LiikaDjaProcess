@@ -23,7 +23,7 @@ overflow-x:hidden;
 background:
   radial-gradient(ellipse 900px 500px at 85% -5%,rgba(217,183,95,.075),transparent),
   radial-gradient(ellipse 700px 600px at -8% 95%,rgba(74,222,128,.06),transparent),
-  linear-gradient(rgba(6,18,13,.18),rgba(6,18,13,.18)),
+  linear-gradient(rgba(6,18,13,.86),rgba(5,15,11,.93)),
   url('liika sample.jpeg');
 background-size:auto,auto,auto,cover;
 background-position:0 0,0 0,0 0,center calc(0px + var(--bg-parallax-y));
@@ -52,7 +52,7 @@ background-repeat:no-repeat;
 /* Desktop : sidebar visible, main prend le reste */
 .app-layout{display:flex;min-height:100vh}
 .app-sidebar{width:228px;min-width:228px;flex-shrink:0}
-.app-main{flex:1;padding:32px 40px;min-width:0;overflow-x:hidden;max-width:900px}
+.app-main{flex:1;padding:32px 40px;min-width:0;overflow-x:hidden;max-width:900px;background:linear-gradient(rgba(6,18,13,.62),rgba(6,18,13,.62));-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
 
 /* Tablette (769 → 1024px) : sidebar cachée, bottom nav */
 @media(min-width:769px) and (max-width:1024px){
