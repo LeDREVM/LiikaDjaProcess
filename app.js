@@ -626,6 +626,13 @@ const defaultData = {
   recipes: [],
   ferments: [],
   courses: [],
+  media: [{
+    id: 'pl-seed',
+    kind: 'playlist',
+    ytId: 'PLniFU1EmwtN-rC-s6vgj_ZdFYi3FcJtWB',
+    title: 'Mix Vibz — Playlist',
+    thumb: ''
+  }],
   games: {
     chess: { fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', lastBy: '', result: '' },
     crossword: { filled: {}, done: false },
@@ -656,6 +663,7 @@ function normalize(d) {
   }
   if (Array.isArray(d.ferments)) base.ferments = d.ferments;
   if (Array.isArray(d.courses)) base.courses = d.courses;
+  if (Array.isArray(d.media)) base.media = d.media;
   // Métadonnées de synchro : horodatages par section + date globale
   if (d._t && typeof d._t === 'object') base._t = d._t;
   if (typeof d.updatedAt === 'string') base.updatedAt = d.updatedAt;
@@ -5399,6 +5407,153 @@ function CoursesView({ courses, addCourse, upsertCourse, deleteCourse, toggleCou
   );
 }
 
+// ─── Helper : extrait l'ID YouTube d'une URL quelconque ──────────────────────
+function ytIdFromUrl(url) {
+  if (!url) return null;
+  try {
+    const u = new URL(url.trim());
+    if (u.hostname.includes('youtu.be')) return u.pathname.slice(1).split('?')[0];
+    if (u.searchParams.get('v')) return u.searchParams.get('v');
+    const listId = u.searchParams.get('list');
+    if (listId) return listId; // playlist
+  } catch (_) {}
+  // fallback regex
+  const m = url.match(/(?:v=|youtu\.be\/|list=)([\w-]{11,})/);
+  return m ? m[1] : null;
+}
+function isPlaylistId(id) { return id && id.startsWith('PL'); }
+
+function MediaView({ media, addMedia, deleteMedia }) {
+  const [form, setForm] = React.useState('');
+  const [loading, setLoading] = React.useState(false);
+  const [playing, setPlaying] = React.useState(null); // id de la carte en lecture
+
+  async function handleAdd() {
+    const url = form.trim();
+    if (!url) return;
+    const ytId = ytIdFromUrl(url);
+    if (!ytId) { alert('Lien YouTube invalide'); return; }
+    setLoading(true);
+    let title = url;
+    try {
+      const oembed = await fetch(
+        'https://www.youtube.com/oembed?url=' + encodeURIComponent(url) + '&format=json'
+      ).then(r => r.ok ? r.json() : null);
+      if (oembed && oembed.title) title = oembed.title;
+    } catch (_) {}
+    const kind = isPlaylistId(ytId) ? 'playlist' : 'video';
+    const thumb = kind === 'video' ? 'https://img.youtube.com/vi/' + ytId + '/mqdefault.jpg' : '';
+    addMedia({ id: 'yt-' + Date.now(), kind, ytId, title, thumb });
+    setForm('');
+    setLoading(false);
+  }
+
+  function embedSrc(item) {
+    if (item.kind === 'playlist')
+      return 'https://www.youtube.com/embed/videoseries?list=' + item.ytId + '&autoplay=1';
+    return 'https://www.youtube.com/embed/' + item.ytId + '?autoplay=1';
+  }
+
+  function thumbSrc(item) {
+    if (item.kind === 'playlist')
+      return 'https://img.youtube.com/vi/' + item.ytId.slice(2) + '/mqdefault.jpg';
+    return 'https://img.youtube.com/vi/' + item.ytId + '/mqdefault.jpg';
+  }
+
+  return React.createElement('div', { style: { maxWidth: 900, margin: '0 auto' } },
+    React.createElement('h2', { style: { color: 'var(--gold)', marginBottom: 20 } }, '🎬 Médias'),
+
+    // Formulaire ajout
+    React.createElement('div', {
+      style: { display: 'flex', gap: 10, marginBottom: 28, flexWrap: 'wrap' }
+    },
+      React.createElement('input', {
+        type: 'text',
+        placeholder: 'Coller un lien YouTube (vidéo ou playlist)…',
+        value: form,
+        onChange: e => setForm(e.target.value),
+        onKeyDown: e => e.key === 'Enter' && handleAdd(),
+        style: { flex: 1, minWidth: 240, padding: '10px 14px', borderRadius: 8,
+          border: '1px solid var(--border)', background: 'rgba(255,255,255,.07)', color: 'var(--text)' }
+      }),
+      React.createElement('button', {
+        onClick: handleAdd,
+        disabled: loading,
+        className: 'btn-couple',
+        style: { padding: '10px 20px', borderRadius: 8 }
+      }, loading ? '…' : '+ Ajouter')
+    ),
+
+    // Grille de miniatures
+    React.createElement('div', {
+      style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: 16 }
+    },
+      (media || []).map(item =>
+        React.createElement('div', {
+          key: item.id,
+          style: { background: 'rgba(255,255,255,.06)', borderRadius: 12,
+            overflow: 'hidden', border: '1px solid var(--border)' }
+        },
+          // Player intégré ou miniature cliquable
+          playing === item.id
+            ? React.createElement('iframe', {
+                src: embedSrc(item),
+                width: '100%',
+                height: 180,
+                frameBorder: '0',
+                allow: 'autoplay; encrypted-media',
+                allowFullScreen: true,
+                style: { display: 'block' }
+              })
+            : React.createElement('div', {
+                onClick: () => setPlaying(item.id),
+                style: { position: 'relative', cursor: 'pointer', height: 180,
+                  background: '#000', overflow: 'hidden' }
+              },
+                React.createElement('img', {
+                  src: item.thumb || (item.kind !== 'playlist'
+                    ? 'https://img.youtube.com/vi/' + item.ytId + '/mqdefault.jpg'
+                    : ''),
+                  alt: item.title,
+                  style: { width: '100%', height: '100%', objectFit: 'cover', opacity: .85 }
+                }),
+                React.createElement('div', {
+                  style: { position: 'absolute', inset: 0, display: 'flex',
+                    alignItems: 'center', justifyContent: 'center' }
+                },
+                  React.createElement('div', {
+                    style: { width: 52, height: 52, borderRadius: '50%',
+                      background: 'rgba(255,0,0,.85)', display: 'flex',
+                      alignItems: 'center', justifyContent: 'center', fontSize: 22 }
+                  }, '▶')
+                ),
+                item.kind === 'playlist' && React.createElement('div', {
+                  style: { position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,.7)',
+                    color: '#fff', fontSize: 10, padding: '2px 6px', borderRadius: 4 }
+                }, 'PLAYLIST')
+              ),
+
+          // Titre + bouton supprimer
+          React.createElement('div', {
+            style: { padding: '10px 12px', display: 'flex', justifyContent: 'space-between',
+              alignItems: 'flex-start', gap: 8 }
+          },
+            React.createElement('span', {
+              style: { fontSize: 13, color: 'var(--text)', flex: 1,
+                display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }
+            }, item.title),
+            React.createElement('button', {
+              onClick: () => { if (playing === item.id) setPlaying(null); deleteMedia(item.id); },
+              style: { background: 'none', border: 'none', color: 'var(--text-muted)',
+                cursor: 'pointer', fontSize: 16, flexShrink: 0 }
+            }, '×')
+          )
+        )
+      )
+    )
+  );
+}
+
 function DrevmCookView({
   ferments,
   upsertFerment,
@@ -6958,6 +7113,20 @@ const ch=sb.channel('ld-realtime')
       return next;
     });
   }, []);
+  const addMedia = useCallback(item => {
+    setData(prev => {
+      const next = clone(prev);
+      next.media = [...(next.media || []), item];
+      return next;
+    });
+  }, []);
+  const deleteMedia = useCallback(id => {
+    setData(prev => {
+      const next = clone(prev);
+      next.media = (next.media || []).filter(m => m.id !== id);
+      return next;
+    });
+  }, []);
   const togglePlanningCheck = useCallback((day, itemId) => {
     setData(prev => {
       const next = clone(prev);
@@ -7189,6 +7358,10 @@ const ch=sb.channel('ld-realtime')
     id: 'calendar',
     label: 'Calendrier',
     icon: '📅'
+  }, {
+    id: 'media',
+    label: 'Médias',
+    icon: '🎬'
   }, {
     id: 'charts',
     label: 'Stats',
@@ -9044,6 +9217,10 @@ const ch=sb.channel('ld-realtime')
     importRecipes: importRecipes
   }), view === 'culture' && /*#__PURE__*/React.createElement(CultureGwadView, null), view === 'route' && renderRoute(), view === 'objmensuel' && renderObjMensuel(), view === 'calendar' && /*#__PURE__*/React.createElement(CalendarView, {
     data: data
+  }), view === 'media' && /*#__PURE__*/React.createElement(MediaView, {
+    media: data.media || [],
+    addMedia: addMedia,
+    deleteMedia: deleteMedia
   }), view === 'charts' && renderCharts()), /*#__PURE__*/React.createElement(AddModal, {
     show: !!modal,
     onClose: () => setModal(null),
