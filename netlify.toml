@@ -1,7 +1,15 @@
 [build]
+  command = "npm run build"
   publish = "."
+
+[[redirects]]
+  from = "/nutrition/*"
+  to = "/nutrition/:splat"
+  status = 200
+  force = false
 
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+  force = false
