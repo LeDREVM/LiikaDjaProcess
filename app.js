@@ -59,8 +59,8 @@ async function sbLoad() {
   return normalize(data.data);
 }
 async function sbSave(d) {
-  // recipes, ferments & courses vivent dans leurs tables dédiées → hors du blob app_state
-  const { recipes, ferments, courses, ...rest } = d || {};
+  // recipes, ferments, courses & media vivent dans leurs tables dédiées → hors du blob app_state
+  const { recipes, ferments, courses, media, ...rest } = d || {};
   const {
     error
   } = await sb.from('app_state').upsert({
@@ -162,6 +162,24 @@ async function sbDeleteCoursesByIds(ids) {
   if (!ids || !ids.length) return;
   return sb.from('courses').delete().in('id', ids);
 }
+
+// ─── Médias : table dédiée (liens YouTube vidéo/playlist) ───
+async function sbLoadMedia() {
+  const { data, error } = await sb.from('media').select('*');
+  if (error) throw error;
+  return (data || []).map(m => ({
+    id: m.id, kind: m.kind || 'video', ytId: m.yt_id || '',
+    title: m.title || '', thumb: m.thumb || ''
+  }));
+}
+async function sbUpsertMedia(m) {
+  return sb.from('media').upsert({
+    id: m.id, kind: m.kind || 'video', yt_id: m.ytId || '',
+    title: m.title || '', thumb: m.thumb || '',
+    updated_at: new Date().toISOString(), device_id: DEVICE_ID
+  });
+}
+async function sbDeleteMedia(id) { return sb.from('media').delete().eq('id', id); }
 
 // ─── Data ───
 const defaultData = {
@@ -2290,7 +2308,6 @@ function BudgetView({
     }
   }, /*#__PURE__*/React.createElement("h3", {
     style: {
-      fontSize: 14,
       fontWeight: 600,
       marginBottom: 12,
       color: '#f87171',
@@ -5433,15 +5450,18 @@ function MediaView({ media, addMedia, deleteMedia }) {
     if (!url) return;
     const ytId = ytIdFromUrl(url);
     if (!ytId) { alert('Lien YouTube invalide'); return; }
-    setLoading(true);
-    let title = url;
-    try {
-      const oembed = await fetch(
-        'https://www.youtube.com/oembed?url=' + encodeURIComponent(url) + '&format=json'
-      ).then(r => r.ok ? r.json() : null);
-      if (oembed && oembed.title) title = oembed.title;
-    } catch (_) {}
     const kind = isPlaylistId(ytId) ? 'playlist' : 'video';
+    setLoading(true);
+    // oEmbed ne gère PAS les playlists → titre par défaut ; pour une vidéo on récupère le vrai titre.
+    let title = kind === 'playlist' ? 'Playlist YouTube' : url;
+    if (kind === 'video') {
+      try {
+        const oembed = await fetch(
+          'https://www.youtube.com/oembed?url=' + encodeURIComponent(url) + '&format=json'
+        ).then(r => r.ok ? r.json() : null);
+        if (oembed && oembed.title) title = oembed.title;
+      } catch (_) {}
+    }
     const thumb = kind === 'video' ? 'https://img.youtube.com/vi/' + ytId + '/mqdefault.jpg' : '';
     addMedia({ id: 'yt-' + Date.now(), kind, ytId, title, thumb });
     setForm('');
@@ -5453,11 +5473,11 @@ function MediaView({ media, addMedia, deleteMedia }) {
       return 'https://www.youtube.com/embed/videoseries?list=' + item.ytId + '&autoplay=1';
     return 'https://www.youtube.com/embed/' + item.ytId + '?autoplay=1';
   }
-
-  function thumbSrc(item) {
-    if (item.kind === 'playlist')
-      return 'https://img.youtube.com/vi/' + item.ytId.slice(2) + '/mqdefault.jpg';
-    return 'https://img.youtube.com/vi/' + item.ytId + '/mqdefault.jpg';
+  // Miniature : thumb stockée, sinon img.youtube.com pour une vidéo, sinon null (playlist → placeholder).
+  function thumbUrl(item) {
+    if (item.thumb) return item.thumb;
+    if (item.kind !== 'playlist') return 'https://img.youtube.com/vi/' + item.ytId + '/mqdefault.jpg';
+    return null;
   }
 
   return React.createElement('div', { style: { maxWidth: 900, margin: '0 auto' } },
@@ -5479,8 +5499,9 @@ function MediaView({ media, addMedia, deleteMedia }) {
       React.createElement('button', {
         onClick: handleAdd,
         disabled: loading,
-        className: 'btn-couple',
-        style: { padding: '10px 20px', borderRadius: 8 }
+        style: { padding: '10px 20px', borderRadius: 8, cursor: loading ? 'default' : 'pointer',
+          border: '1px solid var(--accent-couple)', background: 'var(--accent-couple)',
+          color: '#1a1208', fontWeight: 600, opacity: loading ? .6 : 1 }
       }, loading ? '…' : '+ Ajouter')
     ),
 
@@ -5510,13 +5531,17 @@ function MediaView({ media, addMedia, deleteMedia }) {
                 style: { position: 'relative', cursor: 'pointer', height: 180,
                   background: '#000', overflow: 'hidden' }
               },
-                React.createElement('img', {
-                  src: item.thumb || (item.kind !== 'playlist'
-                    ? 'https://img.youtube.com/vi/' + item.ytId + '/mqdefault.jpg'
-                    : ''),
-                  alt: item.title,
-                  style: { width: '100%', height: '100%', objectFit: 'cover', opacity: .85 }
-                }),
+                thumbUrl(item)
+                  ? React.createElement('img', {
+                      src: thumbUrl(item),
+                      alt: item.title,
+                      style: { width: '100%', height: '100%', objectFit: 'cover', opacity: .85 }
+                    })
+                  : React.createElement('div', {
+                      style: { width: '100%', height: '100%',
+                        background: 'linear-gradient(135deg,#7a1f3d,#2a0d18)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 44 }
+                    }, '🎵'),
                 React.createElement('div', {
                   style: { position: 'absolute', inset: 0, display: 'flex',
                     alignItems: 'center', justifyContent: 'center' }
@@ -5544,8 +5569,9 @@ function MediaView({ media, addMedia, deleteMedia }) {
             }, item.title),
             React.createElement('button', {
               onClick: () => { if (playing === item.id) setPlaying(null); deleteMedia(item.id); },
-              style: { background: 'none', border: 'none', color: 'var(--text-muted)',
-                cursor: 'pointer', fontSize: 16, flexShrink: 0 }
+              title: 'Supprimer',
+              style: { background: 'none', border: 'none', color: 'var(--text)', opacity: .55,
+                cursor: 'pointer', fontSize: 18, lineHeight: 1, flexShrink: 0 }
             }, '×')
           )
         )
@@ -6729,12 +6755,15 @@ let alive=true;
   // ── DrevmCook : charge les tables dédiées (+ migration depuis le blob si vides) ──
   // Fait ICI car remoteData (ancien blob) contient encore recipes/ferments avant strip.
   try{
-    let [recs,ferms,crs]=await Promise.all([sbLoadRecipes(),sbLoadFerments(),sbLoadCourses().catch(()=>[])]);
+    let [recs,ferms,crs,meds]=await Promise.all([sbLoadRecipes(),sbLoadFerments(),sbLoadCourses().catch(()=>[]),sbLoadMedia().catch(()=>[])]);
     const srcRecs=(Array.isArray(remoteData.recipes)&&remoteData.recipes.length)?remoteData.recipes:(Array.isArray(data.recipes)?data.recipes:[]);
     const srcFerms=(Array.isArray(remoteData.ferments)&&remoteData.ferments.length)?remoteData.ferments:(Array.isArray(data.ferments)?data.ferments:[]);
+    // Migration média : si la table est vide, on y verse le blob/seed (dont la playlist Mix Vibz par défaut).
+    const srcMeds=(Array.isArray(remoteData.media)&&remoteData.media.length)?remoteData.media:(Array.isArray(data.media)?data.media:[]);
     if(recs.length===0&&srcRecs.length>0){ await Promise.all(srcRecs.map(r=>sbUpsertRecipe(r).catch(()=>{}))); recs=srcRecs; }
     if(ferms.length===0&&srcFerms.length>0){ await Promise.all(srcFerms.map(f=>sbUpsertFerment(f).catch(()=>{}))); ferms=srcFerms; }
-    if(alive){ remoteApplyRef.current=true; setDataRaw(prev=>({...prev,recipes:recs,ferments:ferms,courses:crs})); }
+    if(meds.length===0&&srcMeds.length>0){ await Promise.all(srcMeds.map(m=>sbUpsertMedia(m).catch(()=>{}))); meds=srcMeds; }
+    if(alive){ remoteApplyRef.current=true; setDataRaw(prev=>({...prev,recipes:recs,ferments:ferms,courses:crs,media:meds})); }
   }catch(_){}
 
   setSyncStatus('ok');
@@ -6809,6 +6838,8 @@ const ch=sb.channel('ld-realtime')
         async () => { try { const ferms = await sbLoadFerments(); remoteApplyRef.current = true; setDataRaw(prev => ({ ...prev, ferments: ferms })); } catch (_) {} })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'courses' },
         async () => { try { const crs = await sbLoadCourses(); remoteApplyRef.current = true; setDataRaw(prev => ({ ...prev, courses: crs })); } catch (_) {} })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'media' },
+        async () => { try { const meds = await sbLoadMedia(); remoteApplyRef.current = true; setDataRaw(prev => ({ ...prev, media: meds })); } catch (_) {} })
       .subscribe();
     return () => { sb.removeChannel(ch); };
   }, []);
@@ -7114,18 +7145,20 @@ const ch=sb.channel('ld-realtime')
     });
   }, []);
   const addMedia = useCallback(item => {
-    setData(prev => {
+    setDataRaw(prev => {
       const next = clone(prev);
       next.media = [...(next.media || []), item];
       return next;
     });
+    sbUpsertMedia(item).catch(() => {});
   }, []);
   const deleteMedia = useCallback(id => {
-    setData(prev => {
+    setDataRaw(prev => {
       const next = clone(prev);
       next.media = (next.media || []).filter(m => m.id !== id);
       return next;
     });
+    sbDeleteMedia(id).catch(() => {});
   }, []);
   const togglePlanningCheck = useCallback((day, itemId) => {
     setData(prev => {
@@ -7810,7 +7843,6 @@ const ch=sb.channel('ld-realtime')
         }
       }, "\u2726 Vision ", name), /*#__PURE__*/React.createElement("p", {
         style: {
-          fontSize: 13,
           color: 'var(--text2)',
           lineHeight: 1.65,
           fontFamily: "'Cormorant Garamond',serif",
