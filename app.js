@@ -1583,6 +1583,82 @@ function printMealPlan(who, meals) {
   w.focus();
   setTimeout(() => { try { w.print(); } catch (_) {} }, 350);
 }
+function NutritionHubView() {
+  const [who, setWho] = useState('dja');
+  const av = accent[who];
+  const nutritionUrl = `nutrition/nutrition.html?profile=${who}`;
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 24,
+      flexWrap: 'wrap',
+      gap: 12
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
+    className: "eyebrow",
+    style: {
+      marginBottom: 6
+    }
+  }, "\uD83D\uDCF7 Scanner & suivi"), /*#__PURE__*/React.createElement("h2", {
+    style: {
+      fontSize: 24,
+      fontWeight: 600,
+      fontFamily: "'Cormorant Garamond',serif",
+      marginBottom: 4,
+      color: 'var(--text)'
+    }
+  }, "Nutrition quotidienne"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 13,
+      color: 'var(--text3)',
+      maxWidth: 520,
+      lineHeight: 1.5
+    }
+  }, "Scanner de codes-barres (Carrefour, Super U, OpenFoodFacts), journal des repas, objectifs macros, liste de courses et je\xFBne intermittent \u2014 synchronis\xE9 avec le profil Dja ou Liika.")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 6
+    }
+  }, ['dja', 'liika'].map(w => /*#__PURE__*/React.createElement("button", {
+    key: w,
+    onClick: () => setWho(w),
+    style: {
+      padding: '5px 14px',
+      borderRadius: 20,
+      border: who === w ? `1px solid ${accent[w]}` : '1px solid var(--border)',
+      background: who === w ? accentBg[w] : 'transparent',
+      color: who === w ? accent[w] : 'var(--text3)',
+      fontSize: 12,
+      cursor: 'pointer',
+      transition: 'all .15s'
+    }
+  }, w === 'dja' ? 'Dja' : 'Liika')), /*#__PURE__*/React.createElement("a", {
+    href: nutritionUrl,
+    target: "_blank",
+    rel: "noopener noreferrer",
+    style: {
+      padding: '5px 14px',
+      borderRadius: 20,
+      border: `1px solid ${av}`,
+      background: accentBg[who],
+      color: av,
+      fontSize: 12,
+      textDecoration: 'none'
+    }
+  }, "Ouvrir en plein \xE9cran \u2192"))), /*#__PURE__*/React.createElement("iframe", {
+    src: nutritionUrl,
+    title: "Module nutrition Lanmou Douvan",
+    style: {
+      width: '100%',
+      height: 'min(78vh, 900px)',
+      border: '1px solid var(--border)',
+      borderRadius: 'var(--radius)',
+      background: 'var(--bg2)'
+    }
+  }));
+}
 function MealsView({
   data,
   upsertMeal,
@@ -1638,9 +1714,26 @@ function MealsView({
   }, "Planning alimentaire de la semaine")), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
-      gap: 6
+      gap: 6,
+      flexWrap: 'wrap',
+      alignItems: 'center'
     }
-  }, /*#__PURE__*/React.createElement("button", {
+  }, /*#__PURE__*/React.createElement("a", {
+    href: `nutrition/nutrition.html?profile=${who}`,
+    target: "_blank",
+    rel: "noopener noreferrer",
+    title: 'Scanner codes-barres, journal nutritionnel, liste de courses',
+    style: {
+      padding: '5px 14px',
+      borderRadius: 20,
+      border: '1px solid var(--border)',
+      background: 'var(--bg3)',
+      color: 'var(--text2)',
+      fontSize: 12,
+      textDecoration: 'none',
+      transition: 'all .15s'
+    }
+  }, "\uD83D\uDCF7 Nutrition & Scanner"), /*#__PURE__*/React.createElement("button", {
     onClick: () => printMealPlan(who, meals),
     title: 'Imprimer / exporter le plan de repas en PDF',
     style: {
@@ -1666,7 +1759,14 @@ function MealsView({
       cursor: 'pointer',
       transition: 'all .15s'
     }
-  }, w === 'dja' ? 'Dja' : w === 'liika' ? 'Liika' : 'Couple')))), /*#__PURE__*/React.createElement("div", {
+  }, w === 'dja' ? 'Dja' : w === 'liika' ? 'Liika' : 'Couple')))), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 12,
+      color: 'var(--text3)',
+      marginBottom: 16,
+      lineHeight: 1.5
+    }
+  }, "Le module ", /*#__PURE__*/React.createElement("strong", null, "Nutrition & Scanner"), " (journal quotidien, codes-barres OpenFoodFacts, objectifs macros) partage le profil s\xE9lectionn\xE9 ci-dessus."), /*#__PURE__*/React.createElement("div", {
     style: {
       overflowX: 'auto'
     }
@@ -6749,6 +6849,10 @@ const ch=sb.channel('ld-realtime')
     label: 'Repas',
     icon: '🍽'
   }, {
+    id: 'nutrition',
+    label: 'Nutrition',
+    icon: '📊'
+  }, {
     id: 'sport',
     label: 'Sport',
     icon: '💪'
@@ -8604,7 +8708,7 @@ const ch=sb.channel('ld-realtime')
     data: data,
     upsertMeal: upsertMeal,
     deleteMeal: deleteMeal
-  }), view === 'sport' && /*#__PURE__*/React.createElement(SportView, {
+  }), view === 'nutrition' && /*#__PURE__*/React.createElement(NutritionHubView, null), view === 'sport' && /*#__PURE__*/React.createElement(SportView, {
     data: data,
     upsertSport: upsertSport,
     deleteSport: deleteSport
