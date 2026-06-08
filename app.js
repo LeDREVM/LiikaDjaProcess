@@ -1732,7 +1732,7 @@ function printMealPlan(who, meals) {
 function NutritionHubView() {
   const [who, setWho] = useState('dja');
   const av = accent[who];
-  const nutritionUrl = `nutrition/nutrition.html?profile=${who}`;
+  const nutritionUrl = `nutrition/index.html?profile=${who}`;
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
@@ -1865,7 +1865,7 @@ function MealsView({
       alignItems: 'center'
     }
   }, /*#__PURE__*/React.createElement("a", {
-    href: `nutrition/nutrition.html?profile=${who}`,
+    href: `nutrition/index.html?profile=${who}`,
     target: "_blank",
     rel: "noopener noreferrer",
     title: 'Scanner codes-barres, journal nutritionnel, liste de courses',
