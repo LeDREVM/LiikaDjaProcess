@@ -19,10 +19,7 @@
 CREATE OR REPLACE FUNCTION save_app_state(p_data jsonb, p_device text DEFAULT '')
 RETURNS jsonb
 LANGUAGE plpgsql
-<<<<<<< HEAD
-=======
 SET search_path = public
->>>>>>> b9734e8171d5d8554cbd0ebbb98f63c9b19513e8
 AS $$
 DECLARE
   cur        jsonb;

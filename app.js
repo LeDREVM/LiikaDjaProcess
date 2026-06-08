@@ -7250,15 +7250,13 @@ const ch=sb.channel('ld-realtime')
     label: 'Repas',
     icon: '🍽'
   }, {
-<<<<<<< HEAD
     id: 'nutrition',
     label: 'Nutrition',
     icon: '📊'
-=======
+  }, {
     id: 'courses',
     label: 'Courses',
     icon: '🛒'
->>>>>>> b9734e8171d5d8554cbd0ebbb98f63c9b19513e8
   }, {
     id: 'sport',
     label: 'Sport',
@@ -9115,10 +9113,7 @@ const ch=sb.channel('ld-realtime')
     data: data,
     upsertMeal: upsertMeal,
     deleteMeal: deleteMeal
-<<<<<<< HEAD
-  }), view === 'nutrition' && /*#__PURE__*/React.createElement(NutritionHubView, null), view === 'sport' && /*#__PURE__*/React.createElement(SportView, {
-=======
-  }), view === 'courses' && /*#__PURE__*/React.createElement(CoursesView, {
+  }), view === 'nutrition' && /*#__PURE__*/React.createElement(NutritionHubView, null), view === 'courses' && /*#__PURE__*/React.createElement(CoursesView, {
     courses: data.courses || [],
     addCourse: addCourse,
     upsertCourse: upsertCourse,
@@ -9128,7 +9123,6 @@ const ch=sb.channel('ld-realtime')
     generateFromMeals: generateCoursesFromMeals,
     mergeDuplicates: mergeDuplicateCourses
   }), view === 'sport' && /*#__PURE__*/React.createElement(SportView, {
->>>>>>> b9734e8171d5d8554cbd0ebbb98f63c9b19513e8
     data: data,
     upsertSport: upsertSport,
     deleteSport: deleteSport
