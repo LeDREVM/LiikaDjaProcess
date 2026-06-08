@@ -59,8 +59,8 @@ async function sbLoad() {
   return normalize(data.data);
 }
 async function sbSave(d) {
-  // recipes, ferments & courses vivent dans leurs tables dédiées → hors du blob app_state
-  const { recipes, ferments, courses, ...rest } = d || {};
+  // recipes, ferments, courses & media vivent dans leurs tables dédiées → hors du blob app_state
+  const { recipes, ferments, courses, media, ...rest } = d || {};
   const {
     error
   } = await sb.from('app_state').upsert({
@@ -162,6 +162,24 @@ async function sbDeleteCoursesByIds(ids) {
   if (!ids || !ids.length) return;
   return sb.from('courses').delete().in('id', ids);
 }
+
+// ─── Médias : table dédiée (liens YouTube vidéo/playlist) ───
+async function sbLoadMedia() {
+  const { data, error } = await sb.from('media').select('*');
+  if (error) throw error;
+  return (data || []).map(m => ({
+    id: m.id, kind: m.kind || 'video', ytId: m.yt_id || '',
+    title: m.title || '', thumb: m.thumb || ''
+  }));
+}
+async function sbUpsertMedia(m) {
+  return sb.from('media').upsert({
+    id: m.id, kind: m.kind || 'video', yt_id: m.ytId || '',
+    title: m.title || '', thumb: m.thumb || '',
+    updated_at: new Date().toISOString(), device_id: DEVICE_ID
+  });
+}
+async function sbDeleteMedia(id) { return sb.from('media').delete().eq('id', id); }
 
 // ─── Data ───
 const defaultData = {
@@ -626,6 +644,13 @@ const defaultData = {
   recipes: [],
   ferments: [],
   courses: [],
+  media: [{
+    id: 'pl-seed',
+    kind: 'playlist',
+    ytId: 'PLniFU1EmwtN-rC-s6vgj_ZdFYi3FcJtWB',
+    title: 'Mix Vibz — Playlist',
+    thumb: ''
+  }],
   games: {
     chess: { fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', lastBy: '', result: '' },
     crossword: { filled: {}, done: false },
@@ -656,6 +681,7 @@ function normalize(d) {
   }
   if (Array.isArray(d.ferments)) base.ferments = d.ferments;
   if (Array.isArray(d.courses)) base.courses = d.courses;
+  if (Array.isArray(d.media)) base.media = d.media;
   // Métadonnées de synchro : horodatages par section + date globale
   if (d._t && typeof d._t === 'object') base._t = d._t;
   if (typeof d.updatedAt === 'string') base.updatedAt = d.updatedAt;
@@ -1729,82 +1755,6 @@ function printMealPlan(who, meals) {
   w.focus();
   setTimeout(() => { try { w.print(); } catch (_) {} }, 350);
 }
-function NutritionHubView() {
-  const [who, setWho] = useState('dja');
-  const av = accent[who];
-  const nutritionUrl = `nutrition/index.html?profile=${who}`;
-  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 24,
-      flexWrap: 'wrap',
-      gap: 12
-    }
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
-    className: "eyebrow",
-    style: {
-      marginBottom: 6
-    }
-  }, "\uD83D\uDCF7 Scanner & suivi"), /*#__PURE__*/React.createElement("h2", {
-    style: {
-      fontSize: 24,
-      fontWeight: 600,
-      fontFamily: "'Cormorant Garamond',serif",
-      marginBottom: 4,
-      color: 'var(--text)'
-    }
-  }, "Nutrition quotidienne"), /*#__PURE__*/React.createElement("p", {
-    style: {
-      fontSize: 13,
-      color: 'var(--text3)',
-      maxWidth: 520,
-      lineHeight: 1.5
-    }
-  }, "Scanner de codes-barres (Carrefour, Super U, OpenFoodFacts), journal des repas, objectifs macros, liste de courses et je\xFBne intermittent \u2014 synchronis\xE9 avec le profil Dja ou Liika.")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      gap: 6
-    }
-  }, ['dja', 'liika'].map(w => /*#__PURE__*/React.createElement("button", {
-    key: w,
-    onClick: () => setWho(w),
-    style: {
-      padding: '5px 14px',
-      borderRadius: 20,
-      border: who === w ? `1px solid ${accent[w]}` : '1px solid var(--border)',
-      background: who === w ? accentBg[w] : 'transparent',
-      color: who === w ? accent[w] : 'var(--text3)',
-      fontSize: 12,
-      cursor: 'pointer',
-      transition: 'all .15s'
-    }
-  }, w === 'dja' ? 'Dja' : 'Liika')), /*#__PURE__*/React.createElement("a", {
-    href: nutritionUrl,
-    target: "_blank",
-    rel: "noopener noreferrer",
-    style: {
-      padding: '5px 14px',
-      borderRadius: 20,
-      border: `1px solid ${av}`,
-      background: accentBg[who],
-      color: av,
-      fontSize: 12,
-      textDecoration: 'none'
-    }
-  }, "Ouvrir en plein \xE9cran \u2192"))), /*#__PURE__*/React.createElement("iframe", {
-    src: nutritionUrl,
-    title: "Module nutrition Lanmou Douvan",
-    style: {
-      width: '100%',
-      height: 'min(78vh, 900px)',
-      border: '1px solid var(--border)',
-      borderRadius: 'var(--radius)',
-      background: 'var(--bg2)'
-    }
-  }));
-}
 function MealsView({
   data,
   upsertMeal,
@@ -1860,26 +1810,9 @@ function MealsView({
   }, "Planning alimentaire de la semaine")), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
-      gap: 6,
-      flexWrap: 'wrap',
-      alignItems: 'center'
+      gap: 6
     }
-  }, /*#__PURE__*/React.createElement("a", {
-    href: `nutrition/index.html?profile=${who}`,
-    target: "_blank",
-    rel: "noopener noreferrer",
-    title: 'Scanner codes-barres, journal nutritionnel, liste de courses',
-    style: {
-      padding: '5px 14px',
-      borderRadius: 20,
-      border: '1px solid var(--border)',
-      background: 'var(--bg3)',
-      color: 'var(--text2)',
-      fontSize: 12,
-      textDecoration: 'none',
-      transition: 'all .15s'
-    }
-  }, "\uD83D\uDCF7 Nutrition & Scanner"), /*#__PURE__*/React.createElement("button", {
+  }, /*#__PURE__*/React.createElement("button", {
     onClick: () => printMealPlan(who, meals),
     title: 'Imprimer / exporter le plan de repas en PDF',
     style: {
@@ -1905,14 +1838,7 @@ function MealsView({
       cursor: 'pointer',
       transition: 'all .15s'
     }
-  }, w === 'dja' ? 'Dja' : w === 'liika' ? 'Liika' : 'Couple')))), /*#__PURE__*/React.createElement("p", {
-    style: {
-      fontSize: 12,
-      color: 'var(--text3)',
-      marginBottom: 16,
-      lineHeight: 1.5
-    }
-  }, "Le module ", /*#__PURE__*/React.createElement("strong", null, "Nutrition & Scanner"), " (journal quotidien, codes-barres OpenFoodFacts, objectifs macros) partage le profil s\xE9lectionn\xE9 ci-dessus."), /*#__PURE__*/React.createElement("div", {
+  }, w === 'dja' ? 'Dja' : w === 'liika' ? 'Liika' : 'Couple')))), /*#__PURE__*/React.createElement("div", {
     style: {
       overflowX: 'auto'
     }
@@ -2382,7 +2308,6 @@ function BudgetView({
     }
   }, /*#__PURE__*/React.createElement("h3", {
     style: {
-      fontSize: 14,
       fontWeight: 600,
       marginBottom: 12,
       color: '#f87171',
@@ -5499,6 +5424,162 @@ function CoursesView({ courses, addCourse, upsertCourse, deleteCourse, toggleCou
   );
 }
 
+// ─── Helper : extrait l'ID YouTube d'une URL quelconque ──────────────────────
+function ytIdFromUrl(url) {
+  if (!url) return null;
+  try {
+    const u = new URL(url.trim());
+    if (u.hostname.includes('youtu.be')) return u.pathname.slice(1).split('?')[0];
+    if (u.searchParams.get('v')) return u.searchParams.get('v');
+    const listId = u.searchParams.get('list');
+    if (listId) return listId; // playlist
+  } catch (_) {}
+  // fallback regex
+  const m = url.match(/(?:v=|youtu\.be\/|list=)([\w-]{11,})/);
+  return m ? m[1] : null;
+}
+function isPlaylistId(id) { return id && id.startsWith('PL'); }
+
+function MediaView({ media, addMedia, deleteMedia }) {
+  const [form, setForm] = React.useState('');
+  const [loading, setLoading] = React.useState(false);
+  const [playing, setPlaying] = React.useState(null); // id de la carte en lecture
+
+  async function handleAdd() {
+    const url = form.trim();
+    if (!url) return;
+    const ytId = ytIdFromUrl(url);
+    if (!ytId) { alert('Lien YouTube invalide'); return; }
+    const kind = isPlaylistId(ytId) ? 'playlist' : 'video';
+    setLoading(true);
+    // oEmbed ne gère PAS les playlists → titre par défaut ; pour une vidéo on récupère le vrai titre.
+    let title = kind === 'playlist' ? 'Playlist YouTube' : url;
+    if (kind === 'video') {
+      try {
+        const oembed = await fetch(
+          'https://www.youtube.com/oembed?url=' + encodeURIComponent(url) + '&format=json'
+        ).then(r => r.ok ? r.json() : null);
+        if (oembed && oembed.title) title = oembed.title;
+      } catch (_) {}
+    }
+    const thumb = kind === 'video' ? 'https://img.youtube.com/vi/' + ytId + '/mqdefault.jpg' : '';
+    addMedia({ id: 'yt-' + Date.now(), kind, ytId, title, thumb });
+    setForm('');
+    setLoading(false);
+  }
+
+  function embedSrc(item) {
+    if (item.kind === 'playlist')
+      return 'https://www.youtube.com/embed/videoseries?list=' + item.ytId + '&autoplay=1';
+    return 'https://www.youtube.com/embed/' + item.ytId + '?autoplay=1';
+  }
+  // Miniature : thumb stockée, sinon img.youtube.com pour une vidéo, sinon null (playlist → placeholder).
+  function thumbUrl(item) {
+    if (item.thumb) return item.thumb;
+    if (item.kind !== 'playlist') return 'https://img.youtube.com/vi/' + item.ytId + '/mqdefault.jpg';
+    return null;
+  }
+
+  return React.createElement('div', { style: { maxWidth: 900, margin: '0 auto' } },
+    React.createElement('h2', { style: { color: 'var(--gold)', marginBottom: 20 } }, '🎬 Médias'),
+
+    // Formulaire ajout
+    React.createElement('div', {
+      style: { display: 'flex', gap: 10, marginBottom: 28, flexWrap: 'wrap' }
+    },
+      React.createElement('input', {
+        type: 'text',
+        placeholder: 'Coller un lien YouTube (vidéo ou playlist)…',
+        value: form,
+        onChange: e => setForm(e.target.value),
+        onKeyDown: e => e.key === 'Enter' && handleAdd(),
+        style: { flex: 1, minWidth: 240, padding: '10px 14px', borderRadius: 8,
+          border: '1px solid var(--border)', background: 'rgba(255,255,255,.07)', color: 'var(--text)' }
+      }),
+      React.createElement('button', {
+        onClick: handleAdd,
+        disabled: loading,
+        style: { padding: '10px 20px', borderRadius: 8, cursor: loading ? 'default' : 'pointer',
+          border: '1px solid var(--accent-couple)', background: 'var(--accent-couple)',
+          color: '#1a1208', fontWeight: 600, opacity: loading ? .6 : 1 }
+      }, loading ? '…' : '+ Ajouter')
+    ),
+
+    // Grille de miniatures
+    React.createElement('div', {
+      style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: 16 }
+    },
+      (media || []).map(item =>
+        React.createElement('div', {
+          key: item.id,
+          style: { background: 'rgba(255,255,255,.06)', borderRadius: 12,
+            overflow: 'hidden', border: '1px solid var(--border)' }
+        },
+          // Player intégré ou miniature cliquable
+          playing === item.id
+            ? React.createElement('iframe', {
+                src: embedSrc(item),
+                width: '100%',
+                height: 180,
+                frameBorder: '0',
+                allow: 'autoplay; encrypted-media',
+                allowFullScreen: true,
+                style: { display: 'block' }
+              })
+            : React.createElement('div', {
+                onClick: () => setPlaying(item.id),
+                style: { position: 'relative', cursor: 'pointer', height: 180,
+                  background: '#000', overflow: 'hidden' }
+              },
+                thumbUrl(item)
+                  ? React.createElement('img', {
+                      src: thumbUrl(item),
+                      alt: item.title,
+                      style: { width: '100%', height: '100%', objectFit: 'cover', opacity: .85 }
+                    })
+                  : React.createElement('div', {
+                      style: { width: '100%', height: '100%',
+                        background: 'linear-gradient(135deg,#7a1f3d,#2a0d18)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 44 }
+                    }, '🎵'),
+                React.createElement('div', {
+                  style: { position: 'absolute', inset: 0, display: 'flex',
+                    alignItems: 'center', justifyContent: 'center' }
+                },
+                  React.createElement('div', {
+                    style: { width: 52, height: 52, borderRadius: '50%',
+                      background: 'rgba(255,0,0,.85)', display: 'flex',
+                      alignItems: 'center', justifyContent: 'center', fontSize: 22 }
+                  }, '▶')
+                ),
+                item.kind === 'playlist' && React.createElement('div', {
+                  style: { position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,.7)',
+                    color: '#fff', fontSize: 10, padding: '2px 6px', borderRadius: 4 }
+                }, 'PLAYLIST')
+              ),
+
+          // Titre + bouton supprimer
+          React.createElement('div', {
+            style: { padding: '10px 12px', display: 'flex', justifyContent: 'space-between',
+              alignItems: 'flex-start', gap: 8 }
+          },
+            React.createElement('span', {
+              style: { fontSize: 13, color: 'var(--text)', flex: 1,
+                display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }
+            }, item.title),
+            React.createElement('button', {
+              onClick: () => { if (playing === item.id) setPlaying(null); deleteMedia(item.id); },
+              title: 'Supprimer',
+              style: { background: 'none', border: 'none', color: 'var(--text)', opacity: .55,
+                cursor: 'pointer', fontSize: 18, lineHeight: 1, flexShrink: 0 }
+            }, '×')
+          )
+        )
+      )
+    )
+  );
+}
+
 function DrevmCookView({
   ferments,
   upsertFerment,
@@ -6674,12 +6755,15 @@ let alive=true;
   // ── DrevmCook : charge les tables dédiées (+ migration depuis le blob si vides) ──
   // Fait ICI car remoteData (ancien blob) contient encore recipes/ferments avant strip.
   try{
-    let [recs,ferms,crs]=await Promise.all([sbLoadRecipes(),sbLoadFerments(),sbLoadCourses().catch(()=>[])]);
+    let [recs,ferms,crs,meds]=await Promise.all([sbLoadRecipes(),sbLoadFerments(),sbLoadCourses().catch(()=>[]),sbLoadMedia().catch(()=>[])]);
     const srcRecs=(Array.isArray(remoteData.recipes)&&remoteData.recipes.length)?remoteData.recipes:(Array.isArray(data.recipes)?data.recipes:[]);
     const srcFerms=(Array.isArray(remoteData.ferments)&&remoteData.ferments.length)?remoteData.ferments:(Array.isArray(data.ferments)?data.ferments:[]);
+    // Migration média : si la table est vide, on y verse le blob/seed (dont la playlist Mix Vibz par défaut).
+    const srcMeds=(Array.isArray(remoteData.media)&&remoteData.media.length)?remoteData.media:(Array.isArray(data.media)?data.media:[]);
     if(recs.length===0&&srcRecs.length>0){ await Promise.all(srcRecs.map(r=>sbUpsertRecipe(r).catch(()=>{}))); recs=srcRecs; }
     if(ferms.length===0&&srcFerms.length>0){ await Promise.all(srcFerms.map(f=>sbUpsertFerment(f).catch(()=>{}))); ferms=srcFerms; }
-    if(alive){ remoteApplyRef.current=true; setDataRaw(prev=>({...prev,recipes:recs,ferments:ferms,courses:crs})); }
+    if(meds.length===0&&srcMeds.length>0){ await Promise.all(srcMeds.map(m=>sbUpsertMedia(m).catch(()=>{}))); meds=srcMeds; }
+    if(alive){ remoteApplyRef.current=true; setDataRaw(prev=>({...prev,recipes:recs,ferments:ferms,courses:crs,media:meds})); }
   }catch(_){}
 
   setSyncStatus('ok');
@@ -6754,6 +6838,8 @@ const ch=sb.channel('ld-realtime')
         async () => { try { const ferms = await sbLoadFerments(); remoteApplyRef.current = true; setDataRaw(prev => ({ ...prev, ferments: ferms })); } catch (_) {} })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'courses' },
         async () => { try { const crs = await sbLoadCourses(); remoteApplyRef.current = true; setDataRaw(prev => ({ ...prev, courses: crs })); } catch (_) {} })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'media' },
+        async () => { try { const meds = await sbLoadMedia(); remoteApplyRef.current = true; setDataRaw(prev => ({ ...prev, media: meds })); } catch (_) {} })
       .subscribe();
     return () => { sb.removeChannel(ch); };
   }, []);
@@ -7058,6 +7144,22 @@ const ch=sb.channel('ld-realtime')
       return next;
     });
   }, []);
+  const addMedia = useCallback(item => {
+    setDataRaw(prev => {
+      const next = clone(prev);
+      next.media = [...(next.media || []), item];
+      return next;
+    });
+    sbUpsertMedia(item).catch(() => {});
+  }, []);
+  const deleteMedia = useCallback(id => {
+    setDataRaw(prev => {
+      const next = clone(prev);
+      next.media = (next.media || []).filter(m => m.id !== id);
+      return next;
+    });
+    sbDeleteMedia(id).catch(() => {});
+  }, []);
   const togglePlanningCheck = useCallback((day, itemId) => {
     setData(prev => {
       const next = clone(prev);
@@ -7250,10 +7352,6 @@ const ch=sb.channel('ld-realtime')
     label: 'Repas',
     icon: '🍽'
   }, {
-    id: 'nutrition',
-    label: 'Nutrition',
-    icon: '📊'
-  }, {
     id: 'courses',
     label: 'Courses',
     icon: '🛒'
@@ -7293,6 +7391,10 @@ const ch=sb.channel('ld-realtime')
     id: 'calendar',
     label: 'Calendrier',
     icon: '📅'
+  }, {
+    id: 'media',
+    label: 'Médias',
+    icon: '🎬'
   }, {
     id: 'charts',
     label: 'Stats',
@@ -7741,7 +7843,6 @@ const ch=sb.channel('ld-realtime')
         }
       }, "\u2726 Vision ", name), /*#__PURE__*/React.createElement("p", {
         style: {
-          fontSize: 13,
           color: 'var(--text2)',
           lineHeight: 1.65,
           fontFamily: "'Cormorant Garamond',serif",
@@ -9113,7 +9214,7 @@ const ch=sb.channel('ld-realtime')
     data: data,
     upsertMeal: upsertMeal,
     deleteMeal: deleteMeal
-  }), view === 'nutrition' && /*#__PURE__*/React.createElement(NutritionHubView, null), view === 'courses' && /*#__PURE__*/React.createElement(CoursesView, {
+  }), view === 'courses' && /*#__PURE__*/React.createElement(CoursesView, {
     courses: data.courses || [],
     addCourse: addCourse,
     upsertCourse: upsertCourse,
@@ -9148,6 +9249,10 @@ const ch=sb.channel('ld-realtime')
     importRecipes: importRecipes
   }), view === 'culture' && /*#__PURE__*/React.createElement(CultureGwadView, null), view === 'route' && renderRoute(), view === 'objmensuel' && renderObjMensuel(), view === 'calendar' && /*#__PURE__*/React.createElement(CalendarView, {
     data: data
+  }), view === 'media' && /*#__PURE__*/React.createElement(MediaView, {
+    media: data.media || [],
+    addMedia: addMedia,
+    deleteMedia: deleteMedia
   }), view === 'charts' && renderCharts()), /*#__PURE__*/React.createElement(AddModal, {
     show: !!modal,
     onClose: () => setModal(null),
