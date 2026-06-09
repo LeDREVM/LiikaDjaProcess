@@ -359,7 +359,7 @@ const defaultData = {
   },
   liika: {
     name: "Liika",
-    role: "Independante transport PL",
+    role: "Militaire · Logistique PL — indicatif « Purple Moon »",
     location: "",
     color: "liika",
     objectives: [{
@@ -639,7 +639,51 @@ const defaultData = {
       custom: [],
       lastReset: ''
     },
-    objMensuels: []
+    objMensuels: [],
+    survie: {
+      // Module survie / post-apo — cadre militaire « Purple Moon » (Liika).
+      // Stocks du foyer (2 personnes), sacs d'évacuation, plan d'urgence.
+      foyer: 2,
+      stocks: [
+        { id: 'sv-eau', nom: 'Eau potable', cat: 'Eau', qte: 24, unite: 'L', parJour: 3, peremption: '', note: 'Réserve bidons (≈3 L/pers/j)' },
+        { id: 'sv-riz', nom: 'Riz', cat: 'Nourriture', qte: 5, unite: 'kg', parJour: 0.25, peremption: '', note: '' },
+        { id: 'sv-conserves', nom: 'Conserves diverses', cat: 'Nourriture', qte: 20, unite: 'boîtes', parJour: 1, peremption: '', note: '' },
+        { id: 'sv-trousse', nom: 'Trousse de premiers secours', cat: 'Médical', qte: 1, unite: 'kit', parJour: 0, peremption: '', note: 'Vérifier péremptions' },
+        { id: 'sv-piles', nom: 'Piles AA', cat: 'Énergie', qte: 12, unite: 'u', parJour: 0, peremption: '', note: '' },
+        { id: 'sv-lampe', nom: 'Lampe frontale', cat: 'Outils', qte: 2, unite: 'u', parJour: 0, peremption: '', note: '' }
+      ],
+      bob: {
+        dja: [
+          { id: 'bd1', label: 'Eau (1,5 L) + pastilles', done: false },
+          { id: 'bd2', label: 'Rations énergétiques 48 h', done: false },
+          { id: 'bd3', label: 'Couverture de survie', done: false },
+          { id: 'bd4', label: 'Multi-outil + briquet', done: false }
+        ],
+        liika: [
+          { id: 'bl1', label: 'Eau (1,5 L) + pastilles', done: false },
+          { id: 'bl2', label: 'Rations énergétiques 48 h', done: false },
+          { id: 'bl3', label: 'Trousse médicale perso', done: false },
+          { id: 'bl4', label: 'Lampe + radio dynamo', done: false }
+        ],
+        commun: [
+          { id: 'bc1', label: 'Documents (copies) étanches', done: false },
+          { id: 'bc2', label: 'Cash en petites coupures', done: false },
+          { id: 'bc3', label: 'Carte papier + boussole', done: false }
+        ]
+      },
+      plan: {
+        ralliement: [
+          { id: 'rp1', nom: 'Point Alpha — domicile', adresse: '', note: 'Premier repli' }
+        ],
+        contacts: [
+          { id: 'pc1', nom: 'Liika (Purple Moon)', role: 'Commandement', tel: '' },
+          { id: 'pc2', nom: 'Dja', role: 'Intendance', tel: '' }
+        ],
+        protocoles: [
+          { id: 'pr1', scenario: 'Coupure prolongée (eau/élec)', texte: 'Activer réserves, rationner eau, point Alpha si >72 h.' }
+        ]
+      }
+    }
   },
   recipes: [],
   ferments: [],
@@ -682,6 +726,27 @@ function normalize(d) {
   if (Array.isArray(d.ferments)) base.ferments = d.ferments;
   if (Array.isArray(d.courses)) base.courses = d.courses;
   if (Array.isArray(d.media)) base.media = d.media;
+  // Survie : garantir la forme (le spread couple ci-dessus a pu remplacer survie par une version partielle)
+  {
+    const sd = (d.couple && typeof d.couple.survie === 'object' && d.couple.survie) ? d.couple.survie : {};
+    const sb = base.couple.survie || {};
+    const bobIn = sd.bob && typeof sd.bob === 'object' ? sd.bob : {};
+    const planIn = sd.plan && typeof sd.plan === 'object' ? sd.plan : {};
+    base.couple.survie = {
+      foyer: Number(sd.foyer) > 0 ? Number(sd.foyer) : (sb.foyer || 2),
+      stocks: Array.isArray(sd.stocks) ? sd.stocks : (sb.stocks || []),
+      bob: {
+        dja: Array.isArray(bobIn.dja) ? bobIn.dja : ((sb.bob && sb.bob.dja) || []),
+        liika: Array.isArray(bobIn.liika) ? bobIn.liika : ((sb.bob && sb.bob.liika) || []),
+        commun: Array.isArray(bobIn.commun) ? bobIn.commun : ((sb.bob && sb.bob.commun) || [])
+      },
+      plan: {
+        ralliement: Array.isArray(planIn.ralliement) ? planIn.ralliement : ((sb.plan && sb.plan.ralliement) || []),
+        contacts: Array.isArray(planIn.contacts) ? planIn.contacts : ((sb.plan && sb.plan.contacts) || []),
+        protocoles: Array.isArray(planIn.protocoles) ? planIn.protocoles : ((sb.plan && sb.plan.protocoles) || [])
+      }
+    };
+  }
   // Métadonnées de synchro : horodatages par section + date globale
   if (d._t && typeof d._t === 'object') base._t = d._t;
   if (typeof d.updatedAt === 'string') base.updatedAt = d.updatedAt;
@@ -5580,6 +5645,228 @@ function MediaView({ media, addMedia, deleteMedia }) {
   );
 }
 
+// ─── Module Survie / post-apo — cadre militaire « Purple Moon » (Liika) ───
+const SURVIE_CATS = ['Eau', 'Nourriture', 'Médical', 'Énergie', 'Outils', 'Hygiène', 'Autre'];
+const SURVIE_CAT_ICON = { Eau: '💧', Nourriture: '🥫', 'Médical': '⚕️', 'Énergie': '🔋', Outils: '🔧', 'Hygiène': '🧼', Autre: '📦' };
+const SURVIE_UNITES = ['L', 'kg', 'g', 'u', 'boîtes', 'kit', 'paquet', 'sachet'];
+
+function survieDaysLeft(iso) {
+  if (!iso) return null;
+  const d = new Date(iso + 'T00:00:00');
+  if (isNaN(d)) return null;
+  return Math.round((d - new Date(new Date().toDateString())) / 86400000);
+}
+
+function SurvieView({ survie, updateSurvie, ferments, addCourse }) {
+  const h = React.createElement;
+  const sv = survie || {};
+  const foyer = Number(sv.foyer) > 0 ? Number(sv.foyer) : 2;
+  const stocks = Array.isArray(sv.stocks) ? sv.stocks : [];
+  const bob = sv.bob || { dja: [], liika: [], commun: [] };
+  const plan = sv.plan || { ralliement: [], contacts: [], protocoles: [] };
+  const fermentsCount = Array.isArray(ferments) ? ferments.filter(f => !f.done).length : 0;
+
+  const [nf, setNf] = useState({ nom: '', cat: 'Nourriture', qte: '1', unite: 'u', parJour: '', peremption: '' });
+
+  // ── Calculs : autonomie & niveau de préparation ──
+  const calc = useMemo(() => {
+    // parJour = conso PAR PERSONNE et PAR JOUR → conso foyer = parJour × foyer.
+    const autoCat = cat => stocks
+      .filter(s => s.cat === cat && Number(s.parJour) > 0)
+      .reduce((sum, s) => sum + (Number(s.qte) || 0) / ((Number(s.parJour) || 1) * foyer), 0);
+    const autonomieEau = autoCat('Eau');
+    const autonomieNour = autoCat('Nourriture');
+    const aMedical = stocks.some(s => s.cat === 'Médical' && (Number(s.qte) || 0) > 0);
+    const allBob = [...(bob.dja || []), ...(bob.liika || []), ...(bob.commun || [])];
+    const bobDone = allBob.filter(b => b.done).length;
+    const pBob = allBob.length ? bobDone / allBob.length : 0;
+    const expired = stocks.filter(s => { const d = survieDaysLeft(s.peremption); return d != null && d < 0; });
+    const bientot = stocks.filter(s => { const d = survieDaysLeft(s.peremption); return d != null && d >= 0 && d <= 30; });
+    const pEau = Math.min(1, autonomieEau / 14);
+    const pNour = Math.min(1, autonomieNour / 14);
+    const pMed = aMedical ? 1 : 0;
+    let score = Math.round(100 * (0.3 * pEau + 0.3 * pNour + 0.15 * pMed + 0.25 * pBob));
+    if (expired.length) score = Math.max(0, score - 15);
+    const condition = score >= 75 ? { label: 'CONDITION VERTE', color: '#22c55e' }
+      : score >= 45 ? { label: 'CONDITION ORANGE', color: '#f59e0b' }
+        : { label: 'CONDITION ROUGE', color: '#ef4444' };
+    return { autonomieEau, autonomieNour, aMedical, bobDone, bobTotal: allBob.length, pBob, expired, bientot, score, condition };
+  }, [stocks, bob]);
+
+  const inp = { padding: '8px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'rgba(255,255,255,.07)', color: 'var(--text)', fontSize: 13 };
+  const card = { background: 'rgba(255,255,255,.05)', border: '1px solid var(--border)', borderRadius: 12, padding: 16 };
+
+  // ── Mutations ──
+  const addStock = () => {
+    const nom = nf.nom.trim();
+    if (!nom) return;
+    const item = { id: 'sv-' + Date.now(), nom, cat: nf.cat, qte: Number(nf.qte) || 1, unite: nf.unite, parJour: Number(nf.parJour) || 0, peremption: nf.peremption || '', note: '' };
+    updateSurvie(s => { (s.stocks = s.stocks || []).push(item); });
+    setNf({ nom: '', cat: nf.cat, qte: '1', unite: nf.unite, parJour: '', peremption: '' });
+  };
+  const setStock = (id, field, val) => updateSurvie(s => { const i = s.stocks.findIndex(x => x.id === id); if (i >= 0) s.stocks[i][field] = val; });
+  const delStock = id => updateSurvie(s => { s.stocks = s.stocks.filter(x => x.id !== id); });
+  const reappro = it => addCourse && addCourse({ id: 'c-' + Date.now(), nom: it.nom, qte: 1, unite: it.unite || '', rayon: rayonForItem(it.nom), prix: '', done: false });
+
+  const toggleBob = (who, id) => updateSurvie(s => { const a = (s.bob[who] || []); const i = a.findIndex(x => x.id === id); if (i >= 0) a[i].done = !a[i].done; });
+  const addBob = (who, label) => { const l = (label || '').trim(); if (!l) return; updateSurvie(s => { (s.bob[who] = s.bob[who] || []).push({ id: 'b-' + Date.now(), label: l, done: false }); }); };
+  const delBob = (who, id) => updateSurvie(s => { s.bob[who] = (s.bob[who] || []).filter(x => x.id !== id); });
+
+  const addPlan = (key, obj) => updateSurvie(s => { (s.plan[key] = s.plan[key] || []).push(obj); });
+  const setPlan = (key, id, field, val) => updateSurvie(s => { const i = s.plan[key].findIndex(x => x.id === id); if (i >= 0) s.plan[key][i][field] = val; });
+  const delPlan = (key, id) => updateSurvie(s => { s.plan[key] = (s.plan[key] || []).filter(x => x.id !== id); });
+
+  const fmtJours = n => n >= 1 ? Math.floor(n) + ' j' : (n > 0 ? '<1 j' : '0 j');
+
+  // ── Rendu ──
+  return h('div', { style: { maxWidth: 1000, margin: '0 auto' } },
+    // En-tête + condition
+    h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 18 } },
+      h('div', null,
+        h('h2', { style: { color: 'var(--gold)', margin: 0 } }, '🪖 Base Purple Moon'),
+        h('div', { style: { fontSize: 12, color: 'var(--text2)', fontFamily: "'Space Mono',monospace", marginTop: 2 } }, 'Protocole survie — foyer ' + foyer + ' pers.')
+      ),
+      h('div', { style: { textAlign: 'right' } },
+        h('div', { style: { display: 'inline-block', padding: '6px 14px', borderRadius: 8, fontWeight: 700, letterSpacing: '.08em', fontSize: 13, color: '#0b0b0b', background: calc.condition.color, fontFamily: "'Space Mono',monospace" } }, calc.condition.label),
+        h('div', { style: { fontSize: 11, color: 'var(--text2)', marginTop: 4 } }, 'Préparation : ' + calc.score + '%')
+      )
+    ),
+
+    // Tableau de bord (cartes)
+    h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 12, marginBottom: 22 } },
+      h('div', { style: card },
+        h('div', { style: { fontSize: 11, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '.05em' } }, '💧 Autonomie eau'),
+        h('div', { style: { fontSize: 26, fontWeight: 700, color: calc.autonomieEau >= 14 ? '#22c55e' : calc.autonomieEau >= 7 ? '#f59e0b' : '#ef4444' } }, fmtJours(calc.autonomieEau)),
+        h('div', { style: { fontSize: 10, color: 'var(--text2)' } }, 'objectif ≥ 14 j')
+      ),
+      h('div', { style: card },
+        h('div', { style: { fontSize: 11, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '.05em' } }, '🥫 Autonomie vivres'),
+        h('div', { style: { fontSize: 26, fontWeight: 700, color: calc.autonomieNour >= 14 ? '#22c55e' : calc.autonomieNour >= 7 ? '#f59e0b' : '#ef4444' } }, fmtJours(calc.autonomieNour)),
+        h('div', { style: { fontSize: 10, color: 'var(--text2)' } }, 'objectif ≥ 14 j')
+      ),
+      h('div', { style: card },
+        h('div', { style: { fontSize: 11, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '.05em' } }, '🎒 Sacs prêts'),
+        h('div', { style: { fontSize: 26, fontWeight: 700, color: 'var(--gold)' } }, calc.bobDone + '/' + calc.bobTotal),
+        h('div', { style: { fontSize: 10, color: 'var(--text2)' } }, Math.round(calc.pBob * 100) + '% opérationnel')
+      ),
+      h('div', { style: card },
+        h('div', { style: { fontSize: 11, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '.05em' } }, '🌿 Réserves ferments'),
+        h('div', { style: { fontSize: 26, fontWeight: 700, color: 'var(--gold)' } }, fermentsCount),
+        h('div', { style: { fontSize: 10, color: 'var(--text2)' } }, 'bocaux en cours (DrevmCook)')
+      )
+    ),
+
+    // Alertes péremption
+    (calc.expired.length || calc.bientot.length)
+      ? h('div', { style: { ...card, borderColor: '#ef4444', marginBottom: 22, background: 'rgba(239,68,68,.08)' } },
+          h('div', { style: { fontWeight: 700, color: '#ef4444', marginBottom: 6, fontSize: 13 } }, '⚠ Alertes péremption'),
+          calc.expired.map(s => h('div', { key: s.id, style: { fontSize: 12, color: 'var(--text)' } }, '• ' + s.nom + ' — PÉRIMÉ')),
+          calc.bientot.map(s => h('div', { key: s.id, style: { fontSize: 12, color: 'var(--text2)' } }, '• ' + s.nom + ' — expire dans ' + survieDaysLeft(s.peremption) + ' j'))
+        )
+      : null,
+
+    // ── STOCKS ──
+    h('h3', { style: { color: 'var(--gold)', fontSize: 15, marginBottom: 10 } }, '📦 Stocks & autonomie'),
+    h('div', { style: { ...card, marginBottom: 12 } },
+      h('div', { style: { display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' } },
+        h('input', { style: { ...inp, flex: 2, minWidth: 140 }, placeholder: 'Article…', value: nf.nom, onChange: e => setNf({ ...nf, nom: e.target.value }), onKeyDown: e => e.key === 'Enter' && addStock() }),
+        h('select', { style: inp, value: nf.cat, onChange: e => setNf({ ...nf, cat: e.target.value }) }, SURVIE_CATS.map(c => h('option', { key: c, value: c }, c))),
+        h('input', { style: { ...inp, width: 60 }, type: 'number', placeholder: 'Qté', value: nf.qte, onChange: e => setNf({ ...nf, qte: e.target.value }) }),
+        h('select', { style: inp, value: nf.unite, onChange: e => setNf({ ...nf, unite: e.target.value }) }, SURVIE_UNITES.map(u => h('option', { key: u, value: u }, u))),
+        h('input', { style: { ...inp, width: 90 }, type: 'number', step: 'any', placeholder: '/j/pers', title: 'Conso par jour et par personne (×' + foyer + ' = foyer)', value: nf.parJour, onChange: e => setNf({ ...nf, parJour: e.target.value }) }),
+        h('input', { style: { ...inp, width: 140 }, type: 'date', title: 'Péremption', value: nf.peremption, onChange: e => setNf({ ...nf, peremption: e.target.value }) }),
+        h('button', { onClick: addStock, style: { padding: '8px 16px', borderRadius: 7, border: 'none', background: 'var(--gold)', color: '#1a1208', fontWeight: 600, cursor: 'pointer' } }, '+ Ajouter')
+      )
+    ),
+    h('div', { style: { display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 26 } },
+      SURVIE_CATS.filter(c => stocks.some(s => s.cat === c)).map(cat =>
+        h('div', { key: cat },
+          h('div', { style: { fontSize: 12, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '.05em', margin: '6px 0 4px' } }, (SURVIE_CAT_ICON[cat] || '📦') + ' ' + cat),
+          stocks.filter(s => s.cat === cat).map(s => {
+            const dl = survieDaysLeft(s.peremption);
+            const auto = Number(s.parJour) > 0 ? (Number(s.qte) || 0) / (Number(s.parJour) * foyer) : null;
+            return h('div', { key: s.id, style: { ...card, padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' } },
+              h('span', { style: { flex: 2, minWidth: 120, fontSize: 13, color: 'var(--text)' } }, s.nom),
+              h('input', { style: { ...inp, width: 60 }, type: 'number', value: s.qte, onChange: e => setStock(s.id, 'qte', Number(e.target.value) || 0) }),
+              h('span', { style: { fontSize: 12, color: 'var(--text2)', width: 50 } }, s.unite),
+              auto != null ? h('span', { style: { fontSize: 11, color: 'var(--text2)', width: 70 } }, '≈ ' + fmtJours(auto)) : h('span', { style: { width: 70 } }),
+              dl != null ? h('span', { style: { fontSize: 11, fontWeight: 600, color: dl < 0 ? '#ef4444' : dl <= 30 ? '#f59e0b' : 'var(--text2)' } }, dl < 0 ? 'périmé' : dl + ' j') : h('span', null),
+              h('button', { onClick: () => reappro(s), title: 'Ajouter aux courses', style: { background: 'none', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text2)', cursor: 'pointer', fontSize: 11, padding: '3px 8px' } }, '🛒 Réappro'),
+              h('button', { onClick: () => delStock(s.id), title: 'Supprimer', style: { background: 'none', border: 'none', color: 'var(--text)', opacity: .5, cursor: 'pointer', fontSize: 16 } }, '×')
+            );
+          })
+        )
+      )
+    ),
+
+    // ── BOB ──
+    h('h3', { style: { color: 'var(--gold)', fontSize: 15, marginBottom: 10 } }, '🎒 Sacs d\'évacuation (BOB)'),
+    h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', gap: 12, marginBottom: 26 } },
+      [['dja', 'Dja'], ['liika', 'Liika (Purple Moon)'], ['commun', 'Commun']].map(([key, label]) =>
+        h('div', { key: key, style: card },
+          h('div', { style: { fontWeight: 700, color: 'var(--gold)', marginBottom: 8, fontSize: 13 } }, label),
+          (bob[key] || []).map(b =>
+            h('div', { key: b.id, style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 } },
+              h('input', { type: 'checkbox', checked: !!b.done, onChange: () => toggleBob(key, b.id), style: { width: 16, height: 16, accentColor: 'var(--gold)', cursor: 'pointer' } }),
+              h('span', { style: { flex: 1, fontSize: 13, color: 'var(--text)', textDecoration: b.done ? 'line-through' : 'none', opacity: b.done ? .6 : 1 } }, b.label),
+              h('button', { onClick: () => delBob(key, b.id), style: { background: 'none', border: 'none', color: 'var(--text)', opacity: .4, cursor: 'pointer' } }, '×')
+            )
+          ),
+          h('form', { onSubmit: e => { e.preventDefault(); const v = e.target.elements.l.value; addBob(key, v); e.target.reset(); }, style: { marginTop: 6, display: 'flex', gap: 6 } },
+            h('input', { name: 'l', style: { ...inp, flex: 1 }, placeholder: '+ élément…' }),
+            h('button', { type: 'submit', style: { padding: '0 12px', borderRadius: 7, border: '1px solid var(--border)', background: 'rgba(255,255,255,.08)', color: 'var(--gold)', cursor: 'pointer', fontSize: 16, fontWeight: 700 } }, '+')
+          )
+        )
+      )
+    ),
+
+    // ── PLAN D'URGENCE ──
+    h('h3', { style: { color: 'var(--gold)', fontSize: 15, marginBottom: 10 } }, '🧭 Plan d\'urgence'),
+    h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 12 } },
+      // Points de ralliement
+      h('div', { style: card },
+        h('div', { style: { fontWeight: 700, color: 'var(--gold)', marginBottom: 8, fontSize: 13 } }, '📍 Points de ralliement'),
+        (plan.ralliement || []).map(p =>
+          h('div', { key: p.id, style: { marginBottom: 8 } },
+            h('div', { style: { display: 'flex', gap: 6 } },
+              h('input', { style: { ...inp, flex: 1 }, value: p.nom, placeholder: 'Nom', onChange: e => setPlan('ralliement', p.id, 'nom', e.target.value) }),
+              h('button', { onClick: () => delPlan('ralliement', p.id), style: { background: 'none', border: 'none', color: 'var(--text)', opacity: .4, cursor: 'pointer' } }, '×')
+            ),
+            h('input', { style: { ...inp, width: '100%', marginTop: 4 }, value: p.adresse || '', placeholder: 'Adresse / repère', onChange: e => setPlan('ralliement', p.id, 'adresse', e.target.value) })
+          )
+        ),
+        h('button', { onClick: () => addPlan('ralliement', { id: 'rp-' + Date.now(), nom: '', adresse: '', note: '' }), style: { background: 'none', border: '1px dashed var(--border)', borderRadius: 7, color: 'var(--text2)', cursor: 'pointer', fontSize: 12, padding: '6px 10px', marginTop: 4 } }, '+ Point')
+      ),
+      // Contacts
+      h('div', { style: card },
+        h('div', { style: { fontWeight: 700, color: 'var(--gold)', marginBottom: 8, fontSize: 13 } }, '📞 Contacts'),
+        (plan.contacts || []).map(c =>
+          h('div', { key: c.id, style: { display: 'flex', gap: 6, marginBottom: 6 } },
+            h('input', { style: { ...inp, flex: 1 }, value: c.nom, placeholder: 'Nom', onChange: e => setPlan('contacts', c.id, 'nom', e.target.value) }),
+            h('input', { style: { ...inp, width: 110 }, value: c.tel || '', placeholder: 'Tél', onChange: e => setPlan('contacts', c.id, 'tel', e.target.value) }),
+            h('button', { onClick: () => delPlan('contacts', c.id), style: { background: 'none', border: 'none', color: 'var(--text)', opacity: .4, cursor: 'pointer' } }, '×')
+          )
+        ),
+        h('button', { onClick: () => addPlan('contacts', { id: 'pc-' + Date.now(), nom: '', role: '', tel: '' }), style: { background: 'none', border: '1px dashed var(--border)', borderRadius: 7, color: 'var(--text2)', cursor: 'pointer', fontSize: 12, padding: '6px 10px', marginTop: 4 } }, '+ Contact')
+      ),
+      // Protocoles
+      h('div', { style: card },
+        h('div', { style: { fontWeight: 700, color: 'var(--gold)', marginBottom: 8, fontSize: 13 } }, '📋 Protocoles'),
+        (plan.protocoles || []).map(p =>
+          h('div', { key: p.id, style: { marginBottom: 8 } },
+            h('div', { style: { display: 'flex', gap: 6 } },
+              h('input', { style: { ...inp, flex: 1 }, value: p.scenario, placeholder: 'Scénario', onChange: e => setPlan('protocoles', p.id, 'scenario', e.target.value) }),
+              h('button', { onClick: () => delPlan('protocoles', p.id), style: { background: 'none', border: 'none', color: 'var(--text)', opacity: .4, cursor: 'pointer' } }, '×')
+            ),
+            h('textarea', { style: { ...inp, width: '100%', marginTop: 4, minHeight: 50, resize: 'vertical' }, value: p.texte || '', placeholder: 'Conduite à tenir…', onChange: e => setPlan('protocoles', p.id, 'texte', e.target.value) })
+          )
+        ),
+        h('button', { onClick: () => addPlan('protocoles', { id: 'pr-' + Date.now(), scenario: '', texte: '' }), style: { background: 'none', border: '1px dashed var(--border)', borderRadius: 7, color: 'var(--text2)', cursor: 'pointer', fontSize: 12, padding: '6px 10px', marginTop: 4 } }, '+ Protocole')
+      )
+    )
+  );
+}
+
 function DrevmCookView({
   ferments,
   upsertFerment,
@@ -7160,6 +7447,18 @@ const ch=sb.channel('ld-realtime')
     });
     sbDeleteMedia(id).catch(() => {});
   }, []);
+  // Survie : mutateur générique sur couple.survie (passe par setData → stamp + synchro section)
+  const updateSurvie = useCallback(fn => {
+    setData(prev => {
+      const next = clone(prev);
+      if (!next.couple.survie || typeof next.couple.survie !== 'object') next.couple.survie = clone(defaultData.couple.survie);
+      if (!next.couple.survie.bob) next.couple.survie.bob = { dja: [], liika: [], commun: [] };
+      if (!next.couple.survie.plan) next.couple.survie.plan = { ralliement: [], contacts: [], protocoles: [] };
+      if (!Array.isArray(next.couple.survie.stocks)) next.couple.survie.stocks = [];
+      fn(next.couple.survie);
+      return next;
+    });
+  }, []);
   const togglePlanningCheck = useCallback((day, itemId) => {
     setData(prev => {
       const next = clone(prev);
@@ -7375,6 +7674,10 @@ const ch=sb.channel('ld-realtime')
     id: 'drevmcook',
     label: 'DrevmCook',
     icon: '🌿'
+  }, {
+    id: 'survie',
+    label: 'Survie',
+    icon: '🪖'
   }, {
     id: 'culture',
     label: 'Culture GWA',
@@ -9249,6 +9552,11 @@ const ch=sb.channel('ld-realtime')
     importRecipes: importRecipes
   }), view === 'culture' && /*#__PURE__*/React.createElement(CultureGwadView, null), view === 'route' && renderRoute(), view === 'objmensuel' && renderObjMensuel(), view === 'calendar' && /*#__PURE__*/React.createElement(CalendarView, {
     data: data
+  }), view === 'survie' && /*#__PURE__*/React.createElement(SurvieView, {
+    survie: (data.couple || {}).survie || {},
+    updateSurvie: updateSurvie,
+    ferments: data.ferments || [],
+    addCourse: addCourse
   }), view === 'media' && /*#__PURE__*/React.createElement(MediaView, {
     media: data.media || [],
     addMedia: addMedia,
