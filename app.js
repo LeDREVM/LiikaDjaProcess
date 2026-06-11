@@ -634,6 +634,7 @@ const defaultData = {
       liste: [],
       custom: []
     },
+    motivations: [],
     maison: {
       checked: {},
       custom: [],
@@ -1589,6 +1590,60 @@ const DEFAULT_IDEES = [{
   id: 'di22',
   text: 'Regarder le coucher de soleil ensemble au Point des Châteaux'
 }];
+
+// ─── Phrases de motivation quotidienne ───
+const DEFAULT_MOTIVATIONS = [
+  { id: 'mo1',  text: 'Chaque jour est une nouvelle page à écrire ensemble ♡' },
+  { id: 'mo2',  text: 'La distance entre le rêve et la réalité s\'appelle l\'action.' },
+  { id: 'mo3',  text: 'Vous êtes plus forts ensemble que séparément.' },
+  { id: 'mo4',  text: 'Petit à petit, l\'oiseau fait son nid — chaque effort compte.' },
+  { id: 'mo5',  text: 'La Guadeloupe vous inspire, laissez-la vous nourrir de beauté.' },
+  { id: 'mo6',  text: 'Votre vision 2026-2036 commence aujourd\'hui, maintenant.' },
+  { id: 'mo7',  text: 'Semer avec intention, récolter avec gratitude.' },
+  { id: 'mo8',  text: 'L\'amour grandit quand on l\'arrose de présence et d\'attention.' },
+  { id: 'mo9',  text: 'Ce que vous mangez nourrit non seulement le corps, mais l\'esprit.' },
+  { id: 'mo10', text: 'Un pas vers vos objectifs vaut mieux que mille paroles.' },
+  { id: 'mo11', text: 'La constance bat le talent quand le talent ne travaille pas.' },
+  { id: 'mo12', text: 'Votre énergie est votre trésor le plus précieux — protégez-la.' },
+  { id: 'mo13', text: 'Ensemble vous transformez les projets en réalités.' },
+  { id: 'mo14', text: 'Le soleil des Antilles rappelle que chaque matin est un cadeau.' },
+  { id: 'mo15', text: 'Célébrez chaque petite victoire — elles forgent les grandes.' },
+  { id: 'mo16', text: 'Votre cuisine est un acte d\'amour envers vos corps et la planète.' },
+  { id: 'mo17', text: 'Disciplinés sur les petites choses, libres sur les grandes.' },
+  { id: 'mo18', text: 'La santé est la fondation de tous vos rêves — prenez-en soin.' },
+  { id: 'mo19', text: 'Chaque ferment que vous créez est une leçon de patience et de vie.' },
+  { id: 'mo20', text: 'Ce qui ne vous défie pas ne vous fait pas grandir.' },
+  { id: 'mo21', text: 'Vos objectifs ne vous attendent pas — c\'est vous qui devez avancer.' },
+  { id: 'mo22', text: 'La gratitude ouvre les portes que l\'inquiétude ferme.' },
+  { id: 'mo23', text: 'Restez curieux — chaque jour cache une connaissance à découvrir.' },
+  { id: 'mo24', text: 'Votre couple est une œuvre d\'art que vous créez ensemble chaque jour.' },
+  { id: 'mo25', text: 'Faire confiance au processus, même quand le résultat n\'est pas visible.' },
+  { id: 'mo26', text: 'La nature vous enseigne la résilience — observez, apprenez, croissez.' },
+  { id: 'mo27', text: 'Chaque "non" à ce qui vous draine est un "oui" à ce qui vous nourrit.' },
+  { id: 'mo28', text: 'Les rêves les plus grands commencent par la discipline la plus humble.' },
+  { id: 'mo29', text: 'Votre authenticité est votre plus grande force — ne la trahissez jamais.' },
+  { id: 'mo30', text: 'Breathe. Focus. Build. — Ensemble, vous pouvez tout construire.' },
+  { id: 'mo31', text: 'Le chemin vers la liberté financière se trace pas à pas, budget après budget.' },
+  { id: 'mo32', text: 'Nourrir son corps de plantes vivantes, c\'est nourrir son âme.' },
+  { id: 'mo33', text: 'Votre histoire s\'écrit maintenant — faites-en une belle.' },
+  { id: 'mo34', text: 'La mer des Antilles vous rappelle l\'infini de vos possibilités.' },
+  { id: 'mo35', text: 'Prenez soin de vous pour mieux prendre soin de l\'autre.' },
+  { id: 'mo36', text: 'Chaque objectif coché est une promesse tenue envers vous-mêmes.' },
+  { id: 'mo37', text: 'La force d\'un couple se mesure dans les moments difficiles.' },
+  { id: 'mo38', text: 'Ce que vous semez dans vos habitudes, vous le récoltez dans votre vie.' },
+  { id: 'mo39', text: 'L\'art, la cuisine, la nature — votre vie est déjà riche.' },
+  { id: 'mo40', text: 'Avancez lentement si nécessaire, mais n\'arrêtez jamais.' },
+  { id: 'mo41', text: 'La cohérence est la magie que vous pouvez pratiquer chaque jour.' },
+  { id: 'mo42', text: 'Votre jardin intérieur mérite autant de soin que vos ferments.' },
+  { id: 'mo43', text: 'Imaginez qui vous serez dans 5 ans si vous agissez dès aujourd\'hui.' },
+  { id: 'mo44', text: 'Moins de bruit, plus de profondeur — vous êtes sur la bonne voie.' },
+  { id: 'mo45', text: 'Le couple qui crée ensemble, évolue ensemble.' },
+  { id: 'mo46', text: 'Votre créativité est inépuisable — laissez-la s\'exprimer.' },
+  { id: 'mo47', text: 'Chaque difficulté surmontée ensemble renforce votre lien.' },
+  { id: 'mo48', text: 'La simplicité choisie est plus puissante que l\'abondance subie.' },
+  { id: 'mo49', text: 'Vous êtes le projet le plus important que vous ayez jamais entrepris.' },
+  { id: 'mo50', text: 'Aujourd\'hui est un bon jour pour être fiers de qui vous êtes devenus.' }
+];
 
 // ─── Default recipes DrevmCook ───
 const DEFAULT_RECIPES = [{
@@ -6948,6 +7003,69 @@ function JeuxView({ games, updateGames }) {
     tab === 'rewards' && renderRewards());
 }
 
+// ─── Toast motivation quotidienne ───
+function MotivationToast({ message, onClose }) {
+  const [visible, setVisible] = React.useState(false);
+  React.useEffect(() => {
+    // fondu entrant
+    const t1 = setTimeout(() => setVisible(true), 50);
+    // auto-fermeture après 8 s
+    const t2 = setTimeout(() => { setVisible(false); setTimeout(onClose, 400); }, 8000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, []);
+  const handleClose = () => { setVisible(false); setTimeout(onClose, 400); };
+  return React.createElement('div', {
+    onClick: handleClose,
+    style: {
+      position: 'fixed',
+      bottom: 80,
+      left: '50%',
+      transform: `translateX(-50%) translateY(${visible ? 0 : 20}px)`,
+      opacity: visible ? 1 : 0,
+      transition: 'opacity .4s ease, transform .4s ease',
+      zIndex: 9999,
+      maxWidth: 420,
+      width: 'calc(100vw - 40px)',
+      background: 'rgba(18,28,18,.92)',
+      border: '1px solid var(--gold-border)',
+      borderRadius: 14,
+      boxShadow: '0 8px 32px rgba(0,0,0,.6)',
+      padding: '14px 44px 14px 16px',
+      backdropFilter: 'blur(10px)',
+      cursor: 'pointer'
+    }
+  },
+    React.createElement('div', {
+      style: { display: 'flex', alignItems: 'flex-start', gap: 10 }
+    },
+      React.createElement('span', { style: { fontSize: 18, lineHeight: 1.2, flexShrink: 0 } }, '✨'),
+      React.createElement('p', {
+        style: {
+          margin: 0,
+          fontSize: 13,
+          lineHeight: 1.5,
+          color: 'var(--text)',
+          fontStyle: 'italic'
+        }
+      }, message)
+    ),
+    React.createElement('button', {
+      onClick: e => { e.stopPropagation(); handleClose(); },
+      style: {
+        position: 'absolute',
+        top: 8, right: 10,
+        background: 'none',
+        border: 'none',
+        color: 'var(--text-muted)',
+        fontSize: 16,
+        cursor: 'pointer',
+        lineHeight: 1,
+        padding: '2px 4px'
+      }
+    }, '×')
+  );
+}
+
 // ─── Main App ───
 function App(){
 const vw=useWindowWidth();
@@ -6979,6 +7097,8 @@ const [newObjM,setNewObjM]=useState({titre:'',detail:'',categorie:'Nature'});
 // État de la vue "Route Liika" (perdu lors d'une fusion, restauré ici au niveau App)
 const [routeKm,setRouteKm]=useState(0);
 const [routeChecklist,setRouteChecklist]=useState({});
+const [showMotivation,setShowMotivation]=useState(false);
+const [motivationMsg,setMotivationMsg]=useState('');
 const activeProfile=ui?.activeProfile||'dja';
 const profileLabel=activeProfile==='dja'?'Dja':activeProfile==='liika'?'Liika':'Couple';
 const setActiveProfile=useCallback((who)=>setUI(prev=>({...prev,activeProfile:who})),[]);
@@ -7012,6 +7132,23 @@ useEffect(()=>{
     window.removeEventListener('resize',update);
     if(rafId) window.cancelAnimationFrame(rafId);
   };
+},[]);
+
+// Popup de motivation — une seule fois par jour au montage
+useEffect(()=>{
+  const today=new Date().toDateString();
+  if(localStorage.getItem('ld-motivation-date')===today) return;
+  const custom=(data.couple||{}).motivations||[];
+  const all=[...DEFAULT_MOTIVATIONS,...custom];
+  if(!all.length) return;
+  const dayOfYear=Math.floor((new Date()-new Date(new Date().getFullYear(),0,0))/864e5);
+  const item=all[dayOfYear%all.length];
+  setMotivationMsg(typeof item==='string'?item:(item.text||''));
+  const t=setTimeout(()=>{
+    setShowMotivation(true);
+    localStorage.setItem('ld-motivation-date',today);
+  },2000);
+  return ()=>clearTimeout(t);
 },[]);
 
 // Persiste localStorage à chaque changement
@@ -9569,6 +9706,9 @@ const ch=sb.channel('ld-realtime')
     onAdd: (t, d, c) => {
       if (modal.type === 'objective') addObjective(modal.who, t, d, c);else addAction(modal.who, t, d, c);
     }
+  }), showMotivation && React.createElement(MotivationToast, {
+    message: motivationMsg,
+    onClose: () => setShowMotivation(false)
   }));
 }
 ReactDOM.createRoot(document.getElementById('root')).render(/*#__PURE__*/React.createElement(App, null));
