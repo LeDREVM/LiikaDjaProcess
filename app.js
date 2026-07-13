@@ -727,6 +727,7 @@ function normalize(d) {
   if (Array.isArray(d.ferments)) base.ferments = d.ferments;
   if (Array.isArray(d.courses)) base.courses = d.courses;
   if (Array.isArray(d.media)) base.media = d.media;
+  if (!Array.isArray(base.couple.motivations)) base.couple.motivations = [];
   // Survie : garantir la forme (le spread couple ci-dessus a pu remplacer survie par une version partielle)
   {
     const sd = (d.couple && typeof d.couple.survie === 'object' && d.couple.survie) ? d.couple.survie : {};
@@ -7134,22 +7135,21 @@ useEffect(()=>{
   };
 },[]);
 
-// Popup de motivation — une seule fois par jour au montage
+// Popup de motivation — une seule fois par jour, après synchro Supabase
 useEffect(()=>{
+  if(!initialSyncDone) return; // attendre les données Supabase (motivations custom)
   const today=new Date().toDateString();
   if(localStorage.getItem('ld-motivation-date')===today) return;
-  const custom=(data.couple||{}).motivations||[];
+  localStorage.setItem('ld-motivation-date',today); // marquer avant le timer (survit à un démontage rapide)
+  const custom=((data.couple||{}).motivations||[]).filter(Boolean); // filtrer les entrées null
   const all=[...DEFAULT_MOTIVATIONS,...custom];
-  if(!all.length) return;
-  const dayOfYear=Math.floor((new Date()-new Date(new Date().getFullYear(),0,0))/864e5);
+  const now=new Date();
+  const dayOfYear=Math.floor((now-new Date(now.getFullYear(),0,0))/864e5);
   const item=all[dayOfYear%all.length];
-  setMotivationMsg(typeof item==='string'?item:(item.text||''));
-  const t=setTimeout(()=>{
-    setShowMotivation(true);
-    localStorage.setItem('ld-motivation-date',today);
-  },2000);
+  setMotivationMsg(typeof item==='string'?item:((item&&item.text)||''));
+  const t=setTimeout(()=>{ setShowMotivation(true); },2000);
   return ()=>clearTimeout(t);
-},[]);
+},[initialSyncDone]);
 
 // Persiste localStorage à chaque changement
 useEffect(()=>saveData(data),[data]);
