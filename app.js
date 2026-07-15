@@ -7038,11 +7038,209 @@ const REMC_ETAPES = [
   { id:'et', label:'ET — Exécution de la tâche', desc:'L\'élève s\'exerce sous guidage du formateur.' },
   { id:'ev', label:'EV — Évaluation', desc:'Le formateur évalue l\'acquisition, donne le bilan et fixe les objectifs suivants.' },
 ];
+const REMC_FICHES_REVISION = [
+  {
+    id:'fr11', code:'C1.1', domaine:'🔧 D1', titre:'Prise en main du véhicule',
+    pointsCles:[
+      'Réglages poste : siège (bras légèrement fléchis sur le volant), dossier incliné, appuie-tête au niveau des yeux, ceinture',
+      'Rétroviseurs : intérieur (cadre complet de la lunette arrière), extérieurs (flancs visibles sur 1/4)',
+      'Vérifications extérieures : état des pneus (sculpture ≥ 1,6 mm, pression), éclairages, niveaux (huile, liquide de frein, lave-glace, refroidissement)',
+      'Voyants tableau de bord : moteur (orange), batterie (rouge), température (rouge), préchauffage diesel (serpentin orange)',
+      'Position de conduite : mains à 9h15, dos appuyé, cuisses légèrement inclinées vers le bas',
+    ],
+    erreursFrequentes:[
+      'Oublier les pneus arrière lors des vérifications extérieures',
+      'Rétroviseurs mal réglés → angles morts élargis',
+      'Démarrer avec un voyant rouge allumé (batterie, température, pression huile)',
+      'Siège trop proche ou trop loin → gêne sur pédale de frein d\'urgence',
+    ],
+    questionsExamen:[
+      'Que signifie le voyant moteur orange allumé en roulant ?',
+      'À quelle fréquence vérifier la pression des pneus ?',
+      'Quelle est la profondeur de sculpture minimale légale des pneus ?',
+      'Comment régler correctement les rétroviseurs extérieurs ?',
+    ],
+  },
+  {
+    id:'fr12', code:'C1.2', domaine:'🔧 D1', titre:'Direction et vitesse',
+    pointsCles:[
+      'Technique de direction : mains en couronne (9h15), pas de croisement des bras, technique shuffle au-dessous de 40 km/h',
+      'Trajectoire en courbe : regard loin (point de sortie), décélérer AVANT la courbe, maintenir l\'allure dans la courbe',
+      'Freinage progressif : appui ferme et croissant, relâchement doux avant l\'arrêt complet',
+      'Freinage d\'urgence : pied fort et maintenu (confier à l\'ABS), garder les roues droites, regarder la sortie',
+      'Distances de sécurité : règle des 2 secondes (chronomètre sur repère fixe), × 2 sur route mouillée, × 3 sur verglas',
+    ],
+    erreursFrequentes:[
+      'Accélérer en courbe → sous-virage (sortie de route)',
+      'Freiner en courbe → transfert de charge, perte d\'adhérence',
+      'Regard fixé devant le capot au lieu de loin (15-20 m minimum)',
+      'Relâcher le frein trop tôt en freinage d\'urgence → allongement de la distance d\'arrêt',
+    ],
+    questionsExamen:[
+      'Comment réagir en cas d\'aquaplaning ?',
+      'Quelle distance de sécurité en ville à 50 km/h (temps de réaction de 1s) ?',
+      'Pourquoi ne pas freiner en courbe avec un véhicule sans ABS ?',
+      'Qu\'est-ce que la distance d\'arrêt (réaction + freinage) à 90 km/h ?',
+    ],
+  },
+  {
+    id:'fr13', code:'C1.3', domaine:'🔧 D1', titre:'Manœuvres',
+    pointsCles:[
+      'Créneau : vérification rétros + angle mort, 45° puis braquage opposé, trottoir visible dans le rétro bas',
+      'Demi-tour : évaluer la largeur, clignotant gauche, 3 à 5 points si nécessaire, priorité aux piétons',
+      'Marche arrière droite : regard par la lunette et les rétros, tête tournée, allure lente (inférieure au pas)',
+      'Stationnement en côte : frein à main serré, 1ère (montée) ou marche arrière (descente), roues braquées vers le trottoir',
+      'Créneau en bataille : angle 90°, utiliser les lignes peintes comme repères',
+    ],
+    erreursFrequentes:[
+      'Heurter le trottoir lors de la rentrée en créneau (pas assez de braquage)',
+      'Oublier l\'angle mort avant de reculer',
+      'Repartir sans desserrer le frein à main → surchauffe des garnitures',
+      'Trop grande vitesse en marche arrière → réaction tardive',
+    ],
+    questionsExamen:[
+      'Quand le demi-tour est-il interdit ?',
+      'Comment stationner en côte montante côté droit ?',
+      'Comment vérifier que le créneau est réussi sans descendre du véhicule ?',
+    ],
+  },
+  {
+    id:'fr21', code:'C2.1', domaine:'👁 D2', titre:'Percevoir et analyser',
+    pointsCles:[
+      'Balayage visuel : miroir intérieur toutes les 5-8 secondes, rétros extérieurs à chaque changement de situation',
+      'Angle mort : vérification tête (regard par-dessus l\'épaule) avant tout changement de direction ou de voie',
+      'Anticipation : lire la route 12 s devant en rase campagne, 4-6 s en ville',
+      'Zones à risque : sorties de parking, entrées d\'immeubles, arrêts de bus, arrêts de tramway',
+      'Cyclistes et piétons : 1 m d\'écart latéral en agglomération, 1,5 m hors agglomération',
+    ],
+    erreursFrequentes:[
+      'Fixation du regard (regarder uniquement droit devant)',
+      'Négliger l\'angle mort lors des insertions sur voie rapide',
+      'Sous-estimer la vitesse d\'un cycliste ou d\'un piéton qui traverse',
+      'Réagir trop tard à un obstacle lointain (manque d\'anticipation)',
+    ],
+    questionsExamen:[
+      'Qu\'est-ce que l\'angle mort et comment le supprimer ?',
+      'Pourquoi regarder loin devant améliore-t-il la conduite ?',
+      'Quelle distance latérale respecter lors du dépassement d\'un cycliste ?',
+    ],
+  },
+  {
+    id:'fr22', code:'C2.2', domaine:'👁 D2', titre:'Règles de circulation',
+    pointsCles:[
+      'Priorité à droite : s\'applique sauf signalisation contraire (cédez-le-passage, STOP, voie prioritaire)',
+      'Feux tricolores : rouge = arrêt obligatoire, orange = arrêt si possible (pas d\'accélération), vert = passage si sûr',
+      'Vitesses max : 50 km/h en agglomération, 80 km/h route, 110 km/h voie express (pluie), 130 km/h autoroute (pluie : 110)',
+      'Dépassement interdit : ligne continue, en haut de côte, en courbe, à une intersection, sur passage piéton',
+      'Ceinture : obligatoire pour conducteur et tous passagers, enfant < 10 ans = siège homologué',
+    ],
+    erreursFrequentes:[
+      'Confondre une route prioritaire avec une voie prioritaire — la signalisation prime toujours',
+      'Passer à l\'orange en accélérant au lieu de s\'arrêter',
+      'Dépasser sur ligne discontinue mais dans une zone interdite (virage)',
+      'Oublier de baisser la vitesse en cas de pluie sur autoroute (130 → 110)',
+    ],
+    questionsExamen:[
+      'Quelle est la vitesse maximale sur route en France hors agglomération ?',
+      'Peut-on dépasser à droite sur autoroute ?',
+      'À quelle distance d\'un passage piéton le dépassement est-il interdit ?',
+      'Quelle règle s\'applique lorsque deux véhicules arrivent simultanément à une intersection non signalisée ?',
+    ],
+  },
+  {
+    id:'fr23', code:'C2.3', domaine:'👁 D2', titre:'Situations particulières',
+    pointsCles:[
+      'Nuit : feux de croisement dès le coucher du soleil, feux de route dès que route libre, croiser = codes immédiats',
+      'Pluie : distances × 2, vitesse adaptée, en cas d\'aquaplaning relâcher l\'accélérateur sans freiner ni braquer brusquement',
+      'Verglas / neige : distances × 3, douceur sur tous les organes (gazole, frein, volant), chaînes ou pneus hiver',
+      'Autoroute : insertion par accélération sur la bretelle + clignotant, sortie par clignotant précoce + décélération sur bretelle',
+      'Zones de travaux : réduire la vitesse (panneau obligatoire), respecter les déviations et la signalétique temporaire',
+    ],
+    erreursFrequentes:[
+      'Freiner brusquement en aquaplaning → aggravation de la perte de contrôle',
+      'Garder les feux de route face à un véhicule qui arrive (éblouissement)',
+      'Accélérer pour s\'insérer trop tard sur autoroute',
+      'Sous-estimer le sol humide après une longue période sèche (premier quart d\'heure de pluie = très glissant)',
+    ],
+    questionsExamen:[
+      'Que faire si votre véhicule part en aquaplaning ?',
+      'Quand allumer les feux de brouillard arrière ?',
+      'Comment s\'insérer correctement sur autoroute ?',
+      'Quelle est la distance de freinage sur verglas à 50 km/h ?',
+    ],
+  },
+  {
+    id:'fr31', code:'C3.1', domaine:'🧠 D3', titre:'Attitude coopérative',
+    pointsCles:[
+      'Clignotants : anticiper ≥ 3 secondes avant la manœuvre, les désactiver après',
+      'Piétons : prioritaires sur passage piéton, même si feu vert pour le conducteur',
+      'Cyclistes : ne pas les coller, anticiper leur trajectoire (portes, nids-de-poule), les dépasser avec 1,5 m',
+      'Klaxon : avertissement uniquement, interdit en agglomération (sauf danger immédiat)',
+      'Communication lumineuse : appel de phares = « attention » ou « merci », jamais pour intimider',
+    ],
+    erreursFrequentes:[
+      'Oublier de désactiver le clignotant après un changement de voie',
+      'Forcer le passage devant un piéton engagé sur un passage piéton',
+      'Intimider un cycliste avec l\'avertisseur sonore',
+      'Prendre la priorité sur un piéton au feu vert (manœuvre de tourne-à-droite)',
+    ],
+    questionsExamen:[
+      'Un piéton est sur le passage piéton, votre feu passe au vert. Que faites-vous ?',
+      'Un cycliste est devant vous sur une route étroite. Comment le dépasser ?',
+      'L\'utilisation du klaxon est-elle toujours autorisée ?',
+    ],
+  },
+  {
+    id:'fr32', code:'C3.2', domaine:'🧠 D3', titre:'États internes',
+    pointsCles:[
+      'Fatigue : pause ≥ 20 min toutes les 2h, signes précurseurs (clignements, dérivées, rêveries)',
+      'Alcool : taux légal ≤ 0,5 g/L sang (0,2 g/L jeune conducteur < 3 ans de permis), effet × 2 sur temps de réaction',
+      'Téléphone : tenu en main = interdit, kit mains-libres autorisé mais divise l\'attention par 2',
+      'Médicaments : vignette 1 (jaune) = prudence, 2 (orange) = ne pas conduire seul, 3 (rouge) = interdiction, 4 (noir) = absolument interdit',
+      'Substances : tolérance zéro pour les stupéfiants (infraction pénale)',
+    ],
+    erreursFrequentes:[
+      'Poursuivre la route en cas de somnolence (ouvrir les vitres ne suffit pas)',
+      'Croire que le café ou la douche froide élimine les effets de l\'alcool',
+      'Utiliser le GPS sur le téléphone en main pendant la conduite',
+      'Ne pas lire la notice des médicaments avant de conduire',
+    ],
+    questionsExamen:[
+      'Quelle est la différence de taux d\'alcool autorisé entre un conducteur confirmé et un jeune conducteur ?',
+      'À partir de quelle vignette médicament ne doit-on pas conduire ?',
+      'La fatigue peut-elle provoquer des réflexes similaires à l\'alcoolémie ?',
+      'Quels sont les signes qui indiquent que l\'on doit s\'arrêter pour se reposer ?',
+    ],
+  },
+  {
+    id:'fr33', code:'C3.3', domaine:'🧠 D3', titre:'Éco-conduite',
+    pointsCles:[
+      'Anticipation : lever le pied tôt, laisser le moteur décélérer (frein moteur = 0 carburant avec injection),  éviter les à-coups',
+      'Passage des vitesses : monter en vitesse tôt (2 000 tr/min essence, 1 500 tr/min diesel)',
+      'Pneus : sous-gonflage de 0,5 bar = +2 % de consommation et usure accélérée',
+      'Vitesse : 110 km/h au lieu de 130 km/h → économie de 20 % de carburant',
+      'Climatisation : +0,5 à 1 L/100 km, privilégier l\'aération à moins de 80 km/h',
+    ],
+    erreursFrequentes:[
+      'Rouler en sous-régime (moteur « pousse » = consommation excessive et risque de casse)',
+      'Laisser chauffer le moteur à l\'arrêt (inutile sur les véhicules modernes)',
+      'Garder la climatisation allumée en ville à basse vitesse sans nécessité',
+      'Freiner trop tard et rattraper la vitesse perdue — cycle stop-and-go énergivore',
+    ],
+    questionsExamen:[
+      'Pourquoi l\'anticipation est-elle le premier levier de l\'éco-conduite ?',
+      'Quelle différence de consommation entre 130 et 110 km/h en autoroute ?',
+      'L\'éco-conduite affecte-t-elle la sécurité ? Pourquoi ?',
+      'À partir de quelle vitesse fermer les fenêtres est-il préférable à la climatisation ?',
+    ],
+  },
+];
 
 function CodeRousseauView({ codeRousseau, updateCodeRousseau }) {
   const cr = codeRousseau || { eleves: [], fiches: [], notes: '' };
   const [tab, setTab] = React.useState('referentiel');
   const [expandDom, setExpandDom] = React.useState({});
+  const [expandFiche, setExpandFiche] = React.useState({});
   const [showAddEleve, setShowAddEleve] = React.useState(false);
   const [eleveName, setEleveName] = React.useState('');
   const [elevePerm, setElevePerm] = React.useState('B');
@@ -7085,6 +7283,7 @@ function CodeRousseauView({ codeRousseau, updateCodeRousseau }) {
   const selectedEleve = selectedEleveId ? (cr.eleves || []).find(e => e.id === selectedEleveId) : null;
   const TABS = [
     { id: 'referentiel', label: '📋 Référentiel' },
+    { id: 'revision',    label: '📚 Révision (9)' },
     { id: 'eleves',      label: `👥 Élèves (${(cr.eleves||[]).length})` },
     { id: 'fiches',      label: `📝 Fiches (${(cr.fiches||[]).length})` },
     { id: 'notes',       label: '✏️ Notes' },
@@ -7224,6 +7423,52 @@ function CodeRousseauView({ codeRousseau, updateCodeRousseau }) {
     ),
 
     // ── TAB : Fiches ──
+    // ── TAB : Révision ──
+    tab === 'revision' && React.createElement('div', null,
+      React.createElement('p', { style:{ fontSize:12, color:'var(--text-muted)', marginBottom:14, fontStyle:'italic' } },
+        '9 fiches de révision — une par compétence REMC. Cliquez pour dérouler points clés, erreurs fréquentes et questions d\'examen.'
+      ),
+      REMC_FICHES_REVISION.map(f => {
+        const open = !!expandFiche[f.id];
+        return React.createElement('div', { key:f.id, style:{ background:'var(--glass)', border:'1px solid var(--accent-liika-border)', borderRadius:'var(--radius)', marginBottom:10, overflow:'hidden' } },
+          // En-tête accordéon
+          React.createElement('div', {
+            onClick: () => setExpandFiche(prev => ({ ...prev, [f.id]: !prev[f.id] })),
+            style:{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'12px 16px', cursor:'pointer' }
+          },
+            React.createElement('div', null,
+              React.createElement('span', { style:{ fontSize:11, color:'var(--text-muted)', marginRight:8 } }, f.domaine),
+              React.createElement('span', { style:{ color:'var(--accent-liika)', fontWeight:700, fontSize:13, marginRight:6 } }, f.code),
+              React.createElement('span', { style:{ color:'var(--text)', fontSize:13 } }, f.titre)
+            ),
+            React.createElement('span', { style:{ color:'var(--text-muted)', fontSize:16, flexShrink:0 } }, open ? '▾' : '▸')
+          ),
+          // Contenu déroulable
+          open && React.createElement('div', { style:{ padding:'0 16px 16px', borderTop:'1px solid var(--accent-liika-border)' } },
+            // Points clés
+            React.createElement('div', { style:{ marginTop:12 } },
+              React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'var(--gold)', marginBottom:6 } }, '✦ Points clés'),
+              React.createElement('ul', { style:{ margin:0, paddingLeft:18 } },
+                f.pointsCles.map((p, i) => React.createElement('li', { key:i, style:{ fontSize:12, color:'var(--text)', lineHeight:1.6, marginBottom:4 } }, p))
+              )
+            ),
+            // Erreurs fréquentes
+            React.createElement('div', { style:{ marginTop:12 } },
+              React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'var(--accent-liika)', marginBottom:6 } }, '⚠ Erreurs fréquentes'),
+              React.createElement('ul', { style:{ margin:0, paddingLeft:18 } },
+                f.erreursFrequentes.map((e, i) => React.createElement('li', { key:i, style:{ fontSize:12, color:'var(--text-muted)', lineHeight:1.6, marginBottom:4 } }, e))
+              )
+            ),
+            // Questions d'examen
+            React.createElement('div', { style:{ marginTop:12, background:'var(--bg2)', borderRadius:8, padding:'10px 12px' } },
+              React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'var(--text)', marginBottom:6 } }, '❓ Questions d\'examen'),
+              f.questionsExamen.map((q, i) => React.createElement('div', { key:i, style:{ fontSize:12, color:'var(--text-muted)', lineHeight:1.6, marginBottom:i < f.questionsExamen.length-1 ? 4 : 0, paddingLeft:8, borderLeft:'2px solid var(--accent-liika-border)' } }, q))
+            )
+          )
+        );
+      })
+    ),
+
     tab === 'fiches' && React.createElement('div', null,
       React.createElement('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 } },
         React.createElement('span', { style:{ fontWeight:600, color:'var(--text)' } }, 'Fiches de leçon'),
