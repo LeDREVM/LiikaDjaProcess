@@ -497,6 +497,11 @@ const defaultData = {
       }]
     },
     vision: "Devenir cheffe de flotte d'ici 2027 avec un second camion. Choisir mes tournées, rentrer chez moi le week-end. Construire un chez-nous solide avec Dja. Santé, équilibre et liberté sur la route.",
+    codeRousseau: {
+      eleves: [],
+      fiches: [],
+      notes: ''
+    },
     sport: [{
       id: 'ls1',
       jour: 'Mardi',
@@ -727,6 +732,11 @@ function normalize(d) {
   if (Array.isArray(d.ferments)) base.ferments = d.ferments;
   if (Array.isArray(d.courses)) base.courses = d.courses;
   if (Array.isArray(d.media)) base.media = d.media;
+  if (!Array.isArray(base.couple.motivations)) base.couple.motivations = [];
+  if (!base.liika.codeRousseau || typeof base.liika.codeRousseau !== 'object') base.liika.codeRousseau = clone(defaultData.liika.codeRousseau);
+  if (!Array.isArray(base.liika.codeRousseau.eleves)) base.liika.codeRousseau.eleves = [];
+  if (!Array.isArray(base.liika.codeRousseau.fiches)) base.liika.codeRousseau.fiches = [];
+  if (typeof base.liika.codeRousseau.notes !== 'string') base.liika.codeRousseau.notes = '';
   // Survie : garantir la forme (le spread couple ci-dessus a pu remplacer survie par une version partielle)
   {
     const sd = (d.couple && typeof d.couple.survie === 'object' && d.couple.survie) ? d.couple.survie : {};
@@ -7003,6 +7013,278 @@ function JeuxView({ games, updateGames }) {
     tab === 'rewards' && renderRewards());
 }
 
+// ─── Guide Formateur Code Rousseau REMC ───
+const REMC_DOMAINES = [
+  { id:'d1', icon:'🔧', titre:'D1 — Maîtrise du véhicule', competences:[
+    { id:'c11', code:'C1.1', titre:'Prise en main du véhicule', detail:'Réglages poste, vérifications ext./int., sécurité des passagers, signaux d\'urgence.' },
+    { id:'c12', code:'C1.2', titre:'Direction et vitesse', detail:'Trajectoires en courbe, freinages progressif et d\'urgence, régulation de l\'allure.' },
+    { id:'c13', code:'C1.3', titre:'Manœuvres', detail:'Créneaux, demi-tour, marche arrière, stationnement en côte.' },
+  ]},
+  { id:'d2', icon:'👁', titre:'D2 — Circulation réelle', competences:[
+    { id:'c21', code:'C2.1', titre:'Percevoir et analyser', detail:'Balayage visuel, angles morts, anticipation des situations à risque, carrefours.' },
+    { id:'c22', code:'C2.2', titre:'Règles de circulation', detail:'Signalisation, priorités, vitesses, distances de sécurité, dépassements.' },
+    { id:'c23', code:'C2.3', titre:'Situations particulières', detail:'Nuit, pluie, autoroute, zone urbaine dense, travaux, conditions dégradées.' },
+  ]},
+  { id:'d3', icon:'🧠', titre:'D3 — Comportements responsables', competences:[
+    { id:'c31', code:'C3.1', titre:'Attitude coopérative', detail:'Respect des autres usagers, communication gestuelle et lumineuse, partage de la route.' },
+    { id:'c32', code:'C3.2', titre:'États internes', detail:'Fatigue, stress, émotions, alcool/stupéfiants, téléphone — reconnaître et gérer.' },
+    { id:'c33', code:'C3.3', titre:'Éco-conduite', detail:'Anticipation, montée en régime économique, rétrogradation douce, réduction des émissions.' },
+  ]},
+];
+const REMC_NIV_LABEL = ['Non évalué','En cours','Acquis (guidé)','Autonome'];
+const REMC_NIV_COLOR = ['var(--text-muted)','var(--accent-liika)','var(--gold)','#4ade80'];
+const REMC_ETAPES = [
+  { id:'pt', label:'PT — Présentation de la tâche', desc:'L\'élève observe et comprend la tâche avant de l\'exécuter.' },
+  { id:'et', label:'ET — Exécution de la tâche', desc:'L\'élève s\'exerce sous guidage du formateur.' },
+  { id:'ev', label:'EV — Évaluation', desc:'Le formateur évalue l\'acquisition, donne le bilan et fixe les objectifs suivants.' },
+];
+
+function CodeRousseauView({ codeRousseau, updateCodeRousseau }) {
+  const cr = codeRousseau || { eleves: [], fiches: [], notes: '' };
+  const [tab, setTab] = React.useState('referentiel');
+  const [expandDom, setExpandDom] = React.useState({});
+  const [showAddEleve, setShowAddEleve] = React.useState(false);
+  const [eleveName, setEleveName] = React.useState('');
+  const [elevePerm, setElevePerm] = React.useState('B');
+  const [selectedEleveId, setSelectedEleveId] = React.useState(null);
+  const [showAddFiche, setShowAddFiche] = React.useState(false);
+  const [ficheTheme, setFicheTheme] = React.useState('');
+  const [ficheObj, setFicheObj] = React.useState('');
+  const [ficheBilan, setFicheBilan] = React.useState('');
+
+  const addEleve = () => {
+    if (!eleveName.trim()) return;
+    const next = [...(cr.eleves || []), {
+      id: Date.now().toString(), nom: eleveName.trim(), niveau: elevePerm,
+      dateDebut: new Date().toISOString().slice(0, 10), notes: '', progression: {}
+    }];
+    updateCodeRousseau({ eleves: next });
+    setEleveName(''); setElevePerm('B'); setShowAddEleve(false);
+  };
+  const deleteEleve = id => {
+    if (!window.confirm('Supprimer cet élève ?')) return;
+    updateCodeRousseau({ eleves: (cr.eleves || []).filter(e => e.id !== id) });
+    if (selectedEleveId === id) setSelectedEleveId(null);
+  };
+  const setNiveau = (eleveId, compId, niv) => {
+    const next = (cr.eleves || []).map(e => e.id !== eleveId ? e :
+      { ...e, progression: { ...e.progression, [compId]: niv } });
+    updateCodeRousseau({ eleves: next });
+  };
+  const addFiche = () => {
+    if (!ficheTheme.trim()) return;
+    const next = [...(cr.fiches || []), {
+      id: Date.now().toString(), date: new Date().toISOString().slice(0, 10),
+      theme: ficheTheme.trim(), objectif: ficheObj.trim(), bilan: ficheBilan.trim()
+    }];
+    updateCodeRousseau({ fiches: next });
+    setFicheTheme(''); setFicheObj(''); setFicheBilan(''); setShowAddFiche(false);
+  };
+  const deleteFiche = id => updateCodeRousseau({ fiches: (cr.fiches || []).filter(f => f.id !== id) });
+
+  const selectedEleve = selectedEleveId ? (cr.eleves || []).find(e => e.id === selectedEleveId) : null;
+  const TABS = [
+    { id: 'referentiel', label: '📋 Référentiel' },
+    { id: 'eleves',      label: `👥 Élèves (${(cr.eleves||[]).length})` },
+    { id: 'fiches',      label: `📝 Fiches (${(cr.fiches||[]).length})` },
+    { id: 'notes',       label: '✏️ Notes' },
+  ];
+  const cardStyle = { background:'var(--glass)', border:'1px solid var(--accent-liika-border)', borderRadius:'var(--radius)', padding:'16px', marginBottom:12 };
+  const btnStyle = (active) => ({
+    padding:'6px 14px', borderRadius:20, border:'none', cursor:'pointer', fontSize:13,
+    background: active ? 'var(--accent-liika)' : 'var(--glass)',
+    color: active ? '#fff' : 'var(--text)', transition:'background .2s'
+  });
+
+  return React.createElement('div', null,
+    // En-tête
+    React.createElement('div', { style:{ ...cardStyle, background:'var(--grad-hero)', marginBottom:20 } },
+      React.createElement('div', { style:{ display:'flex', alignItems:'center', gap:12 } },
+        React.createElement('span', { style:{ fontSize:28 } }, '🎓'),
+        React.createElement('div', null,
+          React.createElement('h2', { style:{ margin:0, color:'var(--accent-liika)', fontSize:18 } }, 'Guide Formateur Code Rousseau'),
+          React.createElement('p', { style:{ margin:0, fontSize:13, color:'var(--text-muted)' } }, 'REMC — Référentiel pour l\'Éducation à la Mobilité à la Conduite ◇ Purple Moon')
+        )
+      )
+    ),
+    // Tabs
+    React.createElement('div', { style:{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:16 } },
+      TABS.map(t => React.createElement('button', { key:t.id, style:btnStyle(tab===t.id), onClick:()=>setTab(t.id) }, t.label))
+    ),
+
+    // ── TAB : Référentiel ──
+    tab === 'referentiel' && React.createElement('div', null,
+      React.createElement('div', { style:cardStyle },
+        React.createElement('h3', { style:{ margin:'0 0 8px', fontSize:14, color:'var(--gold)' } }, '⚙️ Méthode pédagogique — 3 étapes REMC'),
+        REMC_ETAPES.map(e => React.createElement('div', { key:e.id, style:{ marginBottom:8 } },
+          React.createElement('strong', { style:{ color:'var(--accent-liika)', fontSize:13 } }, e.label),
+          React.createElement('p', { style:{ margin:'2px 0 0 12px', fontSize:12, color:'var(--text-muted)' } }, e.desc)
+        ))
+      ),
+      REMC_DOMAINES.map(dom => React.createElement('div', { key:dom.id, style:cardStyle },
+        React.createElement('div', {
+          style:{ display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer' },
+          onClick: () => setExpandDom(prev => ({ ...prev, [dom.id]: !prev[dom.id] }))
+        },
+          React.createElement('h3', { style:{ margin:0, fontSize:15, color:'var(--text)' } },
+            dom.icon + ' ' + dom.titre
+          ),
+          React.createElement('span', { style:{ color:'var(--text-muted)', fontSize:18 } }, expandDom[dom.id] ? '▾' : '▸')
+        ),
+        expandDom[dom.id] && dom.competences.map(c => React.createElement('div', {
+          key:c.id, style:{ marginTop:10, paddingLeft:12, borderLeft:'2px solid var(--accent-liika-border)' }
+        },
+          React.createElement('div', { style:{ fontWeight:600, fontSize:13, color:'var(--accent-liika)' } }, c.code + ' — ' + c.titre),
+          React.createElement('div', { style:{ fontSize:12, color:'var(--text-muted)', marginTop:2 } }, c.detail)
+        ))
+      ))
+    ),
+
+    // ── TAB : Élèves ──
+    tab === 'eleves' && React.createElement('div', null,
+      // Liste élèves (gauche) + détail progression (droite si sélectionné)
+      !selectedEleve && React.createElement('div', null,
+        React.createElement('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 } },
+          React.createElement('span', { style:{ fontWeight:600, color:'var(--text)' } }, 'Mes élèves'),
+          React.createElement('button', {
+            onClick: () => setShowAddEleve(s => !s),
+            style:{ ...btnStyle(showAddEleve), background:'var(--accent-liika)', color:'#fff' }
+          }, showAddEleve ? '✕ Annuler' : '+ Élève')
+        ),
+        showAddEleve && React.createElement('div', { style:{ ...cardStyle, display:'flex', gap:8, flexWrap:'wrap', alignItems:'flex-end', marginBottom:12 } },
+          React.createElement('div', null,
+            React.createElement('label', { style:{ display:'block', fontSize:12, color:'var(--text-muted)', marginBottom:4 } }, 'Nom complet'),
+            React.createElement('input', {
+              value: eleveName, onChange: e => setEleveName(e.target.value),
+              placeholder: 'Prénom NOM', onKeyDown: e => e.key==='Enter'&&addEleve(),
+              style:{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:8, padding:'6px 10px', color:'var(--text)', fontSize:13, width:180 }
+            })
+          ),
+          React.createElement('div', null,
+            React.createElement('label', { style:{ display:'block', fontSize:12, color:'var(--text-muted)', marginBottom:4 } }, 'Permis'),
+            React.createElement('select', {
+              value: elevePerm, onChange: e => setElevePerm(e.target.value),
+              style:{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:8, padding:'6px 10px', color:'var(--text)', fontSize:13 }
+            }, ['B','B96','BE','A','AM','C','CE','D'].map(p => React.createElement('option', { key:p, value:p }, p)))
+          ),
+          React.createElement('button', { onClick:addEleve, style:{ ...btnStyle(false), background:'var(--accent-liika)', color:'#fff' } }, 'Ajouter')
+        ),
+        (cr.eleves || []).length === 0
+          ? React.createElement('p', { style:{ color:'var(--text-muted)', fontStyle:'italic', textAlign:'center', padding:24 } }, 'Aucun élève pour l\'instant.')
+          : (cr.eleves || []).map(e => React.createElement('div', {
+              key: e.id,
+              style:{ ...cardStyle, display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer' },
+              onClick: () => setSelectedEleveId(e.id)
+            },
+              React.createElement('div', null,
+                React.createElement('div', { style:{ fontWeight:600, color:'var(--accent-liika)', fontSize:14 } }, '◇ ' + e.nom),
+                React.createElement('div', { style:{ fontSize:12, color:'var(--text-muted)', marginTop:2 } },
+                  'Permis ' + e.niveau + ' · Début : ' + e.dateDebut +
+                  ' · ' + REMC_DOMAINES.flatMap(d=>d.competences).filter(c=>(e.progression||{})[c.id]===3).length + '/9 autonomes'
+                )
+              ),
+              React.createElement('div', { style:{ display:'flex', gap:8, alignItems:'center' } },
+                React.createElement('span', { style:{ color:'var(--text-muted)', fontSize:20 } }, '›'),
+                React.createElement('button', {
+                  onClick: ev => { ev.stopPropagation(); deleteEleve(e.id); },
+                  style:{ background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer', fontSize:16, padding:'2px 6px' }
+                }, '×')
+              )
+            ))
+      ),
+      // Détail élève sélectionné
+      selectedEleve && React.createElement('div', null,
+        React.createElement('button', { onClick:()=>setSelectedEleveId(null), style:{ ...btnStyle(false), marginBottom:12 } }, '← Retour'),
+        React.createElement('h3', { style:{ color:'var(--accent-liika)', marginBottom:16 } }, '◇ ' + selectedEleve.nom + ' — Progression REMC'),
+        REMC_DOMAINES.map(dom => React.createElement('div', { key:dom.id, style:cardStyle },
+          React.createElement('h4', { style:{ margin:'0 0 10px', fontSize:14, color:'var(--text)' } }, dom.icon + ' ' + dom.titre),
+          dom.competences.map(c => React.createElement('div', { key:c.id, style:{ marginBottom:10 } },
+            React.createElement('div', { style:{ fontSize:13, marginBottom:6, color:'var(--text)' } },
+              React.createElement('span', { style:{ color:'var(--accent-liika)', fontWeight:600 } }, c.code),
+              ' ' + c.titre
+            ),
+            React.createElement('div', { style:{ display:'flex', gap:6, flexWrap:'wrap' } },
+              REMC_NIV_LABEL.map((lbl, idx) => {
+                const cur = (selectedEleve.progression || {})[c.id] || 0;
+                return React.createElement('button', {
+                  key: idx,
+                  onClick: () => setNiveau(selectedEleve.id, c.id, idx),
+                  style:{
+                    padding:'4px 10px', borderRadius:12, border:'none', cursor:'pointer', fontSize:11,
+                    background: cur === idx ? REMC_NIV_COLOR[idx] : 'var(--bg3)',
+                    color: cur === idx ? (idx===0?'#aaa':'#111') : 'var(--text-muted)',
+                    fontWeight: cur === idx ? 700 : 400, transition:'background .2s'
+                  }
+                }, lbl);
+              })
+            )
+          ))
+        ))
+      )
+    ),
+
+    // ── TAB : Fiches ──
+    tab === 'fiches' && React.createElement('div', null,
+      React.createElement('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 } },
+        React.createElement('span', { style:{ fontWeight:600, color:'var(--text)' } }, 'Fiches de leçon'),
+        React.createElement('button', {
+          onClick: () => setShowAddFiche(s => !s),
+          style:{ ...btnStyle(false), background:'var(--accent-liika)', color:'#fff' }
+        }, showAddFiche ? '✕ Annuler' : '+ Fiche')
+      ),
+      showAddFiche && React.createElement('div', { style:{ ...cardStyle, marginBottom:12 } },
+        ['Thème / Compétence REMC','Objectif de la leçon','Bilan & points à retravailler'].map((lbl, i) => {
+          const vals = [ficheTheme, ficheObj, ficheBilan];
+          const setters = [setFicheTheme, setFicheObj, setFicheBilan];
+          return React.createElement('div', { key:i, style:{ marginBottom:8 } },
+            React.createElement('label', { style:{ display:'block', fontSize:12, color:'var(--text-muted)', marginBottom:4 } }, lbl),
+            React.createElement('input', {
+              value: vals[i], onChange: e => setters[i](e.target.value),
+              style:{ width:'100%', boxSizing:'border-box', background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:8, padding:'7px 10px', color:'var(--text)', fontSize:13 }
+            })
+          );
+        }),
+        React.createElement('button', { onClick:addFiche, style:{ ...btnStyle(false), marginTop:4, background:'var(--accent-liika)', color:'#fff' } }, 'Enregistrer')
+      ),
+      (cr.fiches || []).length === 0
+        ? React.createElement('p', { style:{ color:'var(--text-muted)', fontStyle:'italic', textAlign:'center', padding:24 } }, 'Aucune fiche pour l\'instant.')
+        : [...(cr.fiches || [])].reverse().map(f => React.createElement('div', { key:f.id, style:cardStyle },
+            React.createElement('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' } },
+              React.createElement('div', null,
+                React.createElement('div', { style:{ fontWeight:600, color:'var(--accent-liika)', fontSize:14 } }, f.theme),
+                React.createElement('div', { style:{ fontSize:11, color:'var(--text-muted)', marginBottom:6 } }, f.date),
+                f.objectif && React.createElement('div', { style:{ fontSize:12, color:'var(--text)', marginBottom:4 } },
+                  React.createElement('strong', null, 'Objectif : '), f.objectif
+                ),
+                f.bilan && React.createElement('div', { style:{ fontSize:12, color:'var(--text-muted)' } },
+                  React.createElement('strong', null, 'Bilan : '), f.bilan
+                )
+              ),
+              React.createElement('button', {
+                onClick: () => deleteFiche(f.id),
+                style:{ background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer', fontSize:16, padding:'0 4px', flexShrink:0 }
+              }, '×')
+            )
+          ))
+    ),
+
+    // ── TAB : Notes ──
+    tab === 'notes' && React.createElement('div', { style:cardStyle },
+      React.createElement('h3', { style:{ margin:'0 0 10px', fontSize:14, color:'var(--gold)' } }, '✏️ Notes formateur'),
+      React.createElement('textarea', {
+        value: cr.notes || '',
+        onChange: e => updateCodeRousseau({ notes: e.target.value }),
+        placeholder: 'Observations générales, rappels, ressources pédagogiques…',
+        style:{
+          width:'100%', boxSizing:'border-box', minHeight:200, background:'var(--bg2)',
+          border:'1px solid var(--border)', borderRadius:8, padding:'10px', color:'var(--text)',
+          fontSize:13, lineHeight:1.6, resize:'vertical'
+        }
+      })
+    )
+  );
+}
+
 // ─── Toast motivation quotidienne ───
 function MotivationToast({ message, onClose }) {
   const [visible, setVisible] = React.useState(false);
@@ -7134,22 +7416,21 @@ useEffect(()=>{
   };
 },[]);
 
-// Popup de motivation — une seule fois par jour au montage
+// Popup de motivation — une seule fois par jour, après synchro Supabase
 useEffect(()=>{
+  if(!initialSyncDone) return; // attendre les données Supabase (motivations custom)
   const today=new Date().toDateString();
   if(localStorage.getItem('ld-motivation-date')===today) return;
-  const custom=(data.couple||{}).motivations||[];
+  localStorage.setItem('ld-motivation-date',today); // marquer avant le timer (survit à un démontage rapide)
+  const custom=((data.couple||{}).motivations||[]).filter(Boolean); // filtrer les entrées null
   const all=[...DEFAULT_MOTIVATIONS,...custom];
-  if(!all.length) return;
-  const dayOfYear=Math.floor((new Date()-new Date(new Date().getFullYear(),0,0))/864e5);
+  const now=new Date();
+  const dayOfYear=Math.floor((now-new Date(now.getFullYear(),0,0))/864e5);
   const item=all[dayOfYear%all.length];
-  setMotivationMsg(typeof item==='string'?item:(item.text||''));
-  const t=setTimeout(()=>{
-    setShowMotivation(true);
-    localStorage.setItem('ld-motivation-date',today);
-  },2000);
+  setMotivationMsg(typeof item==='string'?item:((item&&item.text)||''));
+  const t=setTimeout(()=>{ setShowMotivation(true); },2000);
   return ()=>clearTimeout(t);
-},[]);
+},[initialSyncDone]);
 
 // Persiste localStorage à chaque changement
 useEffect(()=>saveData(data),[data]);
@@ -7596,6 +7877,14 @@ const ch=sb.channel('ld-realtime')
       return next;
     });
   }, []);
+  const updateCodeRousseau = useCallback(patch => {
+    setData(prev => {
+      const next = clone(prev);
+      if (!next.liika.codeRousseau || typeof next.liika.codeRousseau !== 'object') next.liika.codeRousseau = clone(defaultData.liika.codeRousseau);
+      next.liika.codeRousseau = { ...next.liika.codeRousseau, ...patch };
+      return next;
+    });
+  }, []);
   const togglePlanningCheck = useCallback((day, itemId) => {
     setData(prev => {
       const next = clone(prev);
@@ -7823,6 +8112,10 @@ const ch=sb.channel('ld-realtime')
     id: 'route',
     label: 'Route Liika',
     icon: '🚛'
+  }, {
+    id: 'coderousseau',
+    label: 'REMC',
+    icon: '🎓'
   }, {
     id: 'objmensuel',
     label: 'Objectifs mois',
@@ -9687,7 +9980,10 @@ const ch=sb.channel('ld-realtime')
     upsertRecipe: upsertRecipe,
     deleteRecipe: deleteRecipe,
     importRecipes: importRecipes
-  }), view === 'culture' && /*#__PURE__*/React.createElement(CultureGwadView, null), view === 'route' && renderRoute(), view === 'objmensuel' && renderObjMensuel(), view === 'calendar' && /*#__PURE__*/React.createElement(CalendarView, {
+  }), view === 'culture' && /*#__PURE__*/React.createElement(CultureGwadView, null), view === 'route' && renderRoute(), view === 'coderousseau' && /*#__PURE__*/React.createElement(CodeRousseauView, {
+    codeRousseau: (data.liika||{}).codeRousseau,
+    updateCodeRousseau: updateCodeRousseau
+  }), view === 'objmensuel' && renderObjMensuel(), view === 'calendar' && /*#__PURE__*/React.createElement(CalendarView, {
     data: data
   }), view === 'survie' && /*#__PURE__*/React.createElement(SurvieView, {
     survie: (data.couple || {}).survie || {},
