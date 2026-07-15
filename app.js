@@ -7038,11 +7038,481 @@ const REMC_ETAPES = [
   { id:'et', label:'ET — Exécution de la tâche', desc:'L\'élève s\'exerce sous guidage du formateur.' },
   { id:'ev', label:'EV — Évaluation', desc:'Le formateur évalue l\'acquisition, donne le bilan et fixe les objectifs suivants.' },
 ];
+const REMC_FICHES_REVISION = [
+  {
+    id:'fr11', code:'C1.1', domaine:'🔧 D1', titre:'Prise en main du véhicule',
+    pointsCles:[
+      'Réglages poste : siège (bras légèrement fléchis sur le volant), dossier incliné, appuie-tête au niveau des yeux, ceinture',
+      'Rétroviseurs : intérieur (cadre complet de la lunette arrière), extérieurs (flancs visibles sur 1/4)',
+      'Vérifications extérieures : état des pneus (sculpture ≥ 1,6 mm, pression), éclairages, niveaux (huile, liquide de frein, lave-glace, refroidissement)',
+      'Voyants tableau de bord : moteur (orange), batterie (rouge), température (rouge), préchauffage diesel (serpentin orange)',
+      'Position de conduite : mains à 9h15, dos appuyé, cuisses légèrement inclinées vers le bas',
+    ],
+    erreursFrequentes:[
+      'Oublier les pneus arrière lors des vérifications extérieures',
+      'Rétroviseurs mal réglés → angles morts élargis',
+      'Démarrer avec un voyant rouge allumé (batterie, température, pression huile)',
+      'Siège trop proche ou trop loin → gêne sur pédale de frein d\'urgence',
+    ],
+    questionsExamen:[
+      'Que signifie le voyant moteur orange allumé en roulant ?',
+      'À quelle fréquence vérifier la pression des pneus ?',
+      'Quelle est la profondeur de sculpture minimale légale des pneus ?',
+      'Comment régler correctement les rétroviseurs extérieurs ?',
+    ],
+  },
+  {
+    id:'fr12', code:'C1.2', domaine:'🔧 D1', titre:'Direction et vitesse',
+    pointsCles:[
+      'Technique de direction : mains en couronne (9h15), pas de croisement des bras, technique shuffle au-dessous de 40 km/h',
+      'Trajectoire en courbe : regard loin (point de sortie), décélérer AVANT la courbe, maintenir l\'allure dans la courbe',
+      'Freinage progressif : appui ferme et croissant, relâchement doux avant l\'arrêt complet',
+      'Freinage d\'urgence : pied fort et maintenu (confier à l\'ABS), garder les roues droites, regarder la sortie',
+      'Distances de sécurité : règle des 2 secondes (chronomètre sur repère fixe), × 2 sur route mouillée, × 3 sur verglas',
+    ],
+    erreursFrequentes:[
+      'Accélérer en courbe → sous-virage (sortie de route)',
+      'Freiner en courbe → transfert de charge, perte d\'adhérence',
+      'Regard fixé devant le capot au lieu de loin (15-20 m minimum)',
+      'Relâcher le frein trop tôt en freinage d\'urgence → allongement de la distance d\'arrêt',
+    ],
+    questionsExamen:[
+      'Comment réagir en cas d\'aquaplaning ?',
+      'Quelle distance de sécurité en ville à 50 km/h (temps de réaction de 1s) ?',
+      'Pourquoi ne pas freiner en courbe avec un véhicule sans ABS ?',
+      'Qu\'est-ce que la distance d\'arrêt (réaction + freinage) à 90 km/h ?',
+    ],
+  },
+  {
+    id:'fr13', code:'C1.3', domaine:'🔧 D1', titre:'Manœuvres',
+    pointsCles:[
+      'Créneau : vérification rétros + angle mort, 45° puis braquage opposé, trottoir visible dans le rétro bas',
+      'Demi-tour : évaluer la largeur, clignotant gauche, 3 à 5 points si nécessaire, priorité aux piétons',
+      'Marche arrière droite : regard par la lunette et les rétros, tête tournée, allure lente (inférieure au pas)',
+      'Stationnement en côte : frein à main serré, 1ère (montée) ou marche arrière (descente), roues braquées vers le trottoir',
+      'Créneau en bataille : angle 90°, utiliser les lignes peintes comme repères',
+    ],
+    erreursFrequentes:[
+      'Heurter le trottoir lors de la rentrée en créneau (pas assez de braquage)',
+      'Oublier l\'angle mort avant de reculer',
+      'Repartir sans desserrer le frein à main → surchauffe des garnitures',
+      'Trop grande vitesse en marche arrière → réaction tardive',
+    ],
+    questionsExamen:[
+      'Quand le demi-tour est-il interdit ?',
+      'Comment stationner en côte montante côté droit ?',
+      'Comment vérifier que le créneau est réussi sans descendre du véhicule ?',
+    ],
+  },
+  {
+    id:'fr21', code:'C2.1', domaine:'👁 D2', titre:'Percevoir et analyser',
+    pointsCles:[
+      'Balayage visuel : miroir intérieur toutes les 5-8 secondes, rétros extérieurs à chaque changement de situation',
+      'Angle mort : vérification tête (regard par-dessus l\'épaule) avant tout changement de direction ou de voie',
+      'Anticipation : lire la route 12 s devant en rase campagne, 4-6 s en ville',
+      'Zones à risque : sorties de parking, entrées d\'immeubles, arrêts de bus, arrêts de tramway',
+      'Cyclistes et piétons : 1 m d\'écart latéral en agglomération, 1,5 m hors agglomération',
+    ],
+    erreursFrequentes:[
+      'Fixation du regard (regarder uniquement droit devant)',
+      'Négliger l\'angle mort lors des insertions sur voie rapide',
+      'Sous-estimer la vitesse d\'un cycliste ou d\'un piéton qui traverse',
+      'Réagir trop tard à un obstacle lointain (manque d\'anticipation)',
+    ],
+    questionsExamen:[
+      'Qu\'est-ce que l\'angle mort et comment le supprimer ?',
+      'Pourquoi regarder loin devant améliore-t-il la conduite ?',
+      'Quelle distance latérale respecter lors du dépassement d\'un cycliste ?',
+    ],
+  },
+  {
+    id:'fr22', code:'C2.2', domaine:'👁 D2', titre:'Règles de circulation',
+    pointsCles:[
+      'Priorité à droite : s\'applique sauf signalisation contraire (cédez-le-passage, STOP, voie prioritaire)',
+      'Feux tricolores : rouge = arrêt obligatoire, orange = arrêt si possible (pas d\'accélération), vert = passage si sûr',
+      'Vitesses max : 50 km/h en agglomération, 80 km/h route, 110 km/h voie express (pluie), 130 km/h autoroute (pluie : 110)',
+      'Dépassement interdit : ligne continue, en haut de côte, en courbe, à une intersection, sur passage piéton',
+      'Ceinture : obligatoire pour conducteur et tous passagers, enfant < 10 ans = siège homologué',
+    ],
+    erreursFrequentes:[
+      'Confondre une route prioritaire avec une voie prioritaire — la signalisation prime toujours',
+      'Passer à l\'orange en accélérant au lieu de s\'arrêter',
+      'Dépasser sur ligne discontinue mais dans une zone interdite (virage)',
+      'Oublier de baisser la vitesse en cas de pluie sur autoroute (130 → 110)',
+    ],
+    questionsExamen:[
+      'Quelle est la vitesse maximale sur route en France hors agglomération ?',
+      'Peut-on dépasser à droite sur autoroute ?',
+      'À quelle distance d\'un passage piéton le dépassement est-il interdit ?',
+      'Quelle règle s\'applique lorsque deux véhicules arrivent simultanément à une intersection non signalisée ?',
+    ],
+  },
+  {
+    id:'fr23', code:'C2.3', domaine:'👁 D2', titre:'Situations particulières',
+    pointsCles:[
+      'Nuit : feux de croisement dès le coucher du soleil, feux de route dès que route libre, croiser = codes immédiats',
+      'Pluie : distances × 2, vitesse adaptée, en cas d\'aquaplaning relâcher l\'accélérateur sans freiner ni braquer brusquement',
+      'Verglas / neige : distances × 3, douceur sur tous les organes (gazole, frein, volant), chaînes ou pneus hiver',
+      'Autoroute : insertion par accélération sur la bretelle + clignotant, sortie par clignotant précoce + décélération sur bretelle',
+      'Zones de travaux : réduire la vitesse (panneau obligatoire), respecter les déviations et la signalétique temporaire',
+    ],
+    erreursFrequentes:[
+      'Freiner brusquement en aquaplaning → aggravation de la perte de contrôle',
+      'Garder les feux de route face à un véhicule qui arrive (éblouissement)',
+      'Accélérer pour s\'insérer trop tard sur autoroute',
+      'Sous-estimer le sol humide après une longue période sèche (premier quart d\'heure de pluie = très glissant)',
+    ],
+    questionsExamen:[
+      'Que faire si votre véhicule part en aquaplaning ?',
+      'Quand allumer les feux de brouillard arrière ?',
+      'Comment s\'insérer correctement sur autoroute ?',
+      'Quelle est la distance de freinage sur verglas à 50 km/h ?',
+    ],
+  },
+  {
+    id:'fr31', code:'C3.1', domaine:'🧠 D3', titre:'Attitude coopérative',
+    pointsCles:[
+      'Clignotants : anticiper ≥ 3 secondes avant la manœuvre, les désactiver après',
+      'Piétons : prioritaires sur passage piéton, même si feu vert pour le conducteur',
+      'Cyclistes : ne pas les coller, anticiper leur trajectoire (portes, nids-de-poule), les dépasser avec 1,5 m',
+      'Klaxon : avertissement uniquement, interdit en agglomération (sauf danger immédiat)',
+      'Communication lumineuse : appel de phares = « attention » ou « merci », jamais pour intimider',
+    ],
+    erreursFrequentes:[
+      'Oublier de désactiver le clignotant après un changement de voie',
+      'Forcer le passage devant un piéton engagé sur un passage piéton',
+      'Intimider un cycliste avec l\'avertisseur sonore',
+      'Prendre la priorité sur un piéton au feu vert (manœuvre de tourne-à-droite)',
+    ],
+    questionsExamen:[
+      'Un piéton est sur le passage piéton, votre feu passe au vert. Que faites-vous ?',
+      'Un cycliste est devant vous sur une route étroite. Comment le dépasser ?',
+      'L\'utilisation du klaxon est-elle toujours autorisée ?',
+    ],
+  },
+  {
+    id:'fr32', code:'C3.2', domaine:'🧠 D3', titre:'États internes',
+    pointsCles:[
+      'Fatigue : pause ≥ 20 min toutes les 2h, signes précurseurs (clignements, dérivées, rêveries)',
+      'Alcool : taux légal ≤ 0,5 g/L sang (0,2 g/L jeune conducteur < 3 ans de permis), effet × 2 sur temps de réaction',
+      'Téléphone : tenu en main = interdit, kit mains-libres autorisé mais divise l\'attention par 2',
+      'Médicaments : vignette 1 (jaune) = prudence, 2 (orange) = ne pas conduire seul, 3 (rouge) = interdiction, 4 (noir) = absolument interdit',
+      'Substances : tolérance zéro pour les stupéfiants (infraction pénale)',
+    ],
+    erreursFrequentes:[
+      'Poursuivre la route en cas de somnolence (ouvrir les vitres ne suffit pas)',
+      'Croire que le café ou la douche froide élimine les effets de l\'alcool',
+      'Utiliser le GPS sur le téléphone en main pendant la conduite',
+      'Ne pas lire la notice des médicaments avant de conduire',
+    ],
+    questionsExamen:[
+      'Quelle est la différence de taux d\'alcool autorisé entre un conducteur confirmé et un jeune conducteur ?',
+      'À partir de quelle vignette médicament ne doit-on pas conduire ?',
+      'La fatigue peut-elle provoquer des réflexes similaires à l\'alcoolémie ?',
+      'Quels sont les signes qui indiquent que l\'on doit s\'arrêter pour se reposer ?',
+    ],
+  },
+  {
+    id:'fr33', code:'C3.3', domaine:'🧠 D3', titre:'Éco-conduite',
+    pointsCles:[
+      'Anticipation : lever le pied tôt, laisser le moteur décélérer (frein moteur = 0 carburant avec injection),  éviter les à-coups',
+      'Passage des vitesses : monter en vitesse tôt (2 000 tr/min essence, 1 500 tr/min diesel)',
+      'Pneus : sous-gonflage de 0,5 bar = +2 % de consommation et usure accélérée',
+      'Vitesse : 110 km/h au lieu de 130 km/h → économie de 20 % de carburant',
+      'Climatisation : +0,5 à 1 L/100 km, privilégier l\'aération à moins de 80 km/h',
+    ],
+    erreursFrequentes:[
+      'Rouler en sous-régime (moteur « pousse » = consommation excessive et risque de casse)',
+      'Laisser chauffer le moteur à l\'arrêt (inutile sur les véhicules modernes)',
+      'Garder la climatisation allumée en ville à basse vitesse sans nécessité',
+      'Freiner trop tard et rattraper la vitesse perdue — cycle stop-and-go énergivore',
+    ],
+    questionsExamen:[
+      'Pourquoi l\'anticipation est-elle le premier levier de l\'éco-conduite ?',
+      'Quelle différence de consommation entre 130 et 110 km/h en autoroute ?',
+      'L\'éco-conduite affecte-t-elle la sécurité ? Pourquoi ?',
+      'À partir de quelle vitesse fermer les fenêtres est-il préférable à la climatisation ?',
+    ],
+  },
+];
+
+const REMC_FICHES_SECURITE = [
+  {
+    id:'sec1', icon:'🍺', titre:'Alcool & stupéfiants',
+    pointsCles:[
+      'Taux légal : 0,5 g/L de sang (0,2 g/L pour les conducteurs novices < 3 ans de permis et les professionnels du transport)',
+      'Effets : réduction du champ visuel, allongement du temps de réaction (× 2 à 0,5 g/L), fausse sensation de maîtrise',
+      'Élimination : environ 0,10 à 0,15 g/L/h — ni café, ni douche ne l\'accélèrent',
+      'Stupéfiants : tolérance zéro (dépistage salivaire ou sanguin), cumul alcool + drogue = circonstance aggravante',
+      'Médicaments : pictogramme 3 losanges rouges ou 4 losanges noirs → interdiction de conduire',
+    ],
+    sanctions:[
+      '≥ 0,5 g/L et < 0,8 g/L : contravention de 4ᵉ classe, 6 pts retirés, 750 € d\'amende, suspension jusqu\'à 3 ans',
+      '≥ 0,8 g/L : délit pénal, 6 pts, 4 500 € d\'amende, 2 ans d\'emprisonnement, suspension 3 ans',
+      'Refus de dépistage : mêmes peines que ≥ 0,8 g/L',
+      'Récidive : doublement des peines, annulation possible du permis',
+      'Stupéfiants seuls : 2 ans d\'emprisonnement, 4 500 €, 6 pts, suspension 3 ans',
+    ],
+    conseilsFormateur:[
+      'Illustrer l\'effet avec le test du pendule ou la simulation de temps de réaction',
+      'Insister sur la fausse lucidité : l\'élève doit comprendre qu\'on ne ressent pas toujours son ivresse',
+      'Aborder le lendemain matin (« sleep and sober » est un mythe)',
+      'Rappeler que le passager qui laisse conduire un conducteur alcoolisé est en faute également',
+    ],
+  },
+  {
+    id:'sec2', icon:'⚡', titre:'Vitesse — risques et limites',
+    pointsCles:[
+      'Limites légales : 50 km/h agglomération, 80 km/h route (hors voie rapide), 110 km/h voie express (pluie : 100), 130 km/h autoroute (pluie : 110)',
+      'Distance d\'arrêt à 50 km/h : ≈ 28 m (réaction 14 m + freinage 14 m) — soit la longueur de 2 bus',
+      'Distance d\'arrêt à 90 km/h : ≈ 75 m ; à 130 km/h : ≈ 160 m (× 5,7 vs 50 km/h)',
+      'Sur route mouillée : × 1,5 à 2 sur la distance de freinage ; verglas : × 3 à 5',
+      'La vitesse est impliquée dans 1 accident mortel sur 3 en France',
+    ],
+    sanctions:[
+      'Excès < 20 km/h hors agglomération : amende 68 €, 1 pt',
+      'Excès ≥ 20 et < 30 km/h : amende 135 €, 2 pts',
+      'Excès ≥ 30 et < 40 km/h : amende 135 €, 3 pts, suspension possible',
+      'Excès ≥ 40 et < 50 km/h : amende 135 €, 4 pts, suspension jusqu\'à 3 ans',
+      'Excès ≥ 50 km/h : délit pénal, 6 pts, jusqu\'à 3 750 €, suspension 3 ans, immobilisation possible',
+    ],
+    conseilsFormateur:[
+      'Utiliser l\'exercice des « 3 secondes » pour matérialiser la distance d\'arrêt',
+      'Faire calculer à l\'élève le nombre de mètres parcourus pendant 1 seconde à 90 km/h (25 m)',
+      'Rappeler que le radar ne sanctionne pas les comportements, mais que la vitesse tue même sans radar',
+      'Montrer des clichés d\'accidentologie pour ancrer l\'information émotionnellement',
+    ],
+  },
+  {
+    id:'sec3', icon:'😴', titre:'Fatigue & somnolence',
+    pointsCles:[
+      'La fatigue est impliquée dans 1 accident mortel sur 3 sur autoroute',
+      'Micro-sommeil : perte de conscience de 0,5 à 4 secondes — à 130 km/h = 36 à 145 m parcourus les yeux fermés',
+      'Signes précurseurs : clignements fréquents, dérivées de trajectoire, yeux qui brûlent, pensées qui s\'égarent',
+      'Pause obligatoire : au moins 20 minutes toutes les 2 heures, en s\'arrêtant sur une aire de repos',
+      'Faux remèdes : café (15 min d\'effet), ouvrir les vitres, la radio — ne suppriment pas la somnolence',
+    ],
+    sanctions:[
+      'Somnolence caractérisée engageant un accident : mise en danger d\'autrui (1 an, 15 000 €)',
+      'Refus de s\'arrêter malgré les signaux → responsabilité pénale en cas d\'accident',
+      'Accident mortel lié à la fatigue : homicide involontaire aggravé (5 ans, 75 000 €)',
+    ],
+    conseilsFormateur:[
+      'Rappeler que la sensation de fatigue disparaît parfois lors de longs trajets — c\'est un piège',
+      'Enseigner le « power nap » : 20 min de sieste avant de reprendre la route',
+      'Mentionner les risques spécifiques aux professionnels du transport (règlementation temps de conduite)',
+      'Aborder le syndrome de l\'autoroute (hypnose de la route) et les solutions préventives',
+    ],
+  },
+  {
+    id:'sec4', icon:'📱', titre:'Téléphone & distracteurs',
+    pointsCles:[
+      'Téléphone tenu en main : interdit pendant la conduite (même à l\'arrêt au feu rouge)',
+      'Kit mains-libres légal mais divise l\'attention par 2 — conversation téléphonique ≠ conversation passager',
+      'Regard détourné 2 secondes à 50 km/h = 28 m parcourus sans regarder la route',
+      'Autres distracteurs : GPS mal fixé, enfants, repas, maquillage, radio à fort volume',
+      'Effet tunnel : la distraction rétrécit le champ visuel et retarde la détection des dangers',
+    ],
+    sanctions:[
+      'Téléphone tenu en main : contravention de 4ᵉ classe, 135 €, 3 pts retirés',
+      'Rétention immédiate du permis si contravention + autre infraction (vitesse, alcool...)',
+      'En cas d\'accident causé par l\'usage du téléphone : circonstance aggravante, peines doublées',
+    ],
+    conseilsFormateur:[
+      'Faire mettre le téléphone en mode « conduite » ou dans le vide-poche avant de démarrer — en prendre l\'habitude en leçon',
+      'Parler des notifications : chaque buzz génère une tentation, même sans regarder l\'écran',
+      'Mentionner les applications de détection de conduite (assurances) comme outil pédagogique',
+    ],
+  },
+  {
+    id:'sec5', icon:'🔒', titre:'Ceinture de sécurité & retenue enfant',
+    pointsCles:[
+      'Ceinture obligatoire : conducteur + tous les passagers, à l\'avant comme à l\'arrière',
+      'Efficacité : divise par 4 le risque de décès en cas de choc frontal',
+      'Enfant < 10 ans : siège auto homologué obligatoire (groupe selon poids/taille)',
+      'Enfant < 10 kg : siège dos à la route obligatoire (même à l\'avant — désactiver l\'airbag passager)',
+      'Airbag + passager sans ceinture = risque de décès par projection contre le coussin gonflant',
+    ],
+    sanctions:[
+      'Ceinture non bouclée (conducteur) : contravention de 4ᵉ classe, 135 €, 3 pts',
+      'Passager sans ceinture à l\'avant : contravention 4ᵉ classe, amende conducteur',
+      'Enfant non attaché < 13 ans : amende 135 €, 3 pts',
+      'Non-respect de la réglementation siège enfant : amende 135 €',
+    ],
+    conseilsFormateur:[
+      'Vérifier systématiquement la ceinture de l\'élève avant le démarrage — en faire un réflexe de départ',
+      'Montrer les statistiques : 20 % des décès sur la route concernent des occupants non ceinturés',
+      'Expliquer le principe de la « seconde collision » (corps qui continue après l\'arrêt du véhicule)',
+    ],
+  },
+  {
+    id:'sec6', icon:'🚲', titre:'Usagers vulnérables — piétons, cyclistes, deux-roues',
+    pointsCles:[
+      'Piétons : prioritaires sur passage piéton, même sans feu. En agglomération, le piéton qui s\'engage doit être laissé passer',
+      'Cyclistes : 1 m d\'écart latéral en ville, 1,5 m hors agglomération. Zone de danger à droite : portières, caniveaux',
+      'Deux-roues motorisés : filtrage autorisé en expérimentation (2022+), angles morts importants pour les PL',
+      'Zone 30 / zone de rencontre : piétons et cyclistes prioritaires, vitesse max 20 km/h (zone de rencontre)',
+      'La nuit : 50 % des accidents piétons mortels — éclairage et gilet jaune recommandés pour les piétons',
+    ],
+    sanctions:[
+      'Non-respect de la priorité piéton sur passage : 4ᵉ classe, 135 €, 6 pts',
+      'Distance latérale insuffisante lors du dépassement d\'un cycliste : amende 135 €, 3 pts',
+      'Renversement piéton avec blessure : mise en danger, voire homicide involontaire selon les circonstances',
+    ],
+    conseilsFormateur:[
+      'Sensibiliser à la « mort subite du cycliste » (choc de portière) : regarder le rétroviseur ET faire les tours de bras',
+      'Rappeler que les deux-roues sont surreprésentés dans les accidents mortels (28 % des tués pour 2 % des km)',
+      'Exercice : estimer la vitesse d\'un cycliste électrique (peut atteindre 25 km/h silencieusement)',
+    ],
+  },
+  {
+    id:'sec7', icon:'🌧', titre:'Conditions météo & environnement',
+    pointsCles:[
+      'Pluie légère : premier quart d\'heure le plus dangereux (hydrocarbures + eau = surface savonneuse)',
+      'Aquaplaning : se produit à partir de 80 km/h sur 3 mm d\'eau — relâcher l\'accélérateur, ne pas braquer',
+      'Brouillard : feux de brouillard AVT et ARR si visibilité < 50 m, sinon uniquement ARR si < 150 m',
+      'Vent violent : sur autoroute, tenir le volant ferme, ralentir, distance accrue',
+      'Soleil rasant : visière ou lunettes, ralentir, se méfier des zones d\'ombre-lumière (sorties de tunnel)',
+    ],
+    sanctions:[
+      'Vitesse inadaptée aux conditions météo (même sous la limite) : 4ᵉ classe si accident, mise en danger',
+      'Feux de brouillard allumés hors conditions réglementaires : amende 68 €',
+    ],
+    conseilsFormateur:[
+      'Toujours adapter la leçon aux conditions du jour — la pluie est une opportunité pédagogique, pas un obstacle',
+      'Faire ressentir à l\'élève la différence de distance de freinage sur sol mouillé vs sec',
+      'Apprendre à détecter l\'aquaplaning : vibration légère, direction qui « flotte »',
+    ],
+  },
+  {
+    id:'sec8', icon:'🚗', titre:'Angles morts & chargement',
+    pointsCles:[
+      'Angle mort latéral : zone non couverte par les rétroviseurs, variable selon le véhicule (1,5 m à 5 m pour un PL)',
+      'Chargement : ne pas dépasser le PTAC, arrimer tout objet (même léger — à 50 km/h un objet de 1 kg = 20 kg d\'impact)',
+      'Gabarit : hauteur max 4 m, largeur 2,55 m (3 m réfrigéré), longueur selon configuration',
+      'Roue de secours, triangle, gilet réfléchissant : obligatoires. Le gilet doit être accessible sans sortir du véhicule',
+      'Surcharge → surconsommation, usure des pneus, risque d\'éclatement, distance d\'arrêt allongée',
+    ],
+    sanctions:[
+      'Chargement non arrimé provoquant un danger : amende 135 €, 3 pts, immobilisation possible',
+      'PTAC dépassé : amende 1 500 € (PL : jusqu\'à 15 000 €)',
+      'Gilet réfléchissant absent : 11 €',
+      'Triangle non placé sur la voie lors d\'une panne : 35 € + risque pénal en cas d\'accident',
+    ],
+    conseilsFormateur:[
+      'Faire systématiquement le tour du véhicule avec l\'élève avant de partir (check-list)',
+      'Expliquer l\'angle mort PL avec des exemples concrets (accidents de camions en virage)',
+      'Pour les formateurs PL : démonstration de l\'angle mort depuis la cabine',
+    ],
+  },
+];
+
+const REMC_LOIS = [
+  {
+    id:'loi1', icon:'🎯', titre:'Permis à points — capital et récupération',
+    contenu:[
+      'Capital initial : 12 points (6 pour les conducteurs novices la 1ʳᵉ année)',
+      'Probatoire : 6 pts → 8 pts après 2 ans sans infraction, 12 pts après 2 ans supplémentaires (3 ans si stage suivi)',
+      'Récupération automatique : +1 pt/an sans infraction (dans la limite de 12 pts)',
+      'Stage de sensibilisation volontaire : +4 pts (max 1 fois tous les 2 ans, si capital < 12 pts)',
+      'Perte totale des points (0 pt) : invalidation du permis, délai de 6 mois avant repassage + examen médical et psychotechnique',
+    ],
+    references:['Articles L.223-1 à L.223-9 du Code de la route','Arrêté du 29 juin 1992 relatif au permis à points'],
+    notesPratiques:[
+      'Le solde de points est consultable sur le site masecuriteroute.gouv.fr avec FranceConnect',
+      'Certaines infractions retirent des points sans qu\'il y ait d\'accident : excès de vitesse, téléphone, ceinture...',
+      'Un élève peut rater l\'examen sans perdre de points — les points ne concernent que la conduite effective',
+    ],
+  },
+  {
+    id:'loi2', icon:'⚖️', titre:'Infractions, contraventions et délits',
+    contenu:[
+      'Contravention de 1ʳᵉ classe : 11 € (ex : triangle absent)',
+      'Contravention de 4ᵉ classe : 135 € minorée 90 €, majorée 375 € (ex : excès < 50 km/h, ceinture, téléphone)',
+      'Contravention de 5ᵉ classe : 1 500 € (ex : excès ≥ 40 km/h sur route)',
+      'Délit : alcool ≥ 0,8 g/L, excès ≥ 50 km/h, refus d\'obtempérer, délit de fuite — peine privative de liberté possible',
+      'Crime routier : homicide volontaire avec véhicule (violence avec arme) → réclusion criminelle',
+    ],
+    references:['Articles R.610 à R.639 du Code de la route (contraventions)','Articles L.221 à L.236 (délits et crimes)','Code pénal art. 221-6-1 (homicide involontaire aggravé)'],
+    notesPratiques:[
+      'Le paiement de l\'amende minorée (dans les 15 jours) vaut reconnaissance de l\'infraction',
+      'La récidive légale double les peines encourues pour les délits',
+      'Un stage de sensibilisation ne supprime pas les points déjà retirés — seule la récupération automatique ou volontaire les rend',
+    ],
+  },
+  {
+    id:'loi3', icon:'📜', titre:'Agrément enseignant — BEPECASER / TP ECSR',
+    contenu:[
+      'Ancien diplôme : BEPECASER (Brevet pour l\'Exercice de la Profession d\'Enseignant de la Conduite Automobile et de la Sécurité Routière) — fermé aux nouvelles inscriptions depuis 2016',
+      'Nouveau titre : TP ECSR (Titre Professionnel d\'Enseignant de la Conduite et de la Sécurité Routière) — délivré par le Ministère du Travail (DREETS)',
+      'Agrément préfectoral : obligatoire pour enseigner, renouvelable tous les 5 ans — lié à l\'établissement employeur',
+      'Formation continue : 14h/an minimum pour maintenir l\'agrément (depuis le décret 2019-1436)',
+      'Interdictions : antécédents pénaux (casier judiciaire), suspension > 6 mois du permis → perte d\'agrément',
+    ],
+    references:['Décret n° 2015-1754 du 23 décembre 2015 (TP ECSR)','Arrêté du 20 avril 2012 (BEPECASER)','Art. L.213-1 à L.213-7 du Code de la route'],
+    notesPratiques:[
+      'Un enseignant peut enseigner plusieurs catégories de permis s\'il possède les mentions correspondantes',
+      'La mention « deux-roues » ou « groupe lourd » nécessite une formation complémentaire',
+      'L\'agrément est nominatif et personnel — un auto-école ne peut pas le « prêter »',
+    ],
+  },
+  {
+    id:'loi4', icon:'🏫', titre:'Réglementation des établissements d\'enseignement',
+    contenu:[
+      'Label qualité : arrêté du 19 juillet 2010 — les auto-écoles labellisées doivent afficher les tarifs et résultats aux examens',
+      'Livret d\'apprentissage : obligatoire pour chaque élève — retrace les compétences acquises et les heures effectuées',
+      'Durée minimale de formation : 20h de conduite pour le permis B (possibilité de dispense partielle avec AAC)',
+      'Conduite accompagnée (AAC) : possible dès 15 ans, superviseur ≥ 3 pts, ≥ 5 ans de permis',
+      'Conduite supervisée (CS) : ex-conduite encadrée — après 18 ans, 1 an de permis probatoire',
+    ],
+    references:['Art. L.213-1 à L.213-7 du Code de la route','Arrêté du 22 décembre 2009 (organisation de l\'enseignement)','Décret n° 2014-1295 (formation initiale)'],
+    notesPratiques:[
+      'Le livret d\'apprentissage numérique (DPC) est désormais recommandé — certaines auto-écoles utilisent des applications dédiées',
+      'Le nombre d\'heures de conduite obligatoire ne s\'applique pas à la conduite accompagnée (AAC)',
+      'Un établissement peut être fermé administrativement en cas de fraude à l\'examen ou d\'absence de label',
+    ],
+  },
+  {
+    id:'loi5', icon:'🛡', titre:'Responsabilité du moniteur',
+    contenu:[
+      'Pendant la leçon : le moniteur est pénalement responsable si l\'élève commet une infraction (véhicule à double commande)',
+      'Assurance obligatoire : le véhicule école doit être assuré en responsabilité civile professionnelle, couvrant l\'élève',
+      'Obligation de sécurité : le moniteur doit intervenir si l\'élève met en danger (double commande, consigne verbale)',
+      'Secret professionnel : les informations sur l\'élève (état de santé, difficultés) ne peuvent être divulguées',
+      'Harcèlement et protection : l\'élève mineur bénéficie de la protection renforcée du Code pénal',
+    ],
+    references:['Art. L.121-3 du Code de la route (responsabilité du gardien)','Code pénal art. 121-3 (responsabilité pénale non-intentionnelle)','Code civil art. 1242 (responsabilité du fait d\'autrui)'],
+    notesPratiques:[
+      'En cas d\'accident en leçon avec élève mineur, le moniteur est présumé responsable sauf preuve contraire',
+      'Il est conseillé de noter dans le livret chaque séance (compétences abordées, incidents éventuels)',
+      'Un moniteur peut refuser de dispenser la leçon si l\'élève est en état apparent d\'ivresse ou de stupéfaction',
+    ],
+  },
+  {
+    id:'loi6', icon:'📋', titre:'Examen du permis de conduire',
+    contenu:[
+      'Code de la route (ETG) : QCM de 40 questions, 35 bonnes réponses requises, centres agréés ou en ligne',
+      'Épreuve de conduite (plateau + circulation) : 32 minutes, notation sur grilles REMC, 2 évaluateurs (IPCSR)',
+      'Délai entre deux présentations : 10 jours minimum — mais les places étant rares, délai réel souvent > 2 mois',
+      'Recours : en cas de désaccord sur les résultats, l\'élève peut demander une révision au CSSR (Comité de Sécurité Routière)',
+      'Validité du code : 5 ans à compter de la réussite — doit être valide le jour de l\'examen pratique',
+    ],
+    references:['Arrêté du 20 avril 2012 modifié (organisation de l\'épreuve)','Note de service DSR/SDE/N°2022 (grilles REMC)','Art. R.221-3 du Code de la route'],
+    notesPratiques:[
+      'Le moniteur ne peut pas être présent lors de l\'épreuve (sauf en AAC pour la partie accompagnée)',
+      'Les grilles REMC sont publiques — les partager avec l\'élève l\'aide à comprendre les critères d\'évaluation',
+      'Une erreur éliminatoire (faute grave) entraîne l\'échec immédiat, quelle que soit la qualité du reste de l\'épreuve',
+    ],
+  },
+];
 
 function CodeRousseauView({ codeRousseau, updateCodeRousseau }) {
   const cr = codeRousseau || { eleves: [], fiches: [], notes: '' };
   const [tab, setTab] = React.useState('referentiel');
   const [expandDom, setExpandDom] = React.useState({});
+  const [expandFiche, setExpandFiche] = React.useState({});
+  const [expandSec, setExpandSec] = React.useState({});
+  const [expandLoi, setExpandLoi] = React.useState({});
   const [showAddEleve, setShowAddEleve] = React.useState(false);
   const [eleveName, setEleveName] = React.useState('');
   const [elevePerm, setElevePerm] = React.useState('B');
@@ -7085,6 +7555,9 @@ function CodeRousseauView({ codeRousseau, updateCodeRousseau }) {
   const selectedEleve = selectedEleveId ? (cr.eleves || []).find(e => e.id === selectedEleveId) : null;
   const TABS = [
     { id: 'referentiel', label: '📋 Référentiel' },
+    { id: 'revision',    label: '📚 Révision (9)' },
+    { id: 'securite',    label: '🛡 Sécurité (8)' },
+    { id: 'loi',         label: '⚖️ Loi (6)' },
     { id: 'eleves',      label: `👥 Élèves (${(cr.eleves||[]).length})` },
     { id: 'fiches',      label: `📝 Fiches (${(cr.fiches||[]).length})` },
     { id: 'notes',       label: '✏️ Notes' },
@@ -7138,6 +7611,80 @@ function CodeRousseauView({ codeRousseau, updateCodeRousseau }) {
           React.createElement('div', { style:{ fontSize:12, color:'var(--text-muted)', marginTop:2 } }, c.detail)
         ))
       ))
+    ),
+
+    // ── TAB : Sécurité routière ──
+    tab === 'securite' && React.createElement('div', null,
+      React.createElement('p', { style:{ fontSize:12, color:'var(--text-muted)', marginBottom:14, fontStyle:'italic' } },
+        '8 fiches thématiques sécurité routière — points clés, sanctions et conseils pédagogiques pour le formateur.'
+      ),
+      REMC_FICHES_SECURITE.map(f => {
+        const open = !!expandSec[f.id];
+        return React.createElement('div', { key:f.id, style:{ background:'var(--glass)', border:'1px solid var(--accent-liika-border)', borderRadius:'var(--radius)', marginBottom:10, overflow:'hidden' } },
+          React.createElement('div', {
+            onClick: () => setExpandSec(prev => ({ ...prev, [f.id]: !prev[f.id] })),
+            style:{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'12px 16px', cursor:'pointer' }
+          },
+            React.createElement('span', { style:{ fontSize:14 } }, f.icon + ' '),
+            React.createElement('span', { style:{ color:'var(--text)', fontWeight:600, fontSize:13, flex:1, marginLeft:8 } }, f.titre),
+            React.createElement('span', { style:{ color:'var(--text-muted)', fontSize:16 } }, open ? '▾' : '▸')
+          ),
+          open && React.createElement('div', { style:{ padding:'0 16px 16px', borderTop:'1px solid var(--accent-liika-border)' } },
+            React.createElement('div', { style:{ marginTop:12 } },
+              React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'var(--gold)', marginBottom:6 } }, '✦ Points clés'),
+              React.createElement('ul', { style:{ margin:0, paddingLeft:18 } },
+                f.pointsCles.map((p,i) => React.createElement('li', { key:i, style:{ fontSize:12, color:'var(--text)', lineHeight:1.6, marginBottom:4 } }, p))
+              )
+            ),
+            React.createElement('div', { style:{ marginTop:12 } },
+              React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'#f87171', marginBottom:6 } }, '🚫 Sanctions'),
+              React.createElement('ul', { style:{ margin:0, paddingLeft:18 } },
+                f.sanctions.map((s,i) => React.createElement('li', { key:i, style:{ fontSize:12, color:'var(--text-muted)', lineHeight:1.6, marginBottom:4 } }, s))
+              )
+            ),
+            React.createElement('div', { style:{ marginTop:12, background:'var(--bg2)', borderRadius:8, padding:'10px 12px' } },
+              React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'var(--accent-liika)', marginBottom:6 } }, '🎓 Conseils formateur'),
+              f.conseilsFormateur.map((c,i) => React.createElement('div', { key:i, style:{ fontSize:12, color:'var(--text-muted)', lineHeight:1.6, marginBottom: i < f.conseilsFormateur.length-1 ? 6 : 0, paddingLeft:8, borderLeft:'2px solid var(--accent-liika-border)' } }, c))
+            )
+          )
+        );
+      })
+    ),
+
+    // ── TAB : Loi ──
+    tab === 'loi' && React.createElement('div', null,
+      React.createElement('p', { style:{ fontSize:12, color:'var(--text-muted)', marginBottom:14, fontStyle:'italic' } },
+        '6 fiches légales — textes de référence, infractions, agrément enseignant et responsabilité du moniteur.'
+      ),
+      REMC_LOIS.map(f => {
+        const open = !!expandLoi[f.id];
+        return React.createElement('div', { key:f.id, style:{ background:'var(--glass)', border:'1px solid var(--accent-liika-border)', borderRadius:'var(--radius)', marginBottom:10, overflow:'hidden' } },
+          React.createElement('div', {
+            onClick: () => setExpandLoi(prev => ({ ...prev, [f.id]: !prev[f.id] })),
+            style:{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'12px 16px', cursor:'pointer' }
+          },
+            React.createElement('span', { style:{ fontSize:14 } }, f.icon + ' '),
+            React.createElement('span', { style:{ color:'var(--text)', fontWeight:600, fontSize:13, flex:1, marginLeft:8 } }, f.titre),
+            React.createElement('span', { style:{ color:'var(--text-muted)', fontSize:16 } }, open ? '▾' : '▸')
+          ),
+          open && React.createElement('div', { style:{ padding:'0 16px 16px', borderTop:'1px solid var(--accent-liika-border)' } },
+            React.createElement('div', { style:{ marginTop:12 } },
+              React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'var(--gold)', marginBottom:6 } }, '📑 Contenu'),
+              React.createElement('ul', { style:{ margin:0, paddingLeft:18 } },
+                f.contenu.map((c,i) => React.createElement('li', { key:i, style:{ fontSize:12, color:'var(--text)', lineHeight:1.6, marginBottom:4 } }, c))
+              )
+            ),
+            React.createElement('div', { style:{ marginTop:12, background:'var(--bg2)', borderRadius:8, padding:'10px 12px' } },
+              React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'var(--text-muted)', marginBottom:6 } }, '📎 Références légales'),
+              f.references.map((r,i) => React.createElement('div', { key:i, style:{ fontSize:11, color:'var(--text-muted)', lineHeight:1.5, fontStyle:'italic', marginBottom:2 } }, '• ' + r))
+            ),
+            React.createElement('div', { style:{ marginTop:12 } },
+              React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'var(--accent-liika)', marginBottom:6 } }, '💡 Notes pratiques'),
+              f.notesPratiques.map((n,i) => React.createElement('div', { key:i, style:{ fontSize:12, color:'var(--text-muted)', lineHeight:1.6, marginBottom: i < f.notesPratiques.length-1 ? 6 : 0, paddingLeft:8, borderLeft:'2px solid var(--accent-liika-border)' } }, n))
+            )
+          )
+        );
+      })
     ),
 
     // ── TAB : Élèves ──
@@ -7224,6 +7771,52 @@ function CodeRousseauView({ codeRousseau, updateCodeRousseau }) {
     ),
 
     // ── TAB : Fiches ──
+    // ── TAB : Révision ──
+    tab === 'revision' && React.createElement('div', null,
+      React.createElement('p', { style:{ fontSize:12, color:'var(--text-muted)', marginBottom:14, fontStyle:'italic' } },
+        '9 fiches de révision — une par compétence REMC. Cliquez pour dérouler points clés, erreurs fréquentes et questions d\'examen.'
+      ),
+      REMC_FICHES_REVISION.map(f => {
+        const open = !!expandFiche[f.id];
+        return React.createElement('div', { key:f.id, style:{ background:'var(--glass)', border:'1px solid var(--accent-liika-border)', borderRadius:'var(--radius)', marginBottom:10, overflow:'hidden' } },
+          // En-tête accordéon
+          React.createElement('div', {
+            onClick: () => setExpandFiche(prev => ({ ...prev, [f.id]: !prev[f.id] })),
+            style:{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'12px 16px', cursor:'pointer' }
+          },
+            React.createElement('div', null,
+              React.createElement('span', { style:{ fontSize:11, color:'var(--text-muted)', marginRight:8 } }, f.domaine),
+              React.createElement('span', { style:{ color:'var(--accent-liika)', fontWeight:700, fontSize:13, marginRight:6 } }, f.code),
+              React.createElement('span', { style:{ color:'var(--text)', fontSize:13 } }, f.titre)
+            ),
+            React.createElement('span', { style:{ color:'var(--text-muted)', fontSize:16, flexShrink:0 } }, open ? '▾' : '▸')
+          ),
+          // Contenu déroulable
+          open && React.createElement('div', { style:{ padding:'0 16px 16px', borderTop:'1px solid var(--accent-liika-border)' } },
+            // Points clés
+            React.createElement('div', { style:{ marginTop:12 } },
+              React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'var(--gold)', marginBottom:6 } }, '✦ Points clés'),
+              React.createElement('ul', { style:{ margin:0, paddingLeft:18 } },
+                f.pointsCles.map((p, i) => React.createElement('li', { key:i, style:{ fontSize:12, color:'var(--text)', lineHeight:1.6, marginBottom:4 } }, p))
+              )
+            ),
+            // Erreurs fréquentes
+            React.createElement('div', { style:{ marginTop:12 } },
+              React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'var(--accent-liika)', marginBottom:6 } }, '⚠ Erreurs fréquentes'),
+              React.createElement('ul', { style:{ margin:0, paddingLeft:18 } },
+                f.erreursFrequentes.map((e, i) => React.createElement('li', { key:i, style:{ fontSize:12, color:'var(--text-muted)', lineHeight:1.6, marginBottom:4 } }, e))
+              )
+            ),
+            // Questions d'examen
+            React.createElement('div', { style:{ marginTop:12, background:'var(--bg2)', borderRadius:8, padding:'10px 12px' } },
+              React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'var(--text)', marginBottom:6 } }, '❓ Questions d\'examen'),
+              f.questionsExamen.map((q, i) => React.createElement('div', { key:i, style:{ fontSize:12, color:'var(--text-muted)', lineHeight:1.6, marginBottom:i < f.questionsExamen.length-1 ? 4 : 0, paddingLeft:8, borderLeft:'2px solid var(--accent-liika-border)' } }, q))
+            )
+          )
+        );
+      })
+    ),
+
     tab === 'fiches' && React.createElement('div', null,
       React.createElement('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 } },
         React.createElement('span', { style:{ fontWeight:600, color:'var(--text)' } }, 'Fiches de leçon'),
