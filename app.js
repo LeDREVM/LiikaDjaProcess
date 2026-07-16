@@ -7506,6 +7506,240 @@ const REMC_LOIS = [
   },
 ];
 
+const EDPM_FICHES = [
+  {
+    id:'edpm1', icon:'🛴', titre:'Trottinette électrique',
+    definition:'Véhicule léger à deux roues en ligne, propulsé par un moteur électrique, sans selle. Usage individuel, usage partagé (free-floating) ou personnel.',
+    reglementation:[
+      'Vitesse maximale autorisée : 25 km/h (bridage constructeur imposé)',
+      'Interdit sur trottoirs (amende 135 €) — voie cyclable obligatoire ou chaussée si absente',
+      'Interdit sur voies rapides, autoroutes, routes à > 50 km/h sans piste cyclable',
+      'Port du casque obligatoire depuis le 01/01/2022 (EPI EN 1078 cycliste, ou moto)',
+      'Éclairage avant/arrière + équipement réfléchissant obligatoires de nuit',
+      'Gilet rétro-réfléchissant haute visibilité obligatoire de nuit et par mauvaise visibilité',
+      'Âge minimum : 12 ans pour espace public. Moins de 12 ans : usage privé uniquement',
+      'Assurance responsabilité civile obligatoire (couverte par contrat habitation multi-risques)',
+      'Alcool : même tolérance que les automobilistes (0,5 g/L), verbalisation possible',
+      'Téléphone en main : amende 135 €, retrait de 3 points si permis',
+    ],
+    risques:[
+      'Chute à l\'arrêt ou au démarrage (instabilité liée aux petites roues)',
+      'Perte d\'équilibre sur revêtements dégradés, pavés, rails de tramway',
+      'Invisibilité pour les automobilistes (gabarit très réduit, pas de rétroviseurs)',
+      'Absence de protection en cas de choc (pas de carrosserie, de ceinture)',
+      'Freinage insuffisant en cas de pluie (roues lisses) — distance de freinage × 2 à 3',
+      'Risque de conflit avec piétons lors de traversées ou carrefours mal gérés',
+      'Batteries lithium : risque d\'incendie en cas de charge inadaptée ou d\'accident',
+    ],
+    prevention:[
+      'Toujours porter le casque + gants + protège-coudes/genoux pour les débutants',
+      'Adopter une vitesse adaptée (< 15 km/h en zone dense) et anticiper les obstacles',
+      'Regarder loin devant : les ornières, grilles d\'égout et rails se voient à l\'avance',
+      'Signaler ses changements de direction à la main comme un cycliste',
+      'Éviter la conduite par pluie forte ou verglas — roues non crantées glissent vite',
+      'Vérifier la batterie avant chaque trajet (panne soudaine = danger)',
+      'Ne jamais dépasser 1 personne par engin — passager = risque de déséquilibre + illégal',
+      'Se ranger complètement sur le côté pour s\'arrêter, ne pas bloquer la piste cyclable',
+    ],
+    conseilsFormateur:[
+      'Montrer des statistiques locales d\'accidents EDPM pour ancrer la réalité du risque',
+      'Insister sur la règle de l\'anticipation : une trottinette ne protège pas ses occupants',
+      'Exercice pratique : faire calculer la distance de freinage à 25 km/h vs 50 km/h pour un vélo',
+      'Rappeler que l\'alcool au volant d\'une trottinette est verbalisable — souvent ignoré des élèves',
+      'Aborder le risque propre au free-floating : engins mal entretenus, freins usés',
+    ],
+  },
+  {
+    id:'edpm2', icon:'🔄', titre:'Monoroue électrique',
+    definition:'Engin à une seule roue centrale gyrostabilisée, conduit debout en maintenant l\'équilibre par le poids du corps. Apprentissage long (plusieurs heures).',
+    reglementation:[
+      'Statut légal identique aux autres EDPM depuis le décret du 25 octobre 2019',
+      'Vitesse maximale autorisée : 25 km/h (bridage requis, certains modèles atteignent 50+ km/h sans bridage — illégal)',
+      'Même règles de circulation que trottinette : pistes cyclables ou chaussée',
+      'Casque obligatoire, éclairage avant/arrière requis la nuit',
+      'Assurance RC obligatoire',
+      'Interdit sur trottoirs, voies rapides, autoroutes',
+      'Âge minimum : 12 ans sur voie publique',
+    ],
+    risques:[
+      'Chute frontale brutale en cas de dépassement de la vitesse limite de la roue (coupure de courant)',
+      'Apprentissage sans filet : les premières heures sont très accidentogènes',
+      'Absence totale de dispositif de freinage mécanique — freinage par déport du poids',
+      'Grande dépendance à l\'électronique embarquée (gyroscope) — panne = chute immédiate',
+      'Gabarit très discret — invisibilité forte en trafic dense',
+      'Risque de projection si la roue accroche un obstacle (bord de trottoir, caillou)',
+    ],
+    prevention:[
+      'Apprentissage impératif dans un espace fermé avant toute sortie sur voie publique',
+      'Équipement complet : casque intégral recommandé, protège-poignets obligatoires',
+      'Ne jamais dépasser la vitesse maximale autorisée par le firmware — régler l\'alarme à 20 km/h',
+      'Garder une batterie > 20 % : la gyrostabilisation se dégrade sous ce seuil',
+      'Éviter les zones à fort trafic les premiers mois',
+      'Toujours vérifier firmware et batterie avant chaque sortie longue',
+    ],
+    conseilsFormateur:[
+      'La monoroue est souvent sous-estimée par les élèves à l\'aise avec d\'autres EDPM',
+      'Illustrer le « cutoff » (coupure gyro à dépassement de vitesse) avec des vidéos réelles',
+      'Rappeler que certains modèles bridés en usine peuvent être dé-bridés — pratique illégale et dangereuse',
+    ],
+  },
+  {
+    id:'edpm3', icon:'🤖', titre:'Gyropode (Segway-type)',
+    definition:'Engin à deux roues parallèles gyrostabilisé, conduit debout ou assis selon le modèle, dirigé par le poids du corps. Premier EDPM populaire (années 2000).',
+    reglementation:[
+      'Cadre légal EDPM depuis 2019 : même réglementation que la trottinette électrique',
+      'Vitesse maximale : 25 km/h',
+      'Interdit sur trottoirs, voies rapides ; autorisé sur pistes cyclables et chaussée',
+      'Casque obligatoire, assurance RC obligatoire',
+      'Usage professionnel (police, sécurité) : règles spécifiques selon l\'employeur',
+      'Anciennement en zone d\'expérimentation jusqu\'au décret 2019 — maintenant intégré au Code de la route',
+    ],
+    risques:[
+      'Chute avant en cas de frein brusque ou obstacle (impossible d\'anticiper avec les mains)',
+      'Maniabilité réduite dans les espaces confinés par rapport à une trottinette',
+      'Poids élevé (10–15 kg) : difficile à relever ou à dégager rapidement en cas de chute',
+      'Rayon de braquage limité : virage serré difficile en intersection',
+      'Moins instinctif que la trottinette pour les usagers non initiés',
+    ],
+    prevention:[
+      'Toujours commencer par des exercices de braquage et d\'arrêt d\'urgence',
+      'Casque + protections latérales des genoux recommandées',
+      'Prévoir plus de place pour s\'arrêter : freinage par déport = distance plus longue',
+      'Adapter l\'allure à l\'encombrement de la voie cyclable ou de la chaussée',
+    ],
+    conseilsFormateur:[
+      'Le gyropode est souvent rencontré en contexte professionnel (tourisme, sécurité)',
+      'Discuter les cas d\'usage légitimes vs risques pour les élèves qui en ont ou envisagent d\'en avoir',
+    ],
+  },
+  {
+    id:'edpm4', icon:'🏄', titre:'Hoverboard',
+    definition:'Engin à deux roues parallèles sans guidon, conduit debout, équilibre géré uniquement par le poids du corps. Popularisé à partir de 2015.',
+    reglementation:[
+      'Statut EDPM depuis décret 2019 — même cadre que trottinette et gyropode',
+      'Vitesse maximale : 25 km/h',
+      'Interdit sur trottoirs, voies rapides, autoroutes',
+      'Casque obligatoire, assurance RC obligatoire, éclairage de nuit requis',
+      'Âge minimum : 12 ans pour usage voie publique',
+      'Attention : certains hoverboards vendus en France ne respectent pas la norme CE ou les limites de vitesse — illégaux sur voie publique',
+    ],
+    risques:[
+      'Chute fréquente pour les non-initiés : l\'équilibre s\'apprend en 20–60 min mais peut prendre plus',
+      'Batteries lithium de qualité variable : nombreux cas d\'incendie sur les premiers modèles bas de gamme',
+      'Absence totale de guidon → aucun contrôle de direction fine en urgence',
+      'Vitesse difficile à réguler précisément : risque de dépassement involontaire',
+      'Ruissellement et flaques : les roulements et circuits électroniques peu protégés sur certains modèles',
+    ],
+    prevention:[
+      'N\'acheter que des hoverboards certifiés UL 2272 (norme sécurité batteries USA) ou CE en Europe',
+      'Ne jamais laisser charger sans surveillance, ni sur moquette ou literie',
+      'Protections complètes obligatoires pour les débutants : casque, genoux, poignets, coudes',
+      'Interdire à l\'enfant de se mettre sur route ou piste cyclable tant que la maîtrise n\'est pas totale',
+      'Éviter la pluie : IP insuffisant sur la plupart des modèles grand public',
+    ],
+    conseilsFormateur:[
+      'L\'hoverboard est souvent le premier EDPM découvert par les jeunes → point d\'entrée pédagogique',
+      'Insister sur le risque incendie : les batteries bas de gamme sont un vrai danger',
+      'Rappeler que l\'engin sans casque en public est verbalizable même si l\'élève le voit comme un jouet',
+    ],
+  },
+  {
+    id:'edpm5', icon:'🛹', titre:'Skateboard & longboard électrique',
+    definition:'Planche à roulettes motorisée, dirigée par des déplacements du poids du corps sur la planche. Télécommande ou capteurs d\'équilibre selon le modèle.',
+    reglementation:[
+      'Statut EDPM depuis décret 2019 — même réglementation',
+      'Vitesse maximale : 25 km/h (certains modèles atteignent 45+ km/h — illégaux sur voie publique)',
+      'Interdit sur trottoirs, voies rapides, autoroutes',
+      'Casque obligatoire, assurance RC obligatoire',
+      'Télécommande : engin intégralement motorisé → distinction avec le skateboard classique non motorisé (pas soumis à la réglementation EDPM)',
+    ],
+    risques:[
+      'Roues très petites (50–70 mm) : sensibles aux cailloux, joints de dilatation, rails tramway',
+      'Fréquence élevée des « wheel bite » (roue bloquée par la planche en virage serré) à haute vitesse',
+      'Freinage moteur uniquement : absence de frein mécanique de secours',
+      'Chute avant brutale lors d\'obstacle imprévu : vitesse de réaction insuffisante à > 20 km/h',
+      'Batteries exposées sous la planche : vulnérables aux chocs et à l\'eau',
+      'Modèles « DIY » (bricolés) : fiabilité et bridage inconnus',
+    ],
+    prevention:[
+      'Port du casque + protège-poignets + genoux impératif, même pour les skateurs expérimentés',
+      'Vitesse < 20 km/h en zone mixte, < 25 km/h uniquement sur piste cyclable dégagée',
+      'Choisir un itinéraire avec revêtement lisse — éviter pavés, gravier, trottoirs abaissés',
+      'Vérifier les roues et courroies de transmission avant chaque sortie longue',
+      'Recharger sur surface dure et non inflammable, jamais pendant la nuit sans surveillance',
+    ],
+    conseilsFormateur:[
+      'Le skateboard électrique touche souvent un public jeune et sportif qui sous-estime le risque EDPM',
+      'Montrer la différence entre la planche classique (non réglementée) et la planche motorisée (EDPM)',
+      'Insister sur le fait que les modèles dé-bridés à > 25 km/h sont hors-la-loi et engagent la responsabilité du conducteur en cas d\'accident',
+      'Point commun à tous les EDPM : l\'assurance RC est obligatoire et souvent absente — sensibiliser',
+    ],
+  },
+];
+
+const EDPMS_ENTRETIEN = [
+  { id:'e1', categorie:'Expérience de conduite', questions:[
+    'Avez-vous déjà conduit un véhicule ? (AAC, conduite supervisée, pays étranger, véhicule agricole…)',
+    'Si oui, combien d\'heures approximativement ? Sur quel type de voies (ville, route, autoroute) ?',
+    'Avez-vous déjà eu un accident ou un incident de conduite ?',
+    'Avez-vous déjà passé ou tenté de passer le permis B ? Si oui, combien de fois ?',
+  ]},
+  { id:'e2', categorie:'Motivations et objectifs', questions:[
+    'Pour quelle raison principale souhaitez-vous obtenir le permis B ?',
+    'Avez-vous une contrainte de délai (emploi, études, déménagement) ?',
+    'Envisagez-vous de conduire régulièrement ? Sur quel type de trajet typiquement ?',
+    'Avez-vous un véhicule ou prévoir d\'en acquérir un rapidement ?',
+  ]},
+  { id:'e3', categorie:'Représentations et freins', questions:[
+    'Comment décrieriez-vous votre rapport à la conduite : confiant(e), appréhensif(ve), neutre ?',
+    'Avez-vous des appréhensions particulières (autoroute, nuit, parking, stationnement) ?',
+    'Avez-vous des contraintes médicales ou physiques à me signaler (vision, mobilité, traitement médicamenteux) ?',
+    'Avez-vous déjà ressenti de l\'anxiété au volant ou lors de trajets en tant que passager ?',
+  ]},
+  { id:'e4', categorie:'Disponibilité et rythme', questions:[
+    'Combien de leçons par semaine pensez-vous pouvoir effectuer ?',
+    'Avez-vous une préférence pour les horaires (matin, soir, week-end) ?',
+    'Quelqu\'un de votre entourage peut-il vous accompagner pour une conduite supervisée entre les leçons ?',
+  ]},
+];
+
+const EDPMS_AUTOEVAL = [
+  { id:'ae1', dom:'D1 — Maîtrise du véhicule',       items:[
+    { id:'ae11', label:'Je sais régler le véhicule et faire les vérifications avant départ' },
+    { id:'ae12', label:'Je me sens à l\'aise pour accélérer, freiner et diriger le véhicule' },
+    { id:'ae13', label:'Je peux effectuer les manœuvres (créneau, demi-tour, marche arrière)' },
+  ]},
+  { id:'ae2', dom:'D2 — Circulation réelle',          items:[
+    { id:'ae21', label:'Je sais observer et anticiper ce qui se passe autour de moi' },
+    { id:'ae22', label:'Je connais et respecte les règles de priorité et les limitations de vitesse' },
+    { id:'ae23', label:'Je me sens à l\'aise sur route, en ville, de nuit ou sous la pluie' },
+  ]},
+  { id:'ae3', dom:'D3 — Comportements responsables', items:[
+    { id:'ae31', label:'J\'ai une conduite respectueuse envers les autres usagers' },
+    { id:'ae32', label:'Je gère bien la fatigue, le stress et les distractions au volant' },
+    { id:'ae33', label:'Je conduis de façon économique et écologique' },
+  ]},
+];
+
+const EDPMS_OBS_FORMATEUR = [
+  { id:'of1', code:'C1.1', titre:'Prise en main & réglages', indicateurs:['Réglages siège/rétros corrects sans aide','Vérification avant départ effectuée spontanément','Ceinture bouclée sans rappel'] },
+  { id:'of2', code:'C1.2', titre:'Direction & vitesse',       indicateurs:['Trajectoire régulière en ligne droite','Entrée/sortie de courbe maîtrisée','Freinage progressif et anticipé'] },
+  { id:'of3', code:'C1.3', titre:'Manœuvres',                 indicateurs:['Créneau : vérification + braquage adapté','Marche arrière : regard et allure maîtrisés','Stationnement : frein à main + vitesse enclenchée'] },
+  { id:'of4', code:'C2.1', titre:'Observation & anticipation',indicateurs:['Balayage visuel régulier (≥ toutes les 8s)','Angle mort vérifié avant changement de direction','Réaction anticipée aux situations à risque'] },
+  { id:'of5', code:'C2.2', titre:'Règles de circulation',     indicateurs:['Priorités respectées','Limitations de vitesse respectées','Signalisation respectée (feux, stops, cédez)'] },
+  { id:'of6', code:'C2.3', titre:'Situations particulières',  indicateurs:['Comportement adapté si conditions dégradées','Distance de sécurité maintenue','Gestion de l\'insertion/sortie d\'axe rapide'] },
+  { id:'of7', code:'C3.1', titre:'Attitude coopérative',      indicateurs:['Clignotants anticipés et désactivés','Respect des piétons et cyclistes','Pas de pression sur les autres usagers'] },
+  { id:'of8', code:'C3.2', titre:'États internes',            indicateurs:['Calme apparent, sans tension excessive','Pas de distraction visible (téléphone, radio)','Réaction adaptée aux imprévus'] },
+  { id:'of9', code:'C3.3', titre:'Éco-conduite',              indicateurs:['Passages de vitesses anticipés','Pas de freinages inutiles','Allure régulière sans à-coups'] },
+];
+
+const EDPMS_NIVEAUX = [
+  { id:'A', label:'A — Débutant', color:'#f87171', desc:'Peu ou pas d\'expérience. Travail sur les fondamentaux D1 en priorité.' },
+  { id:'B', label:'B — En acquisition', color:'var(--gold)', desc:'Bases présentes mais inconstantes. Programme mixte D1/D2.' },
+  { id:'C', label:'C — Intermédiaire', color:'var(--accent-liika)', desc:'D1 globalement maîtrisé. Priorité à D2 puis D3.' },
+  { id:'D', label:'D — Avancé', color:'#4ade80', desc:'Bonne maîtrise globale. Affiner D3 et préparer l\'examen.' },
+];
+
 function CodeRousseauView({ codeRousseau, updateCodeRousseau }) {
   const cr = codeRousseau || { eleves: [], fiches: [], notes: '' };
   const [tab, setTab] = React.useState('referentiel');
@@ -7513,6 +7747,9 @@ function CodeRousseauView({ codeRousseau, updateCodeRousseau }) {
   const [expandFiche, setExpandFiche] = React.useState({});
   const [expandSec, setExpandSec] = React.useState({});
   const [expandLoi, setExpandLoi] = React.useState({});
+  const [expandEdpm, setExpandEdpm] = React.useState({});
+  const [edpmsEleveId, setEdpmsEleveId] = React.useState('');
+  const [edpmsStep, setEdpmsStep] = React.useState('guide'); // guide | entretien | grille | synthese
   const [showAddEleve, setShowAddEleve] = React.useState(false);
   const [eleveName, setEleveName] = React.useState('');
   const [elevePerm, setElevePerm] = React.useState('B');
@@ -7558,6 +7795,8 @@ function CodeRousseauView({ codeRousseau, updateCodeRousseau }) {
     { id: 'revision',    label: '📚 Révision (9)' },
     { id: 'securite',    label: '🛡 Sécurité (8)' },
     { id: 'loi',         label: '⚖️ Loi (6)' },
+    { id: 'edpm',        label: '🛴 EDPM (5)' },
+    { id: 'edpms',       label: '📊 EDPMS' },
     { id: 'eleves',      label: `👥 Élèves (${(cr.eleves||[]).length})` },
     { id: 'fiches',      label: `📝 Fiches (${(cr.fiches||[]).length})` },
     { id: 'notes',       label: '✏️ Notes' },
@@ -7685,6 +7924,238 @@ function CodeRousseauView({ codeRousseau, updateCodeRousseau }) {
           )
         );
       })
+    ),
+
+    // ── TAB : EDPM ──
+    tab === 'edpm' && React.createElement('div', null,
+      React.createElement('p', { style:{ fontSize:12, color:'var(--text-muted)', marginBottom:6, fontStyle:'italic' } },
+        '5 fiches EDPM — Engins de Déplacement Personnel Motorisé : réglementation, risques et prévention routière.'
+      ),
+      React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid var(--gold)', borderRadius:'var(--radius)', padding:'10px 14px', marginBottom:14, fontSize:12 } },
+        React.createElement('span', { style:{ fontWeight:700, color:'var(--gold)', marginRight:8 } }, '⚡ Cadre légal commun'),
+        'Tous les EDPM relèvent du décret n°2019-1082 du 23 octobre 2019. Vitesse max : 25 km/h, piste cyclable ou chaussée uniquement, casque obligatoire, assurance RC obligatoire, âge min 12 ans, interdit sur trottoirs et voies rapides.'
+      ),
+      EDPM_FICHES.map(f => {
+        const open = !!expandEdpm[f.id];
+        return React.createElement('div', { key:f.id, style:{ background:'var(--glass)', border:'1px solid var(--accent-liika-border)', borderRadius:'var(--radius)', marginBottom:10, overflow:'hidden' } },
+          React.createElement('div', {
+            onClick: () => setExpandEdpm(prev => ({ ...prev, [f.id]: !prev[f.id] })),
+            style:{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'12px 16px', cursor:'pointer' }
+          },
+            React.createElement('span', { style:{ fontSize:20 } }, f.icon),
+            React.createElement('span', { style:{ color:'var(--text)', fontWeight:700, fontSize:13, flex:1, marginLeft:10 } }, f.titre),
+            React.createElement('span', { style:{ color:'var(--text-muted)', fontSize:16 } }, open ? '▾' : '▸')
+          ),
+          open && React.createElement('div', { style:{ padding:'0 16px 16px', borderTop:'1px solid var(--accent-liika-border)' } },
+            React.createElement('p', { style:{ fontSize:12, color:'var(--text-muted)', margin:'10px 0 12px', fontStyle:'italic', lineHeight:1.5 } }, f.definition),
+            React.createElement('div', { style:{ marginBottom:12 } },
+              React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'var(--gold)', marginBottom:6 } }, '⚖️ Réglementation spécifique'),
+              React.createElement('ul', { style:{ margin:0, paddingLeft:18 } },
+                f.reglementation.map((r,i) => React.createElement('li', { key:i, style:{ fontSize:12, color:'var(--text)', lineHeight:1.6, marginBottom:3 } }, r))
+              )
+            ),
+            React.createElement('div', { style:{ marginBottom:12 } },
+              React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'#e74c3c', marginBottom:6 } }, '⚠️ Risques principaux'),
+              React.createElement('ul', { style:{ margin:0, paddingLeft:18 } },
+                f.risques.map((r,i) => React.createElement('li', { key:i, style:{ fontSize:12, color:'var(--text)', lineHeight:1.6, marginBottom:3 } }, r))
+              )
+            ),
+            React.createElement('div', { style:{ marginBottom:12 } },
+              React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'#27ae60', marginBottom:6 } }, '✅ Prévention & bons réflexes'),
+              React.createElement('ul', { style:{ margin:0, paddingLeft:18 } },
+                f.prevention.map((p,i) => React.createElement('li', { key:i, style:{ fontSize:12, color:'var(--text)', lineHeight:1.6, marginBottom:3 } }, p))
+              )
+            ),
+            React.createElement('div', { style:{ background:'var(--bg2)', borderRadius:8, padding:'10px 12px' } },
+              React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'var(--accent-liika)', marginBottom:6 } }, '💡 Conseils formateur'),
+              f.conseilsFormateur.map((c,i) => React.createElement('div', { key:i, style:{ fontSize:12, color:'var(--text-muted)', lineHeight:1.6, marginBottom: i < f.conseilsFormateur.length-1 ? 5 : 0, paddingLeft:8, borderLeft:'2px solid var(--accent-liika-border)' } }, c))
+            )
+          )
+        );
+      })
+    ),
+
+    // ── TAB : EDPMS ──
+    tab === 'edpms' && React.createElement('div', null,
+      // Sous-navigation EDPMS
+      React.createElement('div', { style:{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:16 } },
+        [
+          { id:'guide',     label:'📖 Guide' },
+          { id:'entretien', label:'💬 Entretien initial' },
+          { id:'grille',    label:'📋 Grille d\'observation' },
+          { id:'synthese',  label:'🎯 Synthèse & PFI' },
+        ].map(s => React.createElement('button', {
+          key:s.id, onClick:()=>setEdpmsStep(s.id),
+          style:{ padding:'5px 12px', borderRadius:16, border:'none', cursor:'pointer', fontSize:12,
+            background: edpmsStep===s.id ? 'var(--accent-liika)' : 'var(--glass)',
+            color: edpmsStep===s.id ? '#fff' : 'var(--text)' }
+        }, s.label))
+      ),
+
+      // ── Guide ──
+      edpmsStep === 'guide' && React.createElement('div', null,
+        React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid var(--accent-liika-border)', borderRadius:'var(--radius)', padding:16, marginBottom:12 } },
+          React.createElement('h3', { style:{ margin:'0 0 8px', color:'var(--gold)', fontSize:15 } }, '📊 Qu\'est-ce que l\'EDPMS ?'),
+          React.createElement('p', { style:{ margin:'0 0 8px', fontSize:13, color:'var(--text)', lineHeight:1.7 } },
+            'L\'Évaluation Diagnostique et de Positionnement en Maîtrise de la Sécurité (EDPMS) est l\'outil d\'entrée dans la formation REMC. Elle permet au formateur de :'
+          ),
+          React.createElement('ul', { style:{ margin:'0 0 8px', paddingLeft:18 } },
+            ['Identifier le niveau réel de l\'élève dans les 3 domaines REMC',
+             'Cerner ses représentations, motivations et freins éventuels',
+             'Positionner l\'élève dans le parcours de formation',
+             'Co-construire un Plan de Formation Individualisé (PFI)',
+             'Établir une relation de confiance dès la première leçon',
+            ].map((t,i) => React.createElement('li', { key:i, style:{ fontSize:13, color:'var(--text)', lineHeight:1.7 } }, t))
+          )
+        ),
+        React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid var(--accent-liika-border)', borderRadius:'var(--radius)', padding:16, marginBottom:12 } },
+          React.createElement('h3', { style:{ margin:'0 0 10px', color:'var(--gold)', fontSize:14 } }, '⏱ Organisation de la séance EDPMS'),
+          [
+            { temps:'0–5 min',   icon:'👋', etape:'Accueil & présentation', desc:'Accueillir l\'élève, se présenter, présenter l\'auto-école et le déroulé de la séance.' },
+            { temps:'5–20 min',  icon:'💬', etape:'Entretien initial',       desc:'Utiliser la grille d\'entretien pour cerner expérience, motivations, représentations et disponibilités.' },
+            { temps:'20–25 min', icon:'✍️', etape:'Auto-évaluation élève',  desc:'Faire remplir par l\'élève sa propre perception de ses compétences (1 = aucune idée → 5 = très confiant).' },
+            { temps:'25–50 min', icon:'🚗', etape:'Mise en situation réelle',desc:'Leçon de conduite diagnostique : observer chaque compétence REMC sans intervenir sauf danger.' },
+            { temps:'50–60 min', icon:'🎯', etape:'Synthèse & PFI',         desc:'Débriefing bienveillant, positionnement, fixation des 3 objectifs prioritaires et planning.' },
+          ].map((e,i) => React.createElement('div', { key:i, style:{ display:'flex', gap:12, alignItems:'flex-start', marginBottom:10 } },
+            React.createElement('div', { style:{ minWidth:60, fontSize:10, color:'var(--text-muted)', paddingTop:2, flexShrink:0 } }, e.temps),
+            React.createElement('span', { style:{ fontSize:16, flexShrink:0 } }, e.icon),
+            React.createElement('div', null,
+              React.createElement('div', { style:{ fontWeight:700, fontSize:13, color:'var(--accent-liika)' } }, e.etape),
+              React.createElement('div', { style:{ fontSize:12, color:'var(--text-muted)', lineHeight:1.6 } }, e.desc)
+            )
+          ))
+        ),
+        React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid var(--accent-liika-border)', borderRadius:'var(--radius)', padding:16 } },
+          React.createElement('h3', { style:{ margin:'0 0 10px', color:'var(--gold)', fontSize:14 } }, '💡 Posture du formateur pendant l\'EDPMS'),
+          [
+            'Observation non interventionniste pendant la conduite diagnostique (sauf danger réel)',
+            'Langage bienveillant et non jugeant — l\'élève ne doit pas se sentir évalué de façon scolaire',
+            'Prendre des notes discrètes sur la grille d\'observation pendant la conduite',
+            'Valoriser les points forts avant d\'aborder les axes d\'amélioration dans la synthèse',
+            'La synthèse doit être une co-construction : interroger l\'élève sur sa propre perception',
+            'Ne pas surcharger le PFI — 3 objectifs maximum pour la prochaine leçon',
+          ].map((t,i) => React.createElement('div', { key:i, style:{ display:'flex', gap:8, marginBottom:6 } },
+            React.createElement('span', { style:{ color:'var(--accent-liika)', flexShrink:0 } }, '◇'),
+            React.createElement('span', { style:{ fontSize:12, color:'var(--text)', lineHeight:1.6 } }, t)
+          ))
+        )
+      ),
+
+      // ── Entretien initial ──
+      edpmsStep === 'entretien' && React.createElement('div', null,
+        React.createElement('p', { style:{ fontSize:12, color:'var(--text-muted)', marginBottom:14, fontStyle:'italic' } },
+          'Guide d\'entretien structuré à conduire avant la mise en situation. Adapter librement selon le profil de l\'élève.'
+        ),
+        EDPMS_ENTRETIEN.map(sec => React.createElement('div', { key:sec.id, style:{ background:'var(--glass)', border:'1px solid var(--accent-liika-border)', borderRadius:'var(--radius)', padding:16, marginBottom:12 } },
+          React.createElement('h3', { style:{ margin:'0 0 10px', color:'var(--accent-liika)', fontSize:14 } }, '💬 ' + sec.categorie),
+          sec.questions.map((q,i) => React.createElement('div', { key:i, style:{ display:'flex', gap:8, marginBottom:8 } },
+            React.createElement('span', { style:{ color:'var(--gold)', fontWeight:700, flexShrink:0, fontSize:13 } }, (i+1) + '.'),
+            React.createElement('span', { style:{ fontSize:13, color:'var(--text)', lineHeight:1.6 } }, q)
+          ))
+        )),
+        // Auto-évaluation élève
+        React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid var(--gold-border)', borderRadius:'var(--radius)', padding:16, marginBottom:12 } },
+          React.createElement('h3', { style:{ margin:'0 0 6px', color:'var(--gold)', fontSize:14 } }, '✍️ Auto-évaluation guidée de l\'élève'),
+          React.createElement('p', { style:{ fontSize:12, color:'var(--text-muted)', margin:'0 0 12px' } },
+            'Faire noter de 1 (pas du tout) à 5 (très confiant) par l\'élève lui-même, avant la mise en situation.'
+          ),
+          EDPMS_AUTOEVAL.map(dom => React.createElement('div', { key:dom.id, style:{ marginBottom:12 } },
+            React.createElement('div', { style:{ fontWeight:700, fontSize:13, color:'var(--text)', marginBottom:6 } }, dom.dom),
+            dom.items.map((it,i) => React.createElement('div', { key:it.id, style:{ display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:12, color:'var(--text-muted)', marginBottom:6, paddingLeft:8, borderLeft:'2px solid var(--accent-liika-border)' } },
+              React.createElement('span', { style:{ flex:1, lineHeight:1.5 } }, it.label),
+              React.createElement('div', { style:{ display:'flex', gap:4, marginLeft:8 } },
+                [1,2,3,4,5].map(n => React.createElement('div', { key:n, style:{ width:22, height:22, borderRadius:'50%', border:'1px solid var(--accent-liika-border)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, color:'var(--text-muted)', background:'var(--bg2)' } }, n))
+              )
+            ))
+          ))
+        )
+      ),
+
+      // ── Grille d'observation formateur ──
+      edpmsStep === 'grille' && React.createElement('div', null,
+        React.createElement('p', { style:{ fontSize:12, color:'var(--text-muted)', marginBottom:14, fontStyle:'italic' } },
+          'Grille d\'observation à renseigner pendant ou immédiatement après la mise en situation diagnostique. Notation : ✓ observé / ~ partiel / ✗ absent / — non observé.'
+        ),
+        // Sélecteur d'élève
+        (cr.eleves||[]).length > 0 && React.createElement('div', { style:{ display:'flex', alignItems:'center', gap:10, marginBottom:14 } },
+          React.createElement('label', { style:{ fontSize:12, color:'var(--text-muted)' } }, 'Élève évalué :'),
+          React.createElement('select', {
+            value: edpmsEleveId, onChange: e => setEdpmsEleveId(e.target.value),
+            style:{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:8, padding:'5px 10px', color:'var(--text)', fontSize:13 }
+          },
+            React.createElement('option', { value:'' }, '— choisir un élève —'),
+            (cr.eleves||[]).map(e => React.createElement('option', { key:e.id, value:e.id }, e.nom + ' (permis ' + e.niveau + ')'))
+          )
+        ),
+        EDPMS_OBS_FORMATEUR.map(c => React.createElement('div', { key:c.id, style:{ background:'var(--glass)', border:'1px solid var(--accent-liika-border)', borderRadius:'var(--radius)', padding:'12px 14px', marginBottom:10 } },
+          React.createElement('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 } },
+            React.createElement('div', null,
+              React.createElement('span', { style:{ color:'var(--accent-liika)', fontWeight:700, fontSize:12 } }, c.code + ' — '),
+              React.createElement('span', { style:{ color:'var(--text)', fontWeight:600, fontSize:13 } }, c.titre)
+            ),
+            React.createElement('div', { style:{ display:'flex', gap:6, flexShrink:0 } },
+              ['✓','~','✗','—'].map(s => React.createElement('div', { key:s, style:{ width:26, height:26, borderRadius:6, border:'1px solid var(--accent-liika-border)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, color:'var(--text-muted)', background:'var(--bg2)', cursor:'pointer' } }, s))
+            )
+          ),
+          React.createElement('ul', { style:{ margin:0, paddingLeft:16 } },
+            c.indicateurs.map((ind,i) => React.createElement('li', { key:i, style:{ fontSize:12, color:'var(--text-muted)', lineHeight:1.6, marginBottom:2 } }, ind))
+          )
+        ))
+      ),
+
+      // ── Synthèse & PFI ──
+      edpmsStep === 'synthese' && React.createElement('div', null,
+        React.createElement('p', { style:{ fontSize:12, color:'var(--text-muted)', marginBottom:14, fontStyle:'italic' } },
+          'À compléter avec l\'élève lors du débriefing final. Co-construire le Plan de Formation Individualisé (PFI).'
+        ),
+        // Niveaux de positionnement
+        React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid var(--accent-liika-border)', borderRadius:'var(--radius)', padding:16, marginBottom:12 } },
+          React.createElement('h3', { style:{ margin:'0 0 10px', color:'var(--gold)', fontSize:14 } }, '🎯 Positionnement REMC'),
+          EDPMS_NIVEAUX.map(n => React.createElement('div', { key:n.id, style:{ display:'flex', alignItems:'flex-start', gap:12, marginBottom:10, padding:'10px 12px', borderRadius:8, border:'1px solid var(--accent-liika-border)', background:'var(--bg2)' } },
+            React.createElement('div', { style:{ width:36, height:36, borderRadius:8, background:n.color, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:900, fontSize:16, color:'#111', flexShrink:0 } }, n.id),
+            React.createElement('div', null,
+              React.createElement('div', { style:{ fontWeight:700, fontSize:13, color:'var(--text)', marginBottom:2 } }, n.label),
+              React.createElement('div', { style:{ fontSize:12, color:'var(--text-muted)', lineHeight:1.5 } }, n.desc)
+            )
+          ))
+        ),
+        // Structure du PFI
+        React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid var(--accent-liika-border)', borderRadius:'var(--radius)', padding:16, marginBottom:12 } },
+          React.createElement('h3', { style:{ margin:'0 0 10px', color:'var(--gold)', fontSize:14 } }, '📋 Plan de Formation Individualisé (PFI) — éléments à renseigner'),
+          [
+            { label:'Niveau de positionnement retenu (A / B / C / D)', type:'select' },
+            { label:'3 points forts identifiés pendant la séance',     type:'text3' },
+            { label:'3 axes prioritaires de travail',                   type:'text3' },
+            { label:'Estimation du nombre d\'heures restantes',         type:'number' },
+            { label:'Prochain objectif de leçon (compétence REMC cible)', type:'text' },
+            { label:'Observations libres & remarques formateur',        type:'textarea' },
+          ].map((f,i) => React.createElement('div', { key:i, style:{ marginBottom:12 } },
+            React.createElement('label', { style:{ display:'block', fontSize:12, color:'var(--text-muted)', marginBottom:4 } }, f.label),
+            f.type === 'textarea'
+              ? React.createElement('textarea', { rows:3, placeholder:'…', style:{ width:'100%', boxSizing:'border-box', background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:8, padding:'7px 10px', color:'var(--text)', fontSize:12, resize:'vertical' } })
+              : f.type === 'text3'
+                ? React.createElement('div', { style:{ display:'flex', flexDirection:'column', gap:4 } },
+                    [1,2,3].map(n => React.createElement('input', { key:n, placeholder:'— ' + n, style:{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:8, padding:'6px 10px', color:'var(--text)', fontSize:12 } }))
+                  )
+                : React.createElement('input', { type: f.type === 'number' ? 'number' : 'text', placeholder:'…', style:{ width:'100%', boxSizing:'border-box', background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:8, padding:'6px 10px', color:'var(--text)', fontSize:12 } })
+          ))
+        ),
+        // Conseils de conclusion
+        React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid var(--accent-liika-border)', borderRadius:'var(--radius)', padding:16 } },
+          React.createElement('h3', { style:{ margin:'0 0 10px', color:'var(--gold)', fontSize:14 } }, '✦ Conduire le débriefing — points clés'),
+          [
+            'Commencer par demander à l\'élève son propre ressenti : « Comment vous êtes-vous senti(e) ? »',
+            'Valider les perceptions justes, recadrer doucement les représentations erronées',
+            'Annoncer le positionnement avec des mots positifs : « Vous êtes au niveau B, ce qui signifie que les bases sont là… »',
+            'Présenter le PFI comme un outil vivant : il peut évoluer au fil des leçons',
+            'Terminer sur un point de motivation : rappeler la progression normale et les délais réalistes',
+            'Conserver une copie du PFI dans le livret d\'apprentissage de l\'élève',
+          ].map((t,i) => React.createElement('div', { key:i, style:{ display:'flex', gap:8, marginBottom:7 } },
+            React.createElement('span', { style:{ color:'var(--accent-liika)', flexShrink:0, marginTop:1 } }, '◇'),
+            React.createElement('span', { style:{ fontSize:12, color:'var(--text)', lineHeight:1.6 } }, t)
+          ))
+        )
+      )
     ),
 
     // ── TAB : Élèves ──
