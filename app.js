@@ -7506,6 +7506,177 @@ const REMC_LOIS = [
   },
 ];
 
+const EDPM_FICHES = [
+  {
+    id:'edpm1', icon:'🛴', titre:'Trottinette électrique',
+    definition:'Véhicule léger à deux roues en ligne, propulsé par un moteur électrique, sans selle. Usage individuel, usage partagé (free-floating) ou personnel.',
+    reglementation:[
+      'Vitesse maximale autorisée : 25 km/h (bridage constructeur imposé)',
+      'Interdit sur trottoirs (amende 135 €) — voie cyclable obligatoire ou chaussée si absente',
+      'Interdit sur voies rapides, autoroutes, routes à > 50 km/h sans piste cyclable',
+      'Port du casque obligatoire depuis le 01/01/2022 (EPI EN 1078 cycliste, ou moto)',
+      'Éclairage avant/arrière + équipement réfléchissant obligatoires de nuit',
+      'Gilet rétro-réfléchissant haute visibilité obligatoire de nuit et par mauvaise visibilité',
+      'Âge minimum : 12 ans pour espace public. Moins de 12 ans : usage privé uniquement',
+      'Assurance responsabilité civile obligatoire (couverte par contrat habitation multi-risques)',
+      'Alcool : même tolérance que les automobilistes (0,5 g/L), verbalisation possible',
+      'Téléphone en main : amende 135 €, retrait de 3 points si permis',
+    ],
+    risques:[
+      'Chute à l\'arrêt ou au démarrage (instabilité liée aux petites roues)',
+      'Perte d\'équilibre sur revêtements dégradés, pavés, rails de tramway',
+      'Invisibilité pour les automobilistes (gabarit très réduit, pas de rétroviseurs)',
+      'Absence de protection en cas de choc (pas de carrosserie, de ceinture)',
+      'Freinage insuffisant en cas de pluie (roues lisses) — distance de freinage × 2 à 3',
+      'Risque de conflit avec piétons lors de traversées ou carrefours mal gérés',
+      'Batteries lithium : risque d\'incendie en cas de charge inadaptée ou d\'accident',
+    ],
+    prevention:[
+      'Toujours porter le casque + gants + protège-coudes/genoux pour les débutants',
+      'Adopter une vitesse adaptée (< 15 km/h en zone dense) et anticiper les obstacles',
+      'Regarder loin devant : les ornières, grilles d\'égout et rails se voient à l\'avance',
+      'Signaler ses changements de direction à la main comme un cycliste',
+      'Éviter la conduite par pluie forte ou verglas — roues non crantées glissent vite',
+      'Vérifier la batterie avant chaque trajet (panne soudaine = danger)',
+      'Ne jamais dépasser 1 personne par engin — passager = risque de déséquilibre + illégal',
+      'Se ranger complètement sur le côté pour s\'arrêter, ne pas bloquer la piste cyclable',
+    ],
+    conseilsFormateur:[
+      'Montrer des statistiques locales d\'accidents EDPM pour ancrer la réalité du risque',
+      'Insister sur la règle de l\'anticipation : une trottinette ne protège pas ses occupants',
+      'Exercice pratique : faire calculer la distance de freinage à 25 km/h vs 50 km/h pour un vélo',
+      'Rappeler que l\'alcool au volant d\'une trottinette est verbalisable — souvent ignoré des élèves',
+      'Aborder le risque propre au free-floating : engins mal entretenus, freins usés',
+    ],
+  },
+  {
+    id:'edpm2', icon:'🔄', titre:'Monoroue électrique',
+    definition:'Engin à une seule roue centrale gyrostabilisée, conduit debout en maintenant l\'équilibre par le poids du corps. Apprentissage long (plusieurs heures).',
+    reglementation:[
+      'Statut légal identique aux autres EDPM depuis le décret du 25 octobre 2019',
+      'Vitesse maximale autorisée : 25 km/h (bridage requis, certains modèles atteignent 50+ km/h sans bridage — illégal)',
+      'Même règles de circulation que trottinette : pistes cyclables ou chaussée',
+      'Casque obligatoire, éclairage avant/arrière requis la nuit',
+      'Assurance RC obligatoire',
+      'Interdit sur trottoirs, voies rapides, autoroutes',
+      'Âge minimum : 12 ans sur voie publique',
+    ],
+    risques:[
+      'Chute frontale brutale en cas de dépassement de la vitesse limite de la roue (coupure de courant)',
+      'Apprentissage sans filet : les premières heures sont très accidentogènes',
+      'Absence totale de dispositif de freinage mécanique — freinage par déport du poids',
+      'Grande dépendance à l\'électronique embarquée (gyroscope) — panne = chute immédiate',
+      'Gabarit très discret — invisibilité forte en trafic dense',
+      'Risque de projection si la roue accroche un obstacle (bord de trottoir, caillou)',
+    ],
+    prevention:[
+      'Apprentissage impératif dans un espace fermé avant toute sortie sur voie publique',
+      'Équipement complet : casque intégral recommandé, protège-poignets obligatoires',
+      'Ne jamais dépasser la vitesse maximale autorisée par le firmware — régler l\'alarme à 20 km/h',
+      'Garder une batterie > 20 % : la gyrostabilisation se dégrade sous ce seuil',
+      'Éviter les zones à fort trafic les premiers mois',
+      'Toujours vérifier firmware et batterie avant chaque sortie longue',
+    ],
+    conseilsFormateur:[
+      'La monoroue est souvent sous-estimée par les élèves à l\'aise avec d\'autres EDPM',
+      'Illustrer le « cutoff » (coupure gyro à dépassement de vitesse) avec des vidéos réelles',
+      'Rappeler que certains modèles bridés en usine peuvent être dé-bridés — pratique illégale et dangereuse',
+    ],
+  },
+  {
+    id:'edpm3', icon:'🤖', titre:'Gyropode (Segway-type)',
+    definition:'Engin à deux roues parallèles gyrostabilisé, conduit debout ou assis selon le modèle, dirigé par le poids du corps. Premier EDPM populaire (années 2000).',
+    reglementation:[
+      'Cadre légal EDPM depuis 2019 : même réglementation que la trottinette électrique',
+      'Vitesse maximale : 25 km/h',
+      'Interdit sur trottoirs, voies rapides ; autorisé sur pistes cyclables et chaussée',
+      'Casque obligatoire, assurance RC obligatoire',
+      'Usage professionnel (police, sécurité) : règles spécifiques selon l\'employeur',
+      'Anciennement en zone d\'expérimentation jusqu\'au décret 2019 — maintenant intégré au Code de la route',
+    ],
+    risques:[
+      'Chute avant en cas de frein brusque ou obstacle (impossible d\'anticiper avec les mains)',
+      'Maniabilité réduite dans les espaces confinés par rapport à une trottinette',
+      'Poids élevé (10–15 kg) : difficile à relever ou à dégager rapidement en cas de chute',
+      'Rayon de braquage limité : virage serré difficile en intersection',
+      'Moins instinctif que la trottinette pour les usagers non initiés',
+    ],
+    prevention:[
+      'Toujours commencer par des exercices de braquage et d\'arrêt d\'urgence',
+      'Casque + protections latérales des genoux recommandées',
+      'Prévoir plus de place pour s\'arrêter : freinage par déport = distance plus longue',
+      'Adapter l\'allure à l\'encombrement de la voie cyclable ou de la chaussée',
+    ],
+    conseilsFormateur:[
+      'Le gyropode est souvent rencontré en contexte professionnel (tourisme, sécurité)',
+      'Discuter les cas d\'usage légitimes vs risques pour les élèves qui en ont ou envisagent d\'en avoir',
+    ],
+  },
+  {
+    id:'edpm4', icon:'🏄', titre:'Hoverboard',
+    definition:'Engin à deux roues parallèles sans guidon, conduit debout, équilibre géré uniquement par le poids du corps. Popularisé à partir de 2015.',
+    reglementation:[
+      'Statut EDPM depuis décret 2019 — même cadre que trottinette et gyropode',
+      'Vitesse maximale : 25 km/h',
+      'Interdit sur trottoirs, voies rapides, autoroutes',
+      'Casque obligatoire, assurance RC obligatoire, éclairage de nuit requis',
+      'Âge minimum : 12 ans pour usage voie publique',
+      'Attention : certains hoverboards vendus en France ne respectent pas la norme CE ou les limites de vitesse — illégaux sur voie publique',
+    ],
+    risques:[
+      'Chute fréquente pour les non-initiés : l\'équilibre s\'apprend en 20–60 min mais peut prendre plus',
+      'Batteries lithium de qualité variable : nombreux cas d\'incendie sur les premiers modèles bas de gamme',
+      'Absence totale de guidon → aucun contrôle de direction fine en urgence',
+      'Vitesse difficile à réguler précisément : risque de dépassement involontaire',
+      'Ruissellement et flaques : les roulements et circuits électroniques peu protégés sur certains modèles',
+    ],
+    prevention:[
+      'N\'acheter que des hoverboards certifiés UL 2272 (norme sécurité batteries USA) ou CE en Europe',
+      'Ne jamais laisser charger sans surveillance, ni sur moquette ou literie',
+      'Protections complètes obligatoires pour les débutants : casque, genoux, poignets, coudes',
+      'Interdire à l\'enfant de se mettre sur route ou piste cyclable tant que la maîtrise n\'est pas totale',
+      'Éviter la pluie : IP insuffisant sur la plupart des modèles grand public',
+    ],
+    conseilsFormateur:[
+      'L\'hoverboard est souvent le premier EDPM découvert par les jeunes → point d\'entrée pédagogique',
+      'Insister sur le risque incendie : les batteries bas de gamme sont un vrai danger',
+      'Rappeler que l\'engin sans casque en public est verbalizable même si l\'élève le voit comme un jouet',
+    ],
+  },
+  {
+    id:'edpm5', icon:'🛹', titre:'Skateboard & longboard électrique',
+    definition:'Planche à roulettes motorisée, dirigée par des déplacements du poids du corps sur la planche. Télécommande ou capteurs d\'équilibre selon le modèle.',
+    reglementation:[
+      'Statut EDPM depuis décret 2019 — même réglementation',
+      'Vitesse maximale : 25 km/h (certains modèles atteignent 45+ km/h — illégaux sur voie publique)',
+      'Interdit sur trottoirs, voies rapides, autoroutes',
+      'Casque obligatoire, assurance RC obligatoire',
+      'Télécommande : engin intégralement motorisé → distinction avec le skateboard classique non motorisé (pas soumis à la réglementation EDPM)',
+    ],
+    risques:[
+      'Roues très petites (50–70 mm) : sensibles aux cailloux, joints de dilatation, rails tramway',
+      'Fréquence élevée des « wheel bite » (roue bloquée par la planche en virage serré) à haute vitesse',
+      'Freinage moteur uniquement : absence de frein mécanique de secours',
+      'Chute avant brutale lors d\'obstacle imprévu : vitesse de réaction insuffisante à > 20 km/h',
+      'Batteries exposées sous la planche : vulnérables aux chocs et à l\'eau',
+      'Modèles « DIY » (bricolés) : fiabilité et bridage inconnus',
+    ],
+    prevention:[
+      'Port du casque + protège-poignets + genoux impératif, même pour les skateurs expérimentés',
+      'Vitesse < 20 km/h en zone mixte, < 25 km/h uniquement sur piste cyclable dégagée',
+      'Choisir un itinéraire avec revêtement lisse — éviter pavés, gravier, trottoirs abaissés',
+      'Vérifier les roues et courroies de transmission avant chaque sortie longue',
+      'Recharger sur surface dure et non inflammable, jamais pendant la nuit sans surveillance',
+    ],
+    conseilsFormateur:[
+      'Le skateboard électrique touche souvent un public jeune et sportif qui sous-estime le risque EDPM',
+      'Montrer la différence entre la planche classique (non réglementée) et la planche motorisée (EDPM)',
+      'Insister sur le fait que les modèles dé-bridés à > 25 km/h sont hors-la-loi et engagent la responsabilité du conducteur en cas d\'accident',
+      'Point commun à tous les EDPM : l\'assurance RC est obligatoire et souvent absente — sensibiliser',
+    ],
+  },
+];
+
 const EDPMS_ENTRETIEN = [
   { id:'e1', categorie:'Expérience de conduite', questions:[
     'Avez-vous déjà conduit un véhicule ? (AAC, conduite supervisée, pays étranger, véhicule agricole…)',
@@ -7576,6 +7747,7 @@ function CodeRousseauView({ codeRousseau, updateCodeRousseau }) {
   const [expandFiche, setExpandFiche] = React.useState({});
   const [expandSec, setExpandSec] = React.useState({});
   const [expandLoi, setExpandLoi] = React.useState({});
+  const [expandEdpm, setExpandEdpm] = React.useState({});
   const [edpmsEleveId, setEdpmsEleveId] = React.useState('');
   const [edpmsStep, setEdpmsStep] = React.useState('guide'); // guide | entretien | grille | synthese
   const [showAddEleve, setShowAddEleve] = React.useState(false);
@@ -7623,6 +7795,7 @@ function CodeRousseauView({ codeRousseau, updateCodeRousseau }) {
     { id: 'revision',    label: '📚 Révision (9)' },
     { id: 'securite',    label: '🛡 Sécurité (8)' },
     { id: 'loi',         label: '⚖️ Loi (6)' },
+    { id: 'edpm',        label: '🛴 EDPM (5)' },
     { id: 'edpms',       label: '📊 EDPMS' },
     { id: 'eleves',      label: `👥 Élèves (${(cr.eleves||[]).length})` },
     { id: 'fiches',      label: `📝 Fiches (${(cr.fiches||[]).length})` },
@@ -7747,6 +7920,55 @@ function CodeRousseauView({ codeRousseau, updateCodeRousseau }) {
             React.createElement('div', { style:{ marginTop:12 } },
               React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'var(--accent-liika)', marginBottom:6 } }, '💡 Notes pratiques'),
               f.notesPratiques.map((n,i) => React.createElement('div', { key:i, style:{ fontSize:12, color:'var(--text-muted)', lineHeight:1.6, marginBottom: i < f.notesPratiques.length-1 ? 6 : 0, paddingLeft:8, borderLeft:'2px solid var(--accent-liika-border)' } }, n))
+            )
+          )
+        );
+      })
+    ),
+
+    // ── TAB : EDPM ──
+    tab === 'edpm' && React.createElement('div', null,
+      React.createElement('p', { style:{ fontSize:12, color:'var(--text-muted)', marginBottom:6, fontStyle:'italic' } },
+        '5 fiches EDPM — Engins de Déplacement Personnel Motorisé : réglementation, risques et prévention routière.'
+      ),
+      React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid var(--gold)', borderRadius:'var(--radius)', padding:'10px 14px', marginBottom:14, fontSize:12 } },
+        React.createElement('span', { style:{ fontWeight:700, color:'var(--gold)', marginRight:8 } }, '⚡ Cadre légal commun'),
+        'Tous les EDPM relèvent du décret n°2019-1082 du 23 octobre 2019. Vitesse max : 25 km/h, piste cyclable ou chaussée uniquement, casque obligatoire, assurance RC obligatoire, âge min 12 ans, interdit sur trottoirs et voies rapides.'
+      ),
+      EDPM_FICHES.map(f => {
+        const open = !!expandEdpm[f.id];
+        return React.createElement('div', { key:f.id, style:{ background:'var(--glass)', border:'1px solid var(--accent-liika-border)', borderRadius:'var(--radius)', marginBottom:10, overflow:'hidden' } },
+          React.createElement('div', {
+            onClick: () => setExpandEdpm(prev => ({ ...prev, [f.id]: !prev[f.id] })),
+            style:{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'12px 16px', cursor:'pointer' }
+          },
+            React.createElement('span', { style:{ fontSize:20 } }, f.icon),
+            React.createElement('span', { style:{ color:'var(--text)', fontWeight:700, fontSize:13, flex:1, marginLeft:10 } }, f.titre),
+            React.createElement('span', { style:{ color:'var(--text-muted)', fontSize:16 } }, open ? '▾' : '▸')
+          ),
+          open && React.createElement('div', { style:{ padding:'0 16px 16px', borderTop:'1px solid var(--accent-liika-border)' } },
+            React.createElement('p', { style:{ fontSize:12, color:'var(--text-muted)', margin:'10px 0 12px', fontStyle:'italic', lineHeight:1.5 } }, f.definition),
+            React.createElement('div', { style:{ marginBottom:12 } },
+              React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'var(--gold)', marginBottom:6 } }, '⚖️ Réglementation spécifique'),
+              React.createElement('ul', { style:{ margin:0, paddingLeft:18 } },
+                f.reglementation.map((r,i) => React.createElement('li', { key:i, style:{ fontSize:12, color:'var(--text)', lineHeight:1.6, marginBottom:3 } }, r))
+              )
+            ),
+            React.createElement('div', { style:{ marginBottom:12 } },
+              React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'#e74c3c', marginBottom:6 } }, '⚠️ Risques principaux'),
+              React.createElement('ul', { style:{ margin:0, paddingLeft:18 } },
+                f.risques.map((r,i) => React.createElement('li', { key:i, style:{ fontSize:12, color:'var(--text)', lineHeight:1.6, marginBottom:3 } }, r))
+              )
+            ),
+            React.createElement('div', { style:{ marginBottom:12 } },
+              React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'#27ae60', marginBottom:6 } }, '✅ Prévention & bons réflexes'),
+              React.createElement('ul', { style:{ margin:0, paddingLeft:18 } },
+                f.prevention.map((p,i) => React.createElement('li', { key:i, style:{ fontSize:12, color:'var(--text)', lineHeight:1.6, marginBottom:3 } }, p))
+              )
+            ),
+            React.createElement('div', { style:{ background:'var(--bg2)', borderRadius:8, padding:'10px 12px' } },
+              React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'var(--accent-liika)', marginBottom:6 } }, '💡 Conseils formateur'),
+              f.conseilsFormateur.map((c,i) => React.createElement('div', { key:i, style:{ fontSize:12, color:'var(--text-muted)', lineHeight:1.6, marginBottom: i < f.conseilsFormateur.length-1 ? 5 : 0, paddingLeft:8, borderLeft:'2px solid var(--accent-liika-border)' } }, c))
             )
           )
         );
