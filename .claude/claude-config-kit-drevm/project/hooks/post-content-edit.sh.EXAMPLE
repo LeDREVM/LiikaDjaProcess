@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Hook: post-content-edit  [EXEMPLE — rappel passif après édition d'un fichier de contenu métier]
+# PostToolUse:Edit|Write|MultiEdit — si un fichier de TON domaine de contenu est édité, affiche un
+# rappel des règles métier à vérifier avant commit. C'est un RAPPEL (exit 0, jamais bloquant).
+#
+# >>> ADAPTE : CONTENT_PATTERN (où vivent tes contenus), et le texte du rappel (tes règles métier).
+
+CONTENT_PATTERN="(trading_ny_session|ny_session_bot|classify_setup|fusion_broker|\\.mqh|\\.mq5)"   # logique de signal / exécution DREVM
+
+input=$(cat)
+
+file_path=$(echo "$input" | python3 -c "import json, sys
+try:
+    data = json.load(sys.stdin)
+    print(data.get('tool_input', {}).get('file_path', ''))
+except Exception:
+    print('')
+" 2>/dev/null || echo "")
+
+[ -z "$file_path" ] && exit 0
+
+if echo "$file_path" | grep -qE "$CONTENT_PATTERN"; then
+  cat <<EOF >&2
+[post-content-edit] Édition de contenu détectée : $(basename "$file_path")
+  → Avant commit : vérifier les faits (chaque date/chiffre/citation a-t-il une source ?)
+  → Respecter les faits canoniques de ton domaine (grades A+=#10b981 / A=#22c55e / B=#eab308 / C=#f97316 / D=#ef4444 ; OB=violet, FVG=bleu ; évaluation uniquement sur bougie M5 clôturée (no-repaint) ; MetaTrader5 Python = Windows uniquement)
+  → Vérifier la parité multilingue si le contenu est bilingue
+  → Vérifier que les appels à l'action pointent vers la bonne cible de conversion
+EOF
+fi
+
+exit 0

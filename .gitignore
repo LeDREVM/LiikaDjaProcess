@@ -1,0 +1,5 @@
+node_modules/
+nutrition/
+dist/
+.DS_Store
+.env
