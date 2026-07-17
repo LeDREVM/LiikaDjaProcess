@@ -50,47 +50,55 @@ const DEVICE_ID = (() => {
   }
   return id;
 })();
-async function sbLoad() {
-  const {
-    data,
-    error
-  } = await sb.from('app_state').select('data').eq('id', 'main').single();
+async function sbLoad(token) {
+  if (token) {
+    try {
+      const { data, error } = await sb.rpc('ld_get_app_state', { p_token: token });
+      if (!error && data && data.data) return normalize(data.data);
+    } catch(_) {}
+  }
+  // Fallback accès direct (compatible ancienne config sans token)
+  const { data, error } = await sb.from('app_state').select('data').eq('id', 'main').single();
   if (error || !data || !data.data) throw error || new Error('no data');
   return normalize(data.data);
 }
-async function sbSave(d) {
+async function sbSave(d, token) {
   // recipes, ferments, courses & media vivent dans leurs tables dédiées → hors du blob app_state
   const { recipes, ferments, courses, media, ...rest } = d || {};
-  const {
-    error
-  } = await sb.from('app_state').upsert({
-    id: 'main',
-    data: rest,
-    updated_at: new Date().toISOString(),
-    device_id: DEVICE_ID
-  });
+  if (token) {
+    const { error } = await sb.rpc('ld_save_app_state', { p_token: token, p_data: rest, p_device_id: DEVICE_ID });
+    if (error) throw error;
+    return;
+  }
+  const { error } = await sb.from('app_state').upsert({ id: 'main', data: rest, updated_at: new Date().toISOString(), device_id: DEVICE_ID });
   if (error) throw error;
 }
-async function sbGetPin(accountId) {
+// Vérifie si un compte a déjà un PIN sur Supabase (ne retourne pas le PIN)
+async function sbCheckPin(accountId) {
   try {
-    const {
-      data,
-      error
-    } = await sb.from('user_accounts').select('pin').eq('id', accountId).single();
-    if (error || !data || !data.pin) return null;
-    return data.pin;
-  } catch (_) {
-    return null;
-  }
+    const { data, error } = await sb.rpc('ld_account_has_pin', { p_account_id: accountId });
+    return !error && data === true;
+  } catch(_) { return false; }
 }
-async function sbSavePin(accountId, pin) {
+// Vérifie le PIN via Supabase → retourne un token de session (90 j) ou null
+async function sbVerifyPin(accountId, pin) {
   try {
-    await sb.from('user_accounts').upsert({
-      id: accountId,
-      pin,
-      updated_at: new Date().toISOString()
-    });
-  } catch (_) {}
+    const { data, error } = await sb.rpc('ld_verify_pin', { p_account_id: accountId, p_pin: pin, p_device_id: DEVICE_ID });
+    if (error || !data || !data.ok) return null;
+    return data.token;
+  } catch(_) { return null; }
+}
+// Crée un PIN sur Supabase (1er accès) → retourne un token de session ou null
+async function sbSetPin(accountId, pin) {
+  try {
+    const { data, error } = await sb.rpc('ld_set_pin', { p_account_id: accountId, p_pin: pin, p_device_id: DEVICE_ID });
+    if (error || !data || !data.ok) return null;
+    return data.token;
+  } catch(_) { return null; }
+}
+// Révoque le token de session sur Supabase (logout propre)
+async function sbRevokeToken(token) {
+  try { await sb.rpc('ld_revoke_session', { p_token: token }); } catch(_) {}
 }
 
 // ─── DrevmCook : tables dédiées (recipes / ferments) ───
@@ -6432,10 +6440,11 @@ function LoginScreen({
     setDigits([]);
     setTimeout(() => setShake(false), 500);
   };
-  const doLogin = (a, s) => {
-    localStorage.setItem('ld-session', JSON.stringify(s));
+  const doLogin = (a, s, token) => {
+    const sessionData = token ? { ...s, token } : s;
+    localStorage.setItem('ld-session', JSON.stringify(sessionData));
     localStorage.setItem('ld-username', a.name);
-    onLogin(s);
+    onLogin(sessionData);
   };
   const handleDigit = d => {
     if (digits.length >= 4 || loading) return;
@@ -6447,27 +6456,20 @@ function LoginScreen({
         const key = `ld-pin-${sel}`;
         const stored = localStorage.getItem(key);
         if (step === 'pin') {
-          if (pin === stored) {
-            doLogin(acc, {
-              id: sel,
-              name: acc.name,
-              loggedAt: Date.now()
-            });
-            return;
-          }
-
-          // Fallback distant : évite les faux "code incorrect" quand le PIN local est périmé.
+          // Vérification via Supabase RPC → retourne un token si succès
           setLoading(true);
-          const remote = await sbGetPin(sel);
+          const token = await sbVerifyPin(sel, pin);
           setLoading(false);
-          if (remote && pin === remote) {
-            localStorage.setItem(key, remote);
-            doLogin(acc, {
-              id: sel,
-              name: acc.name,
-              loggedAt: Date.now()
-            });
-          } else doShake('Code incorrect, réessaie');
+          if (token !== null) {
+            // Supabase a validé → cache le PIN + login avec token (appareil reconnu 90 j)
+            localStorage.setItem(key, pin);
+            doLogin(acc, { id: sel, name: acc.name, loggedAt: Date.now() }, token);
+          } else if (pin === stored) {
+            // Supabase inaccessible mais PIN local correct → login hors-ligne sans token
+            doLogin(acc, { id: sel, name: acc.name, loggedAt: Date.now() }, null);
+          } else {
+            doShake('Code incorrect, réessaie');
+          }
         } else if (step === 'create') {
           setFirst(pin);
           setDigits([]);
@@ -6475,13 +6477,11 @@ function LoginScreen({
           setErr('');
         } else if (step === 'confirm') {
           if (pin === first) {
+            setLoading(true);
+            const token = await sbSetPin(sel, pin);
+            setLoading(false);
             localStorage.setItem(`ld-pin-${sel}`, pin);
-            sbSavePin(sel, pin);
-            doLogin(acc, {
-              id: sel,
-              name: acc.name,
-              loggedAt: Date.now()
-            });
+            doLogin(acc, { id: sel, name: acc.name, loggedAt: Date.now() }, token);
           } else doShake('Les codes ne correspondent pas');
         }
       }, 150);
@@ -6498,15 +6498,12 @@ function LoginScreen({
       setStep('pin');
       return;
     }
-    // Pas de PIN local → cherche sur Supabase
+    // Pas de PIN local → vérifie si un PIN existe sur Supabase (sans exposer le PIN)
     setLoading(true);
     setStep('loading');
-    const remote = await sbGetPin(id);
+    const hasPin = await sbCheckPin(id);
     setLoading(false);
-    if (remote) {
-      localStorage.setItem(`ld-pin-${id}`, remote);
-      setStep('pin');
-    } else setStep('create');
+    setStep(hasPin ? 'pin' : 'create');
   };
   const pinTitle = step === 'create' ? 'Crée ton code PIN (4 chiffres)' : step === 'confirm' ? 'Confirme ton code PIN' : 'Entre ton code PIN';
   const pinSub = step === 'create' ? 'Premier accès sur cet appareil' : step === 'confirm' ? 'Répète le même code' : 'Synchronisé avec Supabase ☁';
@@ -9449,7 +9446,7 @@ useEffect(()=>{
 let alive=true;
 (async()=>{
   setSyncStatus('syncing');
-  const remote=await sbLoad();
+  const remote=await sbLoad(session?.token);
   if(!alive||!remote){
     if(alive){
       setSyncStatus('ok');
@@ -9497,7 +9494,7 @@ if(!initialSyncDone)return;
 if(remoteApplyRef.current){remoteApplyRef.current=false;return;}
 const t=setTimeout(()=>{
   setSyncStatus('syncing');
-  sbSave(data).then(()=>setSyncStatus('ok')).catch(()=>setSyncStatus('error'));
+  sbSave(data, session?.token).then(()=>setSyncStatus('ok')).catch(()=>setSyncStatus('error'));
 },1500);
 return ()=>clearTimeout(t);
 },[data,initialSyncDone]);
@@ -11886,6 +11883,7 @@ const ch=sb.channel('ld-realtime')
     }
   }), onlineCount)), /*#__PURE__*/React.createElement("button", {
     onClick: () => {
+      if (session?.token) sbRevokeToken(session.token);
       localStorage.removeItem('ld-session');
       setSession(null);
     },
