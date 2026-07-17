@@ -7740,6 +7740,210 @@ const EDPMS_NIVEAUX = [
   { id:'D', label:'D — Avancé', color:'#4ade80', desc:'Bonne maîtrise globale. Affiner D3 et préparer l\'examen.' },
 ];
 
+// ── RSMA Guadeloupe ──────────────────────────────────────────────────────────
+const RSMA_CONTEXTE = {
+  structure:'Régiment du Service Militaire Adapté (RSMA) — Guadeloupe, rattaché au SMA (Service Militaire Adapté), relevant du ministère des Outre-mer et des Armées.',
+  mission:'Former et insérer professionnellement des jeunes volontaires (18–25 ans) des DOM-COM en difficulté d\'insertion, via un cadre militaire structurant associant formation civique, formation professionnelle et accompagnement social.',
+  cadre:[
+    'Durée du contrat : 12 mois (Volontaire Stagiaire — VS) renouvelable une fois',
+    'Encadrement militaire : horaires, discipline, tenue réglementaire, hiérarchie',
+    'Formation professionnelle : CAP, CACES, permis B/BE, habilitations professionnelles',
+    'Formation civique : éducation à la citoyenneté, valeurs républicaines, vie collective',
+    'Accompagnement social : santé, logement, emploi, suivi post-SMA',
+    'Partenaires employeurs : collectivités, entreprises locales, Pôle Emploi, LADOM',
+  ],
+  profilTypique:[
+    'Âge : 18–25 ans, majorité entre 18 et 21 ans',
+    'Niveau scolaire : souvent CAP/BEP ou abandon scolaire — écrit parfois fragile',
+    'Expérience de conduite : très variable — nombreux conduits en zone rurale (Guadeloupe, Martinique, Guyane, Réunion) sans permis',
+    'Profil motivationnel : fort désir d\'emploi et d\'autonomie, réponse positive au cadre structurant',
+    'Freins fréquents : anxiété face à l\'examen théorique (écrit), difficulté de concentration, représentations négatives de soi ("je suis nul à l\'école")',
+    'Atouts : sérieux, ponctualité imposée par le cadre militaire, entraide entre camarades, motivation concrète (permis = emploi)',
+    'Particularité antillaise : familiarité avec la conduite de scooter / deux-roues → bonne perception des risques mais mauvaises habitudes de positionnement',
+  ],
+  adaptationsPedagogiques:[
+    'Privilégier l\'oral sur l\'écrit lors des évaluations formatives',
+    'Relier chaque compétence REMC à un bénéfice concret : "C1.1 → tu passes l\'examen → tu trouves un emploi"',
+    'Utiliser des exemples locaux : rond-points de Pointe-à-Pitre, Basse-Terre, routes en lacets Basse-Terre/Bouillante',
+    'Faire appel aux valeurs SMA : rigueur, discipline, respect, esprit d\'équipe → les transposer à la conduite',
+    'Séances courtes et rythmées (45 min conduite + bilan) plutôt que longues sessions',
+    'Valoriser les acquis de conduite informelle tout en recadrant les mauvaises habitudes',
+    'Créer un bilan écrit simple (pictogrammes REMC) lisible même si niveau de lecture faible',
+  ],
+};
+
+const REMC_RSMA_CORRELATIONS = [
+  {
+    comp:'C1.1', titre:'Prise en main du véhicule',
+    valeurSMA:'Rigueur & discipline',
+    lien:'La vérification du véhicule avant départ est un geste militaire : on ne part pas en mission sans avoir inspecté son matériel. Le VS comprend instinctivement le "check-list" pré-départ.',
+    adaptationRSMA:[
+      'Présenter la vérification comme une "revue de matériel" : habitude militaire = levier d\'apprentissage puissant',
+      'Parallèle avec l\'entretien de l\'équipement militaire (tenue, arme, véhicule tactique) — les VS du RSMA reçoivent déjà des bases en maintenance',
+      'Insister sur la responsabilité envers les autres occupants : valeur SMA du collectif',
+    ],
+    risquesSpecifiques:'Le VS peut avoir conduit en zone rurale antillaise sans jamais faire de vérification du véhicule. Réapprentissage total des niveaux et de la pression des pneus.',
+    pisTeEvaluation:'Demander la procédure de vérification à l\'oral — schéma illustré si lecture difficile.',
+  },
+  {
+    comp:'C1.2', titre:'Direction et vitesse',
+    valeurSMA:'Maîtrise de soi & sang-froid',
+    lien:'La régulation de l\'allure en conduite est la même compétence que la gestion du stress en situation militaire : observer, anticiper, agir avec mesure. Ne pas sur-réagir = qualité militaire ET qualité de conduite.',
+    adaptationRSMA:[
+      'Utiliser l\'analogie "pas de précipitation en mission → pas de précipitation sur la route"',
+      'Les routes de Basse-Terre (lacets, pentes, jungle) sont un terrain de formation idéal pour la régulation de vitesse',
+      'Exercices avec comptage vocal des 2 secondes de sécurité : ancrage par la répétition (méthode SMA)',
+    ],
+    risquesSpecifiques:'Habitude antillaise de vitesse élevée en agglomération, grillage de feux aux heures creuses. Fort risque de récidive une fois hors du cadre de la formation.',
+    pisTeEvaluation:'Exercice de freinage progressif sur parking : la distance d\'arrêt parlante est mesurée par cônes.',
+  },
+  {
+    comp:'C1.3', titre:'Manœuvres',
+    valeurSMA:'Persévérance & tolérance à l\'échec',
+    lien:'Les manœuvres sont souvent l\'étape où le VS échoue à l\'examen. La persistance face aux difficultés est une valeur SMA centrale. Le formateur doit cadrer l\'erreur comme une étape normale, pas une honte.',
+    adaptationRSMA:[
+      'Normaliser l\'erreur : "Au SMA tu recommences l\'exercice jusqu\'à réussite — c\'est pareil ici"',
+      'Pratique intensive du créneau : 3 répétitions minimum par séance jusqu\'à automatisation',
+      'Encourager la verbalisation de la difficulté — la culture militaire peut freiner l\'expression du doute',
+    ],
+    risquesSpecifiques:'Gêne à demander de l\'aide (culture masculine et militaire). Le VS masque parfois une incompréhension.',
+    pisTeEvaluation:'Observation de la posture du regard pendant la manœuvre (rétroviseurs ou pas) — indicateur comportemental fiable.',
+  },
+  {
+    comp:'C2.1', titre:'Percevoir et analyser',
+    valeurSMA:'Vigilance & perception de l\'environnement',
+    lien:'La lecture du terrain est une compétence militaire fondamentale. Balayer visuellement l\'espace, identifier les zones d\'ombre, anticiper les mouvements : le VS RSMA a souvent des prédispositions si cet ancrage est fait explicitement.',
+    adaptationRSMA:[
+      'Utiliser le vocabulaire militaire : "zone à risque", "angle mort = angle non couvert", "fenêtre de vulnérabilité"',
+      'Exercices de perception sur les carrefours complexes de Pointe-à-Pitre (nombreux ronds-points, trafic dense)',
+      'Travailler l\'analyse des comportements des autres usagers : 2RM, piétons traversant hors passage',
+    ],
+    risquesSpecifiques:'Le VS qui a conduit un scooter peut avoir une bonne perception mais une mauvaise anticipation à 4 roues (gabarit, distance de freinage différents).',
+    pisTeEvaluation:'Exercice de commentaire de conduite à voix haute : "je vois… j\'anticipe… je décide…".',
+  },
+  {
+    comp:'C2.2', titre:'Règles de circulation',
+    valeurSMA:'Respect des règles & des hiérarchies',
+    lien:'Le Code de la route est la "réglementation" de la route. Le VS RSMA est très réceptif à la notion de règle claire et de sanction définie — cadre qu\'il vit au quotidien.',
+    adaptationRSMA:[
+      'Présenter le Code comme un règlement militaire : "chaque panonceau est un ordre"',
+      'Les sanctions (points, amendes) = conséquences réelles sur l\'emploi visé → motivation forte',
+      'Connexion avec la loi (fiches légales) : le VS doit comprendre pourquoi la règle existe, pas seulement l\'apprendre',
+    ],
+    risquesSpecifiques:'La conduite informelle en Guadeloupe (feux grillés, sens uniques non respectés) crée des automatismes négatifs forts à déconstruire.',
+    pisTeEvaluation:'Quiz oral avant la séance de conduite : 3 questions de code — permet de mesurer la mémorisation sans mettre en difficulté à l\'écrit.',
+  },
+  {
+    comp:'C2.3', titre:'Situations particulières',
+    valeurSMA:'Adaptabilité & gestion des conditions dégradées',
+    lien:'Le SMA forme à agir dans des conditions difficiles. Les situations de conduite dégradées (pluie tropicale, nuit, route en lacets, chantier) sont l\'équivalent routier des exercices de terrain militaire.',
+    adaptationRSMA:[
+      'La pluie tropicale soudaine est une réalité locale quotidienne → intégrer des séances par temps de pluie dès le niveau B',
+      'Les routes de montagne de Basse-Terre sont un terrain parfait pour les "situations particulières" (lacets, pente, brouillard matinal)',
+      'Nuit : les zones péri-urbaines sans éclairage de Guadeloupe sont des terrains naturels',
+    ],
+    risquesSpecifiques:'Le VS sous-estime souvent la pluie tropicale sur route (glissance immédiate, aquaplanage dès les premières gouttes sur bitume chaud).',
+    pisTeEvaluation:'Bilan oral post-séance pluie : "qu\'est-ce qui a changé dans ta conduite ?".',
+  },
+  {
+    comp:'C3.1', titre:'Attitude coopérative',
+    valeurSMA:'Esprit d\'équipe & respect des autres',
+    lien:'La coopération est une valeur cardinale du SMA : "pas de soldat laissé pour compte". Sur la route, cela se traduit par le respect des usagers vulnérables (piétons, cyclistes, 2RM) et la communication non agressive.',
+    adaptationRSMA:[
+      'Faire le lien avec les valeurs du collectif militaire : "protéger les autres usagers = protéger son équipe"',
+      'Travailler spécifiquement les comportements envers les piétons antillais (traversées en dehors des passages protégés très fréquentes)',
+      'Jeux de rôle : "tu es piéton / cycliste — qu\'est-ce que tu voudrais que le conducteur fasse ?"',
+    ],
+    risquesSpecifiques:'La "conduite à l\'antillaise" peut inclure des gestes d\'intimidation ou de klaxon excessif — à recadrer explicitement dans le cadre RSMA.',
+    pisTeEvaluation:'Observation comportementale : cède-t-il la priorité aux piétons spontanément ? Donne-t-il les indications de changement de direction ?',
+  },
+  {
+    comp:'C3.2', titre:'États internes',
+    valeurSMA:'Connaissance de soi & gestion du stress',
+    lien:'La maîtrise de ses états internes est au cœur de la formation militaire : le VS apprend à gérer la fatigue, la pression, la peur lors des exercices physiques et tactiques. La transposition à la conduite est naturelle.',
+    adaptationRSMA:[
+      'Aborder la fatigue avec honnêteté : les VS ont un rythme militaire intensif — la privation de sommeil est réelle et influente sur la conduite',
+      'Alcool et cannabis : tolérance zéro imposée par le cadre militaire RSMA — mais contexte festif guadeloupéen à aborder sans tabou',
+      'Stress d\'examen : les VS anxieux à l\'oral/écrit le sont aussi en conduite surveillance — préparation spécifique nécessaire',
+    ],
+    risquesSpecifiques:'Le VS peut minimiser l\'effet de la fatigue (culture "dur à la tâche" militaire). Insister sur la dangerosité au volant sans culpabiliser.',
+    pisTeEvaluation:'Auto-évaluation avant chaque séance : "comment tu te sens aujourd\'hui ? 1 à 5" — le formateur adapte l\'objectif.',
+  },
+  {
+    comp:'C3.3', titre:'Éco-conduite',
+    valeurSMA:'Économie de moyens & responsabilité environnementale',
+    lien:'L\'armée française a des objectifs de réduction d\'empreinte carbone. Le SMA sensibilise à la préservation de l\'environnement (Guadeloupe = biodiversité exceptionnelle, Parc National). L\'éco-conduite s\'inscrit dans cette mission.',
+    adaptationRSMA:[
+      'Lien avec la biodiversité locale : "conduire doux = moins de CO₂ sur les mangroves de Guadeloupe"',
+      'Calcul concret : éco-conduite = 15 à 20 % d\'économie de carburant → argument financier fort pour des VS aux revenus modestes',
+      'Exercices d\'anticipation longue distance sur les routes nationales de Grande-Terre (ligne droite, vent de face)',
+    ],
+    risquesSpecifiques:'L\'éco-conduite est perçue comme anecdotique par certains VS. Le formateur doit relier à un bénéfice immédiat (coût carburant post-permis).',
+    pisTeEvaluation:'Mesure du régime moteur : objectif < 2500 tr/min en conduite normale — bipper ou voyant indicateur de passage de vitesse.',
+  },
+];
+
+const EDPMS_RSMA_ENTRETIEN = [
+  { id:'er1', categorie:'Parcours SMA & motivations', questions:[
+    'Depuis combien de temps es-tu au RSMA ? Comment se passe ta formation globalement ?',
+    'Pourquoi as-tu demandé à passer le permis dans le cadre du RSMA ?',
+    'Qu\'est-ce que le permis va changer pour toi une fois que tu seras sorti(e) du RSMA ?',
+    'Tu as déjà un projet professionnel précis qui nécessite le permis ? Lequel ?',
+    'Quelqu\'un dans ta famille ou ton entourage t\'aide à préparer le permis en dehors des séances ?',
+  ]},
+  { id:'er2', categorie:'Expérience de conduite (milieu antillais)', questions:[
+    'Tu as déjà conduit quelque chose ? (voiture, scooter, quad, véhicule agricole, bateau…)',
+    'Dans quel contexte tu conduisais ? (zone rurale, commune, rue principale…) Comment tu apprenais ? Quelqu\'un t\'a appris ?',
+    'Tu connais les routes de Guadeloupe : Grande-Terre, Basse-Terre, les deux ? Sur quel type de route te sens-tu le moins à l\'aise ?',
+    'Tu as déjà eu un accident ou un accrochage ? Tu peux me raconter ce qui s\'est passé ?',
+    'Tu penses que la conduite en Guadeloupe c\'est différent de la métropole ? En quoi ?',
+  ]},
+  { id:'er3', categorie:'Rapport aux règles & à l\'examen', questions:[
+    'Le code de la route en théorie, tu t\'es mis(e) à réviser comment ? Application, livret, avec quelqu\'un ?',
+    'Qu\'est-ce qui te semble le plus dur dans le code ? (panneaux, priorités, distances…)',
+    'L\'examen du permis, tu y penses comment ? (stressant, confiant, appréhension…)',
+    'Si tu rates l\'examen, qu\'est-ce que tu feras ?',
+    'Dans ta tête, c\'est quoi un bon conducteur ?',
+  ]},
+  { id:'er4', categorie:'Disponibilité & organisation', questions:[
+    'Tes créneaux de conduite s\'intègrent bien à ton emploi du temps au régiment ?',
+    'Tu as du temps pour réviser le code le soir ou le week-end ?',
+    'Est-ce qu\'il y a des moments où tu es très fatigué(e) (exercices physiques, garde) et qui pourraient affecter tes séances de conduite ?',
+    'Si la formation devait s\'allonger de quelques mois, c\'est compatible avec ton contrat RSMA ?',
+  ]},
+];
+
+const EDPMS_RSMA_NIVEAUX = [
+  {
+    id:'A', label:'A — Débutant', color:'#f87171',
+    profilRSMA:'VS sans expérience de conduite ou avec uniquement 2RM. Représente souvent 30 à 40 % des VS en début de formation.',
+    priorites:['D1 : prise en main, direction, manœuvres (base minimum 15 h avant D2)', 'Travail oral intensif sur le Code', 'Séances courtes avec objectif unique par sortie'],
+    dureeEstimee:'35–45 h de conduite estimées avant examen.',
+    alertes:['Vérifier la capacité de lecture du code (livret ou appli avec audio)', 'Surveiller le niveau de stress en examen (peut invalider les acquis en conduite)'],
+  },
+  {
+    id:'B', label:'B — En acquisition', color:'var(--gold)',
+    profilRSMA:'VS avec expérience 2RM ou conduite informelle (routes rurales). Profil le plus fréquent au RSMA Guadeloupe (50–55 %).',
+    priorites:['Consolider D1 (freinage, trajectoires)', 'Introduire D2 : carrefours Pointe-à-Pitre, priorités, dépassements', 'Déconstruire les habitudes "scooteriste" (angles morts, position sur la voie)'],
+    dureeEstimee:'20–30 h estimées.',
+    alertes:['Ne pas progresser vers D2 trop vite : les automatismes négatifs reviennent sous stress d\'examen', 'Travail spécifique rond-points (nombreux à Grande-Terre)'],
+  },
+  {
+    id:'C', label:'C — Intermédiaire', color:'var(--accent-liika)',
+    profilRSMA:'VS avec expérience de conduite auto (AAC, conduite supervisée, permis étranger caduc). Minoritaire mais valorisant pour l\'individu.',
+    priorites:['D2 : situations complexes, nuit, pluie tropicale', 'D3 : coopération, états internes, alcool/fatigue', 'Préparation examen : séances "blanches" + code'],
+    dureeEstimee:'12–20 h estimées.',
+    alertes:['Le VS "C" peut sous-estimer certaines règles locales (signalisation spécifique DOM)', 'Rappeler que l\'éco-conduite est évaluée à l\'examen'],
+  },
+  {
+    id:'D', label:'D — Avancé', color:'#4ade80',
+    profilRSMA:'Rare au RSMA (< 10 %). VS ayant déjà eu le permis (annulé, expiré, étranger) ou ayant eu beaucoup d\'heures en AAC.',
+    priorites:['Mise à niveau réglementaire et reflex D3', 'Préparation directe à l\'examen', 'Éventuellement : formation remorque BE si projet professionnel lié (TP, agriculture)'],
+    dureeEstimee:'6–12 h estimées.',
+    alertes:['Ne pas négliger l\'examen théorique même si conduite bonne', 'Vérifier la conformité des acquis antérieurs aux règles françaises actuelles'],
+  },
+];
+
 function CodeRousseauView({ codeRousseau, updateCodeRousseau }) {
   const cr = codeRousseau || { eleves: [], fiches: [], notes: '' };
   const [tab, setTab] = React.useState('referentiel');
@@ -7748,6 +7952,8 @@ function CodeRousseauView({ codeRousseau, updateCodeRousseau }) {
   const [expandSec, setExpandSec] = React.useState({});
   const [expandLoi, setExpandLoi] = React.useState({});
   const [expandEdpm, setExpandEdpm] = React.useState({});
+  const [rsmaTab, setRsmaTab] = React.useState('contexte'); // contexte | correlations | edpms
+  const [expandCorr, setExpandCorr] = React.useState({});
   const [edpmsEleveId, setEdpmsEleveId] = React.useState('');
   const [edpmsStep, setEdpmsStep] = React.useState('guide'); // guide | entretien | grille | synthese
   const [showAddEleve, setShowAddEleve] = React.useState(false);
@@ -7796,6 +8002,7 @@ function CodeRousseauView({ codeRousseau, updateCodeRousseau }) {
     { id: 'securite',    label: '🛡 Sécurité (8)' },
     { id: 'loi',         label: '⚖️ Loi (6)' },
     { id: 'edpm',        label: '🛴 EDPM (5)' },
+    { id: 'rsma',        label: '🎖️ RSMA' },
     { id: 'edpms',       label: '📊 EDPMS' },
     { id: 'eleves',      label: `👥 Élèves (${(cr.eleves||[]).length})` },
     { id: 'fiches',      label: `📝 Fiches (${(cr.fiches||[]).length})` },
@@ -7973,6 +8180,119 @@ function CodeRousseauView({ codeRousseau, updateCodeRousseau }) {
           )
         );
       })
+    ),
+
+    // ── TAB : RSMA ──
+    tab === 'rsma' && React.createElement('div', null,
+      // sous-nav RSMA
+      React.createElement('div', { style:{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:16 } },
+        [
+          { id:'contexte',      label:'🏛️ Contexte SMA/RSMA' },
+          { id:'correlations',  label:'🔗 Corrélations REMC ↔ SMA' },
+          { id:'edpms',         label:'📊 EDPMS adapté RSMA' },
+        ].map(s => React.createElement('button', {
+          key:s.id, onClick:()=>setRsmaTab(s.id),
+          style:{ padding:'5px 12px', borderRadius:16, border:'none', cursor:'pointer', fontSize:12,
+            background: rsmaTab===s.id ? 'var(--gold)' : 'var(--glass)',
+            color: rsmaTab===s.id ? '#000' : 'var(--text)', fontWeight: rsmaTab===s.id ? 700 : 400 }
+        }, s.label))
+      ),
+
+      // ── Contexte ──
+      rsmaTab === 'contexte' && React.createElement('div', null,
+        React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid var(--gold)', borderRadius:'var(--radius)', padding:'14px 16px', marginBottom:14 } },
+          React.createElement('div', { style:{ fontSize:13, fontWeight:700, color:'var(--gold)', marginBottom:6 } }, '🎖️ ' + RSMA_CONTEXTE.structure),
+          React.createElement('p', { style:{ fontSize:12, color:'var(--text-muted)', margin:'0 0 10px', lineHeight:1.6 } }, RSMA_CONTEXTE.mission),
+          React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'var(--text)', marginBottom:6 } }, '📋 Cadre réglementaire'),
+          React.createElement('ul', { style:{ margin:0, paddingLeft:18 } },
+            RSMA_CONTEXTE.cadre.map((c,i) => React.createElement('li', { key:i, style:{ fontSize:12, color:'var(--text)', lineHeight:1.7, marginBottom:2 } }, c))
+          )
+        ),
+        React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid var(--accent-liika-border)', borderRadius:'var(--radius)', padding:'14px 16px', marginBottom:14 } },
+          React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'var(--accent-liika)', marginBottom:8 } }, '👤 Profil type du Volontaire Stagiaire (VS)'),
+          RSMA_CONTEXTE.profilTypique.map((p,i) => React.createElement('div', { key:i, style:{ fontSize:12, color:'var(--text)', lineHeight:1.6, marginBottom:6, paddingLeft:10, borderLeft:'2px solid var(--accent-liika-border)' } }, p))
+        ),
+        React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid var(--accent-liika-border)', borderRadius:'var(--radius)', padding:'14px 16px' } },
+          React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'var(--gold)', marginBottom:8 } }, '💡 Adaptations pédagogiques clés'),
+          RSMA_CONTEXTE.adaptationsPedagogiques.map((a,i) => React.createElement('div', { key:i, style:{ display:'flex', gap:8, fontSize:12, color:'var(--text)', lineHeight:1.6, marginBottom:7 } },
+            React.createElement('span', { style:{ color:'var(--gold)', minWidth:16 } }, '→'),
+            React.createElement('span', null, a)
+          ))
+        )
+      ),
+
+      // ── Corrélations REMC ↔ SMA ──
+      rsmaTab === 'correlations' && React.createElement('div', null,
+        React.createElement('p', { style:{ fontSize:12, color:'var(--text-muted)', marginBottom:14, fontStyle:'italic' } },
+          'Pour chaque compétence REMC : valeur SMA associée, lien pédagogique, adaptation au public RSMA Guadeloupe et piste d\'évaluation.'
+        ),
+        REMC_RSMA_CORRELATIONS.map(c => {
+          const open = !!expandCorr[c.comp];
+          return React.createElement('div', { key:c.comp, style:{ background:'var(--glass)', border:'1px solid var(--accent-liika-border)', borderRadius:'var(--radius)', marginBottom:10, overflow:'hidden' } },
+            React.createElement('div', {
+              onClick: () => setExpandCorr(prev => ({ ...prev, [c.comp]: !prev[c.comp] })),
+              style:{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'12px 16px', cursor:'pointer' }
+            },
+              React.createElement('span', { style:{ fontSize:11, fontWeight:700, color:'var(--gold)', background:'rgba(212,175,55,0.15)', borderRadius:8, padding:'2px 7px', minWidth:38, textAlign:'center' } }, c.comp),
+              React.createElement('span', { style:{ color:'var(--text)', fontWeight:600, fontSize:13, flex:1, marginLeft:10 } }, c.titre),
+              React.createElement('span', { style:{ fontSize:11, color:'var(--accent-liika)', background:'var(--bg2)', borderRadius:20, padding:'2px 8px', marginRight:8 } }, c.valeurSMA),
+              React.createElement('span', { style:{ color:'var(--text-muted)', fontSize:16 } }, open ? '▾' : '▸')
+            ),
+            open && React.createElement('div', { style:{ padding:'0 16px 16px', borderTop:'1px solid var(--accent-liika-border)' } },
+              React.createElement('div', { style:{ marginTop:12, background:'var(--bg2)', borderRadius:8, padding:'10px 12px', marginBottom:12 } },
+                React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'var(--gold)', marginBottom:6 } }, '🔗 Lien REMC ↔ valeur SMA'),
+                React.createElement('p', { style:{ fontSize:12, color:'var(--text)', lineHeight:1.6, margin:0 } }, c.lien)
+              ),
+              React.createElement('div', { style:{ marginBottom:12 } },
+                React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'var(--accent-liika)', marginBottom:6 } }, '🎯 Adaptation au public RSMA'),
+                c.adaptationRSMA.map((a,i) => React.createElement('div', { key:i, style:{ display:'flex', gap:8, fontSize:12, color:'var(--text)', lineHeight:1.6, marginBottom:5 } },
+                  React.createElement('span', { style:{ color:'var(--accent-liika)', minWidth:14 } }, '•'),
+                  React.createElement('span', null, a)
+                ))
+              ),
+              React.createElement('div', { style:{ background:'rgba(231,76,60,0.08)', borderRadius:8, padding:'8px 12px', marginBottom:10 } },
+                React.createElement('span', { style:{ fontSize:11, fontWeight:700, color:'#e74c3c' } }, '⚠️ Risques spécifiques : '),
+                React.createElement('span', { style:{ fontSize:12, color:'var(--text-muted)' } }, c.risquesSpecifiques)
+              ),
+              React.createElement('div', { style:{ fontSize:12, color:'var(--text-muted)', fontStyle:'italic', paddingLeft:10, borderLeft:'2px solid var(--gold)' } },
+                React.createElement('span', { style:{ fontWeight:700, fontStyle:'normal', color:'var(--gold)', marginRight:6 } }, '📝 Piste d\'évaluation :'),
+                c.pisTeEvaluation
+              )
+            )
+          );
+        })
+      ),
+
+      // ── EDPMS adapté RSMA ──
+      rsmaTab === 'edpms' && React.createElement('div', null,
+        React.createElement('p', { style:{ fontSize:12, color:'var(--text-muted)', marginBottom:14, fontStyle:'italic' } },
+          'Entretien initial et positionnement EDPMS adaptés au profil des Volontaires Stagiaires du RSMA Guadeloupe.'
+        ),
+        // Entretien RSMA
+        React.createElement('div', { style:{ fontSize:13, fontWeight:700, color:'var(--gold)', marginBottom:10 } }, '💬 Entretien initial adapté RSMA'),
+        EDPMS_RSMA_ENTRETIEN.map(sec => React.createElement('div', { key:sec.id, style:{ background:'var(--glass)', border:'1px solid var(--accent-liika-border)', borderRadius:'var(--radius)', padding:14, marginBottom:10 } },
+          React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'var(--accent-liika)', marginBottom:8 } }, sec.categorie),
+          sec.questions.map((q,i) => React.createElement('div', { key:i, style:{ display:'flex', gap:8, fontSize:12, color:'var(--text)', lineHeight:1.6, marginBottom:5 } },
+            React.createElement('span', { style:{ color:'var(--text-muted)', minWidth:18, fontWeight:700 } }, (i+1) + '.'),
+            React.createElement('span', null, q)
+          ))
+        )),
+        // Niveaux RSMA
+        React.createElement('div', { style:{ fontSize:13, fontWeight:700, color:'var(--gold)', margin:'20px 0 10px' } }, '📊 Positionnement EDPMS — profils typiques RSMA'),
+        EDPMS_RSMA_NIVEAUX.map(n => React.createElement('div', { key:n.id, style:{ background:'var(--glass)', border:`2px solid ${n.color}`, borderRadius:'var(--radius)', padding:14, marginBottom:12 } },
+          React.createElement('div', { style:{ display:'flex', alignItems:'center', gap:10, marginBottom:8 } },
+            React.createElement('span', { style:{ fontSize:18, fontWeight:700, color:n.color } }, n.id),
+            React.createElement('span', { style:{ fontSize:13, fontWeight:700, color:'var(--text)' } }, n.label.split('—')[1].trim())
+          ),
+          React.createElement('p', { style:{ fontSize:12, color:'var(--text-muted)', marginBottom:8, fontStyle:'italic' } }, n.profilRSMA),
+          React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'var(--text)', marginBottom:4 } }, '🎯 Priorités de formation'),
+          n.priorites.map((p,i) => React.createElement('div', { key:i, style:{ fontSize:12, color:'var(--text)', lineHeight:1.6, paddingLeft:10, borderLeft:`2px solid ${n.color}`, marginBottom:4 } }, p)),
+          React.createElement('div', { style:{ fontSize:12, color:'var(--text-muted)', marginTop:8 } }, '⏱ ' + n.dureeEstimee),
+          n.alertes.length > 0 && React.createElement('div', { style:{ marginTop:8, background:'rgba(231,76,60,0.08)', borderRadius:6, padding:'6px 10px' } },
+            n.alertes.map((a,i) => React.createElement('div', { key:i, style:{ fontSize:11, color:'#e74c3c', lineHeight:1.5, marginBottom: i < n.alertes.length-1 ? 4 : 0 } }, '⚠️ ' + a))
+          )
+        ))
+      )
     ),
 
     // ── TAB : EDPMS ──
