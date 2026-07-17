@@ -50,47 +50,55 @@ const DEVICE_ID = (() => {
   }
   return id;
 })();
-async function sbLoad() {
-  const {
-    data,
-    error
-  } = await sb.from('app_state').select('data').eq('id', 'main').single();
+async function sbLoad(token) {
+  if (token) {
+    try {
+      const { data, error } = await sb.rpc('ld_get_app_state', { p_token: token });
+      if (!error && data && data.data) return normalize(data.data);
+    } catch(_) {}
+  }
+  // Fallback accès direct (compatible ancienne config sans token)
+  const { data, error } = await sb.from('app_state').select('data').eq('id', 'main').single();
   if (error || !data || !data.data) throw error || new Error('no data');
   return normalize(data.data);
 }
-async function sbSave(d) {
+async function sbSave(d, token) {
   // recipes, ferments, courses & media vivent dans leurs tables dédiées → hors du blob app_state
   const { recipes, ferments, courses, media, ...rest } = d || {};
-  const {
-    error
-  } = await sb.from('app_state').upsert({
-    id: 'main',
-    data: rest,
-    updated_at: new Date().toISOString(),
-    device_id: DEVICE_ID
-  });
+  if (token) {
+    const { error } = await sb.rpc('ld_save_app_state', { p_token: token, p_data: rest, p_device_id: DEVICE_ID });
+    if (error) throw error;
+    return;
+  }
+  const { error } = await sb.from('app_state').upsert({ id: 'main', data: rest, updated_at: new Date().toISOString(), device_id: DEVICE_ID });
   if (error) throw error;
 }
-async function sbGetPin(accountId) {
+// Vérifie si un compte a déjà un PIN sur Supabase (ne retourne pas le PIN)
+async function sbCheckPin(accountId) {
   try {
-    const {
-      data,
-      error
-    } = await sb.from('user_accounts').select('pin').eq('id', accountId).single();
-    if (error || !data || !data.pin) return null;
-    return data.pin;
-  } catch (_) {
-    return null;
-  }
+    const { data, error } = await sb.rpc('ld_account_has_pin', { p_account_id: accountId });
+    return !error && data === true;
+  } catch(_) { return false; }
 }
-async function sbSavePin(accountId, pin) {
+// Vérifie le PIN via Supabase → retourne un token de session (90 j) ou null
+async function sbVerifyPin(accountId, pin) {
   try {
-    await sb.from('user_accounts').upsert({
-      id: accountId,
-      pin,
-      updated_at: new Date().toISOString()
-    });
-  } catch (_) {}
+    const { data, error } = await sb.rpc('ld_verify_pin', { p_account_id: accountId, p_pin: pin, p_device_id: DEVICE_ID });
+    if (error || !data || !data.ok) return null;
+    return data.token;
+  } catch(_) { return null; }
+}
+// Crée un PIN sur Supabase (1er accès) → retourne un token de session ou null
+async function sbSetPin(accountId, pin) {
+  try {
+    const { data, error } = await sb.rpc('ld_set_pin', { p_account_id: accountId, p_pin: pin, p_device_id: DEVICE_ID });
+    if (error || !data || !data.ok) return null;
+    return data.token;
+  } catch(_) { return null; }
+}
+// Révoque le token de session sur Supabase (logout propre)
+async function sbRevokeToken(token) {
+  try { await sb.rpc('ld_revoke_session', { p_token: token }); } catch(_) {}
 }
 
 // ─── DrevmCook : tables dédiées (recipes / ferments) ───
@@ -6432,10 +6440,11 @@ function LoginScreen({
     setDigits([]);
     setTimeout(() => setShake(false), 500);
   };
-  const doLogin = (a, s) => {
-    localStorage.setItem('ld-session', JSON.stringify(s));
+  const doLogin = (a, s, token) => {
+    const sessionData = token ? { ...s, token } : s;
+    localStorage.setItem('ld-session', JSON.stringify(sessionData));
     localStorage.setItem('ld-username', a.name);
-    onLogin(s);
+    onLogin(sessionData);
   };
   const handleDigit = d => {
     if (digits.length >= 4 || loading) return;
@@ -6447,27 +6456,29 @@ function LoginScreen({
         const key = `ld-pin-${sel}`;
         const stored = localStorage.getItem(key);
         if (step === 'pin') {
-          if (pin === stored) {
-            doLogin(acc, {
-              id: sel,
-              name: acc.name,
-              loggedAt: Date.now()
+          if (stored && pin === stored) {
+            // PIN local correct → login instantané (même comportement qu'avant)
+            doLogin(acc, { id: sel, name: acc.name, loggedAt: Date.now() }, null);
+            // Token Supabase récupéré en arrière-plan pour les prochaines synchros
+            sbVerifyPin(sel, pin).then(token => {
+              if (!token) return;
+              try {
+                const s = JSON.parse(localStorage.getItem('ld-session') || 'null');
+                if (s && s.id === sel && !s.token) localStorage.setItem('ld-session', JSON.stringify({...s, token}));
+              } catch(_) {}
             });
-            return;
+          } else {
+            // Pas de PIN local (nouvel appareil) → vérification Supabase obligatoire
+            setLoading(true);
+            const token = await sbVerifyPin(sel, pin);
+            setLoading(false);
+            if (token !== null) {
+              localStorage.setItem(key, pin);
+              doLogin(acc, { id: sel, name: acc.name, loggedAt: Date.now() }, token);
+            } else {
+              doShake('Code incorrect, réessaie');
+            }
           }
-
-          // Fallback distant : évite les faux "code incorrect" quand le PIN local est périmé.
-          setLoading(true);
-          const remote = await sbGetPin(sel);
-          setLoading(false);
-          if (remote && pin === remote) {
-            localStorage.setItem(key, remote);
-            doLogin(acc, {
-              id: sel,
-              name: acc.name,
-              loggedAt: Date.now()
-            });
-          } else doShake('Code incorrect, réessaie');
         } else if (step === 'create') {
           setFirst(pin);
           setDigits([]);
@@ -6475,13 +6486,11 @@ function LoginScreen({
           setErr('');
         } else if (step === 'confirm') {
           if (pin === first) {
+            setLoading(true);
+            const token = await sbSetPin(sel, pin);
+            setLoading(false);
             localStorage.setItem(`ld-pin-${sel}`, pin);
-            sbSavePin(sel, pin);
-            doLogin(acc, {
-              id: sel,
-              name: acc.name,
-              loggedAt: Date.now()
-            });
+            doLogin(acc, { id: sel, name: acc.name, loggedAt: Date.now() }, token);
           } else doShake('Les codes ne correspondent pas');
         }
       }, 150);
@@ -6498,15 +6507,12 @@ function LoginScreen({
       setStep('pin');
       return;
     }
-    // Pas de PIN local → cherche sur Supabase
+    // Pas de PIN local → vérifie si un PIN existe sur Supabase (sans exposer le PIN)
     setLoading(true);
     setStep('loading');
-    const remote = await sbGetPin(id);
+    const hasPin = await sbCheckPin(id);
     setLoading(false);
-    if (remote) {
-      localStorage.setItem(`ld-pin-${id}`, remote);
-      setStep('pin');
-    } else setStep('create');
+    setStep(hasPin ? 'pin' : 'create');
   };
   const pinTitle = step === 'create' ? 'Crée ton code PIN (4 chiffres)' : step === 'confirm' ? 'Confirme ton code PIN' : 'Entre ton code PIN';
   const pinSub = step === 'create' ? 'Premier accès sur cet appareil' : step === 'confirm' ? 'Répète le même code' : 'Synchronisé avec Supabase ☁';
@@ -8250,35 +8256,173 @@ function SortieView() {
   );
 }
 
+function compressImage(file) {
+  return new Promise(function(resolve, reject) {
+    var reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = function(e) {
+      var img = new Image();
+      img.onerror = reject;
+      img.onload = function() {
+        var maxW = 1080;
+        var ratio = Math.min(maxW / img.width, maxW / img.height, 1);
+        var canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * ratio);
+        canvas.height = Math.round(img.height * ratio);
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.78));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
 function AlbumView() {
   const [photos, setPhotos] = React.useState(() => { try { return JSON.parse(localStorage.getItem('ld-album')||'[]'); } catch { return []; } });
   const [url, setUrl] = React.useState('');
   const [caption, setCaption] = React.useState('');
   const [show, setShow] = React.useState(false);
-  const save = l => { setPhotos(l); localStorage.setItem('ld-album', JSON.stringify(l)); };
-  const add = () => { if (!url.trim()) return; save([{ id:Date.now().toString(), url:url.trim(), caption:caption.trim(), date:new Date().toISOString().slice(0,10) }, ...photos]); setUrl(''); setCaption(''); setShow(false); };
-  const del = id => save(photos.filter(p => p.id !== id));
+  const [slideIdx, setSlideIdx] = React.useState(null);
+  const [autoPlay, setAutoPlay] = React.useState(false);
+  const [uploading, setUploading] = React.useState(false);
+  const fileRef = React.useRef(null);
+
+  const save = l => { setPhotos(l); try { localStorage.setItem('ld-album', JSON.stringify(l)); } catch(e) { alert('Stockage plein — supprimez des photos pour en ajouter.'); } };
+  const addPhoto = src => {
+    save([{ id: Date.now().toString(), src, caption: caption.trim(), date: new Date().toISOString().slice(0,10) }, ...photos]);
+    setCaption(''); setUrl(''); setShow(false);
+  };
+  const addUrl = () => { if (!url.trim()) return; addPhoto(url.trim()); };
+  const handleFile = async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploading(true);
+    try { addPhoto(await compressImage(file)); }
+    catch(_) { alert('Impossible de lire cette image.'); }
+    finally { setUploading(false); if(e.target) e.target.value = ''; }
+  };
+  const del = id => {
+    const next = photos.filter(p => p.id !== id);
+    save(next);
+    if (slideIdx !== null && slideIdx >= next.length) setSlideIdx(Math.max(0, next.length - 1));
+  };
+
+  // Slideshow auto-play
+  React.useEffect(() => {
+    if (!autoPlay || slideIdx === null || photos.length <= 1) return;
+    const id = setInterval(() => setSlideIdx(i => i === null ? null : (i + 1) % photos.length), 3500);
+    return () => clearInterval(id);
+  }, [autoPlay, photos.length]);
+
+  // Keyboard navigation
+  React.useEffect(() => {
+    if (slideIdx === null) return;
+    const n = photos.length;
+    const h = e => {
+      if (e.key === 'ArrowLeft')  setSlideIdx(i => (i - 1 + n) % n);
+      else if (e.key === 'ArrowRight') setSlideIdx(i => (i + 1) % n);
+      else if (e.key === 'Escape') { setSlideIdx(null); setAutoPlay(false); }
+    };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [slideIdx, photos.length]);
+
   const inp = { background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'8px 12px', fontSize:13, width:'100%', boxSizing:'border-box' };
+  const cur = slideIdx !== null ? photos[slideIdx] : null;
+  const btnSlide = { padding:'8px 18px', borderRadius:20, border:'1px solid rgba(255,255,255,.25)', background:'rgba(255,255,255,.12)', color:'#fff', cursor:'pointer', fontSize:20, lineHeight:1 };
+
   return React.createElement('div', null,
-    React.createElement('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 } },
+    // Header
+    React.createElement('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20, gap:8, flexWrap:'wrap' } },
       React.createElement('h2', { style:{ margin:0, fontSize:20 } }, '📸 Album photo'),
-      React.createElement('button', { onClick:()=>setShow(!show), style:{ padding:'8px 18px', borderRadius:20, border:'none', background:'#e91e8c', color:'#fff', cursor:'pointer', fontWeight:700 } }, show ? '✕' : '+ Photo')
+      React.createElement('div', { style:{ display:'flex', gap:8 } },
+        photos.length > 0 && React.createElement('button', {
+          onClick: () => { setSlideIdx(0); setAutoPlay(false); },
+          style:{ padding:'8px 14px', borderRadius:20, border:'1px solid rgba(233,30,140,.45)', background:'transparent', color:'#e91e8c', cursor:'pointer', fontSize:12, fontWeight:700 }
+        }, '▶ Slideshow'),
+        React.createElement('button', { onClick:()=>setShow(s=>!s), style:{ padding:'8px 18px', borderRadius:20, border:'none', background:'#e91e8c', color:'#fff', cursor:'pointer', fontWeight:700 } }, show ? '✕ Fermer' : '+ Photo')
+      )
     ),
+    // Add form
     show && React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid rgba(233,30,140,.35)', borderRadius:'var(--radius)', padding:16, marginBottom:16 } },
-      React.createElement('input', { placeholder:'URL de la photo *', value:url, onChange:e=>setUrl(e.target.value), style:{ ...inp, marginBottom:8 } }),
-      React.createElement('input', { placeholder:'Légende...', value:caption, onChange:e=>setCaption(e.target.value), style:{ ...inp, marginBottom:10 } }),
-      React.createElement('button', { onClick:add, style:{ padding:'8px 20px', borderRadius:12, border:'none', background:'#e91e8c', color:'#fff', cursor:'pointer', fontWeight:700 } }, 'Ajouter')
+      // Upload buttons
+      React.createElement('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:12 } },
+        React.createElement('button', {
+          onClick: () => { if(!fileRef.current) return; fileRef.current.removeAttribute('capture'); fileRef.current.click(); },
+          disabled: uploading,
+          style:{ padding:'14px 10px', borderRadius:12, border:'2px dashed rgba(233,30,140,.4)', background:'rgba(233,30,140,.06)', color:uploading?'var(--text3)':'#e91e8c', cursor:'pointer', fontSize:13, fontWeight:700, textAlign:'center' }
+        }, uploading ? '⏳ Compression...' : React.createElement(React.Fragment, null, React.createElement('div', { style:{ fontSize:26, marginBottom:4 } }, '🖼'), 'Galerie')),
+        React.createElement('button', {
+          onClick: () => { if(!fileRef.current) return; fileRef.current.setAttribute('capture','environment'); fileRef.current.click(); },
+          disabled: uploading,
+          style:{ padding:'14px 10px', borderRadius:12, border:'2px dashed rgba(233,30,140,.4)', background:'rgba(233,30,140,.06)', color:uploading?'var(--text3)':'#e91e8c', cursor:'pointer', fontSize:13, fontWeight:700, textAlign:'center' }
+        }, React.createElement(React.Fragment, null, React.createElement('div', { style:{ fontSize:26, marginBottom:4 } }, '📷'), 'Caméra'))
+      ),
+      React.createElement('input', { ref:fileRef, type:'file', accept:'image/*', onChange:handleFile, style:{ display:'none' } }),
+      // OR separator
+      React.createElement('div', { style:{ display:'flex', alignItems:'center', gap:8, margin:'10px 0' } },
+        React.createElement('div', { style:{ flex:1, height:1, background:'var(--border)' } }),
+        React.createElement('span', { style:{ fontSize:11, color:'var(--text3)' } }, 'ou ajouter par URL'),
+        React.createElement('div', { style:{ flex:1, height:1, background:'var(--border)' } })
+      ),
+      React.createElement('input', { placeholder:'https://...', value:url, onChange:e=>setUrl(e.target.value), style:{ ...inp, marginBottom:8 } }),
+      React.createElement('input', { placeholder:'Légende (optionnel)...', value:caption, onChange:e=>setCaption(e.target.value), onKeyDown:e=>e.key==='Enter'&&addUrl(), style:{ ...inp, marginBottom:10 } }),
+      url.trim() && React.createElement('button', { onClick:addUrl, style:{ padding:'8px 20px', borderRadius:12, border:'none', background:'#e91e8c', color:'#fff', cursor:'pointer', fontWeight:700 } }, 'Ajouter l\'URL')
     ),
-    photos.length === 0 && !show && React.createElement('div', { style:{ textAlign:'center', padding:'50px 0', color:'var(--text3)' } }, '📷 Album vide — ajoutez des photos via URL'),
-    React.createElement('div', { style:{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(155px,1fr))', gap:12 } },
-      photos.map(p => React.createElement('div', { key:p.id, style:{ borderRadius:'var(--radius)', overflow:'hidden', background:'var(--bg2)', position:'relative' } },
-        React.createElement('img', { src:p.url, alt:p.caption||'', style:{ width:'100%', aspectRatio:'1', objectFit:'cover', display:'block' }, onError:e=>{ e.target.style.display='none'; } }),
-        React.createElement('div', { style:{ padding:'8px 10px' } },
-          p.caption && React.createElement('div', { style:{ fontSize:12, color:'var(--text)', marginBottom:2 } }, p.caption),
+    // Empty state
+    photos.length === 0 && !show && React.createElement('div', { style:{ textAlign:'center', padding:'60px 0', color:'var(--text3)' } },
+      React.createElement('div', { style:{ fontSize:48, marginBottom:12 } }, '📷'),
+      React.createElement('div', null, 'Album vide — immortalisez vos souvenirs !')
+    ),
+    // Photo grid
+    React.createElement('div', { style:{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(148px,1fr))', gap:10 } },
+      photos.map((p, i) => React.createElement('div', {
+        key: p.id,
+        style:{ borderRadius:'var(--radius)', overflow:'hidden', background:'var(--bg2)', position:'relative', cursor:'pointer' },
+        onClick: () => setSlideIdx(i)
+      },
+        React.createElement('img', { src: p.src || p.url, alt: p.caption||'', style:{ width:'100%', aspectRatio:'1', objectFit:'cover', display:'block' }, onError: e => { e.target.style.background='var(--bg3)'; } }),
+        React.createElement('div', { style:{ padding:'6px 10px' } },
+          p.caption && React.createElement('div', { style:{ fontSize:11, color:'var(--text)', marginBottom:2, lineHeight:1.3 } }, p.caption),
           React.createElement('div', { style:{ fontSize:10, color:'var(--text3)' } }, p.date)
         ),
-        React.createElement('button', { onClick:()=>del(p.id), style:{ position:'absolute', top:6, right:6, background:'rgba(0,0,0,.65)', border:'none', color:'#fff', borderRadius:'50%', width:22, height:22, cursor:'pointer', fontSize:12, lineHeight:'22px', textAlign:'center' } }, '×')
+        React.createElement('button', { onClick:e=>{ e.stopPropagation(); del(p.id); }, style:{ position:'absolute', top:6, right:6, background:'rgba(0,0,0,.70)', border:'none', color:'#fff', borderRadius:'50%', width:24, height:24, cursor:'pointer', fontSize:13, lineHeight:'24px', textAlign:'center' } }, '×')
       ))
+    ),
+    // Slideshow overlay
+    cur && React.createElement('div', {
+      style:{ position:'fixed', inset:0, background:'rgba(0,0,0,.96)', zIndex:1000, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'16px 0' },
+      onClick: () => { setSlideIdx(null); setAutoPlay(false); }
+    },
+      // Close
+      React.createElement('button', {
+        onClick: e => { e.stopPropagation(); setSlideIdx(null); setAutoPlay(false); },
+        style:{ position:'absolute', top:14, right:14, background:'rgba(255,255,255,.15)', border:'none', color:'#fff', borderRadius:'50%', width:38, height:38, cursor:'pointer', fontSize:20, lineHeight:'38px', textAlign:'center' }
+      }, '×'),
+      // Photo counter
+      React.createElement('div', { style:{ position:'absolute', top:18, left:18, color:'rgba(255,255,255,.55)', fontSize:12, fontFamily:"'Space Mono',monospace" } }, `${slideIdx+1} / ${photos.length}`),
+      // Image
+      React.createElement('img', {
+        src: cur.src || cur.url,
+        alt: cur.caption || '',
+        onClick: e => e.stopPropagation(),
+        style:{ maxWidth:'94vw', maxHeight:'68vh', objectFit:'contain', borderRadius:8, boxShadow:'0 8px 40px rgba(0,0,0,.8)' }
+      }),
+      // Caption
+      cur.caption && React.createElement('div', {
+        onClick: e => e.stopPropagation(),
+        style:{ color:'rgba(255,255,255,.85)', fontSize:14, fontWeight:500, textAlign:'center', marginTop:12, padding:'0 24px', lineHeight:1.4 }
+      }, cur.caption),
+      React.createElement('div', { style:{ color:'rgba(255,255,255,.35)', fontSize:11, marginTop:4 } }, cur.date),
+      // Nav controls
+      React.createElement('div', { onClick:e=>e.stopPropagation(), style:{ display:'flex', gap:10, marginTop:16, alignItems:'center' } },
+        React.createElement('button', { onClick:()=>setSlideIdx(i=>(i-1+photos.length)%photos.length), style:btnSlide }, '‹'),
+        React.createElement('button', {
+          onClick: () => setAutoPlay(a=>!a),
+          style:{ ...btnSlide, fontSize:12, padding:'8px 16px', background: autoPlay?'#e91e8c':'rgba(255,255,255,.12)', border:'none' }
+        }, autoPlay ? '⏸ Pause' : '▶ Auto'),
+        React.createElement('button', { onClick:()=>setSlideIdx(i=>(i+1)%photos.length), style:btnSlide }, '›')
+      )
     )
   );
 }
@@ -9449,7 +9593,7 @@ useEffect(()=>{
 let alive=true;
 (async()=>{
   setSyncStatus('syncing');
-  const remote=await sbLoad();
+  const remote=await sbLoad(session?.token);
   if(!alive||!remote){
     if(alive){
       setSyncStatus('ok');
@@ -9497,7 +9641,7 @@ if(!initialSyncDone)return;
 if(remoteApplyRef.current){remoteApplyRef.current=false;return;}
 const t=setTimeout(()=>{
   setSyncStatus('syncing');
-  sbSave(data).then(()=>setSyncStatus('ok')).catch(()=>setSyncStatus('error'));
+  sbSave(data, session?.token).then(()=>setSyncStatus('ok')).catch(()=>setSyncStatus('error'));
 },1500);
 return ()=>clearTimeout(t);
 },[data,initialSyncDone]);
@@ -11886,6 +12030,7 @@ const ch=sb.channel('ld-realtime')
     }
   }), onlineCount)), /*#__PURE__*/React.createElement("button", {
     onClick: () => {
+      if (session?.token) sbRevokeToken(session.token);
       localStorage.removeItem('ld-session');
       setSession(null);
     },
