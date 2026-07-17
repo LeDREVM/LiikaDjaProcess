@@ -169,3 +169,47 @@ background-repeat:no-repeat;
   .cat-mobile-nav{display:block}
   .mobile-nav{display:none!important}
 }
+
+/* ── Hero Parallax Slider ────────────────────────────────────────────────── */
+.hero-slider{position:relative;overflow:hidden;border-radius:var(--radius);margin-bottom:20px;user-select:none;-webkit-user-select:none}
+.hero-slide{min-height:240px;padding:36px 28px 28px;position:relative;overflow:hidden;border-radius:var(--radius)}
+.hero-slide-enter-right{animation:heroInRight .48s cubic-bezier(.22,.68,0,1.15) both}
+.hero-slide-enter-left {animation:heroInLeft  .48s cubic-bezier(.22,.68,0,1.15) both}
+@keyframes heroInRight{from{opacity:0;transform:translateX(56px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes heroInLeft {from{opacity:0;transform:translateX(-56px) scale(.97)}to{opacity:1;transform:none}}
+
+/* Floating blobs */
+.hero-blob{position:absolute;border-radius:50%;pointer-events:none}
+.hero-blob-1{width:240px;height:240px;right:-70px;top:-70px;animation:blob1 9s ease-in-out infinite alternate}
+.hero-blob-2{width:130px;height:130px;left:20px;bottom:-45px;animation:blob2 7s ease-in-out infinite alternate}
+.hero-blob-3{width:90px;height:90px;left:55%;top:15px;animation:blob3 11s ease-in-out infinite alternate}
+@keyframes blob1{from{transform:translate(0,0) scale(1)}to{transform:translate(-18px,14px) scale(1.12)}}
+@keyframes blob2{from{transform:translate(0,0) rotate(0deg)}to{transform:translate(14px,-18px) rotate(28deg)}}
+@keyframes blob3{from{transform:translate(0,0) scale(.88)}to{transform:translate(-26px,8px) scale(1.18)}}
+
+/* Hero emoji */
+.hero-emoji{display:inline-block;animation:emojiFloat 4s ease-in-out infinite alternate;transform-origin:center bottom;will-change:transform}
+@keyframes emojiFloat{from{transform:translateY(0) rotate(-4deg)}to{transform:translateY(-9px) rotate(4deg)}}
+
+/* Progress bar (auto-advance) */
+.hero-progress{position:absolute;bottom:0;left:0;height:3px;background:rgba(255,255,255,.55);border-radius:0 2px 2px 0;transform-origin:left}
+.hero-progress-anim{animation:progressBar 5s linear forwards}
+@keyframes progressBar{from{width:0}to{width:100%}}
+
+/* Pill quick-links on slide */
+.hero-pill{background:rgba(255,255,255,.18);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.28);border-radius:20px;color:#fff;cursor:pointer;font-size:12px;font-weight:700;padding:7px 13px;display:inline-flex;align-items:center;gap:5px;transition:background .18s,transform .18s;white-space:nowrap}
+.hero-pill:hover{background:rgba(255,255,255,.3);transform:translateY(-2px)}
+.hero-pill:active{transform:scale(.95)}
+
+/* Nav arrows */
+.hero-arrow{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.38);border:1px solid rgba(255,255,255,.18);color:#fff;border-radius:50%;width:36px;height:36px;cursor:pointer;font-size:16px;z-index:10;display:flex;align-items:center;justify-content:center;transition:background .18s,transform .18s}
+.hero-arrow:hover{background:rgba(0,0,0,.6);transform:translateY(-50%) scale(1.1)}
+.hero-arrow-left{left:10px}
+.hero-arrow-right{right:10px}
+
+/* Dot indicators */
+.hero-dots{position:absolute;bottom:14px;left:0;right:0;display:flex;justify-content:center;gap:6px;z-index:10}
+.hero-dot{height:6px;border:none;border-radius:3px;cursor:pointer;padding:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);background:rgba(255,255,255,.38)}
+.hero-dot.active{background:#fff;width:22px}
+.hero-dot:not(.active){width:6px}
+.hero-dot:hover:not(.active){background:rgba(255,255,255,.65)}

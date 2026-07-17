@@ -8200,30 +8200,109 @@ const CATEGORIES = [
   },
 ];
 
-function CategoryHome({ cat, catIdx, prevCatIdx, setView }) {
-  const dir = catIdx >= prevCatIdx ? 'right' : 'left';
-  return React.createElement('div', { key: cat.id, className: 'cat-slide-' + dir, style:{ paddingBottom:24 } },
-    // Gradient header
-    React.createElement('div', { style:{ background:cat.grad, borderRadius:'var(--radius)', padding:'30px 24px 28px', marginBottom:24, position:'relative', overflow:'hidden' } },
-      React.createElement('div', { style:{ position:'absolute', right:-30, top:-30, width:160, height:160, borderRadius:'50%', background:'rgba(255,255,255,.08)', pointerEvents:'none' } }),
-      React.createElement('div', { style:{ position:'absolute', left:40, bottom:-40, width:100, height:100, borderRadius:'50%', background:'rgba(0,0,0,.1)', pointerEvents:'none' } }),
-      React.createElement('div', { style:{ position:'relative', zIndex:1 } },
-        React.createElement('div', { style:{ fontSize:54, lineHeight:1, marginBottom:12 } }, cat.emoji),
-        React.createElement('h1', { style:{ color:'#fff', margin:'0 0 8px', fontSize:28, fontWeight:900, letterSpacing:'-.5px', textShadow:'0 2px 8px rgba(0,0,0,.3)' } }, cat.label),
-        React.createElement('p', { style:{ color:'rgba(255,255,255,.75)', margin:0, fontSize:13, lineHeight:1.5 } }, cat.desc)
+function CategoryHome({ catIdx, prevCatIdx, setView, goToCategory }) {
+  var cat = CATEGORIES[catIdx] || CATEGORIES[0];
+  var dir = catIdx >= prevCatIdx ? 'right' : 'left';
+  var [touchX, setTouchX] = React.useState(null);
+  var [paused, setPaused] = React.useState(false);
+  var [progKey, setProgKey] = React.useState(0); // force re-mount de la barre
+  var timerRef = React.useRef(null);
+
+  var goTo = React.useCallback(function(newIdx) {
+    goToCategory(CATEGORIES[newIdx].id);
+    setPaused(true);
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(function() { setPaused(false); }, 12000);
+  }, [goToCategory]);
+
+  var goPrev = function() { goTo((catIdx - 1 + CATEGORIES.length) % CATEGORIES.length); };
+  var goNext = function() { goTo((catIdx + 1) % CATEGORIES.length); };
+
+  // Auto-avance toutes les 5s
+  React.useEffect(function() {
+    setProgKey(function(k) { return k + 1; }); // reset barre de progression
+    if (paused) return;
+    var t = setTimeout(function() {
+      goToCategory(CATEGORIES[(catIdx + 1) % CATEGORIES.length].id);
+    }, 5000);
+    return function() { clearTimeout(t); };
+  }, [catIdx, paused]);
+
+  // Nettoyage timer au démontage
+  React.useEffect(function() { return function() { clearTimeout(timerRef.current); }; }, []);
+
+  var onTouchStart = function(e) { setTouchX(e.touches[0].clientX); };
+  var onTouchEnd = function(e) {
+    if (touchX === null) return;
+    var dx = e.changedTouches[0].clientX - touchX;
+    if (Math.abs(dx) > 48) { if (dx < 0) goNext(); else goPrev(); }
+    setTouchX(null);
+  };
+
+  return React.createElement('div', null,
+    // ── Hero slider ──
+    React.createElement('div', {
+      className: 'hero-slider',
+      onTouchStart: onTouchStart, onTouchEnd: onTouchEnd,
+      onMouseEnter: function() { setPaused(true); },
+      onMouseLeave: function() { setPaused(false); }
+    },
+      // Slide
+      React.createElement('div', {
+        key: cat.id,
+        className: 'hero-slide hero-slide-enter-' + dir,
+        style: { background: cat.grad }
+      },
+        // Blobs flottants (parallax décoratif)
+        React.createElement('div', { className:'hero-blob hero-blob-1', style:{ background:'rgba(255,255,255,.07)' } }),
+        React.createElement('div', { className:'hero-blob hero-blob-2', style:{ background:'rgba(0,0,0,.12)' } }),
+        React.createElement('div', { className:'hero-blob hero-blob-3', style:{ background:'rgba(255,255,255,.05)' } }),
+        // Contenu
+        React.createElement('div', { style:{ position:'relative', zIndex:2 } },
+          React.createElement('div', { className:'hero-emoji', style:{ fontSize:60, lineHeight:1, marginBottom:14 } }, cat.emoji),
+          React.createElement('h1', { style:{ color:'#fff', margin:'0 0 6px', fontSize:28, fontWeight:900, letterSpacing:'-.5px', textShadow:'0 2px 12px rgba(0,0,0,.4)', lineHeight:1.1 } }, cat.label),
+          React.createElement('p', { style:{ color:'rgba(255,255,255,.75)', margin:'0 0 18px', fontSize:13, lineHeight:1.5, fontStyle:'italic' } }, cat.desc),
+          // Pills raccourcis
+          React.createElement('div', { style:{ display:'flex', gap:7, flexWrap:'wrap' } },
+            cat.views.slice(0, 4).map(function(v) {
+              return React.createElement('button', {
+                key: v.id, className:'hero-pill',
+                onClick: function() { setView(v.target || v.id); }
+              }, v.icon, ' ', v.label);
+            })
+          )
+        ),
+        // Barre de progression auto-avance
+        !paused && React.createElement('div', { key: 'prog-' + progKey, className:'hero-progress hero-progress-anim' })
+      ),
+      // Flèche gauche
+      React.createElement('button', { className:'hero-arrow hero-arrow-left', onClick:goPrev, 'aria-label':'Précédent' }, '‹'),
+      // Flèche droite
+      React.createElement('button', { className:'hero-arrow hero-arrow-right', onClick:goNext, 'aria-label':'Suivant' }, '›'),
+      // Points de navigation
+      React.createElement('div', { className:'hero-dots' },
+        CATEGORIES.map(function(c, i) {
+          return React.createElement('button', {
+            key: c.id,
+            className: 'hero-dot' + (i === catIdx ? ' active' : ''),
+            onClick: function() { goTo(i); },
+            'aria-label': c.label
+          });
+        })
       )
     ),
-    // Tiles
+    // ── Grille de tuiles ──
     React.createElement('div', { style:{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(96px,1fr))', gap:12 } },
-      cat.views.map((v, i) => React.createElement('button', {
-        key: v.id,
-        onClick: () => setView(v.target || v.id),
-        className: 'view-tile',
-        style: { animationDelay: `${i * 58}ms` },
-      },
-        React.createElement('span', { className:'view-tile-icon' }, v.icon),
-        React.createElement('span', { className:'view-tile-label' }, v.label)
-      ))
+      cat.views.map(function(v, i) {
+        return React.createElement('button', {
+          key: v.id, className:'view-tile',
+          style: { animationDelay: i * 55 + 'ms' },
+          onClick: function() { setView(v.target || v.id); }
+        },
+          React.createElement('span', { className:'view-tile-icon' }, v.icon),
+          React.createElement('span', { className:'view-tile-label' }, v.label)
+        );
+      })
     )
   );
 }
@@ -12192,10 +12271,10 @@ const ch=sb.channel('ld-realtime')
       onClick:()=>setView(null)
     },'← Retour'),
     !view && React.createElement(CategoryHome,{
-      cat:CATEGORIES.find(c=>c.id===activeCat)||CATEGORIES[0],
       catIdx:CATEGORIES.findIndex(c=>c.id===activeCat),
       prevCatIdx,
-      setView
+      setView,
+      goToCategory
     }),
     view === 'dashboard' && renderDashboard(),
     view === 'dja' && renderPerson('dja'),
