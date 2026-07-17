@@ -123,3 +123,49 @@ background-repeat:no-repeat;
 .mnav-btn.active{background:var(--gold-bg);color:var(--gold)}
 .mnav-btn .mnav-icon{font-size:20px;line-height:1}
 .mnav-btn .mnav-label{font-size:9px;max-width:56px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ── Navigation par catégories ─────────────────────────────────────────────── */
+@keyframes catSlideRight{from{transform:translateX(56px);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes catSlideLeft{from{transform:translateX(-56px);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes tilePopIn{from{transform:translateY(18px) scale(.88);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}
+@keyframes iconWiggle{0%,100%{transform:rotate(0) scale(1)}25%{transform:rotate(-13deg) scale(1.12)}75%{transform:rotate(10deg) scale(1.12)}}
+@keyframes catHeaderPulse{0%,100%{opacity:1}50%{opacity:.88}}
+
+.cat-slide-right{animation:catSlideRight .38s cubic-bezier(.25,.46,.45,.94) both}
+.cat-slide-left{animation:catSlideLeft .38s cubic-bezier(.25,.46,.45,.94) both}
+
+/* Tiles vue */
+.view-tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:20px 10px;border-radius:20px;border:1px solid rgba(255,255,255,.07);cursor:pointer;animation:tilePopIn .42s ease both;opacity:0;background:rgba(255,255,255,.04);transition:transform .22s cubic-bezier(.34,1.56,.64,1),box-shadow .22s,border-color .22s;-webkit-user-select:none;user-select:none}
+.view-tile:hover{transform:translateY(-5px) scale(1.06);box-shadow:0 10px 28px rgba(0,0,0,.5);border-color:rgba(255,255,255,.18);background:rgba(255,255,255,.08)}
+.view-tile:active{transform:scale(.93);box-shadow:none}
+.view-tile-icon{font-size:30px;line-height:1;display:block}
+.view-tile:hover .view-tile-icon{animation:iconWiggle .45s ease forwards}
+.view-tile-label{font-size:11px;font-weight:600;color:var(--text2);text-align:center;line-height:1.3}
+
+/* Sidebar catégorie */
+.cat-nav-btn{display:flex;align-items:center;gap:10px;width:100%;padding:11px 14px;margin-bottom:2px;border:none;border-radius:10px;background:transparent;color:var(--text3);font-size:13px;font-weight:500;cursor:pointer;transition:all .18s ease}
+.cat-nav-btn.active{background:rgba(255,255,255,.07);color:#fff;font-weight:700}
+.cat-nav-emoji{font-size:18px;width:22px;text-align:center;line-height:1;transition:transform .22s cubic-bezier(.34,1.56,.64,1)}
+.cat-nav-btn:hover .cat-nav-emoji{transform:scale(1.28) rotate(-6deg)}
+.cat-subview-btn{display:flex;align-items:center;gap:8px;width:100%;padding:7px 14px 7px 38px;border:none;background:transparent;color:var(--text3);font-size:12px;cursor:pointer;border-radius:8px;transition:all .15s;margin-bottom:1px}
+.cat-subview-btn.active{color:var(--gold);background:rgba(217,183,95,.07);font-weight:600}
+.cat-subview-btn:hover:not(.active){color:var(--text2);background:rgba(255,255,255,.04)}
+
+/* Mobile category nav */
+.cat-mobile-nav{display:none;position:fixed;bottom:0;left:0;right:0;height:var(--nav-h);background:rgba(6,18,13,.93);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-top:1px solid var(--border);z-index:100;padding-bottom:env(safe-area-inset-bottom,0)}
+.cat-mobile-nav-inner{display:flex;height:100%;padding:4px 4px 0}
+.cat-mobile-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border:none;background:transparent;cursor:pointer;padding:6px 2px;border-radius:12px;transition:background .2s}
+.cat-mobile-btn.active{background:rgba(255,255,255,.08)}
+.cat-m-emoji{font-size:24px;line-height:1;display:block;transition:transform .3s cubic-bezier(.34,1.56,.64,1)}
+.cat-mobile-btn.active .cat-m-emoji{transform:scale(1.25) translateY(-2px)}
+.cat-m-label{font-size:9px;font-weight:700;letter-spacing:.02em;color:var(--text3);transition:color .2s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.cat-mobile-btn.active .cat-m-label{color:var(--text)}
+
+/* Back button */
+.view-back-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:var(--glass);color:var(--text3);font-size:12px;font-weight:600;cursor:pointer;margin-bottom:16px;transition:all .18s}
+.view-back-btn:hover{color:var(--text);border-color:var(--border2);background:rgba(255,255,255,.06);transform:translateX(-2px)}
+
+@media(max-width:768px){
+  .cat-mobile-nav{display:block}
+  .mobile-nav{display:none!important}
+}
