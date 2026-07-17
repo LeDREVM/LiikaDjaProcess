@@ -714,7 +714,8 @@ const defaultData = {
     crossword: { filled: {}, done: false },
     streak: { count: 0, lastDay: '' },
     badges: []
-  }
+  },
+  album: []
 };
 // Garantit que les données chargées/reçues ont toujours la forme attendue
 // (dja / liika / couple complets). Évite l'écran blanc si Supabase renvoie
@@ -740,6 +741,7 @@ function normalize(d) {
   if (Array.isArray(d.ferments)) base.ferments = d.ferments;
   if (Array.isArray(d.courses)) base.courses = d.courses;
   if (Array.isArray(d.media)) base.media = d.media;
+  if (Array.isArray(d.album)) base.album = d.album;
   if (!Array.isArray(base.couple.motivations)) base.couple.motivations = [];
   if (!base.liika.codeRousseau || typeof base.liika.codeRousseau !== 'object') base.liika.codeRousseau = clone(defaultData.liika.codeRousseau);
   if (!Array.isArray(base.liika.codeRousseau.eleves)) base.liika.codeRousseau.eleves = [];
@@ -8277,8 +8279,8 @@ function compressImage(file) {
     reader.readAsDataURL(file);
   });
 }
-function AlbumView() {
-  const [photos, setPhotos] = React.useState(() => { try { return JSON.parse(localStorage.getItem('ld-album')||'[]'); } catch { return []; } });
+function AlbumView({ album, addAlbumPhoto, deleteAlbumPhoto }) {
+  const photos = album || [];
   const [url, setUrl] = React.useState('');
   const [caption, setCaption] = React.useState('');
   const [show, setShow] = React.useState(false);
@@ -8286,9 +8288,36 @@ function AlbumView() {
   const [autoPlay, setAutoPlay] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
 
-  const save = l => { setPhotos(l); try { localStorage.setItem('ld-album', JSON.stringify(l)); } catch(e) { alert('Stockage plein — supprimez des photos pour en ajouter.'); } };
-  const addPhoto = src => {
-    save([{ id: Date.now().toString(), src, caption: caption.trim(), date: new Date().toISOString().slice(0,10) }, ...photos]);
+  // Migration unique : photos URL existantes depuis ld-album localStorage → app_state synced
+  React.useEffect(function() {
+    try {
+      var local = JSON.parse(localStorage.getItem('ld-album') || '[]');
+      var syncedIds = new Set((album || []).map(function(p) { return p.id; }));
+      var toMigrate = local.filter(function(p) {
+        if (syncedIds.has(p.id)) return false;
+        var src = p.src || p.url || '';
+        return src.startsWith('http'); // URLs seulement (pas base64)
+      });
+      toMigrate.forEach(function(p) { addAlbumPhoto(p); });
+      if (local.length > 0) localStorage.removeItem('ld-album');
+    } catch(_) {}
+  }, []); // eslint-disable-line
+
+  var ALBUM_BASE = SB_URL + '/storage/v1/object/public/album-photos/';
+  function dataURLtoBlob(dataURL) {
+    var parts = dataURL.split(',');
+    var mime = parts[0].match(/:(.*?);/)[1];
+    var binary = atob(parts[1]);
+    var arr = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i);
+    return new Blob([arr], { type: mime });
+  }
+
+  const addPhoto = function(srcOrMeta) {
+    var photo = typeof srcOrMeta === 'string'
+      ? { id: Date.now().toString(), src: srcOrMeta, caption: caption.trim(), date: new Date().toISOString().slice(0,10) }
+      : srcOrMeta;
+    addAlbumPhoto(photo);
     setCaption(''); setUrl(''); setShow(false);
   };
   const addUrl = () => { if (!url.trim()) return; addPhoto(url.trim()); };
@@ -8296,14 +8325,30 @@ function AlbumView() {
     const file = e.target.files[0];
     if (!file) return;
     setUploading(true);
-    try { addPhoto(await compressImage(file)); }
-    catch(_) { alert('Impossible de lire cette image.'); }
-    finally { setUploading(false); if(e.target) e.target.value = ''; }
+    try {
+      const dataUrl = await compressImage(file);
+      const blob = dataURLtoBlob(dataUrl);
+      const path = 'photos/' + Date.now() + '-' + Math.random().toString(36).slice(2,8) + '.jpg';
+      const { error } = await sb.storage.from('album-photos').upload(path, blob, { contentType:'image/jpeg', upsert:false });
+      if (error) throw error;
+      const { data: urlData } = sb.storage.from('album-photos').getPublicUrl(path);
+      addPhoto({ id: Date.now().toString(), src: urlData.publicUrl, caption: caption.trim(), date: new Date().toISOString().slice(0,10) });
+    } catch(err) {
+      alert('Impossible d\'envoyer cette photo : ' + ((err && err.message) || 'erreur réseau'));
+    } finally { setUploading(false); if(e.target) e.target.value = ''; }
   };
   const del = id => {
+    const photo = photos.find(p => p.id === id);
     const next = photos.filter(p => p.id !== id);
-    save(next);
     if (slideIdx !== null && slideIdx >= next.length) setSlideIdx(Math.max(0, next.length - 1));
+    var storagePath = null;
+    if (photo) {
+      const src = photo.src || photo.url || '';
+      const marker = '/album-photos/';
+      const idx = src.indexOf(marker);
+      if (idx >= 0) storagePath = src.slice(idx + marker.length);
+    }
+    deleteAlbumPhoto(id, storagePath);
   };
 
   // Slideshow auto-play
@@ -10015,6 +10060,21 @@ const ch=sb.channel('ld-realtime')
       return next;
     });
     sbDeleteMedia(id).catch(() => {});
+  }, []);
+  const addAlbumPhoto = useCallback(photo => {
+    setData(prev => {
+      const next = clone(prev);
+      next.album = [photo, ...(next.album || [])];
+      return next;
+    });
+  }, []);
+  const deleteAlbumPhoto = useCallback((id, storagePath) => {
+    setData(prev => {
+      const next = clone(prev);
+      next.album = (next.album || []).filter(p => p.id !== id);
+      return next;
+    });
+    if (storagePath) sb.storage.from('album-photos').remove([storagePath]).catch(function(){});
   }, []);
   // Survie : mutateur générique sur couple.survie (passe par setData → stamp + synchro section)
   const updateSurvie = useCallback(fn => {
@@ -12113,7 +12173,7 @@ const ch=sb.channel('ld-realtime')
     view === 'media' && React.createElement(MediaView,{media:data.media||[],addMedia,deleteMedia}),
     view === 'charts' && renderCharts(),
     view === 'sortie' && React.createElement(SortieView,null),
-    view === 'album' && React.createElement(AlbumView,null),
+    view === 'album' && React.createElement(AlbumView,{album:data.album||[],addAlbumPhoto,deleteAlbumPhoto}),
     view === 'idees' && React.createElement(IdeesView,null),
     view === 'medical' && React.createElement(MedicalView,null),
     view === 'voyages' && React.createElement(VoyagesView,null),
