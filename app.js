@@ -510,6 +510,7 @@ const defaultData = {
       fiches: [],
       notes: ''
     },
+    route: { km: 0, checklist: {} },
     sport: [{
       id: 'ls1',
       jour: 'Mardi',
@@ -747,6 +748,9 @@ function normalize(d) {
   if (!Array.isArray(base.liika.codeRousseau.eleves)) base.liika.codeRousseau.eleves = [];
   if (!Array.isArray(base.liika.codeRousseau.fiches)) base.liika.codeRousseau.fiches = [];
   if (typeof base.liika.codeRousseau.notes !== 'string') base.liika.codeRousseau.notes = '';
+  if (!base.liika.route || typeof base.liika.route !== 'object') base.liika.route = { km: 0, checklist: {} };
+  if (typeof base.liika.route.km !== 'number') base.liika.route.km = 0;
+  if (!base.liika.route.checklist || typeof base.liika.route.checklist !== 'object') base.liika.route.checklist = {};
   // Survie : garantir la forme (le spread couple ci-dessus a pu remplacer survie par une version partielle)
   {
     const sd = (d.couple && typeof d.couple.survie === 'object' && d.couple.survie) ? d.couple.survie : {};
@@ -9565,9 +9569,27 @@ const [onlineCount,setOnlineCount]=useState(0); // nb d'appareils connectés (pr
 const [objMoisFilter,setObjMoisFilter]=useState(()=>new Date().getMonth());
 const [showAddObjM,setShowAddObjM]=useState(false);
 const [newObjM,setNewObjM]=useState({titre:'',detail:'',categorie:'Nature'});
-// État de la vue "Route Liika" (perdu lors d'une fusion, restauré ici au niveau App)
-const [routeKm,setRouteKm]=useState(0);
-const [routeChecklist,setRouteChecklist]=useState({});
+// État de la vue "Route Liika" — persisté dans data.liika.route → synchro Supabase
+const routeKm=(data.liika&&data.liika.route&&typeof data.liika.route.km==='number')?data.liika.route.km:0;
+const routeChecklist=(data.liika&&data.liika.route&&data.liika.route.checklist)||{};
+const setRouteKm=useCallback(fn=>{
+  setData(prev=>{
+    const next=clone(prev);
+    if(!next.liika.route||typeof next.liika.route!=='object') next.liika.route={km:0,checklist:{}};
+    const cur=typeof next.liika.route.km==='number'?next.liika.route.km:0;
+    next.liika.route.km=Math.max(0,typeof fn==='function'?fn(cur):fn);
+    return next;
+  });
+},[]);
+const setRouteChecklist=useCallback(fn=>{
+  setData(prev=>{
+    const next=clone(prev);
+    if(!next.liika.route||typeof next.liika.route!=='object') next.liika.route={km:0,checklist:{}};
+    if(!next.liika.route.checklist||typeof next.liika.route.checklist!=='object') next.liika.route.checklist={};
+    next.liika.route.checklist=typeof fn==='function'?fn(next.liika.route.checklist):fn;
+    return next;
+  });
+},[]);
 const [showMotivation,setShowMotivation]=useState(false);
 const [motivationMsg,setMotivationMsg]=useState('');
 const activeProfile=ui?.activeProfile||'dja';
