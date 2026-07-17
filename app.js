@@ -6456,19 +6456,28 @@ function LoginScreen({
         const key = `ld-pin-${sel}`;
         const stored = localStorage.getItem(key);
         if (step === 'pin') {
-          // Vérification via Supabase RPC → retourne un token si succès
-          setLoading(true);
-          const token = await sbVerifyPin(sel, pin);
-          setLoading(false);
-          if (token !== null) {
-            // Supabase a validé → cache le PIN + login avec token (appareil reconnu 90 j)
-            localStorage.setItem(key, pin);
-            doLogin(acc, { id: sel, name: acc.name, loggedAt: Date.now() }, token);
-          } else if (pin === stored) {
-            // Supabase inaccessible mais PIN local correct → login hors-ligne sans token
+          if (stored && pin === stored) {
+            // PIN local correct → login instantané (même comportement qu'avant)
             doLogin(acc, { id: sel, name: acc.name, loggedAt: Date.now() }, null);
+            // Token Supabase récupéré en arrière-plan pour les prochaines synchros
+            sbVerifyPin(sel, pin).then(token => {
+              if (!token) return;
+              try {
+                const s = JSON.parse(localStorage.getItem('ld-session') || 'null');
+                if (s && s.id === sel && !s.token) localStorage.setItem('ld-session', JSON.stringify({...s, token}));
+              } catch(_) {}
+            });
           } else {
-            doShake('Code incorrect, réessaie');
+            // Pas de PIN local (nouvel appareil) → vérification Supabase obligatoire
+            setLoading(true);
+            const token = await sbVerifyPin(sel, pin);
+            setLoading(false);
+            if (token !== null) {
+              localStorage.setItem(key, pin);
+              doLogin(acc, { id: sel, name: acc.name, loggedAt: Date.now() }, token);
+            } else {
+              doShake('Code incorrect, réessaie');
+            }
           }
         } else if (step === 'create') {
           setFirst(pin);
