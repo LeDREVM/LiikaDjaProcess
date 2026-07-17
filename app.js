@@ -8285,7 +8285,6 @@ function AlbumView() {
   const [slideIdx, setSlideIdx] = React.useState(null);
   const [autoPlay, setAutoPlay] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
-  const fileRef = React.useRef(null);
 
   const save = l => { setPhotos(l); try { localStorage.setItem('ld-album', JSON.stringify(l)); } catch(e) { alert('Stockage plein — supprimez des photos pour en ajouter.'); } };
   const addPhoto = src => {
@@ -8345,20 +8344,19 @@ function AlbumView() {
     ),
     // Add form
     show && React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid rgba(233,30,140,.35)', borderRadius:'var(--radius)', padding:16, marginBottom:16 } },
-      // Upload buttons
+      // Upload buttons — <label htmlFor> universellement supporté iOS/Android/desktop
       React.createElement('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:12 } },
-        React.createElement('button', {
-          onClick: () => { if(!fileRef.current) return; fileRef.current.removeAttribute('capture'); fileRef.current.click(); },
-          disabled: uploading,
-          style:{ padding:'14px 10px', borderRadius:12, border:'2px dashed rgba(233,30,140,.4)', background:'rgba(233,30,140,.06)', color:uploading?'var(--text3)':'#e91e8c', cursor:'pointer', fontSize:13, fontWeight:700, textAlign:'center' }
+        React.createElement('label', {
+          htmlFor: 'album-gallery-input',
+          style:{ display:'block', padding:'14px 10px', borderRadius:12, border:'2px dashed rgba(233,30,140,.4)', background:'rgba(233,30,140,.06)', color:uploading?'var(--text3)':'#e91e8c', cursor:uploading?'not-allowed':'pointer', fontSize:13, fontWeight:700, textAlign:'center', userSelect:'none' }
         }, uploading ? '⏳ Compression...' : React.createElement(React.Fragment, null, React.createElement('div', { style:{ fontSize:26, marginBottom:4 } }, '🖼'), 'Galerie')),
-        React.createElement('button', {
-          onClick: () => { if(!fileRef.current) return; fileRef.current.setAttribute('capture','environment'); fileRef.current.click(); },
-          disabled: uploading,
-          style:{ padding:'14px 10px', borderRadius:12, border:'2px dashed rgba(233,30,140,.4)', background:'rgba(233,30,140,.06)', color:uploading?'var(--text3)':'#e91e8c', cursor:'pointer', fontSize:13, fontWeight:700, textAlign:'center' }
+        React.createElement('label', {
+          htmlFor: 'album-camera-input',
+          style:{ display:'block', padding:'14px 10px', borderRadius:12, border:'2px dashed rgba(233,30,140,.4)', background:'rgba(233,30,140,.06)', color:uploading?'var(--text3)':'#e91e8c', cursor:uploading?'not-allowed':'pointer', fontSize:13, fontWeight:700, textAlign:'center', userSelect:'none' }
         }, React.createElement(React.Fragment, null, React.createElement('div', { style:{ fontSize:26, marginBottom:4 } }, '📷'), 'Caméra'))
       ),
-      React.createElement('input', { ref:fileRef, type:'file', accept:'image/*', onChange:handleFile, style:{ display:'none' } }),
+      React.createElement('input', { id:'album-gallery-input', type:'file', accept:'image/*', onChange:uploading?null:handleFile, style:{ display:'none' } }),
+      React.createElement('input', { id:'album-camera-input', type:'file', accept:'image/*', capture:'environment', onChange:uploading?null:handleFile, style:{ display:'none' } }),
       // OR separator
       React.createElement('div', { style:{ display:'flex', alignItems:'center', gap:8, margin:'10px 0' } },
         React.createElement('div', { style:{ flex:1, height:1, background:'var(--border)' } }),
