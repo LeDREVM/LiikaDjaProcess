@@ -649,6 +649,7 @@ const defaultData = {
       custom: []
     },
     motivations: [],
+    medical: [],
     maison: {
       checked: {},
       custom: [],
@@ -744,6 +745,7 @@ function normalize(d) {
   if (Array.isArray(d.media)) base.media = d.media;
   if (Array.isArray(d.album)) base.album = d.album;
   if (!Array.isArray(base.couple.motivations)) base.couple.motivations = [];
+  if (!Array.isArray(base.couple.medical)) base.couple.medical = [];
   if (!base.liika.codeRousseau || typeof base.liika.codeRousseau !== 'object') base.liika.codeRousseau = clone(defaultData.liika.codeRousseau);
   if (!Array.isArray(base.liika.codeRousseau.eleves)) base.liika.codeRousseau.eleves = [];
   if (!Array.isArray(base.liika.codeRousseau.fiches)) base.liika.codeRousseau.fiches = [];
@@ -8504,15 +8506,23 @@ function IdeesView() {
   );
 }
 
-function MedicalView() {
-  const [rdvs, setRdvs] = React.useState(() => { try { return JSON.parse(localStorage.getItem('ld-medical')||'[]'); } catch { return []; } });
+function MedicalView({ rdvs, addMedical, deleteMedical }) {
   const [form, setForm] = React.useState({ titre:'', date:'', medecin:'', notes:'', qui:'Couple' });
   const [show, setShow] = React.useState(false);
   const QUIS = ['Dja','Liika','Couple'];
   const QUI_C = { 'Dja':'var(--accent-dja)', 'Liika':'var(--accent-liika)', 'Couple':'var(--gold)' };
-  const save = l => { setRdvs(l); localStorage.setItem('ld-medical', JSON.stringify(l)); };
-  const add = () => { if (!form.titre.trim()) return; save([{ id:Date.now().toString(), ...form }, ...rdvs]); setForm({ titre:'', date:'', medecin:'', notes:'', qui:'Couple' }); setShow(false); };
-  const del = id => save(rdvs.filter(r => r.id !== id));
+  // Migration unique depuis localStorage
+  React.useEffect(function() {
+    try {
+      var local = JSON.parse(localStorage.getItem('ld-medical') || '[]');
+      if (!local.length) return;
+      var syncedIds = new Set((rdvs || []).map(function(r) { return r.id; }));
+      local.filter(function(r) { return !syncedIds.has(r.id); }).forEach(function(r) { addMedical(r); });
+      localStorage.removeItem('ld-medical');
+    } catch(_) {}
+  }, []);
+  const add = () => { if (!form.titre.trim()) return; addMedical({ id:Date.now().toString(), ...form }); setForm({ titre:'', date:'', medecin:'', notes:'', qui:'Couple' }); setShow(false); };
+  const del = id => deleteMedical(id);
   const inp = { background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'8px 12px', fontSize:13, width:'100%', boxSizing:'border-box' };
   return React.createElement('div', null,
     React.createElement('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 } },
@@ -10097,6 +10107,20 @@ const ch=sb.channel('ld-realtime')
       return next;
     });
     if (storagePath) sb.storage.from('album-photos').remove([storagePath]).catch(function(){});
+  }, []);
+  const addMedical = useCallback(rdv => {
+    setData(prev => {
+      const next = clone(prev);
+      next.couple.medical = [rdv, ...(next.couple.medical || [])];
+      return next;
+    });
+  }, []);
+  const deleteMedical = useCallback(id => {
+    setData(prev => {
+      const next = clone(prev);
+      next.couple.medical = (next.couple.medical || []).filter(r => r.id !== id);
+      return next;
+    });
   }, []);
   // Survie : mutateur générique sur couple.survie (passe par setData → stamp + synchro section)
   const updateSurvie = useCallback(fn => {
@@ -12197,7 +12221,7 @@ const ch=sb.channel('ld-realtime')
     view === 'sortie' && React.createElement(SortieView,null),
     view === 'album' && React.createElement(AlbumView,{album:data.album||[],addAlbumPhoto,deleteAlbumPhoto}),
     view === 'idees' && React.createElement(IdeesView,null),
-    view === 'medical' && React.createElement(MedicalView,null),
+    view === 'medical' && React.createElement(MedicalView,{rdvs:data.couple.medical||[],addMedical,deleteMedical}),
     view === 'voyages' && React.createElement(VoyagesView,null),
     view === 'artiste' && React.createElement(ArtView,null)
   ), /*#__PURE__*/React.createElement(AddModal, {
