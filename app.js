@@ -8247,35 +8247,173 @@ function SortieView() {
   );
 }
 
+function compressImage(file) {
+  return new Promise(function(resolve, reject) {
+    var reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = function(e) {
+      var img = new Image();
+      img.onerror = reject;
+      img.onload = function() {
+        var maxW = 1080;
+        var ratio = Math.min(maxW / img.width, maxW / img.height, 1);
+        var canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * ratio);
+        canvas.height = Math.round(img.height * ratio);
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.78));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
 function AlbumView() {
   const [photos, setPhotos] = React.useState(() => { try { return JSON.parse(localStorage.getItem('ld-album')||'[]'); } catch { return []; } });
   const [url, setUrl] = React.useState('');
   const [caption, setCaption] = React.useState('');
   const [show, setShow] = React.useState(false);
-  const save = l => { setPhotos(l); localStorage.setItem('ld-album', JSON.stringify(l)); };
-  const add = () => { if (!url.trim()) return; save([{ id:Date.now().toString(), url:url.trim(), caption:caption.trim(), date:new Date().toISOString().slice(0,10) }, ...photos]); setUrl(''); setCaption(''); setShow(false); };
-  const del = id => save(photos.filter(p => p.id !== id));
+  const [slideIdx, setSlideIdx] = React.useState(null);
+  const [autoPlay, setAutoPlay] = React.useState(false);
+  const [uploading, setUploading] = React.useState(false);
+  const fileRef = React.useRef(null);
+
+  const save = l => { setPhotos(l); try { localStorage.setItem('ld-album', JSON.stringify(l)); } catch(e) { alert('Stockage plein — supprimez des photos pour en ajouter.'); } };
+  const addPhoto = src => {
+    save([{ id: Date.now().toString(), src, caption: caption.trim(), date: new Date().toISOString().slice(0,10) }, ...photos]);
+    setCaption(''); setUrl(''); setShow(false);
+  };
+  const addUrl = () => { if (!url.trim()) return; addPhoto(url.trim()); };
+  const handleFile = async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploading(true);
+    try { addPhoto(await compressImage(file)); }
+    catch(_) { alert('Impossible de lire cette image.'); }
+    finally { setUploading(false); if(e.target) e.target.value = ''; }
+  };
+  const del = id => {
+    const next = photos.filter(p => p.id !== id);
+    save(next);
+    if (slideIdx !== null && slideIdx >= next.length) setSlideIdx(Math.max(0, next.length - 1));
+  };
+
+  // Slideshow auto-play
+  React.useEffect(() => {
+    if (!autoPlay || slideIdx === null || photos.length <= 1) return;
+    const id = setInterval(() => setSlideIdx(i => i === null ? null : (i + 1) % photos.length), 3500);
+    return () => clearInterval(id);
+  }, [autoPlay, photos.length]);
+
+  // Keyboard navigation
+  React.useEffect(() => {
+    if (slideIdx === null) return;
+    const n = photos.length;
+    const h = e => {
+      if (e.key === 'ArrowLeft')  setSlideIdx(i => (i - 1 + n) % n);
+      else if (e.key === 'ArrowRight') setSlideIdx(i => (i + 1) % n);
+      else if (e.key === 'Escape') { setSlideIdx(null); setAutoPlay(false); }
+    };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [slideIdx, photos.length]);
+
   const inp = { background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'8px 12px', fontSize:13, width:'100%', boxSizing:'border-box' };
+  const cur = slideIdx !== null ? photos[slideIdx] : null;
+  const btnSlide = { padding:'8px 18px', borderRadius:20, border:'1px solid rgba(255,255,255,.25)', background:'rgba(255,255,255,.12)', color:'#fff', cursor:'pointer', fontSize:20, lineHeight:1 };
+
   return React.createElement('div', null,
-    React.createElement('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 } },
+    // Header
+    React.createElement('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20, gap:8, flexWrap:'wrap' } },
       React.createElement('h2', { style:{ margin:0, fontSize:20 } }, '📸 Album photo'),
-      React.createElement('button', { onClick:()=>setShow(!show), style:{ padding:'8px 18px', borderRadius:20, border:'none', background:'#e91e8c', color:'#fff', cursor:'pointer', fontWeight:700 } }, show ? '✕' : '+ Photo')
+      React.createElement('div', { style:{ display:'flex', gap:8 } },
+        photos.length > 0 && React.createElement('button', {
+          onClick: () => { setSlideIdx(0); setAutoPlay(false); },
+          style:{ padding:'8px 14px', borderRadius:20, border:'1px solid rgba(233,30,140,.45)', background:'transparent', color:'#e91e8c', cursor:'pointer', fontSize:12, fontWeight:700 }
+        }, '▶ Slideshow'),
+        React.createElement('button', { onClick:()=>setShow(s=>!s), style:{ padding:'8px 18px', borderRadius:20, border:'none', background:'#e91e8c', color:'#fff', cursor:'pointer', fontWeight:700 } }, show ? '✕ Fermer' : '+ Photo')
+      )
     ),
+    // Add form
     show && React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid rgba(233,30,140,.35)', borderRadius:'var(--radius)', padding:16, marginBottom:16 } },
-      React.createElement('input', { placeholder:'URL de la photo *', value:url, onChange:e=>setUrl(e.target.value), style:{ ...inp, marginBottom:8 } }),
-      React.createElement('input', { placeholder:'Légende...', value:caption, onChange:e=>setCaption(e.target.value), style:{ ...inp, marginBottom:10 } }),
-      React.createElement('button', { onClick:add, style:{ padding:'8px 20px', borderRadius:12, border:'none', background:'#e91e8c', color:'#fff', cursor:'pointer', fontWeight:700 } }, 'Ajouter')
+      // Upload buttons
+      React.createElement('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:12 } },
+        React.createElement('button', {
+          onClick: () => { if(!fileRef.current) return; fileRef.current.removeAttribute('capture'); fileRef.current.click(); },
+          disabled: uploading,
+          style:{ padding:'14px 10px', borderRadius:12, border:'2px dashed rgba(233,30,140,.4)', background:'rgba(233,30,140,.06)', color:uploading?'var(--text3)':'#e91e8c', cursor:'pointer', fontSize:13, fontWeight:700, textAlign:'center' }
+        }, uploading ? '⏳ Compression...' : React.createElement(React.Fragment, null, React.createElement('div', { style:{ fontSize:26, marginBottom:4 } }, '🖼'), 'Galerie')),
+        React.createElement('button', {
+          onClick: () => { if(!fileRef.current) return; fileRef.current.setAttribute('capture','environment'); fileRef.current.click(); },
+          disabled: uploading,
+          style:{ padding:'14px 10px', borderRadius:12, border:'2px dashed rgba(233,30,140,.4)', background:'rgba(233,30,140,.06)', color:uploading?'var(--text3)':'#e91e8c', cursor:'pointer', fontSize:13, fontWeight:700, textAlign:'center' }
+        }, React.createElement(React.Fragment, null, React.createElement('div', { style:{ fontSize:26, marginBottom:4 } }, '📷'), 'Caméra'))
+      ),
+      React.createElement('input', { ref:fileRef, type:'file', accept:'image/*', onChange:handleFile, style:{ display:'none' } }),
+      // OR separator
+      React.createElement('div', { style:{ display:'flex', alignItems:'center', gap:8, margin:'10px 0' } },
+        React.createElement('div', { style:{ flex:1, height:1, background:'var(--border)' } }),
+        React.createElement('span', { style:{ fontSize:11, color:'var(--text3)' } }, 'ou ajouter par URL'),
+        React.createElement('div', { style:{ flex:1, height:1, background:'var(--border)' } })
+      ),
+      React.createElement('input', { placeholder:'https://...', value:url, onChange:e=>setUrl(e.target.value), style:{ ...inp, marginBottom:8 } }),
+      React.createElement('input', { placeholder:'Légende (optionnel)...', value:caption, onChange:e=>setCaption(e.target.value), onKeyDown:e=>e.key==='Enter'&&addUrl(), style:{ ...inp, marginBottom:10 } }),
+      url.trim() && React.createElement('button', { onClick:addUrl, style:{ padding:'8px 20px', borderRadius:12, border:'none', background:'#e91e8c', color:'#fff', cursor:'pointer', fontWeight:700 } }, 'Ajouter l\'URL')
     ),
-    photos.length === 0 && !show && React.createElement('div', { style:{ textAlign:'center', padding:'50px 0', color:'var(--text3)' } }, '📷 Album vide — ajoutez des photos via URL'),
-    React.createElement('div', { style:{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(155px,1fr))', gap:12 } },
-      photos.map(p => React.createElement('div', { key:p.id, style:{ borderRadius:'var(--radius)', overflow:'hidden', background:'var(--bg2)', position:'relative' } },
-        React.createElement('img', { src:p.url, alt:p.caption||'', style:{ width:'100%', aspectRatio:'1', objectFit:'cover', display:'block' }, onError:e=>{ e.target.style.display='none'; } }),
-        React.createElement('div', { style:{ padding:'8px 10px' } },
-          p.caption && React.createElement('div', { style:{ fontSize:12, color:'var(--text)', marginBottom:2 } }, p.caption),
+    // Empty state
+    photos.length === 0 && !show && React.createElement('div', { style:{ textAlign:'center', padding:'60px 0', color:'var(--text3)' } },
+      React.createElement('div', { style:{ fontSize:48, marginBottom:12 } }, '📷'),
+      React.createElement('div', null, 'Album vide — immortalisez vos souvenirs !')
+    ),
+    // Photo grid
+    React.createElement('div', { style:{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(148px,1fr))', gap:10 } },
+      photos.map((p, i) => React.createElement('div', {
+        key: p.id,
+        style:{ borderRadius:'var(--radius)', overflow:'hidden', background:'var(--bg2)', position:'relative', cursor:'pointer' },
+        onClick: () => setSlideIdx(i)
+      },
+        React.createElement('img', { src: p.src || p.url, alt: p.caption||'', style:{ width:'100%', aspectRatio:'1', objectFit:'cover', display:'block' }, onError: e => { e.target.style.background='var(--bg3)'; } }),
+        React.createElement('div', { style:{ padding:'6px 10px' } },
+          p.caption && React.createElement('div', { style:{ fontSize:11, color:'var(--text)', marginBottom:2, lineHeight:1.3 } }, p.caption),
           React.createElement('div', { style:{ fontSize:10, color:'var(--text3)' } }, p.date)
         ),
-        React.createElement('button', { onClick:()=>del(p.id), style:{ position:'absolute', top:6, right:6, background:'rgba(0,0,0,.65)', border:'none', color:'#fff', borderRadius:'50%', width:22, height:22, cursor:'pointer', fontSize:12, lineHeight:'22px', textAlign:'center' } }, '×')
+        React.createElement('button', { onClick:e=>{ e.stopPropagation(); del(p.id); }, style:{ position:'absolute', top:6, right:6, background:'rgba(0,0,0,.70)', border:'none', color:'#fff', borderRadius:'50%', width:24, height:24, cursor:'pointer', fontSize:13, lineHeight:'24px', textAlign:'center' } }, '×')
       ))
+    ),
+    // Slideshow overlay
+    cur && React.createElement('div', {
+      style:{ position:'fixed', inset:0, background:'rgba(0,0,0,.96)', zIndex:1000, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'16px 0' },
+      onClick: () => { setSlideIdx(null); setAutoPlay(false); }
+    },
+      // Close
+      React.createElement('button', {
+        onClick: e => { e.stopPropagation(); setSlideIdx(null); setAutoPlay(false); },
+        style:{ position:'absolute', top:14, right:14, background:'rgba(255,255,255,.15)', border:'none', color:'#fff', borderRadius:'50%', width:38, height:38, cursor:'pointer', fontSize:20, lineHeight:'38px', textAlign:'center' }
+      }, '×'),
+      // Photo counter
+      React.createElement('div', { style:{ position:'absolute', top:18, left:18, color:'rgba(255,255,255,.55)', fontSize:12, fontFamily:"'Space Mono',monospace" } }, `${slideIdx+1} / ${photos.length}`),
+      // Image
+      React.createElement('img', {
+        src: cur.src || cur.url,
+        alt: cur.caption || '',
+        onClick: e => e.stopPropagation(),
+        style:{ maxWidth:'94vw', maxHeight:'68vh', objectFit:'contain', borderRadius:8, boxShadow:'0 8px 40px rgba(0,0,0,.8)' }
+      }),
+      // Caption
+      cur.caption && React.createElement('div', {
+        onClick: e => e.stopPropagation(),
+        style:{ color:'rgba(255,255,255,.85)', fontSize:14, fontWeight:500, textAlign:'center', marginTop:12, padding:'0 24px', lineHeight:1.4 }
+      }, cur.caption),
+      React.createElement('div', { style:{ color:'rgba(255,255,255,.35)', fontSize:11, marginTop:4 } }, cur.date),
+      // Nav controls
+      React.createElement('div', { onClick:e=>e.stopPropagation(), style:{ display:'flex', gap:10, marginTop:16, alignItems:'center' } },
+        React.createElement('button', { onClick:()=>setSlideIdx(i=>(i-1+photos.length)%photos.length), style:btnSlide }, '‹'),
+        React.createElement('button', {
+          onClick: () => setAutoPlay(a=>!a),
+          style:{ ...btnSlide, fontSize:12, padding:'8px 16px', background: autoPlay?'#e91e8c':'rgba(255,255,255,.12)', border:'none' }
+        }, autoPlay ? '⏸ Pause' : '▶ Auto'),
+        React.createElement('button', { onClick:()=>setSlideIdx(i=>(i+1)%photos.length), style:btnSlide }, '›')
+      )
     )
   );
 }
