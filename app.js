@@ -8112,6 +8112,337 @@ const PL_REMC_ADAPTATIONS = [
   { comp:'C3.3', titre:'Éco-conduite PL', specificite:'L\'éco-conduite PL représente 20 à 30 % d\'économie de carburant (impact économique majeur pour l\'entreprise). Anticipation longue distance, montée en régime économique (< 1 500 tr/min diesel), rétrogradation douce, vent de face = pied levé 500 m avant.', exercice:'Comparaison de consommation sur même trajet : conduite normale vs éco-conduite → affichage ordinateur de bord.' },
 ];
 
+// ── CATEGORIES ───────────────────────────────────────────────────────────────
+const CATEGORIES = [
+  {
+    id:'lifestyle', label:'Lifestyle', emoji:'🌺',
+    color:'#e91e8c',
+    grad:'linear-gradient(135deg,#7c2257 0%,#c2185b 55%,#e91e8c 100%)',
+    desc:'Sorties · Photos · Idées · Maison · Culture',
+    views:[
+      { id:'sortie',  label:'Sorties',     icon:'🎉' },
+      { id:'album',   label:'Album photo', icon:'📸' },
+      { id:'idees',   label:'Idées',       icon:'💡' },
+      { id:'maison',  label:'Maison',      icon:'🏠' },
+      { id:'couple',  label:'Nous deux',   icon:'♡'  },
+      { id:'culture', label:'Culture GWA', icon:'🎭' },
+      { id:'vision',  label:'Vision',      icon:'✦'  },
+    ],
+  },
+  {
+    id:'sante', label:'Santé & Finance', emoji:'💚',
+    color:'#10b981',
+    grad:'linear-gradient(135deg,#064e3b 0%,#059669 55%,#10b981 100%)',
+    desc:'Sport · Budget · Repas · Médical · Voyages',
+    views:[
+      { id:'sport',    label:'Sport',         icon:'💪' },
+      { id:'budget',   label:'Budget',        icon:'💰' },
+      { id:'repas',    label:'Repas',         icon:'🍽'  },
+      { id:'courses',  label:'Courses',       icon:'🛒' },
+      { id:'medical',  label:'Suivi médical', icon:'🩺' },
+      { id:'drevmcook',label:'DrevmCook',     icon:'🌿' },
+      { id:'voyages',  label:'Voyages',       icon:'✈️' },
+      { id:'charts',   label:'Stats',         icon:'▤'  },
+    ],
+  },
+  {
+    id:'prolia', label:'Pro · Purple Moon', emoji:'🎖️',
+    color:'#f472b6',
+    grad:'linear-gradient(135deg,#831843 0%,#be185d 55%,#f472b6 100%)',
+    desc:'Planning · REMC · Route · Survie',
+    views:[
+      { id:'planning',     label:'Planning',       icon:'🗓' },
+      { id:'objmensuel',   label:'Objectifs mois', icon:'🎯' },
+      { id:'coderousseau', label:'REMC',           icon:'🎓' },
+      { id:'route',        label:'Route Liika',    icon:'🚛' },
+      { id:'survie',       label:'Survie',         icon:'🪖' },
+      { id:'calendar',     label:'Calendrier',     icon:'📅' },
+      { id:'liika',        label:'Profil Liika',   icon:'◇'  },
+    ],
+  },
+  {
+    id:'prodja', label:'Pro · Negus Dja', emoji:'🎨',
+    color:'#a78bfa',
+    grad:'linear-gradient(135deg,#2e1065 0%,#6d28d9 55%,#a78bfa 100%)',
+    desc:'Art · Création · Direction artistique',
+    views:[
+      { id:'artiste', label:'Art & Projets',  icon:'🎨' },
+      { id:'dja',     label:'Profil Dja',     icon:'◆'  },
+      { id:'vision',  label:'Vision board',   icon:'✦'  },
+      { id:'calendar',label:'Calendrier',     icon:'📅' },
+    ],
+  },
+  {
+    id:'media', label:'Multimédia', emoji:'🎬',
+    color:'#d9b75f',
+    grad:'linear-gradient(135deg,#78350f 0%,#b45309 55%,#d9b75f 100%)',
+    desc:'Playlist · Jeux · Recettes · Culture',
+    views:[
+      { id:'media',    label:'Playlist',    icon:'🎬' },
+      { id:'jeux',     label:'Jeux',        icon:'🎮' },
+      { id:'recettes', label:'Recettes',    icon:'🍳', target:'drevmcook' },
+      { id:'culture',  label:'Culture GWA', icon:'🎭' },
+    ],
+  },
+];
+
+function CategoryHome({ cat, catIdx, prevCatIdx, setView }) {
+  const dir = catIdx >= prevCatIdx ? 'right' : 'left';
+  return React.createElement('div', { key: cat.id, className: 'cat-slide-' + dir, style:{ paddingBottom:24 } },
+    // Gradient header
+    React.createElement('div', { style:{ background:cat.grad, borderRadius:'var(--radius)', padding:'30px 24px 28px', marginBottom:24, position:'relative', overflow:'hidden' } },
+      React.createElement('div', { style:{ position:'absolute', right:-30, top:-30, width:160, height:160, borderRadius:'50%', background:'rgba(255,255,255,.08)', pointerEvents:'none' } }),
+      React.createElement('div', { style:{ position:'absolute', left:40, bottom:-40, width:100, height:100, borderRadius:'50%', background:'rgba(0,0,0,.1)', pointerEvents:'none' } }),
+      React.createElement('div', { style:{ position:'relative', zIndex:1 } },
+        React.createElement('div', { style:{ fontSize:54, lineHeight:1, marginBottom:12 } }, cat.emoji),
+        React.createElement('h1', { style:{ color:'#fff', margin:'0 0 8px', fontSize:28, fontWeight:900, letterSpacing:'-.5px', textShadow:'0 2px 8px rgba(0,0,0,.3)' } }, cat.label),
+        React.createElement('p', { style:{ color:'rgba(255,255,255,.75)', margin:0, fontSize:13, lineHeight:1.5 } }, cat.desc)
+      )
+    ),
+    // Tiles
+    React.createElement('div', { style:{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(96px,1fr))', gap:12 } },
+      cat.views.map((v, i) => React.createElement('button', {
+        key: v.id,
+        onClick: () => setView(v.target || v.id),
+        className: 'view-tile',
+        style: { animationDelay: `${i * 58}ms` },
+      },
+        React.createElement('span', { className:'view-tile-icon' }, v.icon),
+        React.createElement('span', { className:'view-tile-label' }, v.label)
+      ))
+    )
+  );
+}
+
+// ── Stub views ────────────────────────────────────────────────────────────────
+function SortieView() {
+  const [list, setList] = React.useState(() => { try { return JSON.parse(localStorage.getItem('ld-sorties')||'[]'); } catch { return []; } });
+  const [form, setForm] = React.useState({ titre:'', date:'', lieu:'', notes:'' });
+  const [show, setShow] = React.useState(false);
+  const save = l => { setList(l); localStorage.setItem('ld-sorties', JSON.stringify(l)); };
+  const add = () => { if (!form.titre.trim()) return; save([{ id:Date.now().toString(), ...form }, ...list]); setForm({ titre:'', date:'', lieu:'', notes:'' }); setShow(false); };
+  const del = id => save(list.filter(x => x.id !== id));
+  const inp = { background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'8px 12px', fontSize:13, width:'100%', boxSizing:'border-box' };
+  const btnPrimary = { padding:'8px 20px', borderRadius:12, border:'none', background:'#e91e8c', color:'#fff', cursor:'pointer', fontWeight:700 };
+  return React.createElement('div', null,
+    React.createElement('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 } },
+      React.createElement('h2', { style:{ margin:0, fontSize:20 } }, '🎉 Sorties & Événements'),
+      React.createElement('button', { onClick:()=>setShow(!show), style:{ ...btnPrimary, borderRadius:20, fontSize:13 } }, show ? '✕ Fermer' : '+ Ajouter')
+    ),
+    show && React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid rgba(233,30,140,.35)', borderRadius:'var(--radius)', padding:16, marginBottom:16 } },
+      React.createElement('input', { placeholder:'Titre *', value:form.titre, onChange:e=>setForm(p=>({...p,titre:e.target.value})), style:{ ...inp, marginBottom:8 } }),
+      React.createElement('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 } },
+        React.createElement('input', { type:'date', value:form.date, onChange:e=>setForm(p=>({...p,date:e.target.value})), style:inp }),
+        React.createElement('input', { placeholder:'Lieu', value:form.lieu, onChange:e=>setForm(p=>({...p,lieu:e.target.value})), style:inp })
+      ),
+      React.createElement('textarea', { placeholder:'Notes...', value:form.notes, onChange:e=>setForm(p=>({...p,notes:e.target.value})), style:{ ...inp, minHeight:60, marginBottom:10, resize:'vertical' } }),
+      React.createElement('button', { onClick:add, style:btnPrimary }, 'Enregistrer')
+    ),
+    list.length === 0 && !show && React.createElement('div', { style:{ textAlign:'center', padding:'50px 0', color:'var(--text3)', fontSize:14 } }, '🌴 Ajoutez vos sorties et événements'),
+    list.map(s => React.createElement('div', { key:s.id, style:{ background:'var(--glass)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'12px 16px', marginBottom:10, display:'flex', gap:12, alignItems:'flex-start' } },
+      React.createElement('div', { style:{ flex:1 } },
+        React.createElement('div', { style:{ fontWeight:700, color:'var(--text)', marginBottom:3, fontSize:14 } }, s.titre),
+        (s.date||s.lieu) && React.createElement('div', { style:{ fontSize:12, color:'var(--text3)' } }, [s.date,s.lieu].filter(Boolean).join(' · ')),
+        s.notes && React.createElement('div', { style:{ fontSize:12, color:'var(--text3)', fontStyle:'italic', marginTop:4 } }, s.notes)
+      ),
+      React.createElement('button', { onClick:()=>del(s.id), style:{ background:'none', border:'none', color:'var(--danger)', cursor:'pointer', fontSize:18 } }, '×')
+    ))
+  );
+}
+
+function AlbumView() {
+  const [photos, setPhotos] = React.useState(() => { try { return JSON.parse(localStorage.getItem('ld-album')||'[]'); } catch { return []; } });
+  const [url, setUrl] = React.useState('');
+  const [caption, setCaption] = React.useState('');
+  const [show, setShow] = React.useState(false);
+  const save = l => { setPhotos(l); localStorage.setItem('ld-album', JSON.stringify(l)); };
+  const add = () => { if (!url.trim()) return; save([{ id:Date.now().toString(), url:url.trim(), caption:caption.trim(), date:new Date().toISOString().slice(0,10) }, ...photos]); setUrl(''); setCaption(''); setShow(false); };
+  const del = id => save(photos.filter(p => p.id !== id));
+  const inp = { background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'8px 12px', fontSize:13, width:'100%', boxSizing:'border-box' };
+  return React.createElement('div', null,
+    React.createElement('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 } },
+      React.createElement('h2', { style:{ margin:0, fontSize:20 } }, '📸 Album photo'),
+      React.createElement('button', { onClick:()=>setShow(!show), style:{ padding:'8px 18px', borderRadius:20, border:'none', background:'#e91e8c', color:'#fff', cursor:'pointer', fontWeight:700 } }, show ? '✕' : '+ Photo')
+    ),
+    show && React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid rgba(233,30,140,.35)', borderRadius:'var(--radius)', padding:16, marginBottom:16 } },
+      React.createElement('input', { placeholder:'URL de la photo *', value:url, onChange:e=>setUrl(e.target.value), style:{ ...inp, marginBottom:8 } }),
+      React.createElement('input', { placeholder:'Légende...', value:caption, onChange:e=>setCaption(e.target.value), style:{ ...inp, marginBottom:10 } }),
+      React.createElement('button', { onClick:add, style:{ padding:'8px 20px', borderRadius:12, border:'none', background:'#e91e8c', color:'#fff', cursor:'pointer', fontWeight:700 } }, 'Ajouter')
+    ),
+    photos.length === 0 && !show && React.createElement('div', { style:{ textAlign:'center', padding:'50px 0', color:'var(--text3)' } }, '📷 Album vide — ajoutez des photos via URL'),
+    React.createElement('div', { style:{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(155px,1fr))', gap:12 } },
+      photos.map(p => React.createElement('div', { key:p.id, style:{ borderRadius:'var(--radius)', overflow:'hidden', background:'var(--bg2)', position:'relative' } },
+        React.createElement('img', { src:p.url, alt:p.caption||'', style:{ width:'100%', aspectRatio:'1', objectFit:'cover', display:'block' }, onError:e=>{ e.target.style.display='none'; } }),
+        React.createElement('div', { style:{ padding:'8px 10px' } },
+          p.caption && React.createElement('div', { style:{ fontSize:12, color:'var(--text)', marginBottom:2 } }, p.caption),
+          React.createElement('div', { style:{ fontSize:10, color:'var(--text3)' } }, p.date)
+        ),
+        React.createElement('button', { onClick:()=>del(p.id), style:{ position:'absolute', top:6, right:6, background:'rgba(0,0,0,.65)', border:'none', color:'#fff', borderRadius:'50%', width:22, height:22, cursor:'pointer', fontSize:12, lineHeight:'22px', textAlign:'center' } }, '×')
+      ))
+    )
+  );
+}
+
+function IdeesView() {
+  const [idees, setIdees] = React.useState(() => { try { return JSON.parse(localStorage.getItem('ld-idees')||'[]'); } catch { return []; } });
+  const [text, setText] = React.useState('');
+  const [cat, setCat] = React.useState('Idée');
+  const CATS = ['Idée','Projet','Rêve','Question','À explorer'];
+  const CAT_C = { 'Idée':'var(--gold)', 'Projet':'var(--accent-liika)', 'Rêve':'var(--accent-dja)', 'Question':'var(--warn)', 'À explorer':'var(--success)' };
+  const save = l => { setIdees(l); localStorage.setItem('ld-idees', JSON.stringify(l)); };
+  const add = () => { if (!text.trim()) return; save([{ id:Date.now().toString(), text:text.trim(), cat, date:new Date().toISOString().slice(0,10) }, ...idees]); setText(''); };
+  const del = id => save(idees.filter(i => i.id !== id));
+  return React.createElement('div', null,
+    React.createElement('h2', { style:{ margin:'0 0 16px', fontSize:20 } }, '💡 Idées & Inspirations'),
+    React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:16, marginBottom:20 } },
+      React.createElement('div', { style:{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:12 } },
+        CATS.map(c => React.createElement('button', { key:c, onClick:()=>setCat(c), style:{ padding:'4px 12px', borderRadius:16, border:`1px solid ${cat===c?CAT_C[c]:'var(--border)'}`, background:'transparent', color:cat===c?CAT_C[c]:'var(--text3)', fontSize:12, cursor:'pointer', fontWeight:cat===c?700:400 } }, c))
+      ),
+      React.createElement('div', { style:{ display:'flex', gap:8 } },
+        React.createElement('input', { placeholder:'Votre idée... (Entrée pour valider)', value:text, onChange:e=>setText(e.target.value), onKeyDown:e=>e.key==='Enter'&&add(), style:{ flex:1, background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'9px 12px', fontSize:13 } }),
+        React.createElement('button', { onClick:add, style:{ padding:'9px 16px', borderRadius:8, border:'none', background:'var(--gold)', color:'#000', cursor:'pointer', fontWeight:800 } }, '+')
+      )
+    ),
+    idees.length === 0 && React.createElement('div', { style:{ textAlign:'center', padding:'40px 0', color:'var(--text3)' } }, '🌱 Vos idées s\'afficheront ici'),
+    idees.map(id => React.createElement('div', { key:id.id, style:{ background:'var(--glass)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'10px 14px', marginBottom:8, display:'flex', gap:10, alignItems:'center' } },
+      React.createElement('span', { style:{ fontSize:10, fontWeight:700, color:CAT_C[id.cat]||'var(--gold)', background:'var(--bg2)', borderRadius:10, padding:'2px 8px', whiteSpace:'nowrap' } }, id.cat),
+      React.createElement('span', { style:{ flex:1, fontSize:13, color:'var(--text)', lineHeight:1.5 } }, id.text),
+      React.createElement('span', { style:{ fontSize:10, color:'var(--text3)', whiteSpace:'nowrap' } }, id.date),
+      React.createElement('button', { onClick:()=>del(id.id), style:{ background:'none', border:'none', color:'var(--danger)', cursor:'pointer', fontSize:16 } }, '×')
+    ))
+  );
+}
+
+function MedicalView() {
+  const [rdvs, setRdvs] = React.useState(() => { try { return JSON.parse(localStorage.getItem('ld-medical')||'[]'); } catch { return []; } });
+  const [form, setForm] = React.useState({ titre:'', date:'', medecin:'', notes:'', qui:'Couple' });
+  const [show, setShow] = React.useState(false);
+  const QUIS = ['Dja','Liika','Couple'];
+  const QUI_C = { 'Dja':'var(--accent-dja)', 'Liika':'var(--accent-liika)', 'Couple':'var(--gold)' };
+  const save = l => { setRdvs(l); localStorage.setItem('ld-medical', JSON.stringify(l)); };
+  const add = () => { if (!form.titre.trim()) return; save([{ id:Date.now().toString(), ...form }, ...rdvs]); setForm({ titre:'', date:'', medecin:'', notes:'', qui:'Couple' }); setShow(false); };
+  const del = id => save(rdvs.filter(r => r.id !== id));
+  const inp = { background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'8px 12px', fontSize:13, width:'100%', boxSizing:'border-box' };
+  return React.createElement('div', null,
+    React.createElement('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 } },
+      React.createElement('h2', { style:{ margin:0, fontSize:20 } }, '🩺 Suivi médical'),
+      React.createElement('button', { onClick:()=>setShow(!show), style:{ padding:'8px 18px', borderRadius:20, border:'none', background:'#10b981', color:'#fff', cursor:'pointer', fontWeight:700 } }, show ? '✕' : '+ RDV')
+    ),
+    show && React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid rgba(16,185,129,.35)', borderRadius:'var(--radius)', padding:16, marginBottom:16 } },
+      React.createElement('input', { placeholder:'Motif / titre *', value:form.titre, onChange:e=>setForm(p=>({...p,titre:e.target.value})), style:{ ...inp, marginBottom:8 } }),
+      React.createElement('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 } },
+        React.createElement('input', { type:'date', value:form.date, onChange:e=>setForm(p=>({...p,date:e.target.value})), style:inp }),
+        React.createElement('input', { placeholder:'Médecin / spécialiste', value:form.medecin, onChange:e=>setForm(p=>({...p,medecin:e.target.value})), style:inp })
+      ),
+      React.createElement('div', { style:{ display:'flex', gap:6, marginBottom:8 } },
+        QUIS.map(q => React.createElement('button', { key:q, onClick:()=>setForm(p=>({...p,qui:q})), style:{ padding:'5px 14px', borderRadius:16, border:`1px solid ${form.qui===q?QUI_C[q]:'var(--border)'}`, background:'transparent', color:form.qui===q?QUI_C[q]:'var(--text3)', cursor:'pointer', fontWeight:form.qui===q?700:400, fontSize:12 } }, q))
+      ),
+      React.createElement('textarea', { placeholder:'Notes / ordonnance...', value:form.notes, onChange:e=>setForm(p=>({...p,notes:e.target.value})), style:{ ...inp, minHeight:60, marginBottom:10, resize:'vertical' } }),
+      React.createElement('button', { onClick:add, style:{ padding:'8px 20px', borderRadius:12, border:'none', background:'#10b981', color:'#fff', cursor:'pointer', fontWeight:700 } }, 'Enregistrer')
+    ),
+    rdvs.length === 0 && !show && React.createElement('div', { style:{ textAlign:'center', padding:'50px 0', color:'var(--text3)' } }, '💊 Aucun suivi — ajoutez vos rendez-vous médicaux'),
+    rdvs.map(r => React.createElement('div', { key:r.id, style:{ background:'var(--glass)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'12px 16px', marginBottom:10, display:'flex', gap:12, alignItems:'flex-start' } },
+      React.createElement('div', { style:{ flex:1 } },
+        React.createElement('div', { style:{ display:'flex', alignItems:'center', gap:8, marginBottom:4 } },
+          React.createElement('span', { style:{ fontSize:10, fontWeight:700, color:QUI_C[r.qui]||'var(--gold)', background:'var(--bg2)', borderRadius:10, padding:'2px 7px' } }, r.qui),
+          React.createElement('span', { style:{ fontWeight:700, color:'var(--text)', fontSize:14 } }, r.titre)
+        ),
+        (r.date||r.medecin) && React.createElement('div', { style:{ fontSize:12, color:'var(--text3)', marginBottom:3 } }, [r.date,r.medecin].filter(Boolean).join(' · ')),
+        r.notes && React.createElement('div', { style:{ fontSize:12, color:'var(--text3)', fontStyle:'italic' } }, r.notes)
+      ),
+      React.createElement('button', { onClick:()=>del(r.id), style:{ background:'none', border:'none', color:'var(--danger)', cursor:'pointer', fontSize:18 } }, '×')
+    ))
+  );
+}
+
+function VoyagesView() {
+  const [voyages, setVoyages] = React.useState(() => { try { return JSON.parse(localStorage.getItem('ld-voyages')||'[]'); } catch { return []; } });
+  const [form, setForm] = React.useState({ dest:'', periode:'', budget:'', notes:'', statut:'Rêve' });
+  const [show, setShow] = React.useState(false);
+  const STATUTS = ['Rêve','Planifié','Réservé','Fait ✓'];
+  const STAT_C = { 'Rêve':'var(--accent-dja)', 'Planifié':'var(--gold)', 'Réservé':'var(--accent-liika)', 'Fait ✓':'var(--success)' };
+  const save = l => { setVoyages(l); localStorage.setItem('ld-voyages', JSON.stringify(l)); };
+  const add = () => { if (!form.dest.trim()) return; save([{ id:Date.now().toString(), ...form }, ...voyages]); setForm({ dest:'', periode:'', budget:'', notes:'', statut:'Rêve' }); setShow(false); };
+  const del = id => save(voyages.filter(v => v.id !== id));
+  const upd = (id, statut) => save(voyages.map(v => v.id===id ? { ...v, statut } : v));
+  const inp = { background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'8px 12px', fontSize:13, width:'100%', boxSizing:'border-box' };
+  return React.createElement('div', null,
+    React.createElement('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 } },
+      React.createElement('h2', { style:{ margin:0, fontSize:20 } }, '✈️ Voyages & Destinations'),
+      React.createElement('button', { onClick:()=>setShow(!show), style:{ padding:'8px 18px', borderRadius:20, border:'none', background:'#10b981', color:'#fff', cursor:'pointer', fontWeight:700 } }, show ? '✕' : '+ Voyage')
+    ),
+    show && React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid rgba(16,185,129,.35)', borderRadius:'var(--radius)', padding:16, marginBottom:16 } },
+      React.createElement('input', { placeholder:'Destination *', value:form.dest, onChange:e=>setForm(p=>({...p,dest:e.target.value})), style:{ ...inp, marginBottom:8 } }),
+      React.createElement('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 } },
+        React.createElement('input', { placeholder:'Période (ex: été 2026)', value:form.periode, onChange:e=>setForm(p=>({...p,periode:e.target.value})), style:inp }),
+        React.createElement('input', { placeholder:'Budget estimé', value:form.budget, onChange:e=>setForm(p=>({...p,budget:e.target.value})), style:inp })
+      ),
+      React.createElement('div', { style:{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:8 } },
+        STATUTS.map(s => React.createElement('button', { key:s, onClick:()=>setForm(p=>({...p,statut:s})), style:{ padding:'4px 12px', borderRadius:16, border:`1px solid ${form.statut===s?STAT_C[s]:'var(--border)'}`, background:'transparent', color:form.statut===s?STAT_C[s]:'var(--text3)', cursor:'pointer', fontWeight:form.statut===s?700:400, fontSize:12 } }, s))
+      ),
+      React.createElement('textarea', { placeholder:"Notes, idées d'activités...", value:form.notes, onChange:e=>setForm(p=>({...p,notes:e.target.value})), style:{ ...inp, minHeight:60, marginBottom:10, resize:'vertical' } }),
+      React.createElement('button', { onClick:add, style:{ padding:'8px 20px', borderRadius:12, border:'none', background:'#10b981', color:'#fff', cursor:'pointer', fontWeight:700 } }, 'Enregistrer')
+    ),
+    voyages.length === 0 && !show && React.createElement('div', { style:{ textAlign:'center', padding:'50px 0', color:'var(--text3)' } }, '🌍 Ajoutez vos destinations de rêve !'),
+    voyages.map(v => React.createElement('div', { key:v.id, style:{ background:'var(--glass)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'12px 16px', marginBottom:10, display:'flex', gap:12, alignItems:'flex-start' } },
+      React.createElement('div', { style:{ flex:1 } },
+        React.createElement('div', { style:{ display:'flex', alignItems:'center', gap:10, marginBottom:6 } },
+          React.createElement('span', { style:{ fontSize:22 } }, '✈️'),
+          React.createElement('span', { style:{ fontWeight:700, color:'var(--text)', fontSize:15 } }, v.dest)
+        ),
+        (v.periode||v.budget) && React.createElement('div', { style:{ fontSize:12, color:'var(--text3)', marginBottom:4 } }, [v.periode, v.budget&&'Budget : '+v.budget].filter(Boolean).join(' · ')),
+        v.notes && React.createElement('div', { style:{ fontSize:12, color:'var(--text3)', fontStyle:'italic', marginBottom:8 } }, v.notes),
+        React.createElement('div', { style:{ display:'flex', gap:4, flexWrap:'wrap' } },
+          STATUTS.map(s => React.createElement('button', { key:s, onClick:()=>upd(v.id,s), style:{ padding:'3px 10px', borderRadius:12, border:`1px solid ${v.statut===s?STAT_C[s]:'var(--border)'}`, background:v.statut===s?STAT_C[s]+'22':'transparent', color:v.statut===s?STAT_C[s]:'var(--text3)', cursor:'pointer', fontSize:11, fontWeight:v.statut===s?700:400 } }, s))
+        )
+      ),
+      React.createElement('button', { onClick:()=>del(v.id), style:{ background:'none', border:'none', color:'var(--danger)', cursor:'pointer', fontSize:18 } }, '×')
+    ))
+  );
+}
+
+function ArtView() {
+  const [projets, setProjets] = React.useState(() => { try { return JSON.parse(localStorage.getItem('ld-artiste')||'[]'); } catch { return []; } });
+  const [form, setForm] = React.useState({ titre:'', type:'Musique', statut:'En cours', desc:'' });
+  const [show, setShow] = React.useState(false);
+  const TYPES = ['Musique','Visuel','Vidéo','Texte','Collab','Autre'];
+  const STATUTS = ['Idée','En cours','Terminé','Publié 🎉'];
+  const STAT_C = { 'Idée':'var(--text3)', 'En cours':'var(--gold)', 'Terminé':'var(--accent-liika)', 'Publié 🎉':'var(--success)' };
+  const save = l => { setProjets(l); localStorage.setItem('ld-artiste', JSON.stringify(l)); };
+  const add = () => { if (!form.titre.trim()) return; save([{ id:Date.now().toString(), date:new Date().toISOString().slice(0,10), ...form }, ...projets]); setForm({ titre:'', type:'Musique', statut:'En cours', desc:'' }); setShow(false); };
+  const del = id => save(projets.filter(p => p.id !== id));
+  const upd = (id, statut) => save(projets.map(p => p.id===id ? { ...p, statut } : p));
+  const inp = { background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'8px 12px', fontSize:13, width:'100%', boxSizing:'border-box' };
+  return React.createElement('div', null,
+    React.createElement('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 } },
+      React.createElement('h2', { style:{ margin:0, fontSize:20 } }, '🎨 Art & Projets — Negus Dja'),
+      React.createElement('button', { onClick:()=>setShow(!show), style:{ padding:'8px 18px', borderRadius:20, border:'none', background:'var(--accent-dja)', color:'#fff', cursor:'pointer', fontWeight:700 } }, show ? '✕' : '+ Projet')
+    ),
+    show && React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid var(--accent-dja-border)', borderRadius:'var(--radius)', padding:16, marginBottom:16 } },
+      React.createElement('input', { placeholder:'Titre du projet *', value:form.titre, onChange:e=>setForm(p=>({...p,titre:e.target.value})), style:{ ...inp, marginBottom:8 } }),
+      React.createElement('div', { style:{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:8 } },
+        TYPES.map(t => React.createElement('button', { key:t, onClick:()=>setForm(p=>({...p,type:t})), style:{ padding:'4px 10px', borderRadius:12, border:`1px solid ${form.type===t?'var(--accent-dja)':'var(--border)'}`, background:'transparent', color:form.type===t?'var(--accent-dja)':'var(--text3)', cursor:'pointer', fontSize:12, fontWeight:form.type===t?700:400 } }, t))
+      ),
+      React.createElement('textarea', { placeholder:'Description, notes, liens...', value:form.desc, onChange:e=>setForm(p=>({...p,desc:e.target.value})), style:{ ...inp, minHeight:70, marginBottom:10, resize:'vertical' } }),
+      React.createElement('button', { onClick:add, style:{ padding:'8px 20px', borderRadius:12, border:'none', background:'var(--accent-dja)', color:'#fff', cursor:'pointer', fontWeight:700 } }, 'Créer')
+    ),
+    projets.length === 0 && !show && React.createElement('div', { style:{ textAlign:'center', padding:'50px 0', color:'var(--text3)' } }, '🎭 Vos projets artistiques s\'afficheront ici'),
+    projets.map(p => React.createElement('div', { key:p.id, style:{ background:'var(--glass)', border:'1px solid var(--accent-dja-border)', borderRadius:'var(--radius)', padding:'14px 16px', marginBottom:10, display:'flex', gap:12, alignItems:'flex-start' } },
+      React.createElement('div', { style:{ flex:1 } },
+        React.createElement('div', { style:{ display:'flex', alignItems:'center', gap:8, marginBottom:6 } },
+          React.createElement('span', { style:{ fontSize:11, fontWeight:700, color:'var(--accent-dja)', background:'var(--accent-dja-bg)', borderRadius:8, padding:'2px 8px' } }, p.type),
+          React.createElement('span', { style:{ fontWeight:700, color:'var(--text)', fontSize:14 } }, p.titre)
+        ),
+        p.desc && React.createElement('div', { style:{ fontSize:12, color:'var(--text3)', lineHeight:1.5, marginBottom:8 } }, p.desc),
+        React.createElement('div', { style:{ display:'flex', gap:4, flexWrap:'wrap' } },
+          STATUTS.map(s => React.createElement('button', { key:s, onClick:()=>upd(p.id,s), style:{ padding:'3px 10px', borderRadius:12, border:`1px solid ${p.statut===s?STAT_C[s]:'var(--border)'}`, background:p.statut===s?STAT_C[s]+'22':'transparent', color:p.statut===s?STAT_C[s]:'var(--text3)', cursor:'pointer', fontSize:11, fontWeight:p.statut===s?700:400 } }, s))
+        )
+      ),
+      React.createElement('button', { onClick:()=>del(p.id), style:{ background:'none', border:'none', color:'var(--danger)', cursor:'pointer', fontSize:18 } }, '×')
+    ))
+  );
+}
+
 function CodeRousseauView({ codeRousseau, updateCodeRousseau }) {
   const cr = codeRousseau || { eleves: [], fiches: [], notes: '' };
   const [tab, setTab] = React.useState('referentiel');
@@ -9036,7 +9367,9 @@ const [session,setSession]=useState(()=>{
   try{return JSON.parse(localStorage.getItem('ld-session')||'null');}
   catch(_){return null;}
 });
-const [view,setView]=useState('dashboard');
+const [view,setView]=useState(null);
+const [activeCat,setActiveCat]=useState('lifestyle');
+const [prevCatIdx,setPrevCatIdx]=useState(0);
 const [modal,setModal]=useState(null);
 const [syncStatus,setSyncStatus]=useState('idle'); // idle | syncing | ok | error
 const [initialSyncDone,setInitialSyncDone]=useState(false);
@@ -9053,6 +9386,13 @@ const [motivationMsg,setMotivationMsg]=useState('');
 const activeProfile=ui?.activeProfile||'dja';
 const profileLabel=activeProfile==='dja'?'Dja':activeProfile==='liika'?'Liika':'Couple';
 const setActiveProfile=useCallback((who)=>setUI(prev=>({...prev,activeProfile:who})),[]);
+const goToCategory=useCallback((catId)=>{
+  const newIdx=CATEGORIES.findIndex(c=>c.id===catId);
+  const oldIdx=CATEGORIES.findIndex(c=>c.id===activeCat);
+  setPrevCatIdx(oldIdx);
+  setActiveCat(catId);
+  setView(null);
+},[activeCat]);
 
 // Parallax cinématique du fond (preset 2)
 useEffect(()=>{
@@ -11461,34 +11801,31 @@ const ch=sb.channel('ld-realtime')
       flex: 1,
       overflowY: 'auto'
     }
-  }, navItems.map(n => {
-    const active = view === n.id;
-    return /*#__PURE__*/React.createElement("button", {
-      key: n.id,
-      onClick: () => setView(n.id),
-      style: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        width: '100%',
-        padding: '10px 20px',
-        border: 'none',
-        borderLeft: active ? '2px solid var(--gold)' : '2px solid transparent',
-        background: active ? 'rgba(217,183,95,.08)' : 'transparent',
-        color: active ? 'var(--gold)' : 'var(--text3)',
-        fontSize: 13,
-        fontWeight: active ? 500 : 400,
-        cursor: 'pointer',
-        transition: 'all .15s'
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: 15,
-        width: 20,
-        textAlign: 'center',
-        opacity: active ? 1 : .7
-      }
-    }, n.icon), /*#__PURE__*/React.createElement("span", null, n.label));
+  }, CATEGORIES.flatMap(cat=>{
+    const isCatActive=activeCat===cat.id;
+    const items=[
+      React.createElement('button',{
+        key:'cat-'+cat.id,
+        onClick:()=>goToCategory(cat.id),
+        className:'cat-nav-btn'+(isCatActive?' active':'')
+      },
+        React.createElement('span',{className:'cat-nav-emoji'},cat.emoji),
+        React.createElement('span',null,cat.label)
+      )
+    ];
+    if(isCatActive){
+      cat.views.forEach(v=>items.push(
+        React.createElement('button',{
+          key:'sv-'+v.id,
+          onClick:()=>setView(v.target||v.id),
+          className:'cat-subview-btn'+(view===(v.target||v.id)?' active':'')
+        },
+          React.createElement('span',null,v.icon),
+          React.createElement('span',null,' '+v.label)
+        )
+      ));
+    }
+    return items;
   })), /*#__PURE__*/React.createElement("div", {
     style: {
       padding: '0 16px',
@@ -11589,81 +11926,56 @@ const ch=sb.channel('ld-realtime')
       fontSize: 11,
       letterSpacing: '.03em'
     }
-  }, "R\xE9initialiser"))), /*#__PURE__*/React.createElement("div", {
-    className: "mobile-nav"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "mobile-nav-inner"
-  }, navItems.map(n => /*#__PURE__*/React.createElement("button", {
-    key: n.id,
-    onClick: () => setView(n.id),
-    className: `mnav-btn${view === n.id ? ' active' : ''}`
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "mnav-icon"
-  }, n.icon), /*#__PURE__*/React.createElement("span", {
-    className: "mnav-label"
-  }, n.label))))), /*#__PURE__*/React.createElement("main", {
-    className: "app-main"
-  }, view === 'dashboard' && renderDashboard(), view === 'dja' && renderPerson('dja'), view === 'liika' && renderPerson('liika'), view === 'couple' && renderCouple(), view === 'jeux' && /*#__PURE__*/React.createElement(JeuxView, {
-    games: data.games,
-    updateGames: updateGames
-  }), view === 'maison' && /*#__PURE__*/React.createElement(MaisonView, {
-    maison: (data.couple || {}).maison,
-    toggleMaisonTask: toggleMaisonTask,
-    addMaisonTask: addMaisonTask,
-    deleteMaisonTask: deleteMaisonTask,
-    resetMaisonChecked: resetMaisonChecked
-  }), view === 'repas' && /*#__PURE__*/React.createElement(MealsView, {
-    data: data,
-    upsertMeal: upsertMeal,
-    deleteMeal: deleteMeal
-  }), view === 'courses' && /*#__PURE__*/React.createElement(CoursesView, {
-    courses: data.courses || [],
-    addCourse: addCourse,
-    upsertCourse: upsertCourse,
-    deleteCourse: deleteCourse,
-    toggleCourse: toggleCourse,
-    clearChecked: clearCheckedCourses,
-    generateFromMeals: generateCoursesFromMeals,
-    mergeDuplicates: mergeDuplicateCourses
-  }), view === 'sport' && /*#__PURE__*/React.createElement(SportView, {
-    data: data,
-    upsertSport: upsertSport,
-    deleteSport: deleteSport
-  }), view === 'budget' && /*#__PURE__*/React.createElement(BudgetView, {
-    data: data,
-    upsertBudgetLine: upsertBudgetLine,
-    deleteBudgetLine: deleteBudgetLine
-  }), view === 'vision' && /*#__PURE__*/React.createElement(VisionView, {
-    data: data,
-    updateVision: updateVision
-  }), view === 'planning' && /*#__PURE__*/React.createElement(PlanningView, {
-    planning: (data.couple || {}).planning || {},
-    togglePlanningCheck: togglePlanningCheck,
-    addPlanningCustomItem: addPlanningCustomItem,
-    deletePlanningCustomItem: deletePlanningCustomItem
-  }), view === 'drevmcook' && /*#__PURE__*/React.createElement(DrevmCookView, {
-    ferments: data.ferments || [],
-    upsertFerment: upsertFerment,
-    deleteFerment: deleteFerment,
-    recipes: data.recipes || [],
-    upsertRecipe: upsertRecipe,
-    deleteRecipe: deleteRecipe,
-    importRecipes: importRecipes
-  }), view === 'culture' && /*#__PURE__*/React.createElement(CultureGwadView, null), view === 'route' && renderRoute(), view === 'coderousseau' && /*#__PURE__*/React.createElement(CodeRousseauView, {
-    codeRousseau: (data.liika||{}).codeRousseau,
-    updateCodeRousseau: updateCodeRousseau
-  }), view === 'objmensuel' && renderObjMensuel(), view === 'calendar' && /*#__PURE__*/React.createElement(CalendarView, {
-    data: data
-  }), view === 'survie' && /*#__PURE__*/React.createElement(SurvieView, {
-    survie: (data.couple || {}).survie || {},
-    updateSurvie: updateSurvie,
-    ferments: data.ferments || [],
-    addCourse: addCourse
-  }), view === 'media' && /*#__PURE__*/React.createElement(MediaView, {
-    media: data.media || [],
-    addMedia: addMedia,
-    deleteMedia: deleteMedia
-  }), view === 'charts' && renderCharts()), /*#__PURE__*/React.createElement(AddModal, {
+  }, "R\xE9initialiser"))), React.createElement('nav',{className:'cat-mobile-nav'},
+    React.createElement('div',{className:'cat-mobile-nav-inner'},
+      CATEGORIES.map(cat=>React.createElement('button',{
+        key:cat.id,
+        onClick:()=>goToCategory(cat.id),
+        className:'cat-mobile-btn'+(activeCat===cat.id?' active':'')
+      },
+        React.createElement('span',{className:'cat-m-emoji'},cat.emoji),
+        React.createElement('span',{className:'cat-m-label'},cat.label)
+      ))
+    )
+  ), React.createElement("main", {className:"app-main"},
+    view !== null && React.createElement('button',{
+      className:'view-back-btn',
+      onClick:()=>setView(null)
+    },'← Retour'),
+    !view && React.createElement(CategoryHome,{
+      cat:CATEGORIES.find(c=>c.id===activeCat)||CATEGORIES[0],
+      catIdx:CATEGORIES.findIndex(c=>c.id===activeCat),
+      prevCatIdx,
+      setView
+    }),
+    view === 'dashboard' && renderDashboard(),
+    view === 'dja' && renderPerson('dja'),
+    view === 'liika' && renderPerson('liika'),
+    view === 'couple' && renderCouple(),
+    view === 'jeux' && React.createElement(JeuxView,{games:data.games,updateGames}),
+    view === 'maison' && React.createElement(MaisonView,{maison:(data.couple||{}).maison,toggleMaisonTask,addMaisonTask,deleteMaisonTask,resetMaisonChecked}),
+    view === 'repas' && React.createElement(MealsView,{data,upsertMeal,deleteMeal}),
+    view === 'courses' && React.createElement(CoursesView,{courses:data.courses||[],addCourse,upsertCourse,deleteCourse,toggleCourse,clearChecked:clearCheckedCourses,generateFromMeals:generateCoursesFromMeals,mergeDuplicates:mergeDuplicateCourses}),
+    view === 'sport' && React.createElement(SportView,{data,upsertSport,deleteSport}),
+    view === 'budget' && React.createElement(BudgetView,{data,upsertBudgetLine,deleteBudgetLine}),
+    view === 'vision' && React.createElement(VisionView,{data,updateVision}),
+    view === 'planning' && React.createElement(PlanningView,{planning:(data.couple||{}).planning||{},togglePlanningCheck,addPlanningCustomItem,deletePlanningCustomItem}),
+    view === 'drevmcook' && React.createElement(DrevmCookView,{ferments:data.ferments||[],upsertFerment,deleteFerment,recipes:data.recipes||[],upsertRecipe,deleteRecipe,importRecipes}),
+    view === 'culture' && React.createElement(CultureGwadView,null),
+    view === 'route' && renderRoute(),
+    view === 'coderousseau' && React.createElement(CodeRousseauView,{codeRousseau:(data.liika||{}).codeRousseau,updateCodeRousseau}),
+    view === 'objmensuel' && renderObjMensuel(),
+    view === 'calendar' && React.createElement(CalendarView,{data}),
+    view === 'survie' && React.createElement(SurvieView,{survie:(data.couple||{}).survie||{},updateSurvie,ferments:data.ferments||[],addCourse}),
+    view === 'media' && React.createElement(MediaView,{media:data.media||[],addMedia,deleteMedia}),
+    view === 'charts' && renderCharts(),
+    view === 'sortie' && React.createElement(SortieView,null),
+    view === 'album' && React.createElement(AlbumView,null),
+    view === 'idees' && React.createElement(IdeesView,null),
+    view === 'medical' && React.createElement(MedicalView,null),
+    view === 'voyages' && React.createElement(VoyagesView,null),
+    view === 'artiste' && React.createElement(ArtView,null)
+  ), /*#__PURE__*/React.createElement(AddModal, {
     show: !!modal,
     onClose: () => setModal(null),
     type: modal?.type,
