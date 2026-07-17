@@ -359,7 +359,7 @@ const defaultData = {
   },
   liika: {
     name: "Liika",
-    role: "Militaire · Logistique PL — indicatif « Purple Moon »",
+    role: "VT — Monitrice PL · RSMA Guadeloupe — indicatif « Purple Moon »",
     location: "",
     color: "liika",
     objectives: [{
@@ -7944,6 +7944,174 @@ const EDPMS_RSMA_NIVEAUX = [
   },
 ];
 
+// ── Permis Poids Lourd (C / CE) — RSMA Guadeloupe ───────────────────────────
+const PL_REFERENTIEL = {
+  role:'VT Monitrice PL au RSMA Guadeloupe : former les Volontaires Stagiaires au permis C (porteur rigide) et CE (véhicule articulé) dans le cadre d\'une insertion professionnelle dans le transport routier.',
+  categories:[
+    { cat:'C',  label:'Porteur rigide',         ptac:'> 3,5 t', remorque:'≤ 750 kg PTAC', prerequis:'Permis B (pas de délai)', age:'18 ans (21 ans sans FIMO)', usage:'Camions benne, camions-grue, bétaillères, camions frigorifiques rigides' },
+    { cat:'CE', label:'Véhicule articulé',       ptac:'> 3,5 t + remorque > 750 kg', remorque:'> 750 kg PTAC', prerequis:'Permis C', age:'18 ans (21 ans sans FIMO)', usage:'Semi-remorques, ensembles routiers, doubles-ponts' },
+    { cat:'C1', label:'Porteur léger',           ptac:'3,5 à 7,5 t', remorque:'≤ 750 kg PTAC', prerequis:'Permis B', age:'18 ans', usage:'Ambulances, véhicules de livraison lourds, bétaillères légères' },
+  ],
+  epreuves:[
+    { code:'B96/ETAM', label:'Épreuve théorique générale (code)', desc:'80 questions QCM en 40 min (même base que permis B + questions spécifiques PL). Seuil de réussite : ≥ 35/40.' },
+    { code:'ETAM PL', label:'Épreuve théorique spécifique PL', desc:'Questions spécifiques au PL : réglementation sociale, tachygraphe, arrimage, masses et charges, transport de matières dangereuses.' },
+    { code:'EPAM', label:'Épreuve pratique hors circulation', desc:'Vérifications sécurité extérieure et intérieure, manœuvres : recul, demi-tour, créneau, couplage/découplage (CE).' },
+    { code:'ECAM', label:'Épreuve de conduite en circulation', desc:'45 min minimum de conduite réelle en milieu varié (urbain, route, autoroute si disponible). Évaluation des compétences REMC adaptées PL.' },
+  ],
+  formations:[
+    { sigle:'FIMO', nom:'Formation Initiale Minimale Obligatoire', duree:'280 h (7 semaines)', obligatoire:true, desc:'Obligatoire pour toute activité salariée de transport routier de marchandises. Valable 5 ans. Donne droit à la carte de conducteur CQC.' },
+    { sigle:'FCOS', nom:'Formation Continue Obligatoire de Sécurité', duree:'35 h (1 semaine)', obligatoire:true, desc:'Recyclage tous les 5 ans après la FIMO. Maintien de la validité du CQC.' },
+    { sigle:'CQC',  nom:'Certificat de Qualification Conducteur', duree:'Carte valable 5 ans', obligatoire:true, desc:'Carte délivrée après FIMO ou FCO. Obligatoire pour tout conducteur salarié PL. Incluse dans l\'agenda RSMA pour les VS candidats au transport.' },
+    { sigle:'ADR',  nom:'Transport de marchandises dangereuses', duree:'4 jours (base) + options', obligatoire:false, desc:'Habilitation requise pour transporter des matières dangereuses (classes 1 à 9). Recyclage tous les 5 ans.' },
+    { sigle:'CACES', nom:'Certificat d\'Aptitude à la Conduite En Sécurité', duree:'1 à 5 jours selon catégorie', obligatoire:false, desc:'Pour la conduite d\'engins de chantier, chariots élévateurs, nacelles. Complément fréquent au PL pour l\'employabilité au RSMA.' },
+  ],
+};
+
+const PL_REGLEMENTATION = [
+  {
+    id:'pl1', icon:'⏱️', titre:'Temps de conduite et de repos (Règlement CE 561/2006)',
+    pointsCles:[
+      'Temps de conduite journalier : 9 h max (dérogation 10 h deux fois par semaine)',
+      'Temps de conduite hebdomadaire : 56 h max',
+      'Temps de conduite bi-hebdomadaire : 90 h max sur 2 semaines consécutives',
+      'Pause obligatoire : 45 min après 4h30 de conduite (fractionnables : 15 min + 30 min)',
+      'Repos journalier : 11 h min (réductible à 9 h max 3 fois/semaine avec compensation)',
+      'Repos hebdomadaire : 45 h min (réductible à 24 h si compensation dans les 3 semaines suivantes)',
+      'Repos hebdomadaire : ne peut pas être pris dans la cabine si le véhicule est en mouvement ou à quai',
+    ],
+    sanctions:[
+      'Dépassement temps conduite journalier : contravention 4ᵉ classe (750 €)',
+      'Non-respect du repos journalier : même sanction',
+      'Infraction grave : immobilisation du véhicule et mise en demeure de respecter le repos',
+      'Employeur complice : responsabilité partagée si la société impose des objectifs incompatibles',
+    ],
+    conseilsMonitrice:[
+      'Faire calculer les temps de conduite sur des exemples de tournées réelles antillaises (Pointe-à-Pitre → Basse-Terre → retour)',
+      'Insister sur la différence entre temps de conduite et temps de travail (manutention, attentes, chargement ne comptent pas en conduite)',
+      'Exercice pratique : lire les données d\'un disque tachygraphe ou d\'un fichier numérique DDD',
+    ],
+  },
+  {
+    id:'pl2', icon:'📟', titre:'Tachygraphe (analogique & numérique)',
+    pointsCles:[
+      'Obligation légale depuis 1985 (analogique), 2006 (numérique) pour les véhicules > 3,5 t en transport professionnel',
+      'Tachygraphe numérique : carte conducteur individuelle (valable 5 ans) obligatoire',
+      'Modes d\'activité à enregistrer : CONDUITE ◎ | DISPONIBILITÉ ☐ | AUTRES TRAVAUX ✕ | REPOS ▬',
+      'Téléchargement obligatoire : carte conducteur tous les 28 jours, unité véhicule tous les 90 jours',
+      'Tachygraphe intelligent (V2, SMART) : obligatoire sur les véhicules neufs depuis 2023, géolocalisation automatique',
+      'Toute manipulation frauduleuse (aimant, débranchement) = délit pénal',
+    ],
+    sanctions:[
+      'Absence de carte conducteur : 1 500 € d\'amende + immobilisation',
+      'Falsification des données : 2 ans d\'emprisonnement + 30 000 €',
+      'Absence de téléchargement dans les délais : 1 500 €',
+      'Disque ou fichier non présenté aux forces de l\'ordre : 750 €',
+    ],
+    conseilsMonitrice:[
+      'Exercice d\'insertion et de retrait de la carte conducteur avant chaque séance de conduite',
+      'Faire lire les pictogrammes d\'activité sur la face avant du tachygraphe numérique',
+      'Expliquer l\'historique des 28 derniers jours : les forces de l\'ordre peuvent le consulter à tout moment',
+      'Aborder la fraude : le VS doit comprendre que les conséquences dépassent largement le gain de temps',
+    ],
+  },
+  {
+    id:'pl3', icon:'⚖️', titre:'Masses et charges — PTAC, PTRA, essieux',
+    pointsCles:[
+      'PTAC (Poids Total Autorisé en Charge) : poids maximal du véhicule chargé inscrit à la carte grise',
+      'PTRA (Poids Total Roulant Autorisé) : PTAC tracteur + PTAC remorque pour les ensembles CE',
+      'Charge à l\'essieu : 13 t max sur essieu moteur, 10 t sur essieu directeur, 20 t sur tandem',
+      'Hauteur maximale : 4 m (attention aux ponts guadeloupéens, nombreux ponts < 4,5 m)',
+      'Largeur maximale : 2,55 m (2,60 m pour véhicules réfrigérés)',
+      'Longueur maximale : 12 m (porteur), 16,5 m (semi-remorque), 18,75 m (ensemble routier)',
+      'Dépassement de charge → amende proportionnelle + consignation du chargement excédentaire',
+    ],
+    sanctions:[
+      'Dépassement PTAC de 1 à 5 % : 135 €',
+      'Dépassement > 5 % : amende proportionnelle au surplus, mise en fourrière possible',
+      'Dépassement essieu : amende + consignation + immobilisation jusqu\'à déchargement',
+      'Transport exceptionnel sans autorisation : 1 500 € à 15 000 €',
+    ],
+    conseilsMonitrice:[
+      'Exercice : lire la carte grise d\'un PL et identifier le PTAC, le PTRA, la masse à vide',
+      'Rappeler les spécificités des routes guadeloupéennes : virages serrés Basse-Terre, rond-points urbains de Pointe-à-Pitre, ponts étroits',
+      'Insister sur le gabarit en marche arrière et en virage : erreur fréquente sur les livraisons en ville antillaise',
+    ],
+  },
+  {
+    id:'pl4', icon:'🔗', titre:'Arrimage et sécurisation du chargement',
+    pointsCles:[
+      'Base légale : Arrêté du 22 juin 1998 + norme NF EN 12195-1 (calcul des forces)',
+      'Règle fondamentale : le chargement ne doit pas se déplacer lors d\'un freinage d\'urgence (frein à 8 m/s²)',
+      'Techniques d\'arrimage : sangles, chaînes, calage, filets, bâchage (selon le type de marchandise)',
+      'Antidérapage : tapis antidérapants sous charges légères et volumineuses',
+      'Nombre de sangles : ≥ 1 sangle pour 1 500 kg de charge (règle simplifiée — dépend de l\'angle et du type)',
+      'Vérification : le conducteur est responsable de l\'état de l\'arrimage avant départ et en cours de trajet',
+      'Chargement frigorifique : vérification de la température de soute avant chargement (chaîne du froid)',
+    ],
+    sanctions:[
+      'Chargement non arrimé : 135 € par défaut constaté, immobilisation possible',
+      'Accident causé par un objet tombé du chargement : responsabilité pénale du conducteur',
+      'Bâchage défectueux : verbalisation pour pollution de la voie publique (déchets)',
+    ],
+    conseilsMonitrice:[
+      'Exercice pratique d\'arrimage sur plateau de formation avant toute sortie route',
+      'Insister sur la responsabilité personnelle du conducteur : même si le chargeur a tout mis, le conducteur signe',
+      'Cas concret guadeloupéen : chargement de matériaux de construction (blocs, sacs de ciment) — très courant au RSMA pour les chantiers de formation',
+    ],
+  },
+  {
+    id:'pl5', icon:'🔧', titre:'Vérifications sécurité PL (RSVERO)',
+    pointsCles:[
+      'RSVERO = Routine de Sécurité Véhicule et de l\'Environnement ROute — check-list avant départ obligatoire',
+      'Tour extérieur : feux (codes, route, stop, clignotants), pneumatiques (sculpture, pression, état flanc), niveaux visibles (huile, eau), réservoir, couplage attelage (CE)',
+      'Cabine : mirrors correctement réglés (grande glace + petit miroir anti-angle mort), ceinture, siège, avertisseur sonore',
+      'Commandes : frein de service (test basse pression), frein de stationnement, frein moteur, frein ralentisseur (retarder)',
+      'Pneumatiques PL : pression entre 8 et 10 bars (contre 2,5 bars pour une voiture) — à vérifier à froid',
+      'Attelage (CE) : sellette verrouillée (2 cliquets visibles), sabots d\'attelage, câble électrique et flexibles frein connectés',
+      'Extincteur : obligatoire à bord, accessible, non périmé',
+    ],
+    sanctions:[
+      'Défaut d\'éclairage constaté : 90 €',
+      'Pneu lisse (sculpture < 1 mm) : 135 € par pneu + immobilisation si risque grave',
+      'Attelage défectueux : immobilisation immédiate',
+    ],
+    conseilsMonitrice:[
+      'Faire le RSVERO systématiquement au début de chaque séance — devient un automatisme',
+      'Lier le RSVERO aux valeurs RSMA : "revue de matériel militaire" avant chaque mission',
+      'Exercice noté : VS effectue le RSVERO seul, monitrice évalue sans intervenir → prise de responsabilité',
+    ],
+  },
+  {
+    id:'pl6', icon:'🏙️', titre:'Conduite en milieu urbain — spécificités PL',
+    pointsCles:[
+      'Angle mort latéral droit : jusqu\'à 5 m (cyclistes, 2RM, piétons) — miroir grand angle obligatoire',
+      'Angle mort avant : sous le pare-brise, 2 à 3 m devant le camion — invisible depuis la cabine',
+      'Rayon de braquage : 12 m pour un porteur C, 18 m pour un semi CE — planifier l\'approche des carrefours',
+      'Virage à droite PL : déborder légèrement sur la gauche avant le virage pour ne pas couper le trottoir',
+      'Marche arrière : utiliser un signaleur (VS RSMA = co-équipiers disponibles) — guidage standardisé',
+      'Zone urbaine guadeloupéenne : rond-points de Pointe-à-Pitre (Jarry, Le Gosier) très contraints — pratique obligatoire',
+      'Stationnement en double file : interdit même pour la livraison sauf exception et bref arrêt',
+    ],
+    conseilsMonitrice:[
+      'Séances en zone de Jarry (zone industrielle de Pointe-à-Pitre) : idéal pour les livraisons et ronds-points PL',
+      'Exercice signaleur : VS guidant en marche arrière sur le terrain du RSMA avant les sorties route',
+      'Insister sur le miroir anti-angle mort : réglage et lecture systématiques en tournant à droite',
+    ],
+  },
+];
+
+const PL_REMC_ADAPTATIONS = [
+  { comp:'C1.1', titre:'Prise en main véhicule PL', specificite:'Le RSVERO PL remplace la simple vérification voiture. Bien plus complexe : attelage, pneumatiques haute pression, niveau AdBlue, tachygraphe.', exercice:'RSVERO complet chronométré (objectif < 12 min avant épreuve EPAM).' },
+  { comp:'C1.2', titre:'Direction et vitesse PL', specificite:'Distance de freinage d\'un PL chargé à 60 km/h : ≈ 75 m (vs 35 m pour une voiture). La régulation d\'allure est critique. Frein moteur et retarder à intégrer systématiquement.', exercice:'Freinage progressif avec charge : observer et verbaliser la différence vs véhicule léger.' },
+  { comp:'C1.3', titre:'Manœuvres PL', specificite:'Créneau PL sur 4 emplacements de voiture. Couplage/découplage attelage CE (épreuve EPAM notée). Marche arrière sur longue distance en surveillance miroir.', exercice:'Couplage/découplage 3 fois minimum par séance jusqu\'à automatisme total.' },
+  { comp:'C2.1', titre:'Percevoir et analyser PL', specificite:'Les angles morts PL sont démultipliés. Balayage visuel obligatoire des 4 miroirs (grande glace gauche/droite, miroir anti-angle mort droit, miroir de manœuvre). Hauteur de cabine = champ visuel différent.', exercice:'Commentaire de conduite à voix haute sur les 4 miroirs en circulation : "miroir droit — dégagé".' },
+  { comp:'C2.2', titre:'Règles spécifiques PL', specificite:'Vitesses PL : 80 km/h route (au lieu de 80 pour VP), 90 km/h voie express, 90 km/h autoroute (au lieu de 130). Interdictions de circuler (week-ends, jours fériés, 22h–6h selon saison). Voie réservée aux VL en agglomération.', exercice:'Quiz oral : "tu es sur une voie express, quelle vitesse max ?" + cas concrets interdictions de circuler.' },
+  { comp:'C2.3', titre:'Situations particulières PL', specificite:'Pluie tropicale : distance de freinage × 3 sur PL chargé. Côtes de Basse-Terre : frein moteur obligatoire, pas de frein de service continu (échauffement tambours). Vent de face en sortie de zone maritime (Jarry).', exercice:'Descente de côte Basse-Terre : frein moteur exclusif jusqu\'à vitesse stabilisée, frein de service bref si nécessaire.' },
+  { comp:'C3.1', titre:'Attitude coopérative PL', specificite:'Le PL est perçu comme menaçant par les autres usagers. La coopération active (laisser la place aux cyclistes, aux 2RM qui passent à droite) est une compétence professionnelle différenciante.', exercice:'Débriefing après circulation : "combien de fois tu as vu un 2RM à ta droite ? Qu\'as-tu fait ?"' },
+  { comp:'C3.2', titre:'États internes PL', specificite:'La conduite de nuit est fréquente en transport routier. La fatigue au volant d\'un PL est une question de sécurité publique majeure. Les VS RSMA ont un rythme militaire intensif → surveillance accrue.', exercice:'Auto-évaluation fatigue avant chaque séance. Calculer ensemble quand le VS peut conduire selon un planning de tournée fictif.' },
+  { comp:'C3.3', titre:'Éco-conduite PL', specificite:'L\'éco-conduite PL représente 20 à 30 % d\'économie de carburant (impact économique majeur pour l\'entreprise). Anticipation longue distance, montée en régime économique (< 1 500 tr/min diesel), rétrogradation douce, vent de face = pied levé 500 m avant.', exercice:'Comparaison de consommation sur même trajet : conduite normale vs éco-conduite → affichage ordinateur de bord.' },
+];
+
 function CodeRousseauView({ codeRousseau, updateCodeRousseau }) {
   const cr = codeRousseau || { eleves: [], fiches: [], notes: '' };
   const [tab, setTab] = React.useState('referentiel');
@@ -7954,6 +8122,8 @@ function CodeRousseauView({ codeRousseau, updateCodeRousseau }) {
   const [expandEdpm, setExpandEdpm] = React.useState({});
   const [rsmaTab, setRsmaTab] = React.useState('contexte'); // contexte | correlations | edpms
   const [expandCorr, setExpandCorr] = React.useState({});
+  const [plTab, setPlTab] = React.useState('referentiel'); // referentiel | reglementation | remc
+  const [expandPl, setExpandPl] = React.useState({});
   const [edpmsEleveId, setEdpmsEleveId] = React.useState('');
   const [edpmsStep, setEdpmsStep] = React.useState('guide'); // guide | entretien | grille | synthese
   const [showAddEleve, setShowAddEleve] = React.useState(false);
@@ -8002,6 +8172,7 @@ function CodeRousseauView({ codeRousseau, updateCodeRousseau }) {
     { id: 'securite',    label: '🛡 Sécurité (8)' },
     { id: 'loi',         label: '⚖️ Loi (6)' },
     { id: 'edpm',        label: '🛴 EDPM (5)' },
+    { id: 'pl',          label: '🚛 Permis PL' },
     { id: 'rsma',        label: '🎖️ RSMA' },
     { id: 'edpms',       label: '📊 EDPMS' },
     { id: 'eleves',      label: `👥 Élèves (${(cr.eleves||[]).length})` },
@@ -8021,8 +8192,8 @@ function CodeRousseauView({ codeRousseau, updateCodeRousseau }) {
       React.createElement('div', { style:{ display:'flex', alignItems:'center', gap:12 } },
         React.createElement('span', { style:{ fontSize:28 } }, '🎓'),
         React.createElement('div', null,
-          React.createElement('h2', { style:{ margin:0, color:'var(--accent-liika)', fontSize:18 } }, 'Guide Formateur Code Rousseau'),
-          React.createElement('p', { style:{ margin:0, fontSize:13, color:'var(--text-muted)' } }, 'REMC — Référentiel pour l\'Éducation à la Mobilité à la Conduite ◇ Purple Moon')
+          React.createElement('h2', { style:{ margin:0, color:'var(--accent-liika)', fontSize:18 } }, 'Guide Monitrice — REMC & Permis PL'),
+          React.createElement('p', { style:{ margin:0, fontSize:13, color:'var(--text-muted)' } }, 'VT · RSMA Guadeloupe · Monitrice Poids Lourd (C/CE) ◇ Purple Moon')
         )
       )
     ),
@@ -8180,6 +8351,120 @@ function CodeRousseauView({ codeRousseau, updateCodeRousseau }) {
           )
         );
       })
+    ),
+
+    // ── TAB : Permis PL ──
+    tab === 'pl' && React.createElement('div', null,
+      // sous-nav PL
+      React.createElement('div', { style:{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:16 } },
+        [
+          { id:'referentiel',   label:'📋 Référentiel C/CE' },
+          { id:'reglementation',label:'⚖️ Réglementation PL (6)' },
+          { id:'remc',          label:'🔗 REMC en contexte PL' },
+        ].map(s => React.createElement('button', {
+          key:s.id, onClick:()=>setPlTab(s.id),
+          style:{ padding:'5px 12px', borderRadius:16, border:'none', cursor:'pointer', fontSize:12,
+            background: plTab===s.id ? 'var(--accent-liika)' : 'var(--glass)',
+            color: plTab===s.id ? '#fff' : 'var(--text)', fontWeight: plTab===s.id ? 700 : 400 }
+        }, s.label))
+      ),
+
+      // ── Référentiel C/CE ──
+      plTab === 'referentiel' && React.createElement('div', null,
+        React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid var(--accent-liika-border)', borderRadius:'var(--radius)', padding:'14px 16px', marginBottom:14 } },
+          React.createElement('div', { style:{ fontSize:13, fontWeight:700, color:'var(--accent-liika)', marginBottom:6 } }, '🎖️ Rôle VT Monitrice PL — RSMA Guadeloupe'),
+          React.createElement('p', { style:{ fontSize:12, color:'var(--text-muted)', margin:0, lineHeight:1.6 } }, PL_REFERENTIEL.role)
+        ),
+        // Catégories
+        React.createElement('div', { style:{ fontSize:13, fontWeight:700, color:'var(--gold)', marginBottom:10 } }, '📁 Catégories de permis'),
+        PL_REFERENTIEL.categories.map(c => React.createElement('div', { key:c.cat, style:{ background:'var(--glass)', border:`2px solid var(--accent-liika-border)`, borderRadius:'var(--radius)', padding:'12px 14px', marginBottom:10, display:'flex', gap:14, alignItems:'flex-start' } },
+          React.createElement('div', { style:{ minWidth:40, height:40, borderRadius:8, background:'var(--accent-liika)', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:900, fontSize:18 } }, c.cat),
+          React.createElement('div', { style:{ flex:1 } },
+            React.createElement('div', { style:{ fontSize:13, fontWeight:700, color:'var(--text)', marginBottom:4 } }, c.label),
+            React.createElement('div', { style:{ fontSize:11, color:'var(--text-muted)', lineHeight:1.6 } },
+              React.createElement('span', { style:{ color:'var(--gold)' } }, 'PTAC : '), c.ptac + ' · ',
+              React.createElement('span', { style:{ color:'var(--gold)' } }, 'Remorque : '), c.remorque + ' · ',
+              React.createElement('span', { style:{ color:'var(--gold)' } }, 'Prérequis : '), c.prerequis + ' · ',
+              React.createElement('span', { style:{ color:'var(--gold)' } }, 'Âge min : '), c.age
+            ),
+            React.createElement('div', { style:{ fontSize:11, color:'var(--text-muted)', marginTop:4, fontStyle:'italic' } }, c.usage)
+          )
+        )),
+        // Épreuves
+        React.createElement('div', { style:{ fontSize:13, fontWeight:700, color:'var(--gold)', margin:'16px 0 10px' } }, '📝 Épreuves d\'examen'),
+        PL_REFERENTIEL.epreuves.map(e => React.createElement('div', { key:e.code, style:{ background:'var(--glass)', border:'1px solid var(--accent-liika-border)', borderRadius:'var(--radius)', padding:'10px 14px', marginBottom:8, display:'flex', gap:12, alignItems:'flex-start' } },
+          React.createElement('div', { style:{ fontSize:11, fontWeight:700, color:'var(--accent-liika)', background:'var(--accent-liika-bg)', borderRadius:6, padding:'3px 8px', whiteSpace:'nowrap', marginTop:2 } }, e.code),
+          React.createElement('div', null,
+            React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'var(--text)', marginBottom:3 } }, e.label),
+            React.createElement('div', { style:{ fontSize:12, color:'var(--text-muted)', lineHeight:1.5 } }, e.desc)
+          )
+        )),
+        // Formations
+        React.createElement('div', { style:{ fontSize:13, fontWeight:700, color:'var(--gold)', margin:'16px 0 10px' } }, '🎓 Formations complémentaires'),
+        PL_REFERENTIEL.formations.map(f => React.createElement('div', { key:f.sigle, style:{ background:'var(--glass)', border:`1px solid ${f.obligatoire ? 'var(--accent-liika-border)' : 'var(--border)'}`, borderRadius:'var(--radius)', padding:'10px 14px', marginBottom:8 } },
+          React.createElement('div', { style:{ display:'flex', alignItems:'center', gap:8, marginBottom:4 } },
+            React.createElement('span', { style:{ fontSize:12, fontWeight:800, color: f.obligatoire ? 'var(--accent-liika)' : 'var(--text-muted)', background:'var(--bg2)', borderRadius:6, padding:'2px 8px' } }, f.sigle),
+            React.createElement('span', { style:{ fontSize:12, fontWeight:600, color:'var(--text)' } }, f.nom),
+            f.obligatoire && React.createElement('span', { style:{ fontSize:10, color:'#e74c3c', fontWeight:700, marginLeft:'auto' } }, '● OBLIGATOIRE')
+          ),
+          React.createElement('div', { style:{ fontSize:11, color:'var(--gold)', marginBottom:3 } }, '⏱ ' + f.duree),
+          React.createElement('div', { style:{ fontSize:12, color:'var(--text-muted)', lineHeight:1.5 } }, f.desc)
+        ))
+      ),
+
+      // ── Réglementation PL ──
+      plTab === 'reglementation' && React.createElement('div', null,
+        React.createElement('p', { style:{ fontSize:12, color:'var(--text-muted)', marginBottom:14, fontStyle:'italic' } },
+          '6 fiches réglementation spécifique PL — tachygraphe, temps de conduite, masses, arrimage, RSVERO, conduite urbaine.'
+        ),
+        PL_REGLEMENTATION.map(f => {
+          const open = !!expandPl[f.id];
+          return React.createElement('div', { key:f.id, style:{ background:'var(--glass)', border:'1px solid var(--accent-liika-border)', borderRadius:'var(--radius)', marginBottom:10, overflow:'hidden' } },
+            React.createElement('div', {
+              onClick: () => setExpandPl(prev => ({ ...prev, [f.id]: !prev[f.id] })),
+              style:{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'12px 16px', cursor:'pointer' }
+            },
+              React.createElement('span', { style:{ fontSize:18 } }, f.icon),
+              React.createElement('span', { style:{ color:'var(--text)', fontWeight:700, fontSize:13, flex:1, marginLeft:10 } }, f.titre),
+              React.createElement('span', { style:{ color:'var(--text-muted)', fontSize:16 } }, open ? '▾' : '▸')
+            ),
+            open && React.createElement('div', { style:{ padding:'0 16px 16px', borderTop:'1px solid var(--accent-liika-border)' } },
+              React.createElement('div', { style:{ marginTop:12, marginBottom:12 } },
+                React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'var(--gold)', marginBottom:6 } }, '📌 Points clés'),
+                React.createElement('ul', { style:{ margin:0, paddingLeft:18 } },
+                  f.pointsCles.map((p,i) => React.createElement('li', { key:i, style:{ fontSize:12, color:'var(--text)', lineHeight:1.6, marginBottom:3 } }, p))
+                )
+              ),
+              f.sanctions && React.createElement('div', { style:{ background:'rgba(231,76,60,0.07)', borderRadius:8, padding:'10px 12px', marginBottom:12 } },
+                React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'#e74c3c', marginBottom:6 } }, '🚨 Sanctions'),
+                f.sanctions.map((s,i) => React.createElement('div', { key:i, style:{ fontSize:12, color:'var(--text-muted)', lineHeight:1.6, marginBottom:3 } }, '• ' + s))
+              ),
+              React.createElement('div', { style:{ background:'var(--bg2)', borderRadius:8, padding:'10px 12px' } },
+                React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'var(--accent-liika)', marginBottom:6 } }, '💡 Conseils monitrice'),
+                f.conseilsMonitrice.map((c,i) => React.createElement('div', { key:i, style:{ fontSize:12, color:'var(--text-muted)', lineHeight:1.6, marginBottom: i < f.conseilsMonitrice.length-1 ? 5 : 0, paddingLeft:8, borderLeft:'2px solid var(--accent-liika-border)' } }, c))
+              )
+            )
+          );
+        })
+      ),
+
+      // ── REMC en contexte PL ──
+      plTab === 'remc' && React.createElement('div', null,
+        React.createElement('p', { style:{ fontSize:12, color:'var(--text-muted)', marginBottom:14, fontStyle:'italic' } },
+          'Les 9 compétences REMC adaptées à la conduite PL — spécificités techniques et exercices concrets en contexte RSMA Guadeloupe.'
+        ),
+        PL_REMC_ADAPTATIONS.map(a => React.createElement('div', { key:a.comp, style:{ background:'var(--glass)', border:'1px solid var(--accent-liika-border)', borderRadius:'var(--radius)', padding:'12px 14px', marginBottom:10 } },
+          React.createElement('div', { style:{ display:'flex', alignItems:'center', gap:10, marginBottom:8 } },
+            React.createElement('span', { style:{ fontSize:11, fontWeight:700, color:'var(--gold)', background:'rgba(212,175,55,0.15)', borderRadius:8, padding:'2px 7px' } }, a.comp),
+            React.createElement('span', { style:{ fontSize:13, fontWeight:700, color:'var(--text)' } }, a.titre)
+          ),
+          React.createElement('p', { style:{ fontSize:12, color:'var(--text)', lineHeight:1.6, margin:'0 0 8px' } }, a.specificite),
+          React.createElement('div', { style:{ fontSize:12, color:'var(--text-muted)', fontStyle:'italic', paddingLeft:10, borderLeft:'2px solid var(--gold)' } },
+            React.createElement('span', { style:{ fontWeight:700, fontStyle:'normal', color:'var(--gold)', marginRight:6 } }, '🎯 Exercice :'),
+            a.exercice
+          )
+        ))
+      )
     ),
 
     // ── TAB : RSMA ──
