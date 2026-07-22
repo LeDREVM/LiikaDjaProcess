@@ -4,8 +4,9 @@
     {
       "name": "lanmou",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["--yes", "serve", "-l", "4321", "."],
-      "port": 4321
+      "runtimeArgs": ["--yes", "serve", "."],
+      "port": 4321,
+      "autoPort": true
     },
     {
       "name": "lanmou-files",
