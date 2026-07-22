@@ -8176,6 +8176,7 @@ const CATEGORIES = [
       { id:'courses',  label:'Courses',       icon:'🛒' },
       { id:'medical',  label:'Suivi médical', icon:'🩺' },
       { id:'drevmcook',label:'DrevmCook',     icon:'🌿' },
+      { id:'potager',  label:'Potager GWA',   icon:'🌱' },
       { id:'voyages',  label:'Voyages',       icon:'✈️' },
       { id:'charts',   label:'Stats',         icon:'▤'  },
     ],
@@ -8701,6 +8702,27 @@ function MedicalView({ rdvs, addMedical, deleteMedical }) {
     aVenir.map(x => renderCard(x.r, x.d)),
     passes.length > 0 && React.createElement('div', { style:{ fontSize:11, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em', margin:'16px 0 8px' } }, 'Passés'),
     passes.map(x => renderCard(x.r, x.d))
+  );
+}
+
+// Almanach lunaire potager (concombre/giraumon) — page statique intégrée via iframe.
+const POTAGER_URL = 'kalandriye-lalin-concombre-giraumon.html';
+function PotagerView() {
+  const h = React.createElement;
+  return h('div', null,
+    h('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14, gap:8, flexWrap:'wrap' } },
+      h('div', null,
+        h('h2', { style:{ margin:0, fontSize:20 } }, '🌱 Potager GWA — Almanach lunaire'),
+        h('div', { style:{ fontSize:12, color:'var(--text3)', marginTop:2 } }, 'Concombre & giraumon calés sur le carême, l\'hivernage et la lune.')
+      ),
+      h('a', { href:POTAGER_URL, target:'_blank', rel:'noopener', style:{ padding:'8px 14px', borderRadius:20, border:'1px solid var(--border)', background:'transparent', color:'var(--text2)', cursor:'pointer', fontWeight:700, fontSize:13, textDecoration:'none', whiteSpace:'nowrap' } }, '↗ Plein écran')
+    ),
+    h('iframe', {
+      src: POTAGER_URL,
+      title: 'Almanach potager Guadeloupe',
+      loading: 'lazy',
+      style:{ width:'100%', height:'calc(100vh - 220px)', minHeight:520, border:'1px solid var(--border)', borderRadius:'var(--radius)', background:'#0b1a12', display:'block' }
+    })
   );
 }
 
@@ -12370,6 +12392,7 @@ const ch=sb.channel('ld-realtime')
     view === 'album' && React.createElement(AlbumView,{album:data.album||[],addAlbumPhoto,deleteAlbumPhoto}),
     view === 'idees' && React.createElement(IdeesView,null),
     view === 'medical' && React.createElement(MedicalView,{rdvs:data.couple.medical||[],addMedical,deleteMedical}),
+    view === 'potager' && React.createElement(PotagerView,null),
     view === 'voyages' && React.createElement(VoyagesView,null),
     view === 'artiste' && React.createElement(ArtView,null)
   ), /*#__PURE__*/React.createElement(AddModal, {
