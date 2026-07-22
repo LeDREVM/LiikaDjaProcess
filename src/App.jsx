@@ -6,6 +6,7 @@ import MealPlanner from './components/MealPlanner';
 import ShoppingList from './components/ShoppingList';
 import IntermittentFasting from './components/IntermittentFasting';
 import SportPerformance from './components/SportPerformance';
+import PotagerLunaire from './components/potager-lunaire-lanmou';
 
 class ErrorBoundary extends Component {
   constructor(props) {
@@ -44,7 +45,8 @@ const TABS = [
   { id: 'planner', label: 'Objectifs', icon: '🎯' },
   { id: 'shopping', label: 'Courses', icon: '🛒' },
   { id: 'fasting', label: 'Jeûne', icon: '⏱️' },
-  { id: 'sport', label: 'Sport', icon: '💪' }
+  { id: 'sport', label: 'Sport', icon: '💪' },
+  { id: 'potager', label: 'Potager', icon: '🌱' }
 ];
 
 function NutritionApp() {
@@ -132,6 +134,7 @@ function NutritionApp() {
         )}
         {tab === 'fasting' && <IntermittentFasting />}
         {tab === 'sport' && <SportPerformance />}
+        {tab === 'potager' && <PotagerLunaire />}
       </main>
     </div>
   );
