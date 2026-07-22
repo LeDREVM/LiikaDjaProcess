@@ -720,6 +720,7 @@ function normalize(d) {
   if (!Array.isArray(base.couple.motivations)) base.couple.motivations = [];
   if (!Array.isArray(base.couple.medical)) base.couple.medical = [];
   if (!Array.isArray(base.couple.potager)) base.couple.potager = [];
+  if (!Array.isArray(base.couple.semansye)) base.couple.semansye = [];
   if (!base.liika.codeRousseau || typeof base.liika.codeRousseau !== 'object') base.liika.codeRousseau = clone(defaultData.liika.codeRousseau);
   if (!Array.isArray(base.liika.codeRousseau.eleves)) base.liika.codeRousseau.eleves = [];
   if (!Array.isArray(base.liika.codeRousseau.fiches)) base.liika.codeRousseau.fiches = [];
@@ -8357,8 +8358,370 @@ function GuadeloupeMeteo() {
   );
 }
 
-// Almanach lunaire potager (concombre/giraumon) — page statique intégrée via iframe.
+// Almanach lunaire potager (concombre/giraumon) — version plein écran statique,
+// conservée comme lien de secours ; l'onglet Almanach rend le composant natif.
 const POTAGER_URL = 'kalandriye-lalin-concombre-giraumon.html';
+
+// ── Kalandriye Lalin ─────────────────────────────────────────────────────────
+// Calendrier lunaire du potager : concombre & giraumon, calés sur le carême,
+// l'hivernage et les cycles de la lune. Éphémérides calculées pour la
+// Guadeloupe (UTC-4) — la donnée couvre la saison juillet 2026 → juin 2027.
+const LUNE = {
+  turns: [{"date":"2026-07-26","type":"montante"},{"date":"2026-08-08","type":"descendante"},{"date":"2026-08-22","type":"montante"},{"date":"2026-09-05","type":"descendante"},{"date":"2026-09-18","type":"montante"},{"date":"2026-10-02","type":"descendante"},{"date":"2026-10-15","type":"montante"},{"date":"2026-10-29","type":"descendante"},{"date":"2026-11-12","type":"montante"},{"date":"2026-11-25","type":"descendante"},{"date":"2026-12-09","type":"montante"},{"date":"2026-12-23","type":"descendante"},{"date":"2027-01-05","type":"montante"},{"date":"2027-01-19","type":"descendante"},{"date":"2027-02-01","type":"montante"},{"date":"2027-02-16","type":"descendante"},{"date":"2027-03-01","type":"montante"},{"date":"2027-03-15","type":"descendante"},{"date":"2027-03-28","type":"montante"},{"date":"2027-04-11","type":"descendante"},{"date":"2027-04-24","type":"montante"},{"date":"2027-05-08","type":"descendante"},{"date":"2027-05-22","type":"montante"},{"date":"2027-06-05","type":"descendante"},{"date":"2027-06-18","type":"montante"},{"date":"2027-07-02","type":"descendante"},{"date":"2027-07-15","type":"montante"},{"date":"2027-07-30","type":"descendante"},{"date":"2027-08-11","type":"montante"},{"date":"2027-08-26","type":"descendante"}],
+  phases: [{"date":"2026-07-29","time":"10h35","name":"Pleine lune","emoji":"🌕"},{"date":"2026-08-05","time":"22h21","name":"Dernier quartier","emoji":"🌗"},{"date":"2026-08-12","time":"13h36","name":"Nouvelle lune","emoji":"🌑"},{"date":"2026-08-19","time":"22h46","name":"Premier quartier","emoji":"🌓"},{"date":"2026-08-28","time":"00h18","name":"Pleine lune","emoji":"🌕"},{"date":"2026-09-04","time":"03h51","name":"Dernier quartier","emoji":"🌗"},{"date":"2026-09-10","time":"23h26","name":"Nouvelle lune","emoji":"🌑"},{"date":"2026-09-18","time":"16h43","name":"Premier quartier","emoji":"🌓"},{"date":"2026-09-26","time":"12h48","name":"Pleine lune","emoji":"🌕"},{"date":"2026-10-03","time":"09h24","name":"Dernier quartier","emoji":"🌗"},{"date":"2026-10-10","time":"11h50","name":"Nouvelle lune","emoji":"🌑"},{"date":"2026-10-18","time":"12h12","name":"Premier quartier","emoji":"🌓"},{"date":"2026-10-26","time":"00h11","name":"Pleine lune","emoji":"🌕"},{"date":"2026-11-01","time":"16h28","name":"Dernier quartier","emoji":"🌗"},{"date":"2026-11-09","time":"03h02","name":"Nouvelle lune","emoji":"🌑"},{"date":"2026-11-17","time":"07h47","name":"Premier quartier","emoji":"🌓"},{"date":"2026-11-24","time":"10h53","name":"Pleine lune","emoji":"🌕"},{"date":"2026-12-01","time":"02h08","name":"Dernier quartier","emoji":"🌗"},{"date":"2026-12-08","time":"20h51","name":"Nouvelle lune","emoji":"🌑"},{"date":"2026-12-17","time":"01h42","name":"Premier quartier","emoji":"🌓"},{"date":"2026-12-23","time":"21h28","name":"Pleine lune","emoji":"🌕"},{"date":"2026-12-30","time":"14h59","name":"Dernier quartier","emoji":"🌗"},{"date":"2027-01-07","time":"16h24","name":"Nouvelle lune","emoji":"🌑"},{"date":"2027-01-15","time":"16h34","name":"Premier quartier","emoji":"🌓"},{"date":"2027-01-22","time":"08h17","name":"Pleine lune","emoji":"🌕"},{"date":"2027-01-29","time":"06h55","name":"Dernier quartier","emoji":"🌗"},{"date":"2027-02-06","time":"11h56","name":"Nouvelle lune","emoji":"🌑"},{"date":"2027-02-14","time":"03h58","name":"Premier quartier","emoji":"🌓"},{"date":"2027-02-20","time":"19h23","name":"Pleine lune","emoji":"🌕"},{"date":"2027-02-28","time":"01h16","name":"Dernier quartier","emoji":"🌗"},{"date":"2027-03-08","time":"05h29","name":"Nouvelle lune","emoji":"🌑"},{"date":"2027-03-15","time":"12h25","name":"Premier quartier","emoji":"🌓"},{"date":"2027-03-22","time":"06h43","name":"Pleine lune","emoji":"🌕"},{"date":"2027-03-29","time":"20h53","name":"Dernier quartier","emoji":"🌗"},{"date":"2027-04-06","time":"19h51","name":"Nouvelle lune","emoji":"🌑"},{"date":"2027-04-13","time":"18h56","name":"Premier quartier","emoji":"🌓"},{"date":"2027-04-20","time":"18h27","name":"Pleine lune","emoji":"🌕"},{"date":"2027-04-28","time":"16h17","name":"Dernier quartier","emoji":"🌗"},{"date":"2027-05-06","time":"06h58","name":"Nouvelle lune","emoji":"🌑"},{"date":"2027-05-13","time":"00h43","name":"Premier quartier","emoji":"🌓"},{"date":"2027-05-20","time":"06h58","name":"Pleine lune","emoji":"🌕"},{"date":"2027-05-28","time":"09h57","name":"Dernier quartier","emoji":"🌗"},{"date":"2027-06-04","time":"15h40","name":"Nouvelle lune","emoji":"🌑"},{"date":"2027-06-11","time":"06h56","name":"Premier quartier","emoji":"🌓"},{"date":"2027-06-18","time":"20h44","name":"Pleine lune","emoji":"🌕"},{"date":"2027-06-27","time":"00h54","name":"Dernier quartier","emoji":"🌗"},{"date":"2027-07-03","time":"23h01","name":"Nouvelle lune","emoji":"🌑"},{"date":"2027-07-10","time":"14h38","name":"Premier quartier","emoji":"🌓"},{"date":"2027-07-18","time":"11h44","name":"Pleine lune","emoji":"🌕"},{"date":"2027-07-26","time":"12h54","name":"Dernier quartier","emoji":"🌗"},{"date":"2027-08-02","time":"06h05","name":"Nouvelle lune","emoji":"🌑"},{"date":"2027-08-09","time":"00h54","name":"Premier quartier","emoji":"🌓"},{"date":"2027-08-17","time":"03h28","name":"Pleine lune","emoji":"🌕"},{"date":"2027-08-24","time":"22h27","name":"Dernier quartier","emoji":"🌗"},{"date":"2027-08-31","time":"13h41","name":"Nouvelle lune","emoji":"🌑"},{"date":"2027-09-07","time":"14h31","name":"Premier quartier","emoji":"🌓"},{"date":"2027-09-15","time":"19h03","name":"Pleine lune","emoji":"🌕"},{"date":"2027-09-23","time":"06h20","name":"Dernier quartier","emoji":"🌗"}],
+  monthly: {"2026-07":{"semis":[26,27],"repiquage":[]},"2026-08":{"semis":[5,6,23,24],"repiquage":[13,14]},"2026-09":{"semis":[1,2,20,28,29],"repiquage":[9]},"2026-10":{"semis":[17,25,27],"repiquage":[7,8]},"2026-11":{"semis":[12,14,22,23],"repiquage":[3,4,30]},"2026-12":{"semis":[10,19,20],"repiquage":[1,27,28,29]},"2027-01":{"semis":[6,16,17],"repiquage":[24,25]},"2027-02":{"semis":[2,4,12,13],"repiquage":[21]},"2027-03":{"semis":[1,2,11,12,29,30],"repiquage":[20,21]},"2027-04":{"semis":[7,8,9,25,26],"repiquage":[16,17]},"2027-05":{"semis":[5,22,23,24],"repiquage":[13,14]},"2027-06":{"semis":[1,2,19,20,29,30],"repiquage":[9,10,11]}}
+};
+const LAL_MOIS = [
+  { n:'Janvier',   s:'careme', cyc:false, cc:"Pleine fenêtre. Semer en godets et repiquer. Sol riche, plein soleil, palissage dès le départ.", gg:"Semer en poquets de 3 graines (2 m d'écart) ou en pépinière. Pincer la tige après 2 feuilles." },
+  { n:'Février',   s:'careme', cyc:false, cc:"Continuer les semis et récolter les plants de décembre. Arroser au pied, sans mouiller le feuillage.", gg:"Arrosage régulier (saison sèche). Nouveaux semis encore possibles." },
+  { n:'Mars',      s:'careme', cyc:false, cc:"Récolte pleine des semis de déc.–janv. Derniers semis avant la montée des pluies.", gg:"Floraison et nouaison. Tailler les tiges qui ne portent pas de fruit." },
+  { n:'Avril',     s:'careme', cyc:false, cc:"Récolte. Fin de la fenêtre idéale : éviter de lancer de nouveaux plants sensibles.", gg:"Récolte + semer une planche rustique pour traverser l'hivernage." },
+  { n:'Mai',       s:'trans',  cyc:false, cc:"Terminer les récoltes. Pause conseillée en pleine terre : l'humidité amène mildiou et oïdium.", gg:"Semis encore possible (plus résistant). Tuteurer, bien aérer les plants." },
+  { n:'Juin',      s:'hiver',  cyc:true,  cc:"Pause pleine terre (trop humide). À réserver à une culture sous abri aéré.", gg:"Entretien, drainage soigné, surveiller l'oïdium. Isoler les fruits du sol." },
+  { n:'Juillet',   s:'hiver',  cyc:true,  cc:"Pause. Amender et préparer le sol pour le prochain carême.", gg:"Récolte des semis d'avril–mai. Isoler les fruits du sol détrempé." },
+  { n:'Août',      s:'hiver',  cyc:true,  cc:"Pause. Composter, entretenir, préparer les purins (ortie, prêle).", gg:"Protéger la planche, éviter les jeunes plants fragiles. Veille cyclonique." },
+  { n:'Septembre', s:'hiver',  cyc:true,  cc:"Pause active : compost, purins préventifs, préparer les godets pour la reprise.", gg:"Récolte et protection des plants. Veille cyclonique maintenue." },
+  { n:'Octobre',   s:'hiver',  cyc:true,  cc:"Reprise : semer en godets à l'abri en fin de mois pour repiquer en novembre.", gg:"Semer pour viser une récolte en plein carême." },
+  { n:'Novembre',  s:'trans',  cyc:false, cc:"Semer en godets pour repiquage en décembre → récolte en carême. Préparer les planches.", gg:"Semer. Former les billons, apporter le compost." },
+  { n:'Décembre',  s:'careme', cyc:false, cc:"Repiquer les plants de novembre + semer. Plein soleil, palissage, paillage au pied.", gg:"Semer, pleine croissance. Récupérer les graines des giraumons bien mûrs." }
+];
+const LAL_ABBR = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Aoû','Sep','Oct','Nov','Déc'];
+const LAL_SEASON = {
+  careme: { label:'Carême',     color:'#e3ba5c', bg:'rgba(227,186,92,.14)' },
+  trans:  { label:'Transition', color:'#a7dd8f', bg:'rgba(143,207,122,.14)' },
+  hiver:  { label:'Hivernage',  color:'#7fd0a0', bg:'rgba(63,125,90,.2)' }
+};
+const LAL_GOLD = '#e3ba5c', LAL_GREEN = '#4ade80', LAL_AMBER = '#f59e0b';
+const LAL_MONTANTE = '#5fe39a', LAL_DESCENDANTE = '#d9a765';
+const LAL_SYN = 29.53059; // durée moyenne d'une lunaison, en jours
+
+// Semansye — suivi des lots de graines récupérées (fermentation → séchage → stock)
+const SEM_CULTURES = {
+  concombre: { label:'Concombre', emoji:'🥒', color:'#4ade80', viab:5 },
+  giraumon:  { label:'Giraumon',  emoji:'🎃', color:'#f59e0b', viab:4 },
+  autre:     { label:'Autre',     emoji:'🌱', color:'#e3ba5c', viab:3 }
+};
+const SEM_ETAPES = {
+  fermentation: { label:'Fermentation', emoji:'🫧',  conseil:"24–48 h à l'ombre — jamais plus de 3 jours",     action:'Rincer → séchage' },
+  sechage:      { label:'Séchage',      emoji:'🌬️', conseil:"5–7 jours, ventilé, à l'ombre, pas de papier",   action:'Mettre en stock' },
+  stockee:      { label:'En stock',     emoji:'🫙',  conseil:'Enveloppe papier ou bocal + riz sec, étiquetée', action:null }
+};
+
+const lalParseD = s => { const p = String(s).split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); };
+const lalIso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const lalFmtLong = d => d.toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' });
+const LAL_NEWMOONS = LUNE.phases.filter(p => p.name === 'Nouvelle lune').map(p => lalParseD(p.date)).sort((a, b) => a - b);
+
+// Âge de la lune en jours depuis la dernière nouvelle lune
+function lalMoonAge(date) {
+  let last = null;
+  for (const nm of LAL_NEWMOONS) if (nm <= date) last = nm;
+  if (!last) { last = new Date(LAL_NEWMOONS[0]); while (last > date) last = new Date(last - LAL_SYN * 864e5); }
+  return (date - last) / 864e5;
+}
+const lalIllum = age => (1 - Math.cos(2 * Math.PI * age / LAL_SYN)) / 2;
+const lalWaxing = age => age % LAL_SYN < LAL_SYN / 2;
+function lalPhaseName(age) {
+  const a = ((age % LAL_SYN) + LAL_SYN) % LAL_SYN;
+  if (a < 1.4 || a > 28.1) return 'Nouvelle lune';
+  if (a < 6.4) return 'Premier croissant';
+  if (a < 8.4) return 'Premier quartier';
+  if (a < 13.8) return 'Gibbeuse croissante';
+  if (a < 15.8) return 'Pleine lune';
+  if (a < 21.1) return 'Gibbeuse décroissante';
+  if (a < 23.1) return 'Dernier quartier';
+  return 'Dernier croissant';
+}
+// Montante / descendante : dépend de la hauteur de la lune, pas de sa phase
+function lalMvt(date) {
+  let state = 'descendante'; // avant la 1re bascule connue (26 juil. 2026)
+  for (const t of LUNE.turns) { if (lalParseD(t.date) <= date) state = t.type; else break; }
+  return state;
+}
+
+// Disque de lune : on masque la part non éclairée, côté gauche si croissante
+function MoonDisc({ frac, wax, size }) {
+  const h = React.createElement;
+  const s = size || 84;
+  return h('div', { 'aria-hidden':'true', style:{ width:s, height:s, borderRadius:'50%', position:'relative', overflow:'hidden', flexShrink:0, background:'#0c130f', boxShadow:'inset 0 0 0 1px rgba(227,186,92,.25)' } },
+    h('div', { style:{ position:'absolute', inset:0, borderRadius:'50%', background:'radial-gradient(circle at 38% 34%, #fbf1cf, #e3ba5c 70%, #b98f38)' } }),
+    h('div', { style:{ position:'absolute', top:0, bottom:0, width:(1 - frac) * s, borderRadius:'50%', background:'#0b110d', left:wax ? 0 : 'auto', right:wax ? 'auto' : 0 } }),
+    h('div', { style:{ position:'absolute', inset:0, borderRadius:'50%', mixBlendMode:'multiply', opacity:.28, background:'radial-gradient(circle at 62% 60%, transparent 40%, #7a5f26 41%, transparent 46%), radial-gradient(circle at 30% 66%, transparent 30%, #7a5f26 31%, transparent 35%)' } })
+  );
+}
+
+function KalandriyeLalin({ semansye, addLot, updateLot, deleteLot }) {
+  const h = React.createElement;
+  const today = useMemo(() => new Date(), []);
+  const [month, setMonth] = useState(today.getMonth());
+
+  const age = lalMoonAge(today);
+  const frac = lalIllum(age), wax = lalWaxing(age);
+  const mvt = lalMvt(today);
+
+  // Prochain jour favorable (semis ou repiquage) à partir d'aujourd'hui
+  const nextAction = useMemo(() => {
+    const up = [];
+    Object.keys(LUNE.monthly).forEach(mk => {
+      const y = +mk.slice(0, 4), mo = +mk.slice(5, 7) - 1;
+      LUNE.monthly[mk].semis.forEach(d => up.push({ t:'semis', date:new Date(y, mo, d) }));
+      LUNE.monthly[mk].repiquage.forEach(d => up.push({ t:'repiquage', date:new Date(y, mo, d) }));
+    });
+    up.sort((a, b) => a.date - b.date);
+    const t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    return up.find(u => u.date >= t0);
+  }, [today]);
+
+  const upcomingPhases = useMemo(() => {
+    const t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    return LUNE.phases.map(p => ({ ...p, d:lalParseD(p.date) })).filter(p => p.d >= t0).slice(0, 8);
+  }, [today]);
+
+  // La donnée couvre juil. 2026 → juin 2027 : juil.–déc. = 2026, janv.–juin = 2027
+  const mk = (month >= 6 ? '2026-' : '2027-') + String(month + 1).padStart(2, '0');
+  const md = LUNE.monthly[mk] || { semis:[], repiquage:[] };
+  const m = LAL_MOIS[month];
+  const season = LAL_SEASON[m.s];
+
+  const box = { background:'rgba(255,255,255,0.03)', border:'1px solid #1a3028', borderRadius:16 };
+  const mono = "'Space Mono', monospace";
+
+  const dayRow = (label, days, type) => {
+    const col = type === 'semis' ? LAL_MONTANTE : LAL_DESCENDANTE;
+    return h('div', { style:{ display:'flex', gap:10, alignItems:'center', marginBottom:8 } },
+      h('span', { style:{ fontFamily:mono, fontSize:11, color:'var(--text3)', minWidth:82, flexShrink:0 } }, label),
+      h('div', { style:{ display:'flex', flexWrap:'wrap', gap:5 } },
+        days && days.length
+          ? days.map((d, i) => h('span', { key:i, style:{ fontFamily:mono, fontSize:12, fontWeight:700, padding:'3px 9px', borderRadius:8, background:col + '24', color:col, border:'1px solid ' + col + '4d' } }, d))
+          : h('span', { style:{ fontSize:12, color:'var(--text3)', fontStyle:'italic' } }, 'à ajuster selon la météo')
+      )
+    );
+  };
+
+  return h('div', { style:{ fontFamily:"'Playfair Display', Georgia, serif", color:'#e8f5e0' } },
+    // ── En-tête ──
+    h('div', { style:{ paddingBottom:16, borderBottom:'1px solid #1e3a2a', marginBottom:18 } },
+      h('div', { className:'eyebrow', style:{ marginBottom:6 } }, 'Lanmou Douvan · Potager 🌴'),
+      h('h3', { style:{ margin:0, fontSize:28, fontWeight:700, color:'#f0faf0', lineHeight:1.1 } },
+        'Kalandriye ', h('span', { style:{ fontStyle:'italic', fontWeight:400, color:LAL_GOLD } }, 'Lalin')
+      ),
+      h('p', { style:{ margin:'10px 0 0', fontSize:13, color:'var(--text2)', fontStyle:'italic', maxWidth:'42ch', lineHeight:1.5 } },
+        'Concombre & giraumon au bon moment — carême, hivernage et cycles de la lune 🌱')
+    ),
+
+    // ── État lunaire du jour ──
+    h('div', { style:{ ...box, padding:18, display:'flex', gap:16, alignItems:'center', background:'linear-gradient(140deg,rgba(227,186,92,.06),rgba(255,255,255,.015))' } },
+      h(MoonDisc, { frac, wax, size:84 }),
+      h('div', { style:{ flex:1, minWidth:0 } },
+        h('div', { style:{ fontFamily:mono, fontSize:11, color:'var(--text3)', textTransform:'uppercase', letterSpacing:1 } }, lalFmtLong(today)),
+        h('div', { style:{ fontSize:19, fontWeight:700, color:'#f6fbf2', margin:'3px 0 6px' } }, lalPhaseName(age) + ' · ' + Math.round(frac * 100) + '%'),
+        h('span', { style:{ display:'inline-block', fontFamily:mono, fontSize:11, fontWeight:700, padding:'4px 11px', borderRadius:20, background:(mvt === 'montante' ? LAL_MONTANTE : LAL_DESCENDANTE) + '22', color:mvt === 'montante' ? LAL_MONTANTE : LAL_DESCENDANTE } },
+          mvt === 'montante' ? '⬆ Montante — semis & récolte' : '⬇ Descendante — repiquage & sol')
+      )
+    ),
+    nextAction && h('div', { style:{ ...box, padding:'13px 16px', marginTop:10, display:'flex', gap:11, alignItems:'flex-start' } },
+      h('span', { style:{ fontSize:17 }, 'aria-hidden':'true' }, '🌱'),
+      h('div', { style:{ fontSize:13.5, lineHeight:1.5 } },
+        'Prochain jour idéal pour ',
+        h('b', { style:{ color:LAL_GOLD } }, nextAction.t === 'semis' ? 'semer' : 'repiquer'),
+        ' : ', h('b', { style:{ color:LAL_GOLD } }, lalFmtLong(nextAction.date)),
+        h('div', { style:{ fontSize:12, color:'var(--text3)', fontStyle:'italic', marginTop:2 } },
+          nextAction.t === 'semis' ? 'lune montante + jour fruit' : 'lune descendante + jour fruit')
+      )
+    ),
+
+    // ── Sélecteur de mois ──
+    h('div', { className:'scroll-x', style:{ padding:'20px 0 12px', display:'flex', gap:7 } },
+      LAL_MOIS.map((mm, i) => h('button', {
+        key:i, className:'pl-btn', onClick:() => setMonth(i),
+        'aria-pressed': month === i ? 'true' : 'false',
+        'aria-label': mm.n + (mm.cyc ? ' — saison cyclonique' : ''),
+        style:{ minWidth:52, minHeight:44, padding:'9px 6px', borderRadius:12, border:'none', flexShrink:0,
+          background:month === i ? LAL_GOLD : 'rgba(255,255,255,0.04)', color:month === i ? '#0a0f0d' : 'var(--text3)',
+          fontFamily:mono, fontSize:11, fontWeight:700, textAlign:'center', cursor:'pointer' } },
+        h('div', null, LAL_ABBR[i]),
+        h('div', { style:{ fontSize:9, marginTop:2, opacity:.75 } }, mm.cyc ? '⚡' : month === i ? '●' : '○')
+      ))
+    ),
+
+    // ── Fiche du mois ──
+    h('div', { key:month, className:'pl-fade' },
+      h('div', { style:{ ...box, padding:20 } },
+        h('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, paddingBottom:16, borderBottom:'1px solid #1e3a2a', marginBottom:16, flexWrap:'wrap' } },
+          h('div', null,
+            h('div', { style:{ fontSize:26, fontWeight:700, color:'#f4faf1', lineHeight:1 } }, m.n),
+            m.cyc && h('div', { style:{ display:'inline-flex', alignItems:'center', gap:6, fontFamily:mono, fontSize:11, color:'#fb7185', background:'rgba(251,113,133,.1)', padding:'4px 10px', borderRadius:20, marginTop:8 } }, '⚡ Saison cyclonique — veille météo')
+          ),
+          h('div', { style:{ fontFamily:mono, fontSize:11, padding:'5px 12px', borderRadius:20, fontWeight:700, background:season.bg, color:season.color } }, season.label)
+        ),
+        // Concombre
+        h('div', { style:{ display:'flex', gap:12, paddingBottom:14 } },
+          h('div', { 'aria-hidden':'true', style:{ width:38, height:38, borderRadius:11, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, background:'rgba(74,222,128,.12)', border:'1px solid rgba(74,222,128,.3)' } }, '🥒'),
+          h('div', null,
+            h('div', { style:{ fontSize:15, fontWeight:700, color:LAL_GREEN, marginBottom:2 } }, 'Concombre'),
+            h('div', { style:{ fontSize:13, color:'#bcd4c2', lineHeight:1.55 } }, m.cc)
+          )
+        ),
+        // Giraumon
+        h('div', { style:{ display:'flex', gap:12, paddingTop:14, borderTop:'1px dashed #1e3a2a' } },
+          h('div', { 'aria-hidden':'true', style:{ width:38, height:38, borderRadius:11, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, background:'rgba(245,158,11,.12)', border:'1px solid rgba(245,158,11,.3)' } }, '🎃'),
+          h('div', null,
+            h('div', { style:{ fontSize:15, fontWeight:700, color:LAL_AMBER, marginBottom:2 } }, 'Giraumon'),
+            h('div', { style:{ fontSize:13, color:'#bcd4c2', lineHeight:1.55 } }, m.gg)
+          )
+        ),
+        // Jours favorables
+        h('div', { style:{ marginTop:16, padding:15, borderRadius:14, border:'1px solid #1e3a2a', background:'linear-gradient(135deg,rgba(227,186,92,.06),rgba(74,222,128,.03))' } },
+          h('div', { className:'eyebrow', style:{ marginBottom:12 } }, '🌙 Jours favorables — ' + m.n + ' ' + mk.slice(0, 4)),
+          dayRow('⬆ Semer', md.semis, 'semis'),
+          dayRow('⬇ Repiquer', md.repiquage, 'repiquage')
+        )
+      )
+    ),
+
+    // ── Semansye ──
+    h(SemansyeStock, { semansye, addLot, updateLot, deleteLot, today, box, mono }),
+
+    // ── Principes ──
+    h('div', { style:{ marginTop:24 } },
+      h('div', { className:'eyebrow', style:{ marginBottom:12 } }, '🌗 Planter avec la lune'),
+      [
+        { emoji:'⬆',  tag:'SEMER',    col:LAL_MONTANTE,    title:'Lune montante',            txt:"La sève monte : on sème et on récolte les fruits à consommer frais. Idéal un jour fruit." },
+        { emoji:'🌕', tag:'RÉCOLTER', col:LAL_GOLD,        title:'Pleine lune',              txt:'Fruits gorgés de sève : récolte de conservation et prélèvement des graines de giraumon mûr.' },
+        { emoji:'⬇',  tag:'REPIQUER', col:LAL_DESCENDANTE, title:'Lune descendante',         txt:"La sève descend : les plants s'enracinent mieux. On repique, plante, bouture et amende la terre." },
+        { emoji:'🌑', tag:'REPOS',    col:'#fb7185',       title:'Nœuds · périgée · apogée', txt:'Autour des nouvelle/pleine lune et aux périgée/apogée : pas de semis. On composte et on prépare.' }
+      ].map((p, i) => h('div', { key:i, style:{ ...box, padding:15, display:'flex', gap:13, marginBottom:10 } },
+        h('span', { 'aria-hidden':'true', style:{ fontSize:20, minWidth:26, textAlign:'center' } }, p.emoji),
+        h('div', null,
+          h('div', { style:{ fontSize:15, fontWeight:700, color:'#f2faef', marginBottom:3 } },
+            h('span', { style:{ fontFamily:mono, fontSize:10.5, fontWeight:700, padding:'2px 8px', borderRadius:6, marginRight:8, background:p.col + '22', color:p.col } }, p.tag),
+            p.title
+          ),
+          h('div', { style:{ fontSize:12.5, color:'#b4cebc', lineHeight:1.5 } }, p.txt)
+        )
+      ))
+    ),
+
+    // ── Prochaines phases ──
+    h('div', { style:{ marginTop:24 } },
+      h('div', { className:'eyebrow', style:{ marginBottom:12 } }, '📅 Prochaines phases · Guadeloupe'),
+      h('div', { style:{ ...box, overflow:'hidden' } },
+        upcomingPhases.map((p, i) => h('div', { key:i, style:{ display:'flex', alignItems:'center', gap:13, padding:'12px 16px', borderBottom:i < upcomingPhases.length - 1 ? '1px solid #1a3028' : 'none', fontSize:13 } },
+          h('span', { 'aria-hidden':'true', style:{ fontSize:18, width:22, textAlign:'center' } }, p.emoji),
+          h('span', { style:{ fontFamily:mono, fontSize:12, color:LAL_GOLD, minWidth:92 } }, p.d.toLocaleDateString('fr-FR', { day:'2-digit', month:'short' }) + ' · ' + p.time),
+          h('span', { style:{ color:'#cfe3d4', flex:1 } }, p.name)
+        ))
+      ),
+      h('p', { style:{ fontSize:12, color:'var(--text3)', fontStyle:'italic', lineHeight:1.6, marginTop:16 } },
+        'La lune est un repère, pas une loi : la météo et l\'état du sol priment toujours. Cycle 100 jours pour les deux cultures. Phases calculées astronomiquement pour Pointe-à-Pitre (UTC-4).'),
+      h('a', { href:POTAGER_URL, target:'_blank', rel:'noopener', style:{ display:'inline-block', marginTop:10, padding:'8px 14px', borderRadius:16, border:'1px solid var(--border)', color:'var(--text2)', fontSize:12, fontWeight:700, textDecoration:'none' } }, '↗ Version plein écran')
+    )
+  );
+}
+
+// Suivi des lots de graines — persisté dans data.couple.semansye (synchro Supabase)
+function SemansyeStock({ semansye, addLot, updateLot, deleteLot, today, box, mono }) {
+  const h = React.createElement;
+  const lots = semansye || [];
+  const todayIso = lalIso(today);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ culture:'concombre', recolte:todayIso, qte:'', note:'' });
+
+  const daysSince = iso => Math.floor((today - lalParseD(iso)) / 864e5);
+
+  const statutLot = lot => {
+    const d = daysSince(lot.etapeDate);
+    if (lot.etape === 'fermentation') {
+      if (d >= 2) return { txt:'⚠ Rincer maintenant !', col:'#fb7185', urgent:true };
+      return { txt:'Jour ' + (d + 1) + '/2 — voile blanc normal', col:LAL_MONTANTE };
+    }
+    if (lot.etape === 'sechage') {
+      if (d >= 5) return { txt:'✓ Sèches — prêtes à stocker', col:LAL_GOLD };
+      return { txt:'Séchage jour ' + (d + 1) + '/7', col:LAL_DESCENDANTE };
+    }
+    const viab = (SEM_CULTURES[lot.culture] || SEM_CULTURES.autre).viab;
+    const ans = daysSince(lot.recolte) / 365.25;
+    return { txt:'Viabilité ~' + Math.max(0, viab - ans).toFixed(1) + ' an(s)', col:LAL_GOLD, pct:Math.max(0, Math.min(1, 1 - ans / viab)) };
+  };
+
+  const avancer = lot => updateLot(lot.id, { etape:lot.etape === 'fermentation' ? 'sechage' : 'stockee', etapeDate:todayIso });
+
+  const ajouter = () => {
+    if (!form.recolte) return;
+    addLot({ id:Date.now().toString(), ...form, etape:'fermentation', etapeDate:form.recolte });
+    setForm({ culture:'concombre', recolte:todayIso, qte:'', note:'' });
+    setShowForm(false);
+  };
+
+  const inputStyle = { background:'rgba(255,255,255,0.05)', border:'1px solid #1e3a2a', borderRadius:10, color:'#e8f5e0', fontFamily:mono, fontSize:12, padding:'10px 12px', outline:'none', width:'100%', boxSizing:'border-box', colorScheme:'dark' };
+
+  return h('div', { style:{ marginTop:24 } },
+    h('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:8, marginBottom:12 } },
+      h('div', { className:'eyebrow' }, '🫘 Semansye · graines en stock'),
+      h('button', { className:'pl-btn', onClick:() => setShowForm(s => !s),
+        style:{ minHeight:40, border:'1px solid ' + LAL_GOLD + '55', background:showForm ? LAL_GOLD : 'rgba(227,186,92,.1)', color:showForm ? '#0a0f0d' : LAL_GOLD, fontFamily:mono, fontSize:11, fontWeight:700, padding:'8px 14px', borderRadius:20, cursor:'pointer' } },
+        showForm ? '✕ Fermer' : '+ Lot')
+    ),
+
+    showForm && h('div', { className:'pl-fade', style:{ ...box, padding:16, marginBottom:12 } },
+      h('div', { style:{ display:'flex', gap:7, marginBottom:12 } },
+        Object.keys(SEM_CULTURES).map(k => {
+          const c = SEM_CULTURES[k];
+          return h('button', { key:k, className:'pl-btn', onClick:() => setForm(p => ({ ...p, culture:k })),
+            'aria-pressed': form.culture === k ? 'true' : 'false',
+            style:{ flex:1, minHeight:44, padding:'9px 6px', borderRadius:11, cursor:'pointer',
+              border:'1px solid ' + (form.culture === k ? c.color : '#1e3a2a'),
+              background:form.culture === k ? c.color + '22' : 'rgba(255,255,255,0.03)',
+              color:form.culture === k ? c.color : 'var(--text3)', fontFamily:mono, fontSize:11, fontWeight:700 } },
+            c.emoji + ' ' + c.label);
+        })
+      ),
+      h('div', { style:{ display:'flex', gap:8, marginBottom:8 } },
+        h('input', { type:'date', value:form.recolte, onChange:e => setForm(p => ({ ...p, recolte:e.target.value })), 'aria-label':'Date de récolte', style:{ ...inputStyle, flex:1.2 } }),
+        h('input', { type:'text', placeholder:'Qté (~40 graines)', 'aria-label':'Quantité', value:form.qte, onChange:e => setForm(p => ({ ...p, qte:e.target.value })), style:{ ...inputStyle, flex:1 } })
+      ),
+      h('input', { type:'text', placeholder:'Note (variété, parcelle, lune…)', 'aria-label':'Note', value:form.note, onChange:e => setForm(p => ({ ...p, note:e.target.value })), style:{ ...inputStyle, marginBottom:12 } }),
+      h('button', { className:'pl-btn', onClick:ajouter, style:{ width:'100%', minHeight:44, padding:11, borderRadius:12, border:'none', background:LAL_GOLD, color:'#0a0f0d', fontFamily:mono, fontSize:12, fontWeight:700, cursor:'pointer' } }, 'Lancer la fermentation 🫧')
+    ),
+
+    lots.length === 0 && !showForm && h('div', { style:{ ...box, padding:20, textAlign:'center', fontSize:12.5, color:'var(--text3)', fontStyle:'italic' } },
+      'Aucun lot pour l\'instant — ajoute ta première récolte de graines 🌱'),
+
+    lots.map(lot => {
+      const c = SEM_CULTURES[lot.culture] || SEM_CULTURES.autre;
+      const e = SEM_ETAPES[lot.etape] || SEM_ETAPES.stockee;
+      const st = statutLot(lot);
+      return h('div', { key:lot.id, className:'pl-fade', style:{ ...box, padding:15, marginBottom:10, borderLeft:'3px solid ' + c.color } },
+        h('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:10 } },
+          h('div', { style:{ display:'flex', gap:10, alignItems:'center' } },
+            h('span', { 'aria-hidden':'true', style:{ fontSize:20 } }, c.emoji),
+            h('div', null,
+              h('div', { style:{ fontSize:14.5, fontWeight:700, color:'#f2faef' } },
+                c.label,
+                lot.qte && h('span', { style:{ fontFamily:mono, fontSize:11, color:'var(--text3)', fontWeight:400 } }, ' · ' + lot.qte)
+              ),
+              h('div', { style:{ fontFamily:mono, fontSize:11, color:'var(--text3)', marginTop:2 } },
+                'Récolte ' + lalParseD(lot.recolte).toLocaleDateString('fr-FR', { day:'2-digit', month:'short', year:'2-digit' }))
+            )
+          ),
+          h('span', { style:{ fontFamily:mono, fontSize:10.5, fontWeight:700, padding:'3px 10px', borderRadius:20, background:c.color + '18', color:c.color, whiteSpace:'nowrap' } }, e.emoji + ' ' + e.label)
+        ),
+        h('div', { style:{ marginTop:10, fontFamily:mono, fontSize:11.5, fontWeight:st.urgent ? 700 : 400, color:st.col } }, st.txt),
+        typeof st.pct === 'number' && h('div', { style:{ height:5, background:'#1a3028', borderRadius:3, overflow:'hidden', marginTop:6 } },
+          h('div', { style:{ height:'100%', width:(st.pct * 100) + '%', borderRadius:3, background:LAL_GOLD, transition:'width .4s' } })
+        ),
+        lot.note && h('div', { style:{ fontSize:11.5, color:'var(--text3)', fontStyle:'italic', marginTop:6 } }, lot.note),
+        h('div', { style:{ fontSize:11, color:'var(--text3)', marginTop:4 } }, e.conseil),
+        h('div', { style:{ display:'flex', gap:8, marginTop:12 } },
+          e.action && h('button', { className:'pl-btn', onClick:() => avancer(lot),
+            style:{ flex:1, minHeight:40, padding:8, borderRadius:10, border:'1px solid ' + c.color + '55', background:c.color + '15', color:c.color, fontFamily:mono, fontSize:11, fontWeight:700, cursor:'pointer' } }, e.action + ' →'),
+          h('button', { className:'pl-btn', onClick:() => deleteLot(lot.id), 'aria-label':'Supprimer le lot ' + c.label,
+            style:{ minWidth:44, minHeight:40, padding:'8px 14px', borderRadius:10, border:'1px solid #3a1a2a', background:'rgba(251,113,133,.08)', color:'#fb7185', fontFamily:mono, fontSize:11, cursor:'pointer' } }, '🗑')
+        )
+      );
+    })
+  );
+}
 const POTAGER_CATS = [
   { key:'Légume',  icon:'🥬' },
   { key:'Fruit',   icon:'🍅' },
@@ -8414,6 +8777,79 @@ const POTAGER_BIBLE = [
 ];
 const normPot = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 // Retrouve la fiche bible correspondant au nom d'une plante (ex. « Tomate cerise » → Tomate).
+// Durée mini d'un cycle de culture, en mois, lue depuis la bible ('2–3 mois' → 2).
+// null quand la fiche ne donne pas de durée chiffrée (ex. 'Vivace grimpante').
+function cycleMoisMin(cycle) {
+  const s = String(cycle || '');
+  if (!/mois/i.test(s)) return null;
+  const m = s.match(/(\d+(?:[.,]\d+)?)/);
+  return m ? parseFloat(m[1].replace(',', '.')) : null;
+}
+
+// Alertes du Potager — regroupe les 3 sources (plantes, graines, lune) en une
+// liste unique affichée en haut de la vue, quel que soit l'onglet ouvert.
+// Chaque alerte disparaît d'elle-même une fois l'action faite (stade changé,
+// étape avancée, jour passé) : rien à cocher.
+function potagerAlertes(plantes, semansye, today) {
+  const out = [];
+  const jours = iso => {
+    if (!iso) return null;
+    const d = new Date(String(iso).slice(0, 10) + 'T00:00:00');
+    if (isNaN(d.getTime())) return null;
+    const t = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    return Math.floor((t - d) / 864e5);
+  };
+
+  // ── Plantes ──
+  (plantes || []).forEach(p => {
+    if (p.stade === 'Terminé') return;
+    if (p.stade === 'Récolte') {
+      out.push({ id:'rec-' + p.id, icon:'🧺', txt:p.nom + ' est à récolter.', col:'var(--gold)', tab:'plantes' });
+      return;
+    }
+    const b = findBible(p.nom);
+    const mois = b && cycleMoisMin(b.cycle);
+    const j = jours(p.datePlantation);
+    if (mois && j != null && j >= mois * 30) {
+      out.push({ id:'cyc-' + p.id, icon:'⏳', txt:p.nom + ' : ' + Math.floor(j / 30) + ' mois en terre (cycle ' + b.cycle + ') — vérifier la récolte.', col:'var(--warn)', tab:'plantes' });
+    }
+  });
+
+  // ── Semansye (graines) ──
+  (semansye || []).forEach(l => {
+    const c = SEM_CULTURES[l.culture] || SEM_CULTURES.autre;
+    const j = jours(l.etapeDate);
+    if (j == null) return;
+    if (l.etape === 'fermentation' && j >= 2) {
+      out.push({ id:'fer-' + l.id, icon:'⚠', txt:'Graines de ' + c.label.toLowerCase() + ' : ' + j + ' j de fermentation — rincer et mettre à sécher.', col:'var(--danger)', tab:'almanach' });
+    } else if (l.etape === 'sechage' && j >= 5) {
+      out.push({ id:'sec-' + l.id, icon:'✅', txt:'Graines de ' + c.label.toLowerCase() + ' sèches (' + j + ' j) — à mettre en stock.', col:'var(--success)', tab:'almanach' });
+    }
+  });
+
+  // ── Lune : jours favorables et phases majeures (aujourd'hui / demain) ──
+  const iso = lalIso(today);
+  const demain = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+  const isoDemain = lalIso(demain);
+  const mk = iso.slice(0, 7);
+  const md = LUNE.monthly[mk];
+  if (md) {
+    [['semis', 'semer'], ['repiquage', 'repiquer']].forEach(([k, verbe]) => {
+      if (md[k].indexOf(today.getDate()) !== -1) out.push({ id:'lun-' + k, icon:'🌙', txt:"Aujourd'hui est un jour idéal pour " + verbe + '.', col:LAL_MONTANTE, tab:'almanach' });
+      else if (isoDemain.slice(0, 7) === mk && md[k].indexOf(demain.getDate()) !== -1) out.push({ id:'lun-d-' + k, icon:'🌙', txt:'Demain : jour idéal pour ' + verbe + '.', col:'var(--text2)', tab:'almanach' });
+    });
+  }
+  const phase = LUNE.phases.find(p => p.date === iso);
+  if (phase && (phase.name === 'Pleine lune' || phase.name === 'Nouvelle lune')) {
+    out.push({
+      id:'pha-' + phase.date, icon:phase.emoji,
+      txt:phase.name + " aujourd'hui à " + phase.time + (phase.name === 'Pleine lune' ? ' — récolte de conservation et graines.' : ' — repos : pas de semis, on composte.'),
+      col:LAL_GOLD, tab:'almanach'
+    });
+  }
+  return out;
+}
+
 function findBible(nom) {
   const n = normPot(nom);
   if (!n) return null;
@@ -8448,7 +8884,7 @@ function PlanteForm({ onSave, onCancel }) {
   );
 }
 
-function PotagerView({ plantes, addPlante, updatePlante, deletePlante }) {
+function PotagerView({ plantes, addPlante, updatePlante, deletePlante, semansye, addLot, updateLot, deleteLot }) {
   const h = React.createElement;
   const [tab, setTab] = React.useState('plantes');
   const [show, setShow] = React.useState(false);
@@ -8505,6 +8941,7 @@ function PotagerView({ plantes, addPlante, updatePlante, deletePlante }) {
     return Math.max(0, Math.round((t.getTime() - d.getTime()) / 86400000));
   };
   const list = plantes || [];
+  const alertes = React.useMemo(() => potagerAlertes(plantes, semansye, new Date()), [plantes, semansye]);
   const enRecolte = list.filter(p => p.stade === 'Récolte').length;
   const actives = list.filter(p => p.stade !== 'Terminé').length;
   const shown = filtre === 'encours' ? list.filter(p => p.stade !== 'Terminé') : list;
@@ -8567,7 +9004,20 @@ function PotagerView({ plantes, addPlante, updatePlante, deletePlante }) {
     h('div', { style:{ display:'flex', gap:8, marginBottom:16 } },
       tabBtn('plantes', '🌱 Mes plantes' + (list.length ? ' ('+list.length+')' : '')),
       tabBtn('bible', '🪴 Bible'),
-      tabBtn('almanach', '🌙 Almanach')
+      tabBtn('almanach', '🌙 Almanach' + (alertes.length ? ' •' : ''))
+    ),
+
+    // Bandeau d'alertes — cliquer mène à l'onglet concerné
+    alertes.length > 0 && h('div', { role:'status', style:{ display:'grid', gap:6, marginBottom:16 } },
+      alertes.map(a => h('button', {
+        key:a.id, onClick:()=>setTab(a.tab),
+        style:{ display:'flex', alignItems:'center', gap:10, width:'100%', textAlign:'left', cursor:'pointer',
+          background:'var(--glass)', border:'1px solid ' + a.col, borderLeft:'3px solid ' + a.col,
+          borderRadius:'var(--radius-sm)', padding:'10px 12px', minHeight:44, color:'var(--text2)', fontSize:12.5, fontFamily:'inherit' } },
+        h('span', { 'aria-hidden':'true', style:{ fontSize:15 } }, a.icon),
+        h('span', { style:{ flex:1 } }, a.txt),
+        h('span', { style:{ color:a.col, fontSize:16 }, 'aria-hidden':'true' }, '›')
+      ))
     ),
 
     tab === 'plantes' && h('div', null,
@@ -8627,18 +9077,7 @@ function PotagerView({ plantes, addPlante, updatePlante, deletePlante }) {
       );
     })(),
 
-    tab === 'almanach' && h('div', null,
-      h('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10, gap:8, flexWrap:'wrap' } },
-        h('div', { style:{ fontSize:12, color:'var(--text3)' } }, 'Concombre & giraumon calés sur le carême, l\'hivernage et la lune.'),
-        h('a', { href:POTAGER_URL, target:'_blank', rel:'noopener', style:{ padding:'6px 12px', borderRadius:16, border:'1px solid var(--border)', background:'transparent', color:'var(--text2)', cursor:'pointer', fontWeight:700, fontSize:12, textDecoration:'none', whiteSpace:'nowrap' } }, '↗ Plein écran')
-      ),
-      h('iframe', {
-        src: POTAGER_URL,
-        title: 'Almanach potager Guadeloupe',
-        loading: 'lazy',
-        style:{ width:'100%', height:'calc(100vh - 260px)', minHeight:480, border:'1px solid var(--border)', borderRadius:'var(--radius)', background:'#0b1a12', display:'block' }
-      })
-    )
+    tab === 'almanach' && h(KalandriyeLalin, { semansye, addLot, updateLot, deleteLot })
   );
 }
 
@@ -10191,7 +10630,25 @@ const ch=sb.channel('ld-realtime')
       next.album = (next.album || []).filter(p => p.id !== id);
       return next;
     });
-    if (storagePath) sb.storage.from('album-photos').remove([storagePath]).catch(function(){});
+    // remove() ne rejette pas sur refus de policy : il renvoie {data, error}.
+    // Les deux cas (erreur applicative et erreur réseau) doivent remonter, sinon
+    // le fichier reste orphelin dans le bucket sans que personne le sache.
+    if (storagePath) {
+      sb.storage.from('album-photos').remove([storagePath])
+        .then(function(res) {
+          if (res && res.error) throw res.error;
+          // data vide = aucun objet retiré (chemin déjà absent ou refusé par une policy).
+          // Pas d'alerte : le cas « déjà supprimé » est normal. On trace pour diagnostic.
+          if (res && Array.isArray(res.data) && res.data.length === 0) {
+            console.warn('[album] aucun fichier retiré pour :', storagePath);
+          }
+        })
+        .catch(function(err) {
+          const msg = (err && err.message) || 'erreur réseau';
+          console.warn('[album] fichier non supprimé du storage :', storagePath, err);
+          alert('Photo retirée de l\'album, mais le fichier est resté sur le serveur (' + msg + ').');
+        });
+    }
   }, []);
   const addMedical = useCallback(rdv => {
     setData(prev => {
@@ -10225,6 +10682,28 @@ const ch=sb.channel('ld-realtime')
     setData(prev => {
       const next = clone(prev);
       next.couple.potager = (next.couple.potager || []).filter(x => x.id !== id);
+      return next;
+    });
+  }, []);
+  // Semansye : lots de graines du Kalandriye Lalin (section couple.semansye → synchro)
+  const addLot = useCallback(lot => {
+    setData(prev => {
+      const next = clone(prev);
+      next.couple.semansye = [lot, ...(next.couple.semansye || [])];
+      return next;
+    });
+  }, []);
+  const updateLot = useCallback((id, patch) => {
+    setData(prev => {
+      const next = clone(prev);
+      next.couple.semansye = (next.couple.semansye || []).map(x => x.id === id ? { ...x, ...patch } : x);
+      return next;
+    });
+  }, []);
+  const deleteLot = useCallback(id => {
+    setData(prev => {
+      const next = clone(prev);
+      next.couple.semansye = (next.couple.semansye || []).filter(x => x.id !== id);
       return next;
     });
   }, []);
@@ -12297,7 +12776,7 @@ const ch=sb.channel('ld-realtime')
     view === 'album' && React.createElement(AlbumView,{album:data.album||[],addAlbumPhoto,deleteAlbumPhoto}),
     view === 'idees' && React.createElement(IdeesView,null),
     view === 'medical' && React.createElement(MedicalView,{rdvs:data.couple.medical||[],addMedical,deleteMedical}),
-    view === 'potager' && React.createElement(PotagerView,{plantes:(data.couple||{}).potager||[],addPlante,updatePlante,deletePlante}),
+    view === 'potager' && React.createElement(PotagerView,{plantes:(data.couple||{}).potager||[],addPlante,updatePlante,deletePlante,semansye:(data.couple||{}).semansye||[],addLot,updateLot,deleteLot}),
     view === 'voyages' && React.createElement(VoyagesView,null),
     view === 'artiste' && React.createElement(ArtView,null)
   ), /*#__PURE__*/React.createElement(AddModal, {
@@ -12313,4 +12792,78 @@ const ch=sb.channel('ld-realtime')
     onClose: () => setShowMotivation(false)
   }));
 }
-ReactDOM.createRoot(document.getElementById('root')).render(/*#__PURE__*/React.createElement(App, null));
+// ── Écran d'ouverture animé ───────────────────────────────────────────────────
+// Affiché au lancement pendant SPLASH_HOLD, puis fondu de sortie vers l'app.
+// Passable à tout moment : clic, Échap/Entrée/Espace, ou bouton « Passer ».
+// L'app se monte derrière pendant ce temps → aucun temps d'attente ajouté.
+const SPLASH_HOLD = 2200; // ms avant le fondu de sortie
+const SPLASH_FADE = 480;  // ms de fondu (doit rester aligné sur @keyframes splashOut)
+
+function SplashScreen({ onDone }) {
+  const [leaving, setLeaving] = React.useState(false);
+  const doneRef = React.useRef(false);
+  const reduced = React.useRef(
+    typeof window !== 'undefined' && window.matchMedia
+      ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      : false
+  ).current;
+
+  const dismiss = React.useCallback(() => {
+    if (doneRef.current) return;
+    doneRef.current = true;
+    setLeaving(true);
+    setTimeout(onDone, reduced ? 0 : SPLASH_FADE);
+  }, [onDone, reduced]);
+
+  React.useEffect(() => {
+    const t = setTimeout(dismiss, reduced ? 600 : SPLASH_HOLD);
+    const onKey = e => {
+      if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') dismiss();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => { clearTimeout(t); window.removeEventListener('keydown', onKey); };
+  }, [dismiss, reduced]);
+
+  return React.createElement('div', {
+    className: 'splash' + (leaving ? ' splash--out' : ''),
+    role: 'dialog',
+    'aria-modal': 'true',
+    'aria-label': 'Ouverture de Lanmou Douvan',
+    onClick: dismiss
+  },
+    React.createElement('div', { className: 'splash-crest', 'aria-hidden': 'true' }, '♡'),
+    React.createElement('h1', { className: 'splash-title' }, 'Lanmou Douvan'),
+    React.createElement('div', { className: 'splash-rule', 'aria-hidden': 'true' }),
+    React.createElement('div', { className: 'splash-names' },
+      React.createElement('span', { className: 'n-dja' }, 'Dja'),
+      React.createElement('span', { className: 'n-amp' }, '&'),
+      React.createElement('span', { className: 'n-liika' }, 'Liika')
+    ),
+    React.createElement('div', { className: 'eyebrow splash-tag' }, 'Mix Vibz'),
+    React.createElement('button', {
+      className: 'splash-skip',
+      autoFocus: true,
+      onClick: dismiss
+    }, 'Passer')
+  );
+}
+
+// Une seule ouverture par session : sessionStorage est vidé à la fermeture de
+// l'onglet → le splash rejoue au prochain lancement, mais pas à chaque F5.
+const SPLASH_SEEN_KEY = 'ld-splash-seen';
+
+function Root() {
+  const [splash, setSplash] = React.useState(() => {
+    try { return sessionStorage.getItem(SPLASH_SEEN_KEY) !== '1'; } catch (e) { return true; }
+  });
+  // Marqué dès le 1er rendu : un rechargement pendant l'animation ne la rejoue pas.
+  React.useEffect(() => {
+    try { sessionStorage.setItem(SPLASH_SEEN_KEY, '1'); } catch (e) {}
+  }, []);
+  return React.createElement(React.Fragment, null,
+    splash && React.createElement(SplashScreen, { onDone: () => setSplash(false) }),
+    React.createElement(App, null)
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(/*#__PURE__*/React.createElement(Root, null));

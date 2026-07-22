@@ -213,3 +213,40 @@ background-repeat:no-repeat;
 .hero-dot.active{background:#fff;width:22px}
 .hero-dot:not(.active){width:6px}
 .hero-dot:hover:not(.active){background:rgba(255,255,255,.65)}
+
+/* ── Kalandriye Lalin (almanach potager) ────────────────── */
+.pl-btn{transition:transform .2s ease,background .2s ease}
+.pl-btn:hover{transform:translateY(-2px)}
+.pl-btn:active{transform:scale(.97)}
+.pl-btn:focus-visible{outline:2px solid var(--gold2);outline-offset:2px}
+.pl-fade{animation:plFade .35s ease both}
+@keyframes plFade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){
+.pl-btn:hover,.pl-btn:active{transform:none}
+.pl-fade{animation:none}
+}
+
+/* ── Écran d'ouverture (splash) ─────────────────────────── */
+.splash{position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;cursor:pointer;
+background:radial-gradient(ellipse 620px 420px at 50% 38%,rgba(217,183,95,.10),transparent 70%),var(--grad-hero)}
+.splash--out{animation:splashOut .48s ease forwards}
+@keyframes splashOut{to{opacity:0;visibility:hidden}}
+.splash-crest{width:96px;height:96px;border-radius:50%;border:1px solid var(--gold-border);background:var(--gold-bg);display:flex;align-items:center;justify-content:center;font-size:40px;color:var(--gold2);
+animation:splashRise .7s cubic-bezier(.16,1,.3,1) both,splashBeat 1.6s ease-in-out .7s infinite}
+.splash-title{font-family:'Cormorant Garamond',serif;font-size:clamp(34px,9vw,54px);font-weight:600;line-height:1.1;color:var(--gold2);margin-top:22px;animation:splashRise .7s cubic-bezier(.16,1,.3,1) .18s both}
+.splash-rule{height:1px;width:min(220px,60vw);margin:14px 0;background:linear-gradient(90deg,transparent,var(--gold-border),transparent);animation:splashRule .6s ease .42s both}
+.splash-names{display:flex;align-items:center;justify-content:center;gap:9px;font-size:15px;font-weight:600;letter-spacing:.04em;color:var(--text2);animation:splashRise .6s ease .5s both}
+.splash-names .n-dja{color:var(--accent-dja2)}
+.splash-names .n-liika{color:var(--accent-liika2)}
+.splash-names .n-amp{color:var(--gold)}
+.splash-tag{margin-top:14px;font-size:11px;animation:splashRise .6s ease .62s both}
+.splash-skip{position:absolute;bottom:22px;right:22px;min-height:44px;min-width:96px;padding:10px 22px;border-radius:22px;border:1px solid var(--gold-border);background:var(--gold-bg);color:var(--gold2);font-family:'Outfit',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:background .18s}
+.splash-skip:hover{background:rgba(217,183,95,.20)}
+.splash-skip:focus-visible{outline:2px solid var(--gold2);outline-offset:3px}
+@keyframes splashRise{from{opacity:0;transform:translateY(16px) scale(.94)}to{opacity:1;transform:none}}
+@keyframes splashBeat{0%,100%{transform:scale(1)}18%{transform:scale(1.09)}36%{transform:scale(1)}54%{transform:scale(1.05)}}
+@keyframes splashRule{from{opacity:0;transform:scaleX(0)}to{opacity:1;transform:scaleX(1)}}
+@media (prefers-reduced-motion:reduce){
+.splash-crest,.splash-title,.splash-rule,.splash-names,.splash-tag{animation:none!important;opacity:1!important;transform:none!important}
+.splash--out{animation:none;opacity:0;visibility:hidden}
+}
