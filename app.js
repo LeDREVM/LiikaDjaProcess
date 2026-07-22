@@ -510,6 +510,7 @@ const defaultData = {
       fiches: [],
       notes: ''
     },
+    route: { km: 0, checklist: {} },
     sport: [{
       id: 'ls1',
       jour: 'Mardi',
@@ -648,6 +649,7 @@ const defaultData = {
       custom: []
     },
     motivations: [],
+    medical: [],
     maison: {
       checked: {},
       custom: [],
@@ -743,10 +745,14 @@ function normalize(d) {
   if (Array.isArray(d.media)) base.media = d.media;
   if (Array.isArray(d.album)) base.album = d.album;
   if (!Array.isArray(base.couple.motivations)) base.couple.motivations = [];
+  if (!Array.isArray(base.couple.medical)) base.couple.medical = [];
   if (!base.liika.codeRousseau || typeof base.liika.codeRousseau !== 'object') base.liika.codeRousseau = clone(defaultData.liika.codeRousseau);
   if (!Array.isArray(base.liika.codeRousseau.eleves)) base.liika.codeRousseau.eleves = [];
   if (!Array.isArray(base.liika.codeRousseau.fiches)) base.liika.codeRousseau.fiches = [];
   if (typeof base.liika.codeRousseau.notes !== 'string') base.liika.codeRousseau.notes = '';
+  if (!base.liika.route || typeof base.liika.route !== 'object') base.liika.route = { km: 0, checklist: {} };
+  if (typeof base.liika.route.km !== 'number') base.liika.route.km = 0;
+  if (!base.liika.route.checklist || typeof base.liika.route.checklist !== 'object') base.liika.route.checklist = {};
   // Survie : garantir la forme (le spread couple ci-dessus a pu remplacer survie par une version partielle)
   {
     const sd = (d.couple && typeof d.couple.survie === 'object' && d.couple.survie) ? d.couple.survie : {};
@@ -8194,30 +8200,109 @@ const CATEGORIES = [
   },
 ];
 
-function CategoryHome({ cat, catIdx, prevCatIdx, setView }) {
-  const dir = catIdx >= prevCatIdx ? 'right' : 'left';
-  return React.createElement('div', { key: cat.id, className: 'cat-slide-' + dir, style:{ paddingBottom:24 } },
-    // Gradient header
-    React.createElement('div', { style:{ background:cat.grad, borderRadius:'var(--radius)', padding:'30px 24px 28px', marginBottom:24, position:'relative', overflow:'hidden' } },
-      React.createElement('div', { style:{ position:'absolute', right:-30, top:-30, width:160, height:160, borderRadius:'50%', background:'rgba(255,255,255,.08)', pointerEvents:'none' } }),
-      React.createElement('div', { style:{ position:'absolute', left:40, bottom:-40, width:100, height:100, borderRadius:'50%', background:'rgba(0,0,0,.1)', pointerEvents:'none' } }),
-      React.createElement('div', { style:{ position:'relative', zIndex:1 } },
-        React.createElement('div', { style:{ fontSize:54, lineHeight:1, marginBottom:12 } }, cat.emoji),
-        React.createElement('h1', { style:{ color:'#fff', margin:'0 0 8px', fontSize:28, fontWeight:900, letterSpacing:'-.5px', textShadow:'0 2px 8px rgba(0,0,0,.3)' } }, cat.label),
-        React.createElement('p', { style:{ color:'rgba(255,255,255,.75)', margin:0, fontSize:13, lineHeight:1.5 } }, cat.desc)
+function CategoryHome({ catIdx, prevCatIdx, setView, goToCategory }) {
+  var cat = CATEGORIES[catIdx] || CATEGORIES[0];
+  var dir = catIdx >= prevCatIdx ? 'right' : 'left';
+  var [touchX, setTouchX] = React.useState(null);
+  var [paused, setPaused] = React.useState(false);
+  var [progKey, setProgKey] = React.useState(0); // force re-mount de la barre
+  var timerRef = React.useRef(null);
+
+  var goTo = React.useCallback(function(newIdx) {
+    goToCategory(CATEGORIES[newIdx].id);
+    setPaused(true);
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(function() { setPaused(false); }, 12000);
+  }, [goToCategory]);
+
+  var goPrev = function() { goTo((catIdx - 1 + CATEGORIES.length) % CATEGORIES.length); };
+  var goNext = function() { goTo((catIdx + 1) % CATEGORIES.length); };
+
+  // Auto-avance toutes les 5s
+  React.useEffect(function() {
+    setProgKey(function(k) { return k + 1; }); // reset barre de progression
+    if (paused) return;
+    var t = setTimeout(function() {
+      goToCategory(CATEGORIES[(catIdx + 1) % CATEGORIES.length].id);
+    }, 5000);
+    return function() { clearTimeout(t); };
+  }, [catIdx, paused]);
+
+  // Nettoyage timer au démontage
+  React.useEffect(function() { return function() { clearTimeout(timerRef.current); }; }, []);
+
+  var onTouchStart = function(e) { setTouchX(e.touches[0].clientX); };
+  var onTouchEnd = function(e) {
+    if (touchX === null) return;
+    var dx = e.changedTouches[0].clientX - touchX;
+    if (Math.abs(dx) > 48) { if (dx < 0) goNext(); else goPrev(); }
+    setTouchX(null);
+  };
+
+  return React.createElement('div', null,
+    // ── Hero slider ──
+    React.createElement('div', {
+      className: 'hero-slider',
+      onTouchStart: onTouchStart, onTouchEnd: onTouchEnd,
+      onMouseEnter: function() { setPaused(true); },
+      onMouseLeave: function() { setPaused(false); }
+    },
+      // Slide
+      React.createElement('div', {
+        key: cat.id,
+        className: 'hero-slide hero-slide-enter-' + dir,
+        style: { background: cat.grad }
+      },
+        // Blobs flottants (parallax décoratif)
+        React.createElement('div', { className:'hero-blob hero-blob-1', style:{ background:'rgba(255,255,255,.07)' } }),
+        React.createElement('div', { className:'hero-blob hero-blob-2', style:{ background:'rgba(0,0,0,.12)' } }),
+        React.createElement('div', { className:'hero-blob hero-blob-3', style:{ background:'rgba(255,255,255,.05)' } }),
+        // Contenu
+        React.createElement('div', { style:{ position:'relative', zIndex:2 } },
+          React.createElement('div', { className:'hero-emoji', style:{ fontSize:60, lineHeight:1, marginBottom:14 } }, cat.emoji),
+          React.createElement('h1', { style:{ color:'#fff', margin:'0 0 6px', fontSize:28, fontWeight:900, letterSpacing:'-.5px', textShadow:'0 2px 12px rgba(0,0,0,.4)', lineHeight:1.1 } }, cat.label),
+          React.createElement('p', { style:{ color:'rgba(255,255,255,.75)', margin:'0 0 18px', fontSize:13, lineHeight:1.5, fontStyle:'italic' } }, cat.desc),
+          // Pills raccourcis
+          React.createElement('div', { style:{ display:'flex', gap:7, flexWrap:'wrap' } },
+            cat.views.slice(0, 4).map(function(v) {
+              return React.createElement('button', {
+                key: v.id, className:'hero-pill',
+                onClick: function() { setView(v.target || v.id); }
+              }, v.icon, ' ', v.label);
+            })
+          )
+        ),
+        // Barre de progression auto-avance
+        !paused && React.createElement('div', { key: 'prog-' + progKey, className:'hero-progress hero-progress-anim' })
+      ),
+      // Flèche gauche
+      React.createElement('button', { className:'hero-arrow hero-arrow-left', onClick:goPrev, 'aria-label':'Précédent' }, '‹'),
+      // Flèche droite
+      React.createElement('button', { className:'hero-arrow hero-arrow-right', onClick:goNext, 'aria-label':'Suivant' }, '›'),
+      // Points de navigation
+      React.createElement('div', { className:'hero-dots' },
+        CATEGORIES.map(function(c, i) {
+          return React.createElement('button', {
+            key: c.id,
+            className: 'hero-dot' + (i === catIdx ? ' active' : ''),
+            onClick: function() { goTo(i); },
+            'aria-label': c.label
+          });
+        })
       )
     ),
-    // Tiles
+    // ── Grille de tuiles ──
     React.createElement('div', { style:{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(96px,1fr))', gap:12 } },
-      cat.views.map((v, i) => React.createElement('button', {
-        key: v.id,
-        onClick: () => setView(v.target || v.id),
-        className: 'view-tile',
-        style: { animationDelay: `${i * 58}ms` },
-      },
-        React.createElement('span', { className:'view-tile-icon' }, v.icon),
-        React.createElement('span', { className:'view-tile-label' }, v.label)
-      ))
+      cat.views.map(function(v, i) {
+        return React.createElement('button', {
+          key: v.id, className:'view-tile',
+          style: { animationDelay: i * 55 + 'ms' },
+          onClick: function() { setView(v.target || v.id); }
+        },
+          React.createElement('span', { className:'view-tile-icon' }, v.icon),
+          React.createElement('span', { className:'view-tile-label' }, v.label)
+        );
+      })
     )
   );
 }
@@ -8500,15 +8585,23 @@ function IdeesView() {
   );
 }
 
-function MedicalView() {
-  const [rdvs, setRdvs] = React.useState(() => { try { return JSON.parse(localStorage.getItem('ld-medical')||'[]'); } catch { return []; } });
+function MedicalView({ rdvs, addMedical, deleteMedical }) {
   const [form, setForm] = React.useState({ titre:'', date:'', medecin:'', notes:'', qui:'Couple' });
   const [show, setShow] = React.useState(false);
   const QUIS = ['Dja','Liika','Couple'];
   const QUI_C = { 'Dja':'var(--accent-dja)', 'Liika':'var(--accent-liika)', 'Couple':'var(--gold)' };
-  const save = l => { setRdvs(l); localStorage.setItem('ld-medical', JSON.stringify(l)); };
-  const add = () => { if (!form.titre.trim()) return; save([{ id:Date.now().toString(), ...form }, ...rdvs]); setForm({ titre:'', date:'', medecin:'', notes:'', qui:'Couple' }); setShow(false); };
-  const del = id => save(rdvs.filter(r => r.id !== id));
+  // Migration unique depuis localStorage
+  React.useEffect(function() {
+    try {
+      var local = JSON.parse(localStorage.getItem('ld-medical') || '[]');
+      if (!local.length) return;
+      var syncedIds = new Set((rdvs || []).map(function(r) { return r.id; }));
+      local.filter(function(r) { return !syncedIds.has(r.id); }).forEach(function(r) { addMedical(r); });
+      localStorage.removeItem('ld-medical');
+    } catch(_) {}
+  }, []);
+  const add = () => { if (!form.titre.trim()) return; addMedical({ id:Date.now().toString(), ...form }); setForm({ titre:'', date:'', medecin:'', notes:'', qui:'Couple' }); setShow(false); };
+  const del = id => deleteMedical(id);
   const inp = { background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'8px 12px', fontSize:13, width:'100%', boxSizing:'border-box' };
   return React.createElement('div', null,
     React.createElement('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 } },
@@ -9565,9 +9658,27 @@ const [onlineCount,setOnlineCount]=useState(0); // nb d'appareils connectés (pr
 const [objMoisFilter,setObjMoisFilter]=useState(()=>new Date().getMonth());
 const [showAddObjM,setShowAddObjM]=useState(false);
 const [newObjM,setNewObjM]=useState({titre:'',detail:'',categorie:'Nature'});
-// État de la vue "Route Liika" (perdu lors d'une fusion, restauré ici au niveau App)
-const [routeKm,setRouteKm]=useState(0);
-const [routeChecklist,setRouteChecklist]=useState({});
+// État de la vue "Route Liika" — persisté dans data.liika.route → synchro Supabase
+const routeKm=(data.liika&&data.liika.route&&typeof data.liika.route.km==='number')?data.liika.route.km:0;
+const routeChecklist=(data.liika&&data.liika.route&&data.liika.route.checklist)||{};
+const setRouteKm=useCallback(fn=>{
+  setData(prev=>{
+    const next=clone(prev);
+    if(!next.liika.route||typeof next.liika.route!=='object') next.liika.route={km:0,checklist:{}};
+    const cur=typeof next.liika.route.km==='number'?next.liika.route.km:0;
+    next.liika.route.km=Math.max(0,typeof fn==='function'?fn(cur):fn);
+    return next;
+  });
+},[]);
+const setRouteChecklist=useCallback(fn=>{
+  setData(prev=>{
+    const next=clone(prev);
+    if(!next.liika.route||typeof next.liika.route!=='object') next.liika.route={km:0,checklist:{}};
+    if(!next.liika.route.checklist||typeof next.liika.route.checklist!=='object') next.liika.route.checklist={};
+    next.liika.route.checklist=typeof fn==='function'?fn(next.liika.route.checklist):fn;
+    return next;
+  });
+},[]);
 const [showMotivation,setShowMotivation]=useState(false);
 const [motivationMsg,setMotivationMsg]=useState('');
 const activeProfile=ui?.activeProfile||'dja';
@@ -10075,6 +10186,20 @@ const ch=sb.channel('ld-realtime')
       return next;
     });
     if (storagePath) sb.storage.from('album-photos').remove([storagePath]).catch(function(){});
+  }, []);
+  const addMedical = useCallback(rdv => {
+    setData(prev => {
+      const next = clone(prev);
+      next.couple.medical = [rdv, ...(next.couple.medical || [])];
+      return next;
+    });
+  }, []);
+  const deleteMedical = useCallback(id => {
+    setData(prev => {
+      const next = clone(prev);
+      next.couple.medical = (next.couple.medical || []).filter(r => r.id !== id);
+      return next;
+    });
   }, []);
   // Survie : mutateur générique sur couple.survie (passe par setData → stamp + synchro section)
   const updateSurvie = useCallback(fn => {
@@ -12146,10 +12271,10 @@ const ch=sb.channel('ld-realtime')
       onClick:()=>setView(null)
     },'← Retour'),
     !view && React.createElement(CategoryHome,{
-      cat:CATEGORIES.find(c=>c.id===activeCat)||CATEGORIES[0],
       catIdx:CATEGORIES.findIndex(c=>c.id===activeCat),
       prevCatIdx,
-      setView
+      setView,
+      goToCategory
     }),
     view === 'dashboard' && renderDashboard(),
     view === 'dja' && renderPerson('dja'),
@@ -12175,7 +12300,7 @@ const ch=sb.channel('ld-realtime')
     view === 'sortie' && React.createElement(SortieView,null),
     view === 'album' && React.createElement(AlbumView,{album:data.album||[],addAlbumPhoto,deleteAlbumPhoto}),
     view === 'idees' && React.createElement(IdeesView,null),
-    view === 'medical' && React.createElement(MedicalView,null),
+    view === 'medical' && React.createElement(MedicalView,{rdvs:data.couple.medical||[],addMedical,deleteMedical}),
     view === 'voyages' && React.createElement(VoyagesView,null),
     view === 'artiste' && React.createElement(ArtView,null)
   ), /*#__PURE__*/React.createElement(AddModal, {
