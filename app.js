@@ -7819,6 +7819,10 @@ function CategoryHome({ catIdx, prevCatIdx, setView, goToCategory }) {
   };
 
   return React.createElement('div', null,
+    // ── Heure + météo Guadeloupe (visible dès l'accueil) ──
+    React.createElement('div', { style:{ display:'flex', justifyContent:'center', marginBottom:6 } },
+      React.createElement(GuadeloupeMeteo, null)
+    ),
     // ── Hero slider ──
     React.createElement('div', {
       className: 'hero-slider',
