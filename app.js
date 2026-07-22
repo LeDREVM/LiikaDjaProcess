@@ -5348,7 +5348,27 @@ function buildIcsEvents(data, opts) {
       ev.push(medicalToIcsEvent(m));
     });
   }
+  if (o.potager) {
+    const todayIso = new Date().toISOString().slice(0, 10);
+    ((data2.couple || {}).potager || []).forEach(p => {
+      potagerIcsEvents(p, todayIso).forEach(e => ev.push(e));
+    });
+  }
   return ev.filter(Boolean);
+}
+// Événements ICS pour une plante : rappel d'arrosage récurrent + récolte prévue.
+function potagerIcsEvents(p, todayIso) {
+  if (!p) return [];
+  const out = [];
+  const nom = p.nom || 'plante';
+  if (p.dateRecolte) {
+    out.push({ uid: 'potager-harvest-' + p.id + '@lanmou-douvan', startIso: p.dateRecolte, summary: '🧺 Récolte : ' + nom, description: (p.variete ? p.variete + '. ' : '') + 'Récolte prévue.' });
+  }
+  const rrule = POTAGER_ARROSAGE_RRULE[p.arrosage];
+  if (rrule) {
+    out.push({ uid: 'potager-water-' + p.id + '@lanmou-douvan', rrule: rrule, startIso: todayIso, time: '080000', durationMin: 15, summary: '💧 Arroser ' + nom, description: 'Arrosage : ' + p.arrosage });
+  }
+  return out;
 }
 // Convertit un RDV médical en événement ICS (journée entière). Renvoie null si pas de date.
 function medicalToIcsEvent(m) {
@@ -5386,6 +5406,15 @@ function eventsToIcs(events) {
       lines.push('DTSTART:' + startIso.replace(/-/g, '') + 'T' + time);
       lines.push('DTEND:' + endStr);
       lines.push('RRULE:FREQ=WEEKLY;BYDAY=' + ICS_DAY_CODE[evnt.recurDay]);
+    } else if (evnt.rrule) {
+      const startIso = String(evnt.startIso || '').slice(0, 10);
+      const time = evnt.time || '080000';
+      const startD = new Date(`${startIso}T${time.slice(0, 2)}:${time.slice(2, 4)}:${time.slice(4, 6)}`);
+      const endD = new Date(startD.getTime() + Math.max(5, evnt.durationMin || 15) * 60000);
+      const endStr = `${endD.getFullYear()}${pad(endD.getMonth() + 1)}${pad(endD.getDate())}T${pad(endD.getHours())}${pad(endD.getMinutes())}00`;
+      lines.push('DTSTART:' + startIso.replace(/-/g, '') + 'T' + time);
+      lines.push('DTEND:' + endStr);
+      lines.push('RRULE:' + evnt.rrule);
     } else {
       lines.push('DTSTART;VALUE=DATE:' + icsDate(evnt.startIso));
       lines.push('DTEND;VALUE=DATE:' + icsDateAddDays(evnt.startIso, 1));
@@ -5400,11 +5429,12 @@ function eventsToIcs(events) {
 
 function CalendarView({ data }) {
   const h = React.createElement;
-  const [opts, setOpts] = useState({ ferments: true, objMensuels: true, meals: false, sport: false, medical: true });
+  const [opts, setOpts] = useState({ ferments: true, objMensuels: true, meals: false, sport: false, medical: true, potager: true });
   const sources = [
     { key: 'ferments', label: 'Ferments (date « prêt »)', icon: '🫙' },
     { key: 'objMensuels', label: 'Objectifs du mois', icon: '🎯' },
     { key: 'medical', label: 'Suivi médical (RDV)', icon: '🩺' },
+    { key: 'potager', label: 'Potager (arrosage · récolte)', icon: '🌱' },
     { key: 'meals', label: 'Repas hebdo (récurrent)', icon: '🍽' },
     { key: 'sport', label: 'Sport hebdo (récurrent)', icon: '💪' }
   ];
@@ -8337,6 +8367,10 @@ const POTAGER_CAT_ICON = POTAGER_CATS.reduce((o, c) => { o[c.key] = c.icon; retu
 const POTAGER_STADES = ['Semis', 'Croissance', 'Floraison', 'Récolte', 'Terminé'];
 const POTAGER_STADE_C = { 'Semis':'#93c5fd', 'Croissance':'#4ade80', 'Floraison':'#f0abfc', 'Récolte':'var(--gold)', 'Terminé':'var(--text3)' };
 
+// Fréquences d'arrosage → règle de récurrence ICS (rappels calendrier).
+const POTAGER_ARROSAGE = ['', 'Quotidien', '2×/semaine', 'Hebdomadaire', 'Tous les 15 j'];
+const POTAGER_ARROSAGE_RRULE = { 'Quotidien':'FREQ=DAILY', '2×/semaine':'FREQ=WEEKLY;BYDAY=MO,TH', 'Hebdomadaire':'FREQ=WEEKLY', 'Tous les 15 j':'FREQ=WEEKLY;INTERVAL=2' };
+
 // ─── Bible du maraîchage guadeloupéen (compagnonnage + saisons) ───
 // Données agronomiques adaptées à la Guadeloupe : saison (carême sec ≈ déc→mai /
 // hivernage humide ≈ juin→nov, cyclones août–oct), associations, ravageurs, conseil GWA.
@@ -8364,7 +8398,15 @@ const POTAGER_BIBLE = [
   { nom:'Ail', emoji:'🧄', famille:'Alliacées', saison:'Carême (sec)', cycle:'4–5 mois', bons:['Tomate','Carotte','Laitue','Fraise'], eviter:['Haricot','Pois','Chou'], ravageurs:'Rouille', conseil:'Répulsif naturel (pucerons, acariens). À éloigner des légumineuses.' },
   { nom:'Basilic', emoji:'🌿', famille:'Lamiacées', saison:'Toute l\'année', cycle:'Continu', bons:['Tomate','Poivron','Piment','Aubergine','Gombo'], eviter:['Rue'], ravageurs:'Pucerons, limaces', conseil:'Protège la tomate (aleurodes) et en relève le goût. Pincer les fleurs pour prolonger.' },
   { nom:'Thym-pays', emoji:'🪴', famille:'Lamiacées', saison:'Toute l\'année', cycle:'Vivace', bons:['Chou','Aubergine','Tomate'], eviter:[], ravageurs:'Peu sensible', conseil:'Aromatique répulsive : borde les planches. Résiste très bien à la sécheresse.' },
-  { nom:'Melon', emoji:'🍈', famille:'Cucurbitacées', saison:'Carême (sec, sucré)', cycle:'~3 mois', bons:['Maïs','Haricot','Capucine'], eviter:['Concombre','Giraumon'], ravageurs:'Oïdium, mouche des cucurbitacées', conseil:'La chaleur sèche du carême concentre le sucre. Pailler sous les fruits.' }
+  { nom:'Melon', emoji:'🍈', famille:'Cucurbitacées', saison:'Carême (sec, sucré)', cycle:'~3 mois', bons:['Maïs','Haricot','Capucine'], eviter:['Concombre','Giraumon'], ravageurs:'Oïdium, mouche des cucurbitacées', conseil:'La chaleur sèche du carême concentre le sucre. Pailler sous les fruits.' },
+  { nom:'Madère violette', emoji:'🟣', famille:'Aracées', saison:'Hivernage (aime l\'eau)', cycle:'6–9 mois', bons:['Igname','Banane','Maïs'], eviter:[], ravageurs:'Pucerons, mildiou du taro', conseil:'Variété de dachine à chair violette. Sols humides. Feuilles jeunes = calalou.' },
+  { nom:'Ti-nain (banane légume)', emoji:'🍌', famille:'Musacées', saison:'Toute l\'année', cycle:'9–12 mois', bons:['Dachine','Gingembre','Ombre légère'], eviter:[], ravageurs:'Charançon du bananier, cercosporiose', conseil:'Banane verte à cuire. Œilletons repiqués. Ombrage et brise-vent pour le jardin créole.' },
+  { nom:'Brède / Épinard-pays', emoji:'🍃', famille:'Amaranthacées', saison:'Toute l\'année', cycle:'1–2 mois', bons:['Tomate','Piment','Gombo'], eviter:[], ravageurs:'Chenilles, altises', conseil:'Amarante à feuilles, très rapide. Se ressème seule. Couper les jeunes feuilles régulièrement.' },
+  { nom:'Gingembre', emoji:'🫚', famille:'Zingibéracées', saison:'Plant au carême', cycle:'8–10 mois', bons:['Ti-nain','Ombre légère','Curcuma'], eviter:[], ravageurs:'Pourriture du rhizome (excès d\'eau)', conseil:'Rhizome enterré. Aime la mi-ombre et un sol drainé. Récolte quand le feuillage jaunit.' },
+  { nom:'Curcuma', emoji:'🟠', famille:'Zingibéracées', saison:'Plant au carême', cycle:'8–10 mois', bons:['Gingembre','Ti-nain'], eviter:[], ravageurs:'Pourriture du rhizome', conseil:'Même culture que le gingembre. Rhizome jaune-orangé, à récolter en saison sèche.' },
+  { nom:'Persil', emoji:'🌿', famille:'Apiacées', saison:'Périodes fraîches', cycle:'2–3 mois', bons:['Tomate','Carotte','Piment'], eviter:['Laitue'], ravageurs:'Pucerons', conseil:'Germination lente (tremper les graines). Mi-ombre en saison chaude.' },
+  { nom:'Fraise (altitude)', emoji:'🍓', famille:'Rosacées', saison:'Carême, en altitude', cycle:'Vivace', bons:['Laitue','Ail','Oignon','Thym'], eviter:['Chou'], ravageurs:'Limaces, oïdium', conseil:'Réussit surtout en zone fraîche/altitude (Basse-Terre). Pailler pour garder les fruits propres.' },
+  { nom:'Pak-choï (chou de Chine)', emoji:'🥬', famille:'Brassicacées', saison:'Périodes fraîches', cycle:'1,5–2 mois', bons:['Haricot','Cive','Aromates'], eviter:['Tomate','Fraise'], ravageurs:'Altises, chenilles', conseil:'Croissance rapide, tolère mieux la chaleur que le chou pommé. Arrosage régulier.' }
 ];
 const normPot = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 // Retrouve la fiche bible correspondant au nom d'une plante (ex. « Tomate cerise » → Tomate).
@@ -8376,21 +8418,22 @@ function findBible(nom) {
 
 function PlanteForm({ onSave, onCancel }) {
   const h = React.createElement;
-  const [form, setForm] = React.useState({ nom:'', variete:'', categorie:'Légume', datePlantation:'', stade:'Semis', arrosage:'', notes:'' });
+  const [form, setForm] = React.useState({ nom:'', variete:'', categorie:'Légume', datePlantation:'', dateRecolte:'', stade:'Semis', arrosage:'', notes:'' });
   const inp = { background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'8px 12px', fontSize:13, width:'100%', boxSizing:'border-box' };
   const save = () => { if (!form.nom.trim()) return; onSave({ id:Date.now().toString(), ...form }); };
   return h('div', { style:{ background:'var(--glass)', border:'1px solid rgba(16,185,129,.35)', borderRadius:'var(--radius)', padding:16, marginBottom:16 } },
     h('input', { placeholder:'Nom de la plante * (ex : Tomate, Concombre)', value:form.nom, onChange:e=>setForm(p=>({...p,nom:e.target.value})), style:{ ...inp, marginBottom:8 } }),
     h('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 } },
       h('input', { placeholder:'Variété (ex : cœur de bœuf)', value:form.variete, onChange:e=>setForm(p=>({...p,variete:e.target.value})), style:inp }),
-      h('input', { placeholder:'Arrosage (ex : 2×/sem)', value:form.arrosage, onChange:e=>setForm(p=>({...p,arrosage:e.target.value})), style:inp })
+      h('label', { style:{ fontSize:11, color:'var(--text3)' } }, 'Arrosage 🔔', h('select', { value:form.arrosage, onChange:e=>setForm(p=>({...p,arrosage:e.target.value})), style:{ ...inp, marginTop:3 } }, POTAGER_ARROSAGE.map(a => h('option', { key:a||'none', value:a }, a || '— aucun rappel'))))
     ),
     h('div', { style:{ fontSize:11, color:'var(--text3)', margin:'4px 0 6px' } }, 'Catégorie'),
     h('div', { style:{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:8 } },
       POTAGER_CATS.map(c => h('button', { key:c.key, onClick:()=>setForm(p=>({...p,categorie:c.key})), style:{ padding:'5px 12px', borderRadius:16, border:`1px solid ${form.categorie===c.key?'var(--gold)':'var(--border)'}`, background:'transparent', color:form.categorie===c.key?'var(--gold)':'var(--text3)', cursor:'pointer', fontWeight:form.categorie===c.key?700:400, fontSize:12 } }, c.icon + ' ' + c.key))
     ),
-    h('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8, alignItems:'center' } },
+    h('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8, marginBottom:8, alignItems:'start' } },
       h('label', { style:{ fontSize:11, color:'var(--text3)' } }, 'Planté le', h('input', { type:'date', value:form.datePlantation, onChange:e=>setForm(p=>({...p,datePlantation:e.target.value})), style:{ ...inp, marginTop:3 } })),
+      h('label', { style:{ fontSize:11, color:'var(--text3)' } }, 'Récolte prévue 🔔', h('input', { type:'date', value:form.dateRecolte, onChange:e=>setForm(p=>({...p,dateRecolte:e.target.value})), style:{ ...inp, marginTop:3 } })),
       h('label', { style:{ fontSize:11, color:'var(--text3)' } }, 'Stade', h('select', { value:form.stade, onChange:e=>setForm(p=>({...p,stade:e.target.value})), style:{ ...inp, marginTop:3 } }, POTAGER_STADES.map(s => h('option', { key:s, value:s }, s))))
     ),
     h('textarea', { placeholder:'Notes (emplacement, engrais, observations…)', value:form.notes, onChange:e=>setForm(p=>({...p,notes:e.target.value})), style:{ ...inp, minHeight:56, marginBottom:10, resize:'vertical' } }),
@@ -8408,6 +8451,38 @@ function PotagerView({ plantes, addPlante, updatePlante, deletePlante }) {
   const [filtre, setFiltre] = React.useState('encours'); // encours | tous
   const [bibleOpen, setBibleOpen] = React.useState(null); // nom de la fiche ouverte
   const [q, setQ] = React.useState('');
+  const [journalOpen, setJournalOpen] = React.useState(null); // id plante dont le journal est ouvert
+  const [uploading, setUploading] = React.useState(false);
+
+  const dataURLtoBlob = dataURL => {
+    const parts = dataURL.split(','); const mime = parts[0].match(/:(.*?);/)[1];
+    const bin = atob(parts[1]); const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return new Blob([arr], { type: mime });
+  };
+  const addJournalPhoto = async (p, file) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const dataUrl = await compressImage(file);
+      const blob = dataURLtoBlob(dataUrl);
+      const path = 'potager/' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.jpg';
+      const { error } = await sb.storage.from('album-photos').upload(path, blob, { contentType: 'image/jpeg', upsert: false });
+      if (error) throw error;
+      const { data: urlData } = sb.storage.from('album-photos').getPublicUrl(path);
+      const entry = { id: Date.now().toString(), date: new Date().toISOString().slice(0, 10), src: urlData.publicUrl };
+      updatePlante(p.id, { journal: [entry, ...(p.journal || [])] });
+    } catch (err) { alert('Échec de l\'envoi de la photo : ' + (err && err.message ? err.message : err)); }
+    setUploading(false);
+  };
+  const delJournalEntry = (p, eid) => updatePlante(p.id, { journal: (p.journal || []).filter(e => e.id !== eid) });
+  const exportRappels = () => {
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const evs = (plantes || []).reduce((a, p) => a.concat(potagerIcsEvents(p, todayIso)), []);
+    if (!evs.length) { alert('Aucun rappel : ajoute une fréquence d\'arrosage ou une date de récolte à tes plantes.'); return; }
+    downloadIcs(evs, 'potager-rappels.ics');
+  };
+  const fmtDate = iso => { const d = new Date(String(iso).slice(0,10) + 'T00:00:00'); return isNaN(d.getTime()) ? iso : d.toLocaleDateString('fr-FR', { day:'2-digit', month:'short' }); };
 
   const joursDepuis = iso => {
     if (!iso) return null;
@@ -8435,7 +8510,7 @@ function PotagerView({ plantes, addPlante, updatePlante, deletePlante }) {
             p.variete && h('span', { style:{ fontSize:12, color:'var(--text3)', fontStyle:'italic' } }, p.variete)
           ),
           h('div', { style:{ fontSize:12, color:'var(--text3)', marginBottom:6 } },
-            [ j!=null && ('🌱 planté il y a ' + j + ' j'), p.arrosage && ('💧 ' + p.arrosage) ].filter(Boolean).join('  ·  ') || 'Pas de date de plantation'
+            [ j!=null && ('🌱 planté il y a ' + j + ' j'), p.arrosage && ('💧 ' + p.arrosage), p.dateRecolte && ('🧺 récolte ' + fmtDate(p.dateRecolte)) ].filter(Boolean).join('  ·  ') || 'Pas de date de plantation'
           ),
           h('div', { style:{ display:'flex', gap:4, flexWrap:'wrap', marginBottom: (p.notes||findBible(p.nom))?8:0 } },
             POTAGER_STADES.map((s, i) => h('button', { key:s, onClick:()=>updatePlante(p.id, { stade:s }), title:'Marquer : '+s, style:{ padding:'3px 10px', borderRadius:12, border:`1px solid ${p.stade===s?POTAGER_STADE_C[s]:'var(--border)'}`, background:p.stade===s?POTAGER_STADE_C[s]+'22':'transparent', color:p.stade===s?POTAGER_STADE_C[s]:(i<=idx?'var(--text2)':'var(--text3)'), cursor:'pointer', fontSize:11, fontWeight:p.stade===s?700:400 } }, s))
@@ -8444,7 +8519,24 @@ function PotagerView({ plantes, addPlante, updatePlante, deletePlante }) {
             b.bons.length ? h('span', null, '🤝 ', h('span', { style:{ color:'#4ade80' } }, b.bons.slice(0,4).join(', '))) : null,
             b.eviter.length ? h('span', null, '   ⛔ ', h('span', { style:{ color:'#f87171' } }, b.eviter.slice(0,3).join(', '))) : null
           ); })(),
-          p.notes && h('div', { style:{ fontSize:12, color:'var(--text3)', fontStyle:'italic' } }, p.notes)
+          p.notes && h('div', { style:{ fontSize:12, color:'var(--text3)', fontStyle:'italic', marginBottom:6 } }, p.notes),
+          h('button', { onClick:()=>setJournalOpen(journalOpen===p.id?null:p.id), style:{ background:'none', border:'1px solid var(--border)', borderRadius:12, color:'var(--text2)', cursor:'pointer', fontSize:11, fontWeight:700, padding:'3px 10px' } },
+            '📸 Journal' + ((p.journal||[]).length ? ' (' + p.journal.length + ')' : '')),
+          journalOpen === p.id && h('div', { style:{ marginTop:8, paddingTop:8, borderTop:'1px solid var(--border)' } },
+            h('label', { style:{ display:'inline-flex', alignItems:'center', gap:6, background:'#10b981', color:'#fff', borderRadius:12, padding:'5px 12px', cursor: uploading?'wait':'pointer', fontSize:12, fontWeight:700, marginBottom:8, opacity: uploading?.7:1 } },
+              uploading ? '⏳ Envoi…' : '📷 Ajouter une photo',
+              h('input', { type:'file', accept:'image/*', capture:'environment', disabled:uploading, onChange:e=>{ const f=e.target.files&&e.target.files[0]; addJournalPhoto(p, f); e.target.value=''; }, style:{ display:'none' } })
+            ),
+            (p.journal||[]).length === 0
+              ? h('div', { style:{ fontSize:12, color:'var(--text3)' } }, 'Aucune photo. Ajoute un cliché pour suivre la croissance dans le temps.')
+              : h('div', { style:{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(88px, 1fr))', gap:8 } },
+                  (p.journal||[]).map(e => h('div', { key:e.id, style:{ position:'relative' } },
+                    h('img', { src:e.src, alt:'', loading:'lazy', style:{ width:'100%', height:88, objectFit:'cover', borderRadius:8, border:'1px solid var(--border)', display:'block' } }),
+                    h('div', { style:{ fontSize:10, color:'var(--text3)', marginTop:2, textAlign:'center' } }, fmtDate(e.date)),
+                    h('button', { onClick:()=>{ if (confirm('Supprimer cette photo ?')) delJournalEntry(p, e.id); }, style:{ position:'absolute', top:3, right:3, background:'rgba(0,0,0,.55)', color:'#fff', border:'none', borderRadius:'50%', width:20, height:20, lineHeight:'20px', cursor:'pointer', fontSize:12, padding:0 } }, '×')
+                  ))
+                )
+          )
         ),
         h('button', { onClick:()=>{ if (confirm('Supprimer « '+p.nom+' » ?')) deletePlante(p.id); }, style:{ background:'none', border:'none', color:'var(--danger)', cursor:'pointer', fontSize:18 } }, '×')
       )
@@ -8454,7 +8546,10 @@ function PotagerView({ plantes, addPlante, updatePlante, deletePlante }) {
   return h('div', null,
     h('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14, gap:8, flexWrap:'wrap' } },
       h('h2', { style:{ margin:0, fontSize:20 } }, '🌱 Potager GWA'),
-      tab === 'plantes' && h('button', { onClick:()=>setShow(!show), style:{ padding:'8px 18px', borderRadius:20, border:'none', background:'#10b981', color:'#fff', cursor:'pointer', fontWeight:700 } }, show ? '✕' : '+ Plante')
+      tab === 'plantes' && h('div', { style:{ display:'flex', gap:8 } },
+        (plantes||[]).some(p => p.arrosage || p.dateRecolte) && h('button', { onClick:exportRappels, title:'Exporter les rappels arrosage & récolte (.ics)', style:{ padding:'8px 14px', borderRadius:20, border:'1px solid var(--border)', background:'transparent', color:'var(--text2)', cursor:'pointer', fontWeight:700, fontSize:13 } }, '🔔 Rappels'),
+        h('button', { onClick:()=>setShow(!show), style:{ padding:'8px 18px', borderRadius:20, border:'none', background:'#10b981', color:'#fff', cursor:'pointer', fontWeight:700 } }, show ? '✕' : '+ Plante')
+      )
     ),
     h('div', { style:{ display:'flex', gap:8, marginBottom:16 } },
       tabBtn('plantes', '🌱 Mes plantes' + (list.length ? ' ('+list.length+')' : '')),
