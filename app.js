@@ -3281,26 +3281,105 @@ const PLAN_WHO = {
     color: '#4ade80'
   }
 };
+// Lien Google Maps : requête nommée complète (nom du lieu + commune + Guadeloupe)
+// -> Maps épingle le POI officiel, pas de coordonnées inventées.
+const mapsUrl = q => 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q);
+// Carte affichée DANS l'app (iframe) — mode embed sans clé API.
+const mapEmbedUrl = q => 'https://www.google.com/maps?q=' + encodeURIComponent(q) + '&output=embed';
 const OUTINGS = [{
   icon: '🏖️',
   title: 'Plages',
-  places: ['Caravelle (Sainte-Anne)', 'Plage de la Perle (Deshaies)', 'Petit-Havre (Le Gosier)', 'Anse-Bertrand', 'Malendure (Bouillante)']
+  places: [{
+    n: 'Caravelle (Sainte-Anne)',
+    q: 'Plage de la Caravelle, Sainte-Anne, Guadeloupe'
+  }, {
+    n: 'Plage de la Perle (Deshaies)',
+    q: 'Plage de la Perle, Deshaies, Guadeloupe'
+  }, {
+    n: 'Petit-Havre (Le Gosier)',
+    q: 'Plage de Petit-Havre, Le Gosier, Guadeloupe'
+  }, {
+    n: 'Anse Laborde (Anse-Bertrand)',
+    q: 'Plage d\'Anse Laborde, Anse-Bertrand, Guadeloupe'
+  }, {
+    n: 'Malendure (Bouillante)',
+    q: 'Plage de Malendure, Bouillante, Guadeloupe'
+  }]
 }, {
   icon: '🌊',
   title: 'Rivières & Cascades',
-  places: ['Bras-David', 'Chutes du Carbet', 'Dolé-les-Bains', 'Saut de la Lézarde', 'Cascade aux Écrevisses']
+  places: [{
+    n: 'Bras-David',
+    q: 'Maison de la Forêt, Bras-David, Petit-Bourg, Guadeloupe'
+  }, {
+    n: 'Chutes du Carbet',
+    q: 'Chutes du Carbet, Capesterre-Belle-Eau, Guadeloupe'
+  }, {
+    n: 'Dolé-les-Bains',
+    q: 'Dolé-les-Bains, Gourbeyre, Guadeloupe'
+  }, {
+    n: 'Saut de la Lézarde',
+    q: 'Saut de la Lézarde, Petit-Bourg, Guadeloupe'
+  }, {
+    n: 'Cascade aux Écrevisses',
+    q: 'Cascade aux Écrevisses, Petit-Bourg, Guadeloupe'
+  }]
 }, {
   icon: '🏔️',
   title: 'Randonnées',
-  places: ['La Soufrière (sommet)', 'Forêt de Sofaïa', 'Trace des Crêtes', 'Morne à Louis', 'Allée Dumanoir']
+  places: [{
+    n: 'La Soufrière (sommet)',
+    q: 'Volcan La Soufrière, Saint-Claude, Guadeloupe'
+  }, {
+    n: 'Forêt de Sofaïa',
+    q: 'Sofaïa, Sainte-Rose, Guadeloupe'
+  }, {
+    n: 'Trace des Crêtes',
+    q: 'Trace des Crêtes, Terre-de-Haut, Les Saintes, Guadeloupe'
+  }, {
+    n: 'Morne à Louis',
+    q: 'Morne à Louis, Route de la Traversée, Guadeloupe'
+  }, {
+    n: 'Allée Dumanoir',
+    q: 'Allée Dumanoir, Capesterre-Belle-Eau, Guadeloupe'
+  }]
 }, {
   icon: '🌅',
   title: 'Couchers de soleil',
-  places: ['Point des Châteaux', 'Vieux-Fort', 'Désirade (vue)', 'Pointe Noire', 'Anse à la Barque']
+  places: [{
+    n: 'Pointe des Châteaux',
+    q: 'Pointe des Châteaux, Saint-François, Guadeloupe'
+  }, {
+    n: 'Vieux-Fort',
+    q: 'Phare de Vieux-Fort, Vieux-Fort, Guadeloupe'
+  }, {
+    n: 'Désirade (vue)',
+    q: 'La Désirade, Guadeloupe'
+  }, {
+    n: 'Pointe-Noire',
+    q: 'Pointe-Noire, Guadeloupe'
+  }, {
+    n: 'Anse à la Barque',
+    q: 'Anse à la Barque, Vieux-Habitants, Guadeloupe'
+  }]
 }, {
   icon: '🎭',
   title: 'Sorties culturelles',
-  places: ['Marché de Saint-François', 'Mémorial ACTe (Pointe-à-Pitre)', 'Festival Gwoka', 'Concerts locaux', 'Galeries Basse-Terre']
+  places: [{
+    n: 'Marché de Saint-François',
+    q: 'Marché de Saint-François, Saint-François, Guadeloupe'
+  }, {
+    n: 'Mémorial ACTe (Pointe-à-Pitre)',
+    q: 'Mémorial ACTe, Pointe-à-Pitre, Guadeloupe'
+  }, {
+    n: 'Festival Gwoka (Sainte-Anne)',
+    q: 'Sainte-Anne, Guadeloupe'
+  }, {
+    n: 'Concerts locaux'
+  }, {
+    n: 'Galeries Basse-Terre',
+    q: 'Basse-Terre, Guadeloupe'
+  }]
 }];
 const BOOKS = [{
   title: 'La Nourriture végétaliste créole',
@@ -4462,6 +4541,7 @@ function PlanningView({
 }) {
   const [activeDay, setActiveDay] = useState(0);
   const [activeTab, setActiveTab] = useState('planning');
+  const [openMap, setOpenMap] = useState(null);
   const [addingItem, setAddingItem] = useState(false);
   const [addForm, setAddForm] = useState({
     time: '09:00',
@@ -5044,18 +5124,90 @@ function PlanningView({
       flexWrap: 'wrap',
       gap: 7
     }
-  }, o.places.map((p, j) => /*#__PURE__*/React.createElement("span", {
-    key: j,
-    style: {
-      fontSize: 10,
+  }, o.places.map((p, j) => {
+    const mapKey = i + '-' + j;
+    const isOpen = openMap === mapKey;
+    const chipStyle = {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 4,
+      minHeight: 32,
+      fontSize: 11,
       fontFamily: "'Space Mono',monospace",
-      background: 'rgba(74,222,128,.1)',
+      background: isOpen ? 'rgba(74,222,128,.22)' : 'rgba(74,222,128,.1)',
       color: '#4ade80',
-      padding: '3px 10px',
+      padding: '6px 11px',
       borderRadius: 18,
-      border: '1px solid #2d5a3d'
-    }
-  }, p))))), /*#__PURE__*/React.createElement("div", {
+      border: '1px solid ' + (isOpen ? '#4ade80' : '#2d5a3d')
+    };
+    return p.q ? /*#__PURE__*/React.createElement("button", {
+      key: j,
+      type: "button",
+      onClick: () => setOpenMap(isOpen ? null : mapKey),
+      "aria-expanded": isOpen,
+      "aria-controls": 'map-' + mapKey,
+      title: (isOpen ? 'Masquer' : 'Voir') + ' la carte : ' + p.q,
+      style: {
+        ...chipStyle,
+        cursor: 'pointer'
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      "aria-hidden": "true"
+    }, "📍"), p.n) : /*#__PURE__*/React.createElement("span", {
+      key: j,
+      style: chipStyle
+    }, p.n);
+  })), (() => {
+    const j = openMap && openMap.slice(0, openMap.indexOf('-')) === String(i) ? Number(openMap.slice(openMap.indexOf('-') + 1)) : -1;
+    const p = j >= 0 ? o.places[j] : null;
+    if (!p) return null;
+    return /*#__PURE__*/React.createElement("div", {
+      id: 'map-' + openMap,
+      style: {
+        marginTop: 10
+      }
+    }, /*#__PURE__*/React.createElement("iframe", {
+      title: 'Carte Google Maps — ' + p.q,
+      src: mapEmbedUrl(p.q),
+      loading: "lazy",
+      referrerPolicy: "no-referrer-when-downgrade",
+      sandbox: "allow-scripts allow-same-origin allow-popups",
+      style: {
+        display: 'block',
+        width: '100%',
+        height: 220,
+        border: '1px solid #2d5a3d',
+        borderRadius: 12
+      }
+    }), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: 8,
+        marginTop: 6
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 10,
+        fontFamily: "'Space Mono',monospace",
+        color: '#7fb894'
+      }
+    }, p.q), /*#__PURE__*/React.createElement("a", {
+      href: mapsUrl(p.q),
+      target: "_blank",
+      rel: "noopener noreferrer",
+      style: {
+        fontSize: 10,
+        fontFamily: "'Space Mono',monospace",
+        color: '#4ade80',
+        minHeight: 32,
+        display: 'inline-flex',
+        alignItems: 'center'
+      }
+    }, "Itin\xE9raire ↗")));
+  })())), /*#__PURE__*/React.createElement("div", {
     style: {
       background: 'linear-gradient(135deg,rgba(244,114,182,.08),rgba(74,222,128,.05))',
       border: '1px solid #3a1a2a',
