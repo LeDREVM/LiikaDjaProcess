@@ -5369,7 +5369,31 @@ function buildIcsEvents(data, opts) {
       });
     });
   }
-  return ev;
+  if (o.medical) {
+    ((data2.couple || {}).medical || []).forEach(m => {
+      ev.push(medicalToIcsEvent(m));
+    });
+  }
+  return ev.filter(Boolean);
+}
+// Convertit un RDV médical en événement ICS (journée entière). Renvoie null si pas de date.
+function medicalToIcsEvent(m) {
+  if (!m || !m.date) return null;
+  const who = m.qui && m.qui !== 'Couple' ? m.qui + ' · ' : '';
+  return {
+    uid: 'medical-' + m.id + '@lanmou-douvan',
+    startIso: m.date,
+    summary: '🩺 ' + who + (m.titre || 'RDV médical'),
+    description: [m.medecin, m.notes].filter(Boolean).join(' — ')
+  };
+}
+// Télécharge un tableau d'événements sous forme de fichier .ics.
+function downloadIcs(events, filename) {
+  const blob = new Blob([eventsToIcs(events)], { type: 'text/calendar;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename || 'lanmou-douvan.ics'; a.click();
+  URL.revokeObjectURL(url);
 }
 function eventsToIcs(events) {
   const stamp = icsStamp();
@@ -5402,10 +5426,11 @@ function eventsToIcs(events) {
 
 function CalendarView({ data }) {
   const h = React.createElement;
-  const [opts, setOpts] = useState({ ferments: true, objMensuels: true, meals: false, sport: false });
+  const [opts, setOpts] = useState({ ferments: true, objMensuels: true, meals: false, sport: false, medical: true });
   const sources = [
     { key: 'ferments', label: 'Ferments (date « prêt »)', icon: '🫙' },
     { key: 'objMensuels', label: 'Objectifs du mois', icon: '🎯' },
+    { key: 'medical', label: 'Suivi médical (RDV)', icon: '🩺' },
     { key: 'meals', label: 'Repas hebdo (récurrent)', icon: '🍽' },
     { key: 'sport', label: 'Sport hebdo (récurrent)', icon: '💪' }
   ];
@@ -5413,11 +5438,7 @@ function CalendarView({ data }) {
   const toggle = key => setOpts(prev => ({ ...prev, [key]: !prev[key] }));
   const exportIcs = () => {
     if (!events.length) { alert('Aucun événement à exporter. Active au moins une source avec des données datées.'); return; }
-    const blob = new Blob([eventsToIcs(events)], { type: 'text/calendar;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'lanmou-douvan.ics'; a.click();
-    URL.revokeObjectURL(url);
+    downloadIcs(events, 'lanmou-douvan.ics');
   };
   const fmtFr = iso => {
     const d = new Date(`${String(iso).slice(0, 10)}T00:00:00`);
@@ -8603,10 +8624,65 @@ function MedicalView({ rdvs, addMedical, deleteMedical }) {
   const add = () => { if (!form.titre.trim()) return; addMedical({ id:Date.now().toString(), ...form }); setForm({ titre:'', date:'', medecin:'', notes:'', qui:'Couple' }); setShow(false); };
   const del = id => deleteMedical(id);
   const inp = { background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'8px 12px', fontSize:13, width:'100%', boxSizing:'border-box' };
+
+  // Compte à rebours en jours (0 = aujourd'hui, >0 à venir, <0 passé). null si pas de date.
+  const daysUntil = iso => {
+    if (!iso) return null;
+    const d = new Date(String(iso).slice(0,10) + 'T00:00:00');
+    if (isNaN(d.getTime())) return null;
+    const t = new Date(); t.setHours(0,0,0,0);
+    return Math.round((d.getTime() - t.getTime()) / 86400000);
+  };
+  const fmtFr = iso => {
+    const d = new Date(String(iso).slice(0,10) + 'T00:00:00');
+    return isNaN(d.getTime()) ? iso : d.toLocaleDateString('fr-FR', { weekday:'short', day:'2-digit', month:'short', year:'numeric' });
+  };
+  const countdownLabel = n => n === null ? '' : n === 0 ? "Aujourd'hui" : n === 1 ? 'Demain' : n > 1 ? 'Dans ' + n + ' j' : n === -1 ? 'Hier' : 'Il y a ' + (-n) + ' j';
+
+  // Tri : à venir (dates avec compte à rebours >= 0, plus proche en premier) + non datés,
+  // puis passés (plus récent en premier).
+  const withMeta = (rdvs || []).map(r => ({ r, d: daysUntil(r.date) }));
+  const aVenir = withMeta.filter(x => x.d === null || x.d >= 0)
+    .sort((a,b) => (a.d === null ? Infinity : a.d) - (b.d === null ? Infinity : b.d));
+  const passes = withMeta.filter(x => x.d !== null && x.d < 0).sort((a,b) => b.d - a.d);
+  const prochain = aVenir.find(x => x.d !== null) || null;
+  const exportOne = r => { const ev = medicalToIcsEvent(r); if (!ev) { alert("Ajoute une date à ce RDV pour l'exporter au calendrier."); return; } downloadIcs([ev], 'rdv-' + (r.titre||'medical').toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,30) + '.ics'); };
+  const exportAll = () => { const evs = (rdvs || []).map(medicalToIcsEvent).filter(Boolean); if (!evs.length) { alert('Aucun RDV daté à exporter.'); return; } downloadIcs(evs, 'suivi-medical.ics'); };
+
+  const renderCard = (r, d) => {
+    const past = d !== null && d < 0;
+    return React.createElement('div', { key:r.id, style:{ background:'var(--glass)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'12px 16px', marginBottom:10, display:'flex', gap:12, alignItems:'flex-start', opacity: past ? .6 : 1 } },
+      React.createElement('div', { style:{ flex:1, minWidth:0 } },
+        React.createElement('div', { style:{ display:'flex', alignItems:'center', gap:8, marginBottom:4, flexWrap:'wrap' } },
+          React.createElement('span', { style:{ fontSize:10, fontWeight:700, color:QUI_C[r.qui]||'var(--gold)', background:'var(--bg2)', borderRadius:10, padding:'2px 7px' } }, r.qui),
+          React.createElement('span', { style:{ fontWeight:700, color:'var(--text)', fontSize:14 } }, r.titre),
+          d !== null && React.createElement('span', { style:{ fontSize:10, fontWeight:700, color: past ? 'var(--text3)' : (d<=2 ? '#f59e0b' : '#10b981'), background:'var(--bg2)', borderRadius:10, padding:'2px 7px' } }, countdownLabel(d))
+        ),
+        (r.date||r.medecin) && React.createElement('div', { style:{ fontSize:12, color:'var(--text3)', marginBottom:3 } }, [r.date&&fmtFr(r.date), r.medecin].filter(Boolean).join(' · ')),
+        r.notes && React.createElement('div', { style:{ fontSize:12, color:'var(--text3)', fontStyle:'italic' } }, r.notes)
+      ),
+      React.createElement('div', { style:{ display:'flex', flexDirection:'column', gap:6, alignItems:'center' } },
+        React.createElement('button', { onClick:()=>exportOne(r), title:'Ajouter au calendrier (.ics)', style:{ background:'none', border:'1px solid var(--border)', borderRadius:8, color:'var(--text2)', cursor:'pointer', fontSize:14, padding:'2px 8px' } }, '📅'),
+        React.createElement('button', { onClick:()=>del(r.id), style:{ background:'none', border:'none', color:'var(--danger)', cursor:'pointer', fontSize:18 } }, '×')
+      )
+    );
+  };
+
   return React.createElement('div', null,
-    React.createElement('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 } },
+    React.createElement('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20, gap:8, flexWrap:'wrap' } },
       React.createElement('h2', { style:{ margin:0, fontSize:20 } }, '🩺 Suivi médical'),
-      React.createElement('button', { onClick:()=>setShow(!show), style:{ padding:'8px 18px', borderRadius:20, border:'none', background:'#10b981', color:'#fff', cursor:'pointer', fontWeight:700 } }, show ? '✕' : '+ RDV')
+      React.createElement('div', { style:{ display:'flex', gap:8 } },
+        (rdvs||[]).some(r => r.date) && React.createElement('button', { onClick:exportAll, title:'Exporter tous les RDV au format .ics', style:{ padding:'8px 14px', borderRadius:20, border:'1px solid var(--border)', background:'transparent', color:'var(--text2)', cursor:'pointer', fontWeight:700, fontSize:13 } }, '📅 Exporter'),
+        React.createElement('button', { onClick:()=>setShow(!show), style:{ padding:'8px 18px', borderRadius:20, border:'none', background:'#10b981', color:'#fff', cursor:'pointer', fontWeight:700 } }, show ? '✕' : '+ RDV')
+      )
+    ),
+    prochain && !show && React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid rgba(16,185,129,.35)', borderRadius:'var(--radius)', padding:'12px 16px', marginBottom:16, display:'flex', alignItems:'center', gap:12 } },
+      React.createElement('span', { style:{ fontSize:24 } }, '⏰'),
+      React.createElement('div', null,
+        React.createElement('div', { style:{ fontSize:11, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em' } }, 'Prochain rendez-vous'),
+        React.createElement('div', { style:{ fontWeight:700, color:'var(--text)', fontSize:15 } }, countdownLabel(prochain.d) + ' · ' + prochain.r.titre),
+        React.createElement('div', { style:{ fontSize:12, color:'var(--text3)' } }, [fmtFr(prochain.r.date), prochain.r.medecin].filter(Boolean).join(' · '))
+      )
     ),
     show && React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid rgba(16,185,129,.35)', borderRadius:'var(--radius)', padding:16, marginBottom:16 } },
       React.createElement('input', { placeholder:'Motif / titre *', value:form.titre, onChange:e=>setForm(p=>({...p,titre:e.target.value})), style:{ ...inp, marginBottom:8 } }),
@@ -8621,17 +8697,10 @@ function MedicalView({ rdvs, addMedical, deleteMedical }) {
       React.createElement('button', { onClick:add, style:{ padding:'8px 20px', borderRadius:12, border:'none', background:'#10b981', color:'#fff', cursor:'pointer', fontWeight:700 } }, 'Enregistrer')
     ),
     rdvs.length === 0 && !show && React.createElement('div', { style:{ textAlign:'center', padding:'50px 0', color:'var(--text3)' } }, '💊 Aucun suivi — ajoutez vos rendez-vous médicaux'),
-    rdvs.map(r => React.createElement('div', { key:r.id, style:{ background:'var(--glass)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'12px 16px', marginBottom:10, display:'flex', gap:12, alignItems:'flex-start' } },
-      React.createElement('div', { style:{ flex:1 } },
-        React.createElement('div', { style:{ display:'flex', alignItems:'center', gap:8, marginBottom:4 } },
-          React.createElement('span', { style:{ fontSize:10, fontWeight:700, color:QUI_C[r.qui]||'var(--gold)', background:'var(--bg2)', borderRadius:10, padding:'2px 7px' } }, r.qui),
-          React.createElement('span', { style:{ fontWeight:700, color:'var(--text)', fontSize:14 } }, r.titre)
-        ),
-        (r.date||r.medecin) && React.createElement('div', { style:{ fontSize:12, color:'var(--text3)', marginBottom:3 } }, [r.date,r.medecin].filter(Boolean).join(' · ')),
-        r.notes && React.createElement('div', { style:{ fontSize:12, color:'var(--text3)', fontStyle:'italic' } }, r.notes)
-      ),
-      React.createElement('button', { onClick:()=>del(r.id), style:{ background:'none', border:'none', color:'var(--danger)', cursor:'pointer', fontSize:18 } }, '×')
-    ))
+    aVenir.length > 0 && React.createElement('div', { style:{ fontSize:11, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em', margin:'4px 0 8px' } }, 'À venir'),
+    aVenir.map(x => renderCard(x.r, x.d)),
+    passes.length > 0 && React.createElement('div', { style:{ fontSize:11, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em', margin:'16px 0 8px' } }, 'Passés'),
+    passes.map(x => renderCard(x.r, x.d))
   );
 }
 
