@@ -8711,6 +8711,58 @@ function MedicalView({ rdvs, addMedical, deleteMedical }) {
   );
 }
 
+// ─── Horloge + météo Guadeloupe (Open-Meteo, sans clé API) ───
+// Code météo WMO → icône + libellé FR.
+function wmoInfo(code) {
+  const c = Number(code);
+  if (c === 0) return { icon: '☀️', label: 'Ensoleillé' };
+  if (c === 1) return { icon: '🌤', label: 'Peu nuageux' };
+  if (c === 2) return { icon: '⛅', label: 'Partiellement nuageux' };
+  if (c === 3) return { icon: '☁️', label: 'Couvert' };
+  if (c === 45 || c === 48) return { icon: '🌫', label: 'Brouillard' };
+  if (c >= 51 && c <= 57) return { icon: '🌦', label: 'Bruine' };
+  if (c >= 61 && c <= 67) return { icon: '🌧', label: 'Pluie' };
+  if (c >= 71 && c <= 77) return { icon: '❄️', label: 'Neige' };
+  if (c >= 80 && c <= 82) return { icon: '🌦', label: 'Averses' };
+  if (c === 85 || c === 86) return { icon: '🌨', label: 'Averses de neige' };
+  if (c === 95) return { icon: '⛈', label: 'Orage' };
+  if (c === 96 || c === 99) return { icon: '⛈', label: 'Orage + grêle' };
+  return { icon: '🌡', label: 'Météo' };
+}
+function GuadeloupeMeteo() {
+  const h = React.createElement;
+  const TZ = 'America/Guadeloupe';
+  const [now, setNow] = React.useState(() => new Date());
+  const [meteo, setMeteo] = React.useState(null); // {temp, code} | 'error' | null (chargement)
+  React.useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 30000);
+    return () => clearInterval(t);
+  }, []);
+  React.useEffect(() => {
+    let alive = true;
+    const load = () => {
+      fetch('https://api.open-meteo.com/v1/forecast?latitude=16.24&longitude=-61.53&current=temperature_2m,weather_code&timezone=America%2FGuadeloupe')
+        .then(r => r.ok ? r.json() : Promise.reject(r.status))
+        .then(d => { if (alive && d && d.current) setMeteo({ temp: Math.round(d.current.temperature_2m), code: d.current.weather_code }); })
+        .catch(() => { if (alive) setMeteo('error'); });
+    };
+    load();
+    const iv = setInterval(load, 1800000); // rafraîchit toutes les 30 min
+    return () => { alive = false; clearInterval(iv); };
+  }, []);
+  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+  const dateStr = cap(now.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: TZ }));
+  const timeStr = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: TZ });
+  const pill = { display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text2)' };
+  const w = meteo && meteo !== 'error' ? wmoInfo(meteo.code) : null;
+  return h('div', { style: { display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', marginTop: 12 } },
+    h('span', { style: pill }, h('span', null, '🗓'), h('span', { style: { fontWeight: 600, color: 'var(--text)' } }, dateStr)),
+    h('span', { style: pill }, h('span', null, '🕐'), h('span', { style: { fontFamily: "'Space Mono', monospace", fontWeight: 700, color: 'var(--gold2)' } }, timeStr)),
+    w && h('span', { style: pill, title: w.label }, h('span', { style: { fontSize: 15 } }, w.icon), h('span', { style: { fontWeight: 600, color: 'var(--text)' } }, meteo.temp + '°C'), h('span', { style: { color: 'var(--text3)' } }, w.label)),
+    meteo === 'error' && h('span', { style: { ...pill, color: 'var(--text3)' } }, '🌡 Météo indisponible')
+  );
+}
+
 // Almanach lunaire potager (concombre/giraumon) — page statique intégrée via iframe.
 const POTAGER_URL = 'kalandriye-lalin-concombre-giraumon.html';
 function PotagerView() {
@@ -10839,7 +10891,7 @@ const ch=sb.channel('ld-realtime')
         color: 'var(--text3)',
         marginBottom: 0
       }
-    }, "Vue d'ensemble \u2014 Vision 2026-2036"), /*#__PURE__*/React.createElement("div", {
+    }, "Vue d'ensemble \u2014 Vision 2026-2036"), /*#__PURE__*/React.createElement(GuadeloupeMeteo, null), /*#__PURE__*/React.createElement("div", {
       style: {
         marginTop: 16,
         height: 1,
