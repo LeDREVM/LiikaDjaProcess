@@ -80,13 +80,17 @@ async function sbCheckPin(accountId) {
     return !error && data === true;
   } catch(_) { return false; }
 }
-// Vérifie le PIN via Supabase → retourne un token de session (90 j) ou null
+// Vérifie le PIN via Supabase. Renvoie un objet distinguant les cas :
+//   { ok:true, token }              → PIN correct
+//   { ok:false, reason:'wrong' }    → PIN refusé par le serveur
+//   { ok:false, reason:'network' }  → serveur injoignable / erreur (PIN peut être bon)
 async function sbVerifyPin(accountId, pin) {
   try {
     const { data, error } = await sb.rpc('ld_verify_pin', { p_account_id: accountId, p_pin: pin, p_device_id: DEVICE_ID });
-    if (error || !data || !data.ok) return null;
-    return data.token;
-  } catch(_) { return null; }
+    if (error) return { ok:false, reason:'network' };
+    if (!data || !data.ok) return { ok:false, reason:'wrong' };
+    return { ok:true, token: data.token };
+  } catch(_) { return { ok:false, reason:'network' }; }
 }
 // Crée un PIN sur Supabase (1er accès) → retourne un token de session ou null
 async function sbSetPin(accountId, pin) {
@@ -6489,21 +6493,23 @@ function LoginScreen({
             // PIN local correct → login instantané (même comportement qu'avant)
             doLogin(acc, { id: sel, name: acc.name, loggedAt: Date.now() }, null);
             // Token Supabase récupéré en arrière-plan pour les prochaines synchros
-            sbVerifyPin(sel, pin).then(token => {
-              if (!token) return;
+            sbVerifyPin(sel, pin).then(res => {
+              if (!res || !res.ok || !res.token) return;
               try {
                 const s = JSON.parse(localStorage.getItem('ld-session') || 'null');
-                if (s && s.id === sel && !s.token) localStorage.setItem('ld-session', JSON.stringify({...s, token}));
+                if (s && s.id === sel && !s.token) localStorage.setItem('ld-session', JSON.stringify({...s, token: res.token}));
               } catch(_) {}
             });
           } else {
             // Pas de PIN local (nouvel appareil) → vérification Supabase obligatoire
             setLoading(true);
-            const token = await sbVerifyPin(sel, pin);
+            const res = await sbVerifyPin(sel, pin);
             setLoading(false);
-            if (token !== null) {
+            if (res.ok) {
               localStorage.setItem(key, pin);
-              doLogin(acc, { id: sel, name: acc.name, loggedAt: Date.now() }, token);
+              doLogin(acc, { id: sel, name: acc.name, loggedAt: Date.now() }, res.token);
+            } else if (res.reason === 'network') {
+              doShake('Connexion au serveur impossible — réessaie ou vérifie ta connexion');
             } else {
               doShake('Code incorrect, réessaie');
             }
