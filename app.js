@@ -719,6 +719,7 @@ function normalize(d) {
   if (Array.isArray(d.album)) base.album = d.album;
   if (!Array.isArray(base.couple.motivations)) base.couple.motivations = [];
   if (!Array.isArray(base.couple.medical)) base.couple.medical = [];
+  if (!Array.isArray(base.couple.potager)) base.couple.potager = [];
   if (!base.liika.codeRousseau || typeof base.liika.codeRousseau !== 'object') base.liika.codeRousseau = clone(defaultData.liika.codeRousseau);
   if (!Array.isArray(base.liika.codeRousseau.eleves)) base.liika.codeRousseau.eleves = [];
   if (!Array.isArray(base.liika.codeRousseau.fiches)) base.liika.codeRousseau.fiches = [];
@@ -8324,22 +8325,125 @@ function GuadeloupeMeteo() {
 
 // Almanach lunaire potager (concombre/giraumon) — page statique intégrée via iframe.
 const POTAGER_URL = 'kalandriye-lalin-concombre-giraumon.html';
-function PotagerView() {
+const POTAGER_CATS = [
+  { key:'Légume',  icon:'🥬' },
+  { key:'Fruit',   icon:'🍅' },
+  { key:'Racine',  icon:'🥕' },
+  { key:'Aromate', icon:'🌿' },
+  { key:'Fleur',   icon:'🌸' },
+  { key:'Autre',   icon:'🌱' }
+];
+const POTAGER_CAT_ICON = POTAGER_CATS.reduce((o, c) => { o[c.key] = c.icon; return o; }, {});
+const POTAGER_STADES = ['Semis', 'Croissance', 'Floraison', 'Récolte', 'Terminé'];
+const POTAGER_STADE_C = { 'Semis':'#93c5fd', 'Croissance':'#4ade80', 'Floraison':'#f0abfc', 'Récolte':'var(--gold)', 'Terminé':'var(--text3)' };
+
+function PlanteForm({ onSave, onCancel }) {
   const h = React.createElement;
+  const [form, setForm] = React.useState({ nom:'', variete:'', categorie:'Légume', datePlantation:'', stade:'Semis', arrosage:'', notes:'' });
+  const inp = { background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'8px 12px', fontSize:13, width:'100%', boxSizing:'border-box' };
+  const save = () => { if (!form.nom.trim()) return; onSave({ id:Date.now().toString(), ...form }); };
+  return h('div', { style:{ background:'var(--glass)', border:'1px solid rgba(16,185,129,.35)', borderRadius:'var(--radius)', padding:16, marginBottom:16 } },
+    h('input', { placeholder:'Nom de la plante * (ex : Tomate, Concombre)', value:form.nom, onChange:e=>setForm(p=>({...p,nom:e.target.value})), style:{ ...inp, marginBottom:8 } }),
+    h('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 } },
+      h('input', { placeholder:'Variété (ex : cœur de bœuf)', value:form.variete, onChange:e=>setForm(p=>({...p,variete:e.target.value})), style:inp }),
+      h('input', { placeholder:'Arrosage (ex : 2×/sem)', value:form.arrosage, onChange:e=>setForm(p=>({...p,arrosage:e.target.value})), style:inp })
+    ),
+    h('div', { style:{ fontSize:11, color:'var(--text3)', margin:'4px 0 6px' } }, 'Catégorie'),
+    h('div', { style:{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:8 } },
+      POTAGER_CATS.map(c => h('button', { key:c.key, onClick:()=>setForm(p=>({...p,categorie:c.key})), style:{ padding:'5px 12px', borderRadius:16, border:`1px solid ${form.categorie===c.key?'var(--gold)':'var(--border)'}`, background:'transparent', color:form.categorie===c.key?'var(--gold)':'var(--text3)', cursor:'pointer', fontWeight:form.categorie===c.key?700:400, fontSize:12 } }, c.icon + ' ' + c.key))
+    ),
+    h('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8, alignItems:'center' } },
+      h('label', { style:{ fontSize:11, color:'var(--text3)' } }, 'Planté le', h('input', { type:'date', value:form.datePlantation, onChange:e=>setForm(p=>({...p,datePlantation:e.target.value})), style:{ ...inp, marginTop:3 } })),
+      h('label', { style:{ fontSize:11, color:'var(--text3)' } }, 'Stade', h('select', { value:form.stade, onChange:e=>setForm(p=>({...p,stade:e.target.value})), style:{ ...inp, marginTop:3 } }, POTAGER_STADES.map(s => h('option', { key:s, value:s }, s))))
+    ),
+    h('textarea', { placeholder:'Notes (emplacement, engrais, observations…)', value:form.notes, onChange:e=>setForm(p=>({...p,notes:e.target.value})), style:{ ...inp, minHeight:56, marginBottom:10, resize:'vertical' } }),
+    h('div', { style:{ display:'flex', gap:8 } },
+      h('button', { onClick:save, style:{ padding:'8px 20px', borderRadius:12, border:'none', background:'#10b981', color:'#fff', cursor:'pointer', fontWeight:700 } }, 'Enregistrer'),
+      h('button', { onClick:onCancel, style:{ padding:'8px 16px', borderRadius:12, border:'1px solid var(--border)', background:'transparent', color:'var(--text3)', cursor:'pointer' } }, 'Annuler')
+    )
+  );
+}
+
+function PotagerView({ plantes, addPlante, updatePlante, deletePlante }) {
+  const h = React.createElement;
+  const [tab, setTab] = React.useState('plantes');
+  const [show, setShow] = React.useState(false);
+  const [filtre, setFiltre] = React.useState('encours'); // encours | tous
+
+  const joursDepuis = iso => {
+    if (!iso) return null;
+    const d = new Date(String(iso).slice(0,10) + 'T00:00:00');
+    if (isNaN(d.getTime())) return null;
+    const t = new Date(); t.setHours(0,0,0,0);
+    return Math.max(0, Math.round((t.getTime() - d.getTime()) / 86400000));
+  };
+  const list = plantes || [];
+  const enRecolte = list.filter(p => p.stade === 'Récolte').length;
+  const actives = list.filter(p => p.stade !== 'Terminé').length;
+  const shown = filtre === 'encours' ? list.filter(p => p.stade !== 'Terminé') : list;
+
+  const tabBtn = (id, label) => h('button', { key:id, onClick:()=>setTab(id), style:{ padding:'7px 16px', borderRadius:18, border:`1px solid ${tab===id?'#10b981':'var(--border)'}`, background:tab===id?'rgba(16,185,129,.15)':'transparent', color:tab===id?'#10b981':'var(--text3)', cursor:'pointer', fontWeight:700, fontSize:13 } }, label);
+
+  const carte = p => {
+    const j = joursDepuis(p.datePlantation);
+    const idx = POTAGER_STADES.indexOf(p.stade);
+    return h('div', { key:p.id, style:{ background:'var(--glass)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'12px 16px', marginBottom:10, opacity:p.stade==='Terminé'?.6:1 } },
+      h('div', { style:{ display:'flex', gap:12, alignItems:'flex-start' } },
+        h('div', { style:{ fontSize:26, lineHeight:1 } }, POTAGER_CAT_ICON[p.categorie] || '🌱'),
+        h('div', { style:{ flex:1, minWidth:0 } },
+          h('div', { style:{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginBottom:4 } },
+            h('span', { style:{ fontWeight:700, color:'var(--text)', fontSize:15 } }, p.nom),
+            p.variete && h('span', { style:{ fontSize:12, color:'var(--text3)', fontStyle:'italic' } }, p.variete)
+          ),
+          h('div', { style:{ fontSize:12, color:'var(--text3)', marginBottom:6 } },
+            [ j!=null && ('🌱 planté il y a ' + j + ' j'), p.arrosage && ('💧 ' + p.arrosage) ].filter(Boolean).join('  ·  ') || 'Pas de date de plantation'
+          ),
+          h('div', { style:{ display:'flex', gap:4, flexWrap:'wrap', marginBottom: p.notes?8:0 } },
+            POTAGER_STADES.map((s, i) => h('button', { key:s, onClick:()=>updatePlante(p.id, { stade:s }), title:'Marquer : '+s, style:{ padding:'3px 10px', borderRadius:12, border:`1px solid ${p.stade===s?POTAGER_STADE_C[s]:'var(--border)'}`, background:p.stade===s?POTAGER_STADE_C[s]+'22':'transparent', color:p.stade===s?POTAGER_STADE_C[s]:(i<=idx?'var(--text2)':'var(--text3)'), cursor:'pointer', fontSize:11, fontWeight:p.stade===s?700:400 } }, s))
+          ),
+          p.notes && h('div', { style:{ fontSize:12, color:'var(--text3)', fontStyle:'italic' } }, p.notes)
+        ),
+        h('button', { onClick:()=>{ if (confirm('Supprimer « '+p.nom+' » ?')) deletePlante(p.id); }, style:{ background:'none', border:'none', color:'var(--danger)', cursor:'pointer', fontSize:18 } }, '×')
+      )
+    );
+  };
+
   return h('div', null,
     h('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14, gap:8, flexWrap:'wrap' } },
-      h('div', null,
-        h('h2', { style:{ margin:0, fontSize:20 } }, '🌱 Potager GWA — Almanach lunaire'),
-        h('div', { style:{ fontSize:12, color:'var(--text3)', marginTop:2 } }, 'Concombre & giraumon calés sur le carême, l\'hivernage et la lune.')
-      ),
-      h('a', { href:POTAGER_URL, target:'_blank', rel:'noopener', style:{ padding:'8px 14px', borderRadius:20, border:'1px solid var(--border)', background:'transparent', color:'var(--text2)', cursor:'pointer', fontWeight:700, fontSize:13, textDecoration:'none', whiteSpace:'nowrap' } }, '↗ Plein écran')
+      h('h2', { style:{ margin:0, fontSize:20 } }, '🌱 Potager GWA'),
+      tab === 'plantes' && h('button', { onClick:()=>setShow(!show), style:{ padding:'8px 18px', borderRadius:20, border:'none', background:'#10b981', color:'#fff', cursor:'pointer', fontWeight:700 } }, show ? '✕' : '+ Plante')
     ),
-    h('iframe', {
-      src: POTAGER_URL,
-      title: 'Almanach potager Guadeloupe',
-      loading: 'lazy',
-      style:{ width:'100%', height:'calc(100vh - 220px)', minHeight:520, border:'1px solid var(--border)', borderRadius:'var(--radius)', background:'#0b1a12', display:'block' }
-    })
+    h('div', { style:{ display:'flex', gap:8, marginBottom:16 } },
+      tabBtn('plantes', '🌱 Mes plantes' + (list.length ? ' ('+list.length+')' : '')),
+      tabBtn('almanach', '🌙 Almanach')
+    ),
+
+    tab === 'plantes' && h('div', null,
+      show && h(PlanteForm, { onSave:p=>{ addPlante(p); setShow(false); }, onCancel:()=>setShow(false) }),
+      list.length > 0 && h('div', { style:{ display:'flex', gap:14, marginBottom:12, fontSize:12, color:'var(--text3)', flexWrap:'wrap' } },
+        h('span', null, '🌿 ' + actives + ' en culture'),
+        enRecolte > 0 && h('span', { style:{ color:'var(--gold)', fontWeight:700 } }, '🧺 ' + enRecolte + ' à récolter'),
+        h('span', { style:{ marginLeft:'auto', display:'flex', gap:6 } },
+          ['encours','tous'].map(f => h('button', { key:f, onClick:()=>setFiltre(f), style:{ padding:'2px 10px', borderRadius:12, border:`1px solid ${filtre===f?'#10b981':'var(--border)'}`, background:'transparent', color:filtre===f?'#10b981':'var(--text3)', cursor:'pointer', fontSize:11, fontWeight:filtre===f?700:400 } }, f==='encours'?'En cours':'Tous'))
+        )
+      ),
+      shown.length === 0 && !show && h('div', { style:{ textAlign:'center', padding:'50px 0', color:'var(--text3)' } },
+        list.length === 0 ? '🌱 Aucune plante — ajoutez votre première culture !' : 'Aucune plante dans ce filtre.'),
+      shown.map(carte)
+    ),
+
+    tab === 'almanach' && h('div', null,
+      h('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10, gap:8, flexWrap:'wrap' } },
+        h('div', { style:{ fontSize:12, color:'var(--text3)' } }, 'Concombre & giraumon calés sur le carême, l\'hivernage et la lune.'),
+        h('a', { href:POTAGER_URL, target:'_blank', rel:'noopener', style:{ padding:'6px 12px', borderRadius:16, border:'1px solid var(--border)', background:'transparent', color:'var(--text2)', cursor:'pointer', fontWeight:700, fontSize:12, textDecoration:'none', whiteSpace:'nowrap' } }, '↗ Plein écran')
+      ),
+      h('iframe', {
+        src: POTAGER_URL,
+        title: 'Almanach potager Guadeloupe',
+        loading: 'lazy',
+        style:{ width:'100%', height:'calc(100vh - 260px)', minHeight:480, border:'1px solid var(--border)', borderRadius:'var(--radius)', background:'#0b1a12', display:'block' }
+      })
+    )
   );
 }
 
@@ -9905,6 +10009,27 @@ const ch=sb.channel('ld-realtime')
     setData(prev => {
       const next = clone(prev);
       next.couple.medical = (next.couple.medical || []).filter(r => r.id !== id);
+      return next;
+    });
+  }, []);
+  const addPlante = useCallback(p => {
+    setData(prev => {
+      const next = clone(prev);
+      next.couple.potager = [p, ...(next.couple.potager || [])];
+      return next;
+    });
+  }, []);
+  const updatePlante = useCallback((id, patch) => {
+    setData(prev => {
+      const next = clone(prev);
+      next.couple.potager = (next.couple.potager || []).map(x => x.id === id ? { ...x, ...patch } : x);
+      return next;
+    });
+  }, []);
+  const deletePlante = useCallback(id => {
+    setData(prev => {
+      const next = clone(prev);
+      next.couple.potager = (next.couple.potager || []).filter(x => x.id !== id);
       return next;
     });
   }, []);
@@ -11977,7 +12102,7 @@ const ch=sb.channel('ld-realtime')
     view === 'album' && React.createElement(AlbumView,{album:data.album||[],addAlbumPhoto,deleteAlbumPhoto}),
     view === 'idees' && React.createElement(IdeesView,null),
     view === 'medical' && React.createElement(MedicalView,{rdvs:data.couple.medical||[],addMedical,deleteMedical}),
-    view === 'potager' && React.createElement(PotagerView,null),
+    view === 'potager' && React.createElement(PotagerView,{plantes:(data.couple||{}).potager||[],addPlante,updatePlante,deletePlante}),
     view === 'voyages' && React.createElement(VoyagesView,null),
     view === 'artiste' && React.createElement(ArtView,null)
   ), /*#__PURE__*/React.createElement(AddModal, {
