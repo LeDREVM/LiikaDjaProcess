@@ -8361,6 +8361,9 @@ function GuadeloupeMeteo() {
 // Almanach lunaire potager (concombre/giraumon) — version plein écran statique,
 // conservée comme lien de secours ; l'onglet Almanach rend le composant natif.
 const POTAGER_URL = 'kalandriye-lalin-concombre-giraumon.html';
+// Source de contrôle des éphémérides (heures publiées en heure de Paris ;
+// nos données sont converties en heure locale Guadeloupe, UTC-4).
+const LUNE_SOURCE_URL = 'https://www.calendrier-365.fr/lune/calendrier-lunaire.html';
 
 // ── Kalandriye Lalin ─────────────────────────────────────────────────────────
 // Calendrier lunaire du potager : concombre & giraumon, calés sur le carême,
@@ -8439,14 +8442,49 @@ function lalMvt(date) {
   return state;
 }
 
-// Disque de lune : on masque la part non éclairée, côté gauche si croissante
+// Illumination théorique de chaque phase nommée, pour dessiner son disque
+// plutôt que d'afficher un emoji (rendu maison, aucune image externe).
+const LAL_PHASE_DISQUE = {
+  'Nouvelle lune':    { frac:0,  wax:true  },
+  'Premier quartier': { frac:.5, wax:true  },
+  'Pleine lune':      { frac:1,  wax:true  },
+  'Dernier quartier': { frac:.5, wax:false }
+};
+
+// Les 8 phases du cycle, dans l'ordre, avec leur illumination et ce qu'elles
+// veulent dire au potager. Le cycle complet dure environ 29,5 jours.
+const LAL_CYCLE = [
+  { nom:'Nouvelle lune',        frac:0,   wax:true,  txt:'La Lune passe entre la Terre et le Soleil : sa face éclairée nous tourne le dos. Repos au jardin.' },
+  { nom:'Croissant croissant',  frac:.15, wax:true,  txt:'Un mince arc de la face éclairée réapparaît, visible le soir à l\'ouest.' },
+  { nom:'Premier quartier',     frac:.5,  wax:true,  txt:'La moitié droite est éclairée. La sève monte : bonne période pour semer.' },
+  { nom:'Gibbeuse croissante',  frac:.85, wax:true,  txt:'Plus de la moitié est éclairée, la lumière augmente encore chaque soir.' },
+  { nom:'Pleine lune',          frac:1,   wax:true,  txt:'La Terre est entre le Soleil et la Lune : face entièrement éclairée. Récolte de conservation et prélèvement des graines.' },
+  { nom:'Gibbeuse décroissante',frac:.85, wax:false, txt:'Toujours plus de la moitié éclairée, mais la lumière décline.' },
+  { nom:'Dernier quartier',     frac:.5,  wax:false, txt:'La moitié gauche est éclairée, l\'inverse du premier quartier. La sève descend : on repique.' },
+  { nom:'Croissant décroissant',frac:.15, wax:false, txt:'Un dernier arc visible à l\'aube, avant le retour à la nouvelle lune.' }
+];
+
+const LUNE_CLAIR = '#ecd9a6'; // face éclairée (or pâle, dans le thème)
+const LUNE_NUIT  = '#0b110d'; // face dans l'ombre
+
+// Disque de lune. Le terminateur (la limite ombre/lumière) n'est pas droit sauf
+// aux quartiers : c'est la projection d'un cercle, donc une ellipse. On compose
+// une moitié pleine + une ellipse centrée dont la largeur vaut |1-2f| :
+//   f<½ → ellipse sombre qui ronge la moitié claire  → croissant
+//   f>½ → ellipse claire qui déborde sur l'ombre     → gibbeuse
+//   f=½ → ellipse de largeur nulle                   → quartier net
+// Côté éclairé : à droite quand la lune croît, à gauche quand elle décroît.
 function MoonDisc({ frac, wax, size }) {
   const h = React.createElement;
   const s = size || 84;
-  return h('div', { 'aria-hidden':'true', style:{ width:s, height:s, borderRadius:'50%', position:'relative', overflow:'hidden', flexShrink:0, background:'#0c130f', boxShadow:'inset 0 0 0 1px rgba(227,186,92,.25)' } },
-    h('div', { style:{ position:'absolute', inset:0, borderRadius:'50%', background:'radial-gradient(circle at 38% 34%, #fbf1cf, #e3ba5c 70%, #b98f38)' } }),
-    h('div', { style:{ position:'absolute', top:0, bottom:0, width:(1 - frac) * s, borderRadius:'50%', background:'#0b110d', left:wax ? 0 : 'auto', right:wax ? 'auto' : 0 } }),
-    h('div', { style:{ position:'absolute', inset:0, borderRadius:'50%', mixBlendMode:'multiply', opacity:.28, background:'radial-gradient(circle at 62% 60%, transparent 40%, #7a5f26 41%, transparent 46%), radial-gradient(circle at 30% 66%, transparent 30%, #7a5f26 31%, transparent 35%)' } })
+  const f = Math.max(0, Math.min(1, frac));
+  const ellipse = Math.abs(1 - 2 * f) * s;
+  return h('div', { 'aria-hidden':'true', style:{ width:s, height:s, borderRadius:'50%', position:'relative', overflow:'hidden', flexShrink:0, background:LUNE_NUIT, boxShadow:'inset 0 0 0 1px rgba(227,186,92,.25)' } },
+    h('div', { style:{ position:'absolute', top:0, bottom:0, width:'50%', left:wax ? '50%' : 0, background:LUNE_CLAIR } }),
+    h('div', { style:{ position:'absolute', top:0, bottom:0, left:'50%', marginLeft:-ellipse / 2, width:ellipse, borderRadius:'50%', background:f < .5 ? LUNE_NUIT : LUNE_CLAIR } }),
+    // Mers lunaires + modelé, posés par-dessus les deux faces
+    h('div', { style:{ position:'absolute', inset:0, borderRadius:'50%', mixBlendMode:'multiply', opacity:.3, background:'radial-gradient(circle at 62% 60%, transparent 40%, #8a6c2c 41%, transparent 46%), radial-gradient(circle at 30% 66%, transparent 30%, #8a6c2c 31%, transparent 35%), radial-gradient(circle at 44% 26%, transparent 22%, #8a6c2c 23%, transparent 27%)' } }),
+    h('div', { style:{ position:'absolute', inset:0, borderRadius:'50%', background:'radial-gradient(circle at 38% 32%, rgba(255,255,255,.30), transparent 58%)' } })
   );
 }
 
@@ -8602,19 +8640,37 @@ function KalandriyeLalin({ semansye, addLot, updateLot, deleteLot }) {
       ))
     ),
 
+    // ── Le cycle lunaire, phase par phase ──
+    h('div', { style:{ marginTop:24 } },
+      h('div', { className:'eyebrow', style:{ marginBottom:4 } }, '🌘 Le cycle lunaire'),
+      h('p', { style:{ fontSize:12.5, color:'var(--text3)', fontStyle:'italic', margin:'0 0 12px', lineHeight:1.5 } },
+        'La Lune ne produit pas sa lumière : ses phases viennent de sa position par rapport à la Terre et au Soleil. Un cycle complet dure environ 29,5 jours.'),
+      h('div', { style:{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))', gap:10 } },
+        LAL_CYCLE.map((p, i) => h('div', { key:p.nom, style:{ ...box, padding:14, display:'flex', flexDirection:'column', alignItems:'center', textAlign:'center', gap:8 } },
+          h(MoonDisc, { frac:p.frac, wax:p.wax, size:52 }),
+          h('div', { style:{ fontFamily:mono, fontSize:10, color:'var(--text3)' } }, (i + 1) + '/8'),
+          h('div', { style:{ fontSize:13, fontWeight:700, color:LAL_GOLD, lineHeight:1.25 } }, p.nom),
+          h('div', { style:{ fontSize:11.5, color:'#b4cebc', lineHeight:1.45 } }, p.txt)
+        ))
+      )
+    ),
+
     // ── Prochaines phases ──
     h('div', { style:{ marginTop:24 } },
       h('div', { className:'eyebrow', style:{ marginBottom:12 } }, '📅 Prochaines phases · Guadeloupe'),
       h('div', { style:{ ...box, overflow:'hidden' } },
         upcomingPhases.map((p, i) => h('div', { key:i, style:{ display:'flex', alignItems:'center', gap:13, padding:'12px 16px', borderBottom:i < upcomingPhases.length - 1 ? '1px solid #1a3028' : 'none', fontSize:13 } },
-          h('span', { 'aria-hidden':'true', style:{ fontSize:18, width:22, textAlign:'center' } }, p.emoji),
+          h(MoonDisc, { frac:(LAL_PHASE_DISQUE[p.name] || { frac:.5 }).frac, wax:(LAL_PHASE_DISQUE[p.name] || { wax:true }).wax, size:26 }),
           h('span', { style:{ fontFamily:mono, fontSize:12, color:LAL_GOLD, minWidth:92 } }, p.d.toLocaleDateString('fr-FR', { day:'2-digit', month:'short' }) + ' · ' + p.time),
           h('span', { style:{ color:'#cfe3d4', flex:1 } }, p.name)
         ))
       ),
       h('p', { style:{ fontSize:12, color:'var(--text3)', fontStyle:'italic', lineHeight:1.6, marginTop:16 } },
         'La lune est un repère, pas une loi : la météo et l\'état du sol priment toujours. Cycle 100 jours pour les deux cultures. Phases calculées astronomiquement pour Pointe-à-Pitre (UTC-4).'),
-      h('a', { href:POTAGER_URL, target:'_blank', rel:'noopener', style:{ display:'inline-block', marginTop:10, padding:'8px 14px', borderRadius:16, border:'1px solid var(--border)', color:'var(--text2)', fontSize:12, fontWeight:700, textDecoration:'none' } }, '↗ Version plein écran')
+      h('div', { style:{ display:'flex', gap:8, flexWrap:'wrap', marginTop:10 } },
+        h('a', { href:POTAGER_URL, target:'_blank', rel:'noopener', style:{ display:'inline-block', padding:'8px 14px', borderRadius:16, border:'1px solid var(--border)', color:'var(--text2)', fontSize:12, fontWeight:700, textDecoration:'none' } }, '↗ Version plein écran'),
+        h('a', { href:LUNE_SOURCE_URL, target:'_blank', rel:'noopener', style:{ display:'inline-block', padding:'8px 14px', borderRadius:16, border:'1px solid var(--border)', color:'var(--text3)', fontSize:12, textDecoration:'none' } }, '🌙 Référence lunaire')
+      )
     )
   );
 }
@@ -8777,13 +8833,14 @@ const POTAGER_BIBLE = [
 ];
 const normPot = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 // Retrouve la fiche bible correspondant au nom d'une plante (ex. « Tomate cerise » → Tomate).
-// Durée mini d'un cycle de culture, en mois, lue depuis la bible ('2–3 mois' → 2).
+// Durée maxi d'un cycle de culture, en mois, lue depuis la bible ('2–3 mois' → 3).
+// On prend la borne haute pour n'alerter qu'une fois le cycle vraiment écoulé.
 // null quand la fiche ne donne pas de durée chiffrée (ex. 'Vivace grimpante').
-function cycleMoisMin(cycle) {
+function cycleMoisMax(cycle) {
   const s = String(cycle || '');
   if (!/mois/i.test(s)) return null;
-  const m = s.match(/(\d+(?:[.,]\d+)?)/);
-  return m ? parseFloat(m[1].replace(',', '.')) : null;
+  const nums = s.match(/\d+(?:[.,]\d+)?/g);
+  return nums ? parseFloat(nums[nums.length - 1].replace(',', '.')) : null;
 }
 
 // Alertes du Potager — regroupe les 3 sources (plantes, graines, lune) en une
@@ -8808,7 +8865,7 @@ function potagerAlertes(plantes, semansye, today) {
       return;
     }
     const b = findBible(p.nom);
-    const mois = b && cycleMoisMin(b.cycle);
+    const mois = b && cycleMoisMax(b.cycle);
     const j = jours(p.datePlantation);
     if (mois && j != null && j >= mois * 30) {
       out.push({ id:'cyc-' + p.id, icon:'⏳', txt:p.nom + ' : ' + Math.floor(j / 30) + ' mois en terre (cycle ' + b.cycle + ') — vérifier la récolte.', col:'var(--warn)', tab:'plantes' });
