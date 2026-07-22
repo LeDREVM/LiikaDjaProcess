@@ -8337,6 +8337,43 @@ const POTAGER_CAT_ICON = POTAGER_CATS.reduce((o, c) => { o[c.key] = c.icon; retu
 const POTAGER_STADES = ['Semis', 'Croissance', 'Floraison', 'Récolte', 'Terminé'];
 const POTAGER_STADE_C = { 'Semis':'#93c5fd', 'Croissance':'#4ade80', 'Floraison':'#f0abfc', 'Récolte':'var(--gold)', 'Terminé':'var(--text3)' };
 
+// ─── Bible du maraîchage guadeloupéen (compagnonnage + saisons) ───
+// Données agronomiques adaptées à la Guadeloupe : saison (carême sec ≈ déc→mai /
+// hivernage humide ≈ juin→nov, cyclones août–oct), associations, ravageurs, conseil GWA.
+// Le compagnonnage relève du savoir agronomique commun (non couvert par la licence de MonPotager).
+const POTAGER_BIBLE = [
+  { nom:'Tomate', emoji:'🍅', famille:'Solanacées', saison:'Carême (sec)', cycle:'3–4 mois', bons:['Basilic','Œillet d\'Inde','Persil','Cive','Carotte','Laitue','Ail'], eviter:['Concombre','Chou','Pomme de terre','Fenouil'], ravageurs:'Aleurodes, mildiou (hivernage), nématodes', conseil:'Planter au carême : l\'hivernage humide favorise le mildiou. Tuteurer et pailler le pied.' },
+  { nom:'Concombre', emoji:'🥒', famille:'Cucurbitacées', saison:'Carême (sec)', cycle:'2–3 mois', bons:['Maïs','Haricot','Laitue','Radis','Capucine'], eviter:['Tomate (sous abri)','Pomme de terre','Sauge'], ravageurs:'Oïdium, mildiou, mouche des cucurbitacées', conseil:'Grande fenêtre au carême sec. Palisser pour aérer le feuillage, arroser au pied.' },
+  { nom:'Giraumon', emoji:'🎃', famille:'Cucurbitacées', saison:'Hivernage / toute l\'année', cycle:'3–5 mois', bons:['Maïs','Haricot','Capucine'], eviter:['Pomme de terre','Concombre'], ravageurs:'Oïdium, mouche des cucurbitacées', conseil:'Rustique, idéal en hivernage. Laisser courir au sol : prévoir de la place.' },
+  { nom:'Christophine', emoji:'🥭', famille:'Cucurbitacées', saison:'Toute l\'année', cycle:'Vivace grimpante', bons:['Maïs','Haricot'], eviter:[], ravageurs:'Limaces sur jeunes plants', conseil:'Le fruit entier germé se met en terre. Très vigoureuse → treillage solide, isoler.' },
+  { nom:'Gombo', emoji:'🫛', famille:'Malvacées', saison:'Hivernage (chaud/humide)', cycle:'2–3 mois', bons:['Basilic','Piment','Poivron','Melon','Concombre'], eviter:[], ravageurs:'Pucerons, aleurodes', conseil:'Aime chaleur et humidité de l\'hivernage. Récolter jeune, tous les 2–3 jours.' },
+  { nom:'Piment', emoji:'🌶️', famille:'Solanacées', saison:'Toute l\'année', cycle:'4–6 mois', bons:['Basilic','Carotte','Oignon','Tomate'], eviter:['Haricot','Fenouil'], ravageurs:'Pucerons, aleurodes, thrips', conseil:'Vivace sous les tropiques : peut produire plusieurs années. Plein soleil.' },
+  { nom:'Aubergine', emoji:'🍆', famille:'Solanacées', saison:'Carême → début hivernage', cycle:'3–4 mois', bons:['Haricot','Poivron','Thym','Estragon'], eviter:['Pomme de terre'], ravageurs:'Aleurodes, araignées rouges', conseil:'Aime la chaleur. Tuteurer, pailler pour garder la fraîcheur du sol.' },
+  { nom:'Laitue', emoji:'🥬', famille:'Astéracées', saison:'Carême (périodes fraîches)', cycle:'1,5–2 mois', bons:['Carotte','Radis','Concombre','Fraise','Cive'], eviter:['Persil','Tournesol'], ravageurs:'Limaces, pucerons, montaison à la chaleur', conseil:'Préférer la mi-ombre : monte vite en graine à la chaleur. Semis échelonnés.' },
+  { nom:'Chou', emoji:'🥦', famille:'Brassicacées', saison:'Carême (sec)', cycle:'2–3 mois', bons:['Haricot','Betterave','Thym','Menthe','Céleri'], eviter:['Tomate','Fraise','Oignon','Ail'], ravageurs:'Chenilles (piéride), altises, pucerons cendrés', conseil:'Filet anti-insectes utile. Aromatiques autour pour brouiller les ravageurs.' },
+  { nom:'Carotte', emoji:'🥕', famille:'Apiacées', saison:'Carême (sec)', cycle:'2,5–3 mois', bons:['Oignon','Cive','Poireau','Radis','Laitue','Tomate'], eviter:['Aneth','Persil'], ravageurs:'Mouche de la carotte', conseil:'Sol meuble sans cailloux. L\'oignon/cive à côté éloigne la mouche.' },
+  { nom:'Radis', emoji:'🌱', famille:'Brassicacées', saison:'Carême (sec)', cycle:'~1 mois', bons:['Carotte','Laitue','Concombre','Haricot'], eviter:[], ravageurs:'Altises', conseil:'Culture express (~4 semaines). Sème entre carotte et laitue pour occuper l\'espace.' },
+  { nom:'Haricot', emoji:'🫘', famille:'Fabacées', saison:'Carême → hivernage', cycle:'2–3 mois', bons:['Maïs','Concombre','Carotte','Laitue','Chou','Giraumon'], eviter:['Ail','Oignon','Cive','Poireau'], ravageurs:'Pucerons, mouche des semis', conseil:'Fixe l\'azote → enrichit le sol pour les voisins. Éviter les alliacées (ail, oignon).' },
+  { nom:'Pois d\'Angole', emoji:'🌾', famille:'Fabacées', saison:'Hivernage', cycle:'6–8 mois', bons:['Maïs','Tubercules'], eviter:[], ravageurs:'Pucerons', conseil:'Arbuste fixateur d\'azote : brise-vent et ombrage léger pour le jardin créole.' },
+  { nom:'Maïs', emoji:'🌽', famille:'Poacées', saison:'Hivernage (pluies)', cycle:'3–4 mois', bons:['Haricot','Giraumon','Concombre'], eviter:['Tomate','Céleri'], ravageurs:'Chenille légionnaire, foreurs de tige', conseil:'Trio créole maïs-haricot-giraumon : le maïs tuteure, le haricot nourrit, la courge couvre le sol.' },
+  { nom:'Patate douce', emoji:'🍠', famille:'Convolvulacées', saison:'Plant en hivernage', cycle:'4–5 mois', bons:['Maïs','Tubercules'], eviter:[], ravageurs:'Charançon de la patate douce', conseil:'Se plante en boutures de tige. Couvre-sol qui étouffe les adventices.' },
+  { nom:'Igname', emoji:'🥔', famille:'Dioscoréacées', saison:'Plant au carême', cycle:'8–10 mois', bons:['Dachine','Maïs'], eviter:[], ravageurs:'Cochenilles, nématodes', conseil:'Cycle long (8–10 mois). Tuteurer la liane. Base du jardin créole étagé.' },
+  { nom:'Dachine (Madère)', emoji:'🍃', famille:'Aracées', saison:'Hivernage (aime l\'eau)', cycle:'6–9 mois', bons:['Igname','Banane'], eviter:[], ravageurs:'Pucerons, mildiou du taro', conseil:'Aime les sols humides / bords d\'eau. Les feuilles font le calalou.' },
+  { nom:'Manioc', emoji:'🌳', famille:'Euphorbiacées', saison:'Toute l\'année', cycle:'8–12 mois', bons:['Maïs','Haricot'], eviter:[], ravageurs:'Cochenille farineuse, acariens', conseil:'Boutures de tige. Très rustique, tolère la sécheresse. Privilégier les variétés douces.' },
+  { nom:'Cive (oignon-pays)', emoji:'🧅', famille:'Alliacées', saison:'Toute l\'année', cycle:'Repousse à la coupe', bons:['Carotte','Tomate','Laitue','Betterave','Fraise'], eviter:['Haricot','Pois'], ravageurs:'Thrips, mildiou de l\'oignon', conseil:'Repousse après chaque coupe. Éloigne la mouche de la carotte. Indispensable en cuisine créole.' },
+  { nom:'Ail', emoji:'🧄', famille:'Alliacées', saison:'Carême (sec)', cycle:'4–5 mois', bons:['Tomate','Carotte','Laitue','Fraise'], eviter:['Haricot','Pois','Chou'], ravageurs:'Rouille', conseil:'Répulsif naturel (pucerons, acariens). À éloigner des légumineuses.' },
+  { nom:'Basilic', emoji:'🌿', famille:'Lamiacées', saison:'Toute l\'année', cycle:'Continu', bons:['Tomate','Poivron','Piment','Aubergine','Gombo'], eviter:['Rue'], ravageurs:'Pucerons, limaces', conseil:'Protège la tomate (aleurodes) et en relève le goût. Pincer les fleurs pour prolonger.' },
+  { nom:'Thym-pays', emoji:'🪴', famille:'Lamiacées', saison:'Toute l\'année', cycle:'Vivace', bons:['Chou','Aubergine','Tomate'], eviter:[], ravageurs:'Peu sensible', conseil:'Aromatique répulsive : borde les planches. Résiste très bien à la sécheresse.' },
+  { nom:'Melon', emoji:'🍈', famille:'Cucurbitacées', saison:'Carême (sec, sucré)', cycle:'~3 mois', bons:['Maïs','Haricot','Capucine'], eviter:['Concombre','Giraumon'], ravageurs:'Oïdium, mouche des cucurbitacées', conseil:'La chaleur sèche du carême concentre le sucre. Pailler sous les fruits.' }
+];
+const normPot = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+// Retrouve la fiche bible correspondant au nom d'une plante (ex. « Tomate cerise » → Tomate).
+function findBible(nom) {
+  const n = normPot(nom);
+  if (!n) return null;
+  return POTAGER_BIBLE.find(b => { const k = normPot(b.nom.replace(/\s*\(.*\)/, '')); return n.indexOf(k) !== -1 || k.indexOf(n) !== -1; }) || null;
+}
+
 function PlanteForm({ onSave, onCancel }) {
   const h = React.createElement;
   const [form, setForm] = React.useState({ nom:'', variete:'', categorie:'Légume', datePlantation:'', stade:'Semis', arrosage:'', notes:'' });
@@ -8369,6 +8406,8 @@ function PotagerView({ plantes, addPlante, updatePlante, deletePlante }) {
   const [tab, setTab] = React.useState('plantes');
   const [show, setShow] = React.useState(false);
   const [filtre, setFiltre] = React.useState('encours'); // encours | tous
+  const [bibleOpen, setBibleOpen] = React.useState(null); // nom de la fiche ouverte
+  const [q, setQ] = React.useState('');
 
   const joursDepuis = iso => {
     if (!iso) return null;
@@ -8398,9 +8437,13 @@ function PotagerView({ plantes, addPlante, updatePlante, deletePlante }) {
           h('div', { style:{ fontSize:12, color:'var(--text3)', marginBottom:6 } },
             [ j!=null && ('🌱 planté il y a ' + j + ' j'), p.arrosage && ('💧 ' + p.arrosage) ].filter(Boolean).join('  ·  ') || 'Pas de date de plantation'
           ),
-          h('div', { style:{ display:'flex', gap:4, flexWrap:'wrap', marginBottom: p.notes?8:0 } },
+          h('div', { style:{ display:'flex', gap:4, flexWrap:'wrap', marginBottom: (p.notes||findBible(p.nom))?8:0 } },
             POTAGER_STADES.map((s, i) => h('button', { key:s, onClick:()=>updatePlante(p.id, { stade:s }), title:'Marquer : '+s, style:{ padding:'3px 10px', borderRadius:12, border:`1px solid ${p.stade===s?POTAGER_STADE_C[s]:'var(--border)'}`, background:p.stade===s?POTAGER_STADE_C[s]+'22':'transparent', color:p.stade===s?POTAGER_STADE_C[s]:(i<=idx?'var(--text2)':'var(--text3)'), cursor:'pointer', fontSize:11, fontWeight:p.stade===s?700:400 } }, s))
           ),
+          (() => { const b = findBible(p.nom); return b && h('div', { style:{ fontSize:11, color:'var(--text3)', marginBottom: p.notes?8:0, cursor:'pointer' }, onClick:()=>{ setTab('bible'); setBibleOpen(b.nom); } },
+            b.bons.length ? h('span', null, '🤝 ', h('span', { style:{ color:'#4ade80' } }, b.bons.slice(0,4).join(', '))) : null,
+            b.eviter.length ? h('span', null, '   ⛔ ', h('span', { style:{ color:'#f87171' } }, b.eviter.slice(0,3).join(', '))) : null
+          ); })(),
           p.notes && h('div', { style:{ fontSize:12, color:'var(--text3)', fontStyle:'italic' } }, p.notes)
         ),
         h('button', { onClick:()=>{ if (confirm('Supprimer « '+p.nom+' » ?')) deletePlante(p.id); }, style:{ background:'none', border:'none', color:'var(--danger)', cursor:'pointer', fontSize:18 } }, '×')
@@ -8415,6 +8458,7 @@ function PotagerView({ plantes, addPlante, updatePlante, deletePlante }) {
     ),
     h('div', { style:{ display:'flex', gap:8, marginBottom:16 } },
       tabBtn('plantes', '🌱 Mes plantes' + (list.length ? ' ('+list.length+')' : '')),
+      tabBtn('bible', '🪴 Bible'),
       tabBtn('almanach', '🌙 Almanach')
     ),
 
@@ -8431,6 +8475,49 @@ function PotagerView({ plantes, addPlante, updatePlante, deletePlante }) {
         list.length === 0 ? '🌱 Aucune plante — ajoutez votre première culture !' : 'Aucune plante dans ce filtre.'),
       shown.map(carte)
     ),
+
+    tab === 'bible' && (() => {
+      const chip = (txt, col) => h('span', { key:txt, style:{ fontSize:11, padding:'2px 8px', borderRadius:10, background:col+'22', color:col, border:'1px solid '+col+'55' } }, txt);
+      const fiche = b => h('div', { style:{ background:'var(--glass)', border:'1px solid var(--gold-border)', borderRadius:'var(--radius)', padding:16, marginBottom:14 } },
+        h('div', { style:{ display:'flex', alignItems:'center', gap:10, marginBottom:10 } },
+          h('span', { style:{ fontSize:30 } }, b.emoji),
+          h('div', { style:{ flex:1, minWidth:0 } },
+            h('div', { style:{ fontWeight:700, fontSize:17, color:'var(--text)' } }, b.nom),
+            h('div', { style:{ fontSize:12, color:'var(--text3)' } }, b.famille)
+          ),
+          h('button', { onClick:()=>setBibleOpen(null), style:{ background:'none', border:'none', color:'var(--text3)', cursor:'pointer', fontSize:20 } }, '×')
+        ),
+        h('div', { style:{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:12 } }, chip('📅 ' + b.saison, 'var(--gold)'), chip('⏳ ' + b.cycle, 'var(--text2)')),
+        b.bons.length > 0 && h('div', { style:{ marginBottom:8 } },
+          h('div', { style:{ fontSize:11, fontWeight:700, color:'#4ade80', marginBottom:5 } }, '🤝 Bons voisins'),
+          h('div', { style:{ display:'flex', gap:5, flexWrap:'wrap' } }, b.bons.map(v => chip(v, '#4ade80')))
+        ),
+        b.eviter.length > 0 && h('div', { style:{ marginBottom:8 } },
+          h('div', { style:{ fontSize:11, fontWeight:700, color:'#f87171', marginBottom:5 } }, '⛔ À éviter à côté'),
+          h('div', { style:{ display:'flex', gap:5, flexWrap:'wrap' } }, b.eviter.map(v => chip(v, '#f87171')))
+        ),
+        h('div', { style:{ fontSize:12, color:'var(--text2)', marginBottom:6 } }, h('span', { style:{ color:'var(--text3)' } }, '🐛 Ravageurs : '), b.ravageurs),
+        h('div', { style:{ fontSize:12, color:'var(--text2)', background:'var(--bg2)', borderRadius:8, padding:'8px 10px' } }, h('span', { style:{ color:'var(--gold)' } }, '💡 '), b.conseil)
+      );
+      const nq = normPot(q);
+      const liste = POTAGER_BIBLE.filter(b => !nq || normPot(b.nom).indexOf(nq) !== -1 || normPot(b.famille).indexOf(nq) !== -1);
+      const ouverte = POTAGER_BIBLE.find(b => b.nom === bibleOpen);
+      return h('div', null,
+        h('div', { style:{ fontSize:12, color:'var(--text3)', marginBottom:10 } }, 'Touche un pot 🪴 pour la fiche : saison (carême/hivernage), bons & mauvais voisins, ravageurs, conseil — adapté à la Guadeloupe.'),
+        h('input', { placeholder:'🔎 Chercher (nom, famille…)', value:q, onChange:e=>setQ(e.target.value), style:{ background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'8px 12px', fontSize:13, width:'100%', boxSizing:'border-box', marginBottom:14 } }),
+        ouverte && fiche(ouverte),
+        h('div', { style:{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(92px, 1fr))', gap:10 } },
+          liste.map(b => h('button', { key:b.nom, onClick:()=>setBibleOpen(bibleOpen===b.nom?null:b.nom), title:b.nom,
+            style:{ display:'flex', flexDirection:'column', alignItems:'center', gap:4, padding:'12px 6px 8px', borderRadius:14, cursor:'pointer',
+              border:`1px solid ${bibleOpen===b.nom?'var(--gold)':'var(--border)'}`,
+              background:bibleOpen===b.nom?'var(--gold-bg)':'linear-gradient(180deg, transparent 55%, rgba(120,72,40,.22) 55%)' } },
+            h('span', { style:{ fontSize:30, lineHeight:1 } }, b.emoji),
+            h('span', { style:{ fontSize:11, fontWeight:700, color:'var(--text2)', textAlign:'center', lineHeight:1.15 } }, b.nom)
+          ))
+        ),
+        liste.length === 0 && h('div', { style:{ textAlign:'center', padding:'30px 0', color:'var(--text3)' } }, 'Aucune plante trouvée.')
+      );
+    })(),
 
     tab === 'almanach' && h('div', null,
       h('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10, gap:8, flexWrap:'wrap' } },
