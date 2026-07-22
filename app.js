@@ -7819,9 +7819,13 @@ function CategoryHome({ catIdx, prevCatIdx, setView, goToCategory }) {
   };
 
   return React.createElement('div', null,
-    // ── Heure + météo Guadeloupe (visible dès l'accueil) ──
-    React.createElement('div', { style:{ display:'flex', justifyContent:'center', marginBottom:6 } },
-      React.createElement(GuadeloupeMeteo, null)
+    // ── Heure + météo Guadeloupe + accès Tableau de bord (visible dès l'accueil) ──
+    React.createElement('div', { style:{ display:'flex', flexDirection:'column', alignItems:'center', gap:8, marginBottom:14 } },
+      React.createElement(GuadeloupeMeteo, null),
+      React.createElement('button', {
+        onClick: function(){ setView('dashboard'); },
+        style: { display:'inline-flex', alignItems:'center', gap:8, padding:'8px 18px', borderRadius:20, border:'1px solid var(--gold-border)', background:'var(--gold-bg)', color:'var(--gold2)', cursor:'pointer', fontWeight:700, fontSize:13 }
+      }, '◈ Ouvrir le tableau de bord')
     ),
     // ── Hero slider ──
     React.createElement('div', {
