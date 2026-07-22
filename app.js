@@ -763,7 +763,10 @@ function normalize(d) {
 const SYNC_TOP = ['dja', 'liika', 'couple'];
 // recipes & ferments NE sont PAS ici : ils ont leurs propres tables (DrevmCook)
 // et ne transitent plus par le blob app_state.
-const SYNC_FLAT = ['games'];
+// album : clé de premier niveau (data.album) qui vit dans le blob (pas de table
+// dédiée) → doit être suivie ici, sinon la fusion multi-appareils l'ignore et
+// l'album d'un appareil écrase celui de l'autre (photos invisibles chez le conjoint).
+const SYNC_FLAT = ['games', 'album'];
 function syncPaths(a, b) {
   const set = new Set();
   for (const top of SYNC_TOP) {
