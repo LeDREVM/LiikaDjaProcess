@@ -9792,10 +9792,7 @@ const setData=useCallback((updater)=>{
 // Vrai juste après l'application d'un état reçu en temps réel → évite de le re-pousser (anti-écho).
 const remoteApplyRef=useRef(false);
 const [ui,setUI]=useState(loadUI);
-const [session,setSession]=useState(()=>{
-  try{return JSON.parse(localStorage.getItem('ld-session')||'null');}
-  catch(_){return null;}
-});
+const [session,setSession]=useState({id:'couple',name:'Dja & Liika',loggedAt:Date.now(),token:null});
 const [view,setView]=useState(null);
 const [activeCat,setActiveCat]=useState('lifestyle');
 const [prevCatIdx,setPrevCatIdx]=useState(0);
@@ -9896,7 +9893,9 @@ useEffect(()=>{
 let alive=true;
 (async()=>{
   setSyncStatus('syncing');
-  const remote=await sbLoad(session?.token);
+  let _token=null;
+  try{const{data:_sd}=await sb.rpc('ld_open_session',{p_device_id:DEVICE_ID});if(_sd&&_sd.ok){_token=_sd.token;if(alive)setSession(s=>({...s,token:_token}));}}catch(_){}
+  const remote=await sbLoad(_token);
   if(!alive||!remote){
     if(alive){
       setSyncStatus('ok');
@@ -12183,11 +12182,6 @@ const ch=sb.channel('ld-realtime')
       }
     }, "+ Ajouter un objectif pour ", MOIS_LABELS[objMoisFilter]));
   };
-  if (!session) return /*#__PURE__*/React.createElement(LoginScreen, {
-    onLogin: s => {
-      setSession(s);
-    }
-  });
   return /*#__PURE__*/React.createElement("div", {
     className: "app-layout"
   }, /*#__PURE__*/React.createElement("nav", {
@@ -12243,16 +12237,15 @@ const ch=sb.channel('ld-realtime')
       width: 28,
       height: 28,
       borderRadius: '50%',
-      background: session?.id === 'dja' ? 'var(--accent-dja-bg)' : 'var(--accent-liika-bg)',
-      border: `1px solid ${session?.id === 'dja' ? 'var(--accent-dja-border)' : 'var(--accent-liika-border)'}`,
+      background: 'var(--gold-bg)',
+      border: '1px solid var(--gold-border)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      fontSize: 13,
-      color: session?.id === 'dja' ? 'var(--accent-dja)' : 'var(--accent-liika)',
+      fontSize: 14,
       flexShrink: 0
     }
-  }, session?.id === 'dja' ? '◆' : '◇'), /*#__PURE__*/React.createElement("div", {
+  }, '❤'), /*#__PURE__*/React.createElement("div", {
     style: {
       flex: 1,
       minWidth: 0
@@ -12266,13 +12259,13 @@ const ch=sb.channel('ld-realtime')
       textOverflow: 'ellipsis',
       whiteSpace: 'nowrap'
     }
-  }, session?.name || '—'), /*#__PURE__*/React.createElement("div", {
+  }, 'Dja & Liika'), /*#__PURE__*/React.createElement("div", {
     className: "eyebrow",
     style: {
       opacity: .55,
       marginTop: 1
     }
-  }, session?.id === 'dja' ? 'Principal' : 'Liika')))), /*#__PURE__*/React.createElement("div", {
+  }, 'Tableau de bord')))), /*#__PURE__*/React.createElement("div", {
     style: {
       flex: 1,
       overflowY: 'auto'
@@ -12361,31 +12354,6 @@ const ch=sb.channel('ld-realtime')
       animation: 'pulse 2s infinite'
     }
   }), onlineCount)), /*#__PURE__*/React.createElement("button", {
-    onClick: () => {
-      if (session?.token) sbRevokeToken(session.token);
-      localStorage.removeItem('ld-session');
-      setSession(null);
-    },
-    style: {
-      width: '100%',
-      padding: '7px',
-      borderRadius: 'var(--radius-sm)',
-      border: '1px solid var(--accent-dja-border)',
-      background: 'transparent',
-      color: 'var(--text3)',
-      cursor: 'pointer',
-      fontSize: 11,
-      letterSpacing: '.03em',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 5
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 12
-    }
-  }, "\u21C4"), " Changer de compte"), /*#__PURE__*/React.createElement("button", {
     onClick: () => {
       if (confirm('Réinitialiser toutes les données ?')) {
         localStorage.removeItem('dja-liika-goals');
