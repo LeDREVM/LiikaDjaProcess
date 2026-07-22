@@ -623,6 +623,7 @@ const defaultData = {
     },
     motivations: [],
     medical: [],
+    soirees: [],
     maison: {
       checked: {},
       custom: [],
@@ -719,6 +720,7 @@ function normalize(d) {
   if (Array.isArray(d.album)) base.album = d.album;
   if (!Array.isArray(base.couple.motivations)) base.couple.motivations = [];
   if (!Array.isArray(base.couple.medical)) base.couple.medical = [];
+  if (!Array.isArray(base.couple.soirees)) base.couple.soirees = [];
   if (!Array.isArray(base.couple.potager)) base.couple.potager = [];
   if (!Array.isArray(base.couple.semansye)) base.couple.semansye = [];
   if (!base.liika.codeRousseau || typeof base.liika.codeRousseau !== 'object') base.liika.codeRousseau = clone(defaultData.liika.codeRousseau);
@@ -3286,6 +3288,27 @@ const PLAN_WHO = {
 const mapsUrl = q => 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q);
 // Carte affichée DANS l'app (iframe) — mode embed sans clé API.
 const mapEmbedUrl = q => 'https://www.google.com/maps?q=' + encodeURIComponent(q) + '&output=embed';
+// Agenda Bizouk (Guadeloupe) : on se contente de LIER vers eux. Leur robots.txt
+// autorise `use=reference` (lien + court extrait) mais interdit le crawl
+// automatisé (ClaudeBot Disallow, /api/ bloqué, honeypot anti-scraping).
+// -> aucune récupération auto : les soirées sont saisies à la main dans l'app.
+const BIZOUK_AGENDA = 'https://www.bizouk.com/soirees/agenda/region/guadeloupe';
+const pad2 = n => String(n).padStart(2, '0');
+const bizoukDayUrl = d => BIZOUK_AGENDA + '/' + d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate());
+const next7Days = () => Array.from({ length: 7 }, (_, i) => {
+  const d = new Date();
+  d.setDate(d.getDate() + i);
+  return {
+    i,
+    label: i === 0 ? "Auj." : d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' }),
+    url: bizoukDayUrl(d)
+  };
+});
+// Jours écoulés depuis un ISO (null si absent/invalide) -> badge de fraîcheur.
+const daysSince = iso => {
+  const t = Date.parse(iso || '');
+  return t ? Math.floor((Date.now() - t) / 86400000) : null;
+};
 const OUTINGS = [{
   icon: '🏖️',
   title: 'Plages',
@@ -4537,11 +4560,21 @@ function PlanningView({
   planning,
   togglePlanningCheck,
   addPlanningCustomItem,
-  deletePlanningCustomItem
+  deletePlanningCustomItem,
+  soirees,
+  addSoiree,
+  deleteSoiree
 }) {
   const [activeDay, setActiveDay] = useState(0);
   const [activeTab, setActiveTab] = useState('planning');
   const [openMap, setOpenMap] = useState(null);
+  const [showSoiree, setShowSoiree] = useState(false);
+  const [soireeForm, setSoireeForm] = useState({
+    titre: '',
+    date: '',
+    lieu: '',
+    url: ''
+  });
   const [addingItem, setAddingItem] = useState(false);
   const [addForm, setAddForm] = useState({
     time: '09:00',
@@ -5260,7 +5293,266 @@ function PlanningView({
       color: '#5c8a6e',
       fontStyle: 'italic'
     }
-  }, "Livres & films \xE0 partager ensemble \uD83C\uDF19"), /*#__PURE__*/React.createElement("div", {
+  }, "Livres & films \xE0 partager ensemble \uD83C\uDF19"), (() => {
+    const list = soirees || [];
+    const lastAdd = list.reduce((m, s) => s.addedAt && s.addedAt > m ? s.addedAt : m, '');
+    const age = daysSince(lastAdd);
+    const stale = age === null || age > 7;
+    const isPast = s => s.date && s.date < new Date().toISOString().slice(0, 10);
+    const fmtFr = iso => {
+      const d = new Date(iso + 'T00:00:00');
+      return isNaN(d.getTime()) ? iso : d.toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: 'short' });
+    };
+    const safeUrl = u => /^https?:\/\//i.test(u || '') ? u : null;
+    const sorted = [...list].sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999'));
+    const inp = {
+      background: '#0d1a12',
+      border: '1px solid #2d5a3d',
+      color: '#e8f5ec',
+      borderRadius: 8,
+      padding: '9px 11px',
+      fontSize: 13,
+      width: '100%',
+      boxSizing: 'border-box'
+    };
+    const submit = () => {
+      if (!soireeForm.titre.trim()) return;
+      addSoiree({
+        id: Date.now().toString(),
+        titre: soireeForm.titre.trim(),
+        date: soireeForm.date,
+        lieu: soireeForm.lieu.trim(),
+        url: soireeForm.url.trim(),
+        addedAt: new Date().toISOString()
+      });
+      setSoireeForm({
+        titre: '',
+        date: '',
+        lieu: '',
+        url: ''
+      });
+      setShowSoiree(false);
+    };
+    return /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginBottom: 22
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 10,
+        flexWrap: 'wrap'
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontFamily: "'Space Mono',monospace",
+        fontSize: 10,
+        color: '#f472b6',
+        letterSpacing: 2
+      }
+    }, "\uD83C\uDF89 SOIR\xC9ES & CONCERTS"), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontFamily: "'Space Mono',monospace",
+        fontSize: 9,
+        padding: '2px 8px',
+        borderRadius: 10,
+        background: stale ? 'rgba(251,146,60,.15)' : 'rgba(74,222,128,.12)',
+        color: stale ? '#fb923c' : '#4ade80',
+        border: '1px solid ' + (stale ? '#7c3a12' : '#2d5a3d')
+      }
+    }, age === null ? 'jamais mis \xE0 jour' : age === 0 ? 'mis \xE0 jour aujourd\'hui' : 'mis \xE0 jour il y a ' + age + ' j')), /*#__PURE__*/React.createElement("p", {
+      style: {
+        margin: '0 0 10px',
+        fontSize: 11,
+        color: '#5c8a6e',
+        lineHeight: 1.5
+      }
+    }, "Ouvre l'agenda Bizouk, rep\xE8re ce qui vous tente, ajoute-le ici. \xC0 refaire chaque semaine \u2014 le badge passe \xE0 l'orange au bout de 7 jours."), /*#__PURE__*/React.createElement("div", {
+      className: "scroll-x",
+      style: {
+        display: 'flex',
+        gap: 6,
+        marginBottom: 12,
+        paddingBottom: 4
+      }
+    }, /*#__PURE__*/React.createElement("a", {
+      href: BIZOUK_AGENDA,
+      target: "_blank",
+      rel: "noopener noreferrer",
+      style: {
+        flexShrink: 0,
+        minHeight: 32,
+        display: 'inline-flex',
+        alignItems: 'center',
+        padding: '6px 12px',
+        borderRadius: 18,
+        fontSize: 11,
+        fontFamily: "'Space Mono',monospace",
+        background: 'rgba(244,114,182,.15)',
+        color: '#f9a8d4',
+        border: '1px solid #6b1e4a',
+        textDecoration: 'none',
+        whiteSpace: 'nowrap'
+      }
+    }, "Agenda GWA \u2197"), next7Days().map(d => /*#__PURE__*/React.createElement("a", {
+      key: d.i,
+      href: d.url,
+      target: "_blank",
+      rel: "noopener noreferrer",
+      title: 'Soir\xE9es Bizouk Guadeloupe \u2014 ' + d.label,
+      style: {
+        flexShrink: 0,
+        minHeight: 32,
+        display: 'inline-flex',
+        alignItems: 'center',
+        padding: '6px 11px',
+        borderRadius: 18,
+        fontSize: 11,
+        fontFamily: "'Space Mono',monospace",
+        background: 'rgba(255,255,255,.04)',
+        color: '#8bb89a',
+        border: '1px solid #1e3a2a',
+        textDecoration: 'none',
+        whiteSpace: 'nowrap'
+      }
+    }, d.label))), /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      onClick: () => setShowSoiree(!showSoiree),
+      "aria-expanded": showSoiree,
+      style: {
+        minHeight: 36,
+        width: '100%',
+        marginBottom: showSoiree ? 10 : 12,
+        padding: '8px 12px',
+        borderRadius: 10,
+        fontSize: 12,
+        fontFamily: "'Space Mono',monospace",
+        background: 'transparent',
+        color: '#f472b6',
+        border: '1px dashed #6b1e4a',
+        cursor: 'pointer'
+      }
+    }, showSoiree ? '\u00D7 Annuler' : '+ Ajouter une soir\xE9e'), showSoiree && /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'grid',
+        gap: 8,
+        marginBottom: 12,
+        padding: 12,
+        borderRadius: 12,
+        background: 'rgba(244,114,182,.05)',
+        border: '1px solid #3a1a2a'
+      }
+    }, /*#__PURE__*/React.createElement("input", {
+      "aria-label": "Nom de la soir\xE9e",
+      placeholder: "Nom de la soir\xE9e *",
+      value: soireeForm.titre,
+      onChange: e => setSoireeForm({ ...soireeForm, titre: e.target.value }),
+      style: inp
+    }), /*#__PURE__*/React.createElement("input", {
+      "aria-label": "Date",
+      type: "date",
+      value: soireeForm.date,
+      onChange: e => setSoireeForm({ ...soireeForm, date: e.target.value }),
+      style: inp
+    }), /*#__PURE__*/React.createElement("input", {
+      "aria-label": "Lieu",
+      placeholder: "Lieu (ex. Le Gosier)",
+      value: soireeForm.lieu,
+      onChange: e => setSoireeForm({ ...soireeForm, lieu: e.target.value }),
+      style: inp
+    }), /*#__PURE__*/React.createElement("input", {
+      "aria-label": "Lien Bizouk",
+      type: "url",
+      placeholder: "Lien Bizouk (https://\u2026)",
+      value: soireeForm.url,
+      onChange: e => setSoireeForm({ ...soireeForm, url: e.target.value }),
+      style: inp
+    }), /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      onClick: submit,
+      disabled: !soireeForm.titre.trim(),
+      style: {
+        minHeight: 38,
+        borderRadius: 8,
+        border: 'none',
+        background: soireeForm.titre.trim() ? '#f472b6' : '#3a1a2a',
+        color: soireeForm.titre.trim() ? '#1a0a12' : '#7a5a6a',
+        fontWeight: 800,
+        fontSize: 13,
+        cursor: soireeForm.titre.trim() ? 'pointer' : 'not-allowed'
+      }
+    }, "Ajouter")), sorted.length === 0 && !showSoiree && /*#__PURE__*/React.createElement("div", {
+      style: {
+        textAlign: 'center',
+        padding: '18px 0',
+        color: '#5c8a6e',
+        fontSize: 12,
+        fontStyle: 'italic'
+      }
+    }, "\uD83C\uDFB6 Aucune soir\xE9e pour l'instant"), sorted.map(s => /*#__PURE__*/React.createElement("div", {
+      key: s.id,
+      className: "plan-item-card",
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        background: 'rgba(244,114,182,.05)',
+        border: '1px solid #3a1a2a',
+        borderLeft: '3px solid #f472b6',
+        borderRadius: 10,
+        padding: '11px 12px',
+        marginBottom: 9,
+        opacity: isPast(s) ? .5 : 1
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        flex: 1,
+        minWidth: 0
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 12,
+        fontWeight: 700,
+        color: '#f9c8e0'
+      }
+    }, s.titre), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 10,
+        color: '#8bb89a',
+        fontFamily: "'Space Mono',monospace",
+        marginTop: 3
+      }
+    }, [s.date && fmtFr(s.date), s.lieu].filter(Boolean).join(' \u00B7 ') || '\u2014')), safeUrl(s.url) && /*#__PURE__*/React.createElement("a", {
+      href: safeUrl(s.url),
+      target: "_blank",
+      rel: "noopener noreferrer",
+      title: 'Ouvrir la page de \u00AB ' + s.titre + ' \u00BB',
+      style: {
+        minHeight: 32,
+        display: 'inline-flex',
+        alignItems: 'center',
+        fontSize: 10,
+        fontFamily: "'Space Mono',monospace",
+        color: '#f472b6',
+        whiteSpace: 'nowrap'
+      }
+    }, "Billetterie \u2197"), /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      onClick: () => deleteSoiree(s.id),
+      "aria-label": 'Supprimer ' + s.titre,
+      style: {
+        minWidth: 32,
+        minHeight: 32,
+        background: 'none',
+        border: 'none',
+        color: '#ef4444',
+        cursor: 'pointer',
+        fontSize: 16
+      }
+    }, "\u00D7"))));
+  })(), /*#__PURE__*/React.createElement("div", {
     style: {
       marginBottom: 20
     }
@@ -10873,6 +11165,20 @@ const ch=sb.channel('ld-realtime')
       return next;
     });
   }, []);
+  const addSoiree = useCallback(s => {
+    setData(prev => {
+      const next = clone(prev);
+      next.couple.soirees = [s, ...(next.couple.soirees || [])];
+      return next;
+    });
+  }, []);
+  const deleteSoiree = useCallback(id => {
+    setData(prev => {
+      const next = clone(prev);
+      next.couple.soirees = (next.couple.soirees || []).filter(s => s.id !== id);
+      return next;
+    });
+  }, []);
   const addPlante = useCallback(p => {
     setData(prev => {
       const next = clone(prev);
@@ -12971,7 +13277,7 @@ const ch=sb.channel('ld-realtime')
     view === 'sport' && React.createElement(SportView,{data,upsertSport,deleteSport}),
     view === 'budget' && React.createElement(BudgetView,{data,upsertBudgetLine,deleteBudgetLine}),
     view === 'vision' && React.createElement(VisionView,{data,updateVision}),
-    view === 'planning' && React.createElement(PlanningView,{planning:(data.couple||{}).planning||{},togglePlanningCheck,addPlanningCustomItem,deletePlanningCustomItem}),
+    view === 'planning' && React.createElement(PlanningView,{planning:(data.couple||{}).planning||{},togglePlanningCheck,addPlanningCustomItem,deletePlanningCustomItem,soirees:(data.couple||{}).soirees||[],addSoiree,deleteSoiree}),
     view === 'drevmcook' && React.createElement(DrevmCookView,{ferments:data.ferments||[],upsertFerment,deleteFerment,recipes:data.recipes||[],upsertRecipe,deleteRecipe,importRecipes}),
     view === 'culture' && React.createElement(CultureGwadView,null),
     view === 'route' && renderRoute(),
