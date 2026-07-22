@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kalandriye Lalin — Concombre & Giraumon · Gwadloup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,900;1,9..144,400&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --night:#0a0f0d; --night2:#0c1510; --panel:rgba(255,255,255,.028);
+    --line:#173026; --line2:#22432f;
+    --cream:#eaf4e5; --muted:#7ba889; --muted2:#4d7a5e;
+    --green:#5fe39a; --green-deep:#22c55e;
+    --gold:#e3ba5c; --gold-soft:#c9a24a;
+    --amber:#f59e0b; --coral:#fb7185; --terre:#cf9f6a;
+    --montante:#5fe39a; --descendante:#d9a765;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:'DM Sans',system-ui,sans-serif;
+    background:
+      radial-gradient(1200px 500px at 80% -10%, rgba(227,186,92,.06), transparent 60%),
+      radial-gradient(900px 600px at 10% 10%, rgba(95,227,154,.05), transparent 55%),
+      linear-gradient(160deg,#0a0f0d 0%,#0b140f 45%,#090d0b 100%);
+    color:var(--cream); min-height:100vh; overflow-x:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+  /* grain overlay */
+  body::before{
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:1; opacity:.5;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.035'/%3E%3C/svg%3E");
+  }
+  .wrap{max-width:760px;margin:0 auto;padding:0 18px 120px;position:relative;z-index:2}
+  ::selection{background:rgba(227,186,92,.3)}
+
+  /* ---------- HEADER ---------- */
+  header{padding:38px 2px 8px}
+  .eyebrow{font-family:'Space Mono',monospace;font-size:10.5px;letter-spacing:5px;
+    text-transform:uppercase;color:var(--gold);opacity:.85;margin-bottom:12px}
+  h1{font-family:'Fraunces',serif;font-weight:900;font-size:clamp(38px,10vw,62px);
+    line-height:.92;letter-spacing:-.02em;color:#f3faf0}
+  h1 em{font-style:italic;font-weight:400;color:var(--gold)}
+  .sub{margin-top:14px;font-size:14px;color:var(--muted);max-width:44ch;line-height:1.6}
+  .sub b{color:var(--green);font-weight:500}
+
+  /* ---------- HERO CADRAN LUNE ---------- */
+  .hero{margin-top:26px;display:grid;grid-template-columns:auto 1fr;gap:22px;
+    align-items:center;padding:22px;border:1px solid var(--line);border-radius:22px;
+    background:linear-gradient(140deg,rgba(227,186,92,.05),rgba(255,255,255,.015));
+    position:relative;overflow:hidden}
+  .moon-dial{width:104px;height:104px;position:relative;flex-shrink:0}
+  .moon{width:100%;height:100%;border-radius:50%;position:relative;overflow:hidden;
+    background:#0c130f;box-shadow:inset 0 0 0 1px rgba(227,186,92,.25),0 0 34px rgba(227,186,92,.16)}
+  .moon .lit{position:absolute;inset:0;border-radius:50%;
+    background:radial-gradient(circle at 38% 34%,#fbf1cf,#e3ba5c 70%,#b98f38)}
+  .moon .shadow{position:absolute;top:0;bottom:0;border-radius:50%;background:#0b110d}
+  .moon .tex{position:absolute;inset:0;border-radius:50%;mix-blend-mode:multiply;opacity:.28;
+    background:radial-gradient(circle at 62% 60%,transparent 40%,#7a5f26 41%,transparent 46%),
+    radial-gradient(circle at 30% 66%,transparent 30%,#7a5f26 31%,transparent 35%),
+    radial-gradient(circle at 50% 26%,transparent 24%,#7a5f26 25%,transparent 29%)}
+  .hero-info .today{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);
+    letter-spacing:1px;text-transform:uppercase}
+  .hero-info .phase{font-family:'Fraunces',serif;font-size:23px;font-weight:600;
+    margin:3px 0 2px;color:#f6fbf2;line-height:1.05}
+  .hero-info .mvt{font-size:13px;color:var(--muted)}
+  .hero-info .mvt .pill{display:inline-block;padding:2px 10px;border-radius:20px;
+    font-family:'Space Mono',monospace;font-size:10.5px;margin-top:8px;font-weight:700}
+  .next-action{grid-column:1/-1;border-top:1px solid var(--line);margin-top:6px;padding-top:14px;
+    display:flex;gap:10px;align-items:flex-start;font-size:13.5px;line-height:1.5}
+  .next-action .ico{font-size:17px;line-height:1}
+  .next-action b{color:var(--gold)}
+
+  /* ---------- SECTION TITLES ---------- */
+  .sec{margin-top:46px}
+  .sec-h{display:flex;align-items:baseline;gap:12px;margin-bottom:6px}
+  .sec-n{font-family:'Space Mono',monospace;font-size:11px;color:var(--gold-soft);font-weight:700}
+  .sec-t{font-family:'Fraunces',serif;font-size:26px;font-weight:600;color:#f2faef;letter-spacing:-.01em}
+  .sec-d{font-size:13.5px;color:var(--muted);line-height:1.6;margin-bottom:20px;max-width:56ch}
+
+  /* ---------- BANDE SAISONS ---------- */
+  .yearbar{display:flex;border-radius:14px;overflow:hidden;border:1px solid var(--line);height:74px}
+  .yb-seg{flex:1;position:relative;cursor:pointer;transition:filter .2s;
+    display:flex;align-items:flex-end;justify-content:center;padding-bottom:7px}
+  .yb-seg:hover{filter:brightness(1.25)}
+  .yb-seg span{font-family:'Space Mono',monospace;font-size:10px;color:#0a0f0d;font-weight:700}
+  .yb-seg.on{outline:2px solid #f6fbf2;outline-offset:-2px;z-index:3}
+  .yb-careme{background:linear-gradient(180deg,#e3ba5c,#c9992f)}
+  .yb-trans{background:linear-gradient(180deg,#8fcf7a,#5a9e4a)}
+  .yb-hiver{background:linear-gradient(180deg,#3f7d5a,#245c3f)}
+  .yb-hiver span{color:#eaf4e5}
+  .yb-cyc{background:linear-gradient(180deg,#6b8f6f,#3a5c42)}
+  .yb-cyc::after{content:"⚡";position:absolute;top:5px;left:0;right:0;text-align:center;font-size:12px}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:14px}
+  .lg{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--muted);
+    font-family:'Space Mono',monospace}
+  .lg i{width:11px;height:11px;border-radius:3px;display:inline-block}
+
+  /* ---------- MOIS DETAIL ---------- */
+  .month-nav{display:flex;gap:7px;overflow-x:auto;padding:4px 0 14px;-webkit-overflow-scrolling:touch}
+  .month-nav::-webkit-scrollbar{height:0}
+  .mn-btn{flex-shrink:0;min-width:52px;padding:9px 6px;border-radius:12px;border:1px solid var(--line);
+    background:var(--panel);color:var(--muted);font-family:'Space Mono',monospace;font-size:11px;
+    font-weight:700;cursor:pointer;transition:all .2s;text-align:center;line-height:1.3}
+  .mn-btn:hover{transform:translateY(-2px);border-color:var(--line2)}
+  .mn-btn.on{background:linear-gradient(135deg,var(--gold),var(--gold-soft));color:#0a0f0d;border-color:transparent;
+    box-shadow:0 6px 18px rgba(227,186,92,.25)}
+  .mn-btn .mn-dot{font-size:8px;display:block;margin-top:2px;opacity:.7}
+
+  .mcard{border:1px solid var(--line);border-radius:20px;padding:22px;background:var(--panel);
+    animation:fade .35s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+  .mcard-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;
+    padding-bottom:16px;border-bottom:1px solid var(--line);margin-bottom:18px;flex-wrap:wrap}
+  .mcard-month{font-family:'Fraunces',serif;font-size:30px;font-weight:600;color:#f4faf1;line-height:1}
+  .mcard-season{font-family:'Space Mono',monospace;font-size:10.5px;padding:5px 12px;border-radius:20px;
+    font-weight:700;white-space:nowrap;margin-top:4px}
+  .s-careme{background:rgba(227,186,92,.14);color:var(--gold)}
+  .s-trans{background:rgba(143,207,122,.14);color:#a7dd8f}
+  .s-hiver{background:rgba(63,125,90,.2);color:#7fd0a0}
+  .cyc-warn{display:inline-flex;align-items:center;gap:6px;font-family:'Space Mono',monospace;
+    font-size:10.5px;color:var(--coral);background:rgba(251,113,133,.1);padding:5px 12px;
+    border-radius:20px;margin-top:8px}
+
+  .crop{display:flex;gap:13px;padding:14px 0}
+  .crop+.crop{border-top:1px dashed var(--line)}
+  .crop-ic{width:38px;height:38px;border-radius:11px;flex-shrink:0;display:flex;align-items:center;
+    justify-content:center;font-size:20px}
+  .crop-ic.cc{background:rgba(95,227,154,.12);border:1px solid rgba(95,227,154,.3)}
+  .crop-ic.gg{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3)}
+  .crop-body h4{font-family:'Fraunces',serif;font-size:16px;font-weight:600;margin-bottom:3px}
+  .crop-body.cc h4{color:var(--green)} .crop-body.gg h4{color:var(--amber)}
+  .crop-body p{font-size:13.5px;color:#bcd4c2;line-height:1.55}
+
+  .lunebox{margin-top:16px;padding:15px;border-radius:14px;
+    background:linear-gradient(135deg,rgba(227,186,92,.06),rgba(95,227,154,.03));
+    border:1px solid var(--line)}
+  .lunebox-h{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:2px;
+    text-transform:uppercase;color:var(--gold);margin-bottom:12px}
+  .lune-row{display:flex;gap:10px;align-items:center;margin-bottom:9px;font-size:13px}
+  .lune-row:last-child{margin-bottom:0}
+  .lune-row .lbl{font-family:'Space Mono',monospace;font-size:10.5px;color:var(--muted);
+    min-width:96px;flex-shrink:0}
+  .days{display:flex;flex-wrap:wrap;gap:5px}
+  .day{font-family:'Space Mono',monospace;font-size:12px;font-weight:700;padding:3px 9px;border-radius:8px}
+  .day.semis{background:rgba(95,227,154,.14);color:var(--montante);border:1px solid rgba(95,227,154,.3)}
+  .day.repiq{background:rgba(217,167,101,.14);color:var(--descendante);border:1px solid rgba(217,167,101,.3)}
+  .day.none{color:var(--muted2);font-style:italic;font-family:'DM Sans';font-weight:400;border:none;background:none;padding:3px 0}
+
+  /* ---------- PRINCIPES ---------- */
+  .principes{display:grid;gap:12px}
+  .pr{display:flex;gap:14px;padding:16px;border:1px solid var(--line);border-radius:16px;background:var(--panel)}
+  .pr-ph{width:46px;height:46px;border-radius:50%;flex-shrink:0;position:relative;overflow:hidden;
+    background:#0c130f;box-shadow:inset 0 0 0 1px rgba(227,186,92,.22)}
+  .pr-body h4{font-family:'Fraunces',serif;font-size:16px;font-weight:600;color:#f2faef;margin-bottom:3px}
+  .pr-body p{font-size:13px;color:#b4cebc;line-height:1.55}
+  .pr-body .tag{font-family:'Space Mono',monospace;font-size:10px;font-weight:700;
+    padding:2px 8px;border-radius:6px;margin-right:6px}
+  .tag-s{background:rgba(95,227,154,.14);color:var(--montante)}
+  .tag-r{background:rgba(217,167,101,.14);color:var(--descendante)}
+  .tag-x{background:rgba(251,113,133,.12);color:var(--coral)}
+
+  /* ---------- TABLE DATES ---------- */
+  .keydates{border:1px solid var(--line);border-radius:18px;overflow:hidden}
+  .kd-row{display:flex;align-items:center;gap:14px;padding:13px 18px;border-bottom:1px solid var(--line);font-size:13.5px}
+  .kd-row:last-child{border-bottom:none}
+  .kd-row:hover{background:rgba(255,255,255,.02)}
+  .kd-emoji{font-size:19px;width:24px;text-align:center;flex-shrink:0}
+  .kd-date{font-family:'Space Mono',monospace;font-size:12px;color:var(--gold);min-width:96px;flex-shrink:0}
+  .kd-name{color:#cfe3d4;flex:1}
+  .kd-note{font-size:11.5px;color:var(--muted);font-style:italic;text-align:right}
+
+  .foot{margin-top:44px;padding-top:22px;border-top:1px solid var(--line);
+    font-size:12px;color:var(--muted2);line-height:1.7}
+  .foot b{color:var(--muted)}
+  @media(max-width:560px){
+    .hero{grid-template-columns:1fr;text-align:center;justify-items:center}
+    .next-action{text-align:left}
+    .kd-note{display:none}
+  }
+  @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">Almanak · Gwadloup 🌴</div>
+    <h1>Kalandriye<br><em>Lalin</em></h1>
+    <p class="sub">Planter le <b>concombre</b> et le <b>giraumon</b> au bon moment — calé sur le carême, l'hivernage et les cycles de la lune. Un almanach vivant pour l'autonomie du potager.</p>
+  </header>
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="moon-dial"><div class="moon" id="moon">
+      <div class="lit" id="lit"></div><div class="shadow" id="shadow"></div><div class="tex"></div>
+    </div></div>
+    <div class="hero-info">
+      <div class="today" id="todayLbl">—</div>
+      <div class="phase" id="phaseLbl">—</div>
+      <div class="mvt" id="mvtLbl"></div>
+    </div>
+    <div class="next-action">
+      <span class="ico">🌱</span>
+      <div id="nextAction">—</div>
+    </div>
+  </div>
+
+  <!-- ANNÉE -->
+  <div class="sec">
+    <div class="sec-h"><span class="sec-n">01</span><span class="sec-t">L'année en un coup d'œil</span></div>
+    <p class="sec-d">Le vrai maître du potager guadeloupéen, ce n'est pas le gel : c'est l'eau. Le <b style="color:var(--gold)">carême</b> sec est la grande fenêtre du concombre ; l'<b style="color:#7fd0a0">hivernage</b> humide favorise mildiou et oïdium — on lève le pied, on prépare, on mise sur le giraumon plus rustique. ⚡ = pic cyclonique.</p>
+    <div class="yearbar" id="yearbar"></div>
+    <div class="legend">
+      <span class="lg"><i style="background:#e3ba5c"></i>Carême (sec)</span>
+      <span class="lg"><i style="background:#8fcf7a"></i>Transition</span>
+      <span class="lg"><i style="background:#3f7d5a"></i>Hivernage</span>
+      <span class="lg"><i style="background:#6b8f6f"></i>⚡ Pic cyclonique</span>
+    </div>
+  </div>
+
+  <!-- MOIS -->
+  <div class="sec">
+    <div class="sec-h"><span class="sec-n">02</span><span class="sec-t">Mois par mois</span></div>
+    <p class="sec-d">Choisis un mois. Les <b style="color:var(--montante)">jours verts</b> = semis (lune montante + jour fruit) ; les <b style="color:var(--descendante)">jours dorés</b> = repiquage / plantation (lune descendante + jour fruit). Dates réelles calculées à l'heure de la Guadeloupe.</p>
+    <div class="month-nav" id="monthNav"></div>
+    <div id="monthDetail"></div>
+  </div>
+
+  <!-- PRINCIPES -->
+  <div class="sec">
+    <div class="sec-h"><span class="sec-n">03</span><span class="sec-t">Planter avec la lune</span></div>
+    <p class="sec-d">Concombre et giraumon sont deux <b>plantes-fruits</b> : on privilégie les <b>jours fruits</b> (Lune dans un signe de feu). Voici les quatre gestes, dans l'ordre du cycle.</p>
+    <div class="principes">
+      <div class="pr">
+        <div class="pr-ph" data-ph="0.25"></div>
+        <div class="pr-body"><h4><span class="tag tag-s">SEMER</span>Lune montante</h4>
+        <p>La sève monte vers les parties aériennes. C'est le moment de semer et de récolter les fruits à consommer frais. Idéal un jour fruit en lune croissante.</p></div>
+      </div>
+      <div class="pr">
+        <div class="pr-ph" data-ph="1"></div>
+        <div class="pr-body"><h4><span class="tag tag-s">RÉCOLTER</span>Pleine lune</h4>
+        <p>Énergie maximale, fruits gorgés de sève. Bon moment pour récolter concombres et giraumons destinés à la conservation, et pour prélever les graines de giraumon bien mûr.</p></div>
+      </div>
+      <div class="pr">
+        <div class="pr-ph" data-ph="0.75"></div>
+        <div class="pr-body"><h4><span class="tag tag-r">REPIQUER</span>Lune descendante</h4>
+        <p>La sève redescend vers les racines : les plants s'enracinent mieux. On repique les godets, on plante, on bouture, on travaille et on amende la terre.</p></div>
+      </div>
+      <div class="pr">
+        <div class="pr-ph" data-ph="0"></div>
+        <div class="pr-body"><h4><span class="tag tag-x">REPOS</span>Nœuds · périgée · apogée</h4>
+        <p>Autour de la nouvelle et de la pleine lune (nœuds), et aux jours de périgée/apogée, on évite de semer ou tailler. On désherbe, on composte, on prépare les outils.</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DATES CLÉS -->
+  <div class="sec">
+    <div class="sec-h"><span class="sec-n">04</span><span class="sec-t">Prochaines dates clés</span></div>
+    <p class="sec-d">Les phases lunaires à venir, heure de la Guadeloupe (UTC-4).</p>
+    <div class="keydates" id="keydates"></div>
+  </div>
+
+  <div class="foot">
+    <b>Méthode.</b> Fenêtres de culture raisonnées d'après le climat guadeloupéen (carême / hivernage) et le cycle 100 jours du concombre et du giraumon. Repères lunaires selon la tradition biodynamique (jours fruits/racines/feuilles/fleurs, montante/descendante). Phases, montante-descendante, périgée-apogée et jours fruits calculés astronomiquement pour Pointe-à-Pitre.<br><br>
+    <b>À retenir.</b> La lune est un repère, pas une loi : la météo et l'état réel du sol priment toujours. Le calendrier lunaire n'a pas de validité scientifique démontrée — beaucoup de jardiniers l'utilisent comme cadre de planification.<br><br>
+    🌱 <b>DrevmCookMaster</b> — potager & cuisine végétale de Gwadloup
+  </div>
+</div>
+
+<script>
+const DATA = {"phases": [{"date": "2026-07-29", "time": "10h35", "name": "Pleine lune", "emoji": "🌕"}, {"date": "2026-08-05", "time": "22h21", "name": "Dernier quartier", "emoji": "🌗"}, {"date": "2026-08-12", "time": "13h36", "name": "Nouvelle lune", "emoji": "🌑"}, {"date": "2026-08-19", "time": "22h46", "name": "Premier quartier", "emoji": "🌓"}, {"date": "2026-08-28", "time": "00h18", "name": "Pleine lune", "emoji": "🌕"}, {"date": "2026-09-04", "time": "03h51", "name": "Dernier quartier", "emoji": "🌗"}, {"date": "2026-09-10", "time": "23h26", "name": "Nouvelle lune", "emoji": "🌑"}, {"date": "2026-09-18", "time": "16h43", "name": "Premier quartier", "emoji": "🌓"}, {"date": "2026-09-26", "time": "12h48", "name": "Pleine lune", "emoji": "🌕"}, {"date": "2026-10-03", "time": "09h24", "name": "Dernier quartier", "emoji": "🌗"}, {"date": "2026-10-10", "time": "11h50", "name": "Nouvelle lune", "emoji": "🌑"}, {"date": "2026-10-18", "time": "12h12", "name": "Premier quartier", "emoji": "🌓"}, {"date": "2026-10-26", "time": "00h11", "name": "Pleine lune", "emoji": "🌕"}, {"date": "2026-11-01", "time": "16h28", "name": "Dernier quartier", "emoji": "🌗"}, {"date": "2026-11-09", "time": "03h02", "name": "Nouvelle lune", "emoji": "🌑"}, {"date": "2026-11-17", "time": "07h47", "name": "Premier quartier", "emoji": "🌓"}, {"date": "2026-11-24", "time": "10h53", "name": "Pleine lune", "emoji": "🌕"}, {"date": "2026-12-01", "time": "02h08", "name": "Dernier quartier", "emoji": "🌗"}, {"date": "2026-12-08", "time": "20h51", "name": "Nouvelle lune", "emoji": "🌑"}, {"date": "2026-12-17", "time": "01h42", "name": "Premier quartier", "emoji": "🌓"}, {"date": "2026-12-23", "time": "21h28", "name": "Pleine lune", "emoji": "🌕"}, {"date": "2026-12-30", "time": "14h59", "name": "Dernier quartier", "emoji": "🌗"}, {"date": "2027-01-07", "time": "16h24", "name": "Nouvelle lune", "emoji": "🌑"}, {"date": "2027-01-15", "time": "16h34", "name": "Premier quartier", "emoji": "🌓"}, {"date": "2027-01-22", "time": "08h17", "name": "Pleine lune", "emoji": "🌕"}, {"date": "2027-01-29", "time": "06h55", "name": "Dernier quartier", "emoji": "🌗"}, {"date": "2027-02-06", "time": "11h56", "name": "Nouvelle lune", "emoji": "🌑"}, {"date": "2027-02-14", "time": "03h58", "name": "Premier quartier", "emoji": "🌓"}, {"date": "2027-02-20", "time": "19h23", "name": "Pleine lune", "emoji": "🌕"}, {"date": "2027-02-28", "time": "01h16", "name": "Dernier quartier", "emoji": "🌗"}, {"date": "2027-03-08", "time": "05h29", "name": "Nouvelle lune", "emoji": "🌑"}, {"date": "2027-03-15", "time": "12h25", "name": "Premier quartier", "emoji": "🌓"}, {"date": "2027-03-22", "time": "06h43", "name": "Pleine lune", "emoji": "🌕"}, {"date": "2027-03-29", "time": "20h53", "name": "Dernier quartier", "emoji": "🌗"}, {"date": "2027-04-06", "time": "19h51", "name": "Nouvelle lune", "emoji": "🌑"}, {"date": "2027-04-13", "time": "18h56", "name": "Premier quartier", "emoji": "🌓"}, {"date": "2027-04-20", "time": "18h27", "name": "Pleine lune", "emoji": "🌕"}, {"date": "2027-04-28", "time": "16h17", "name": "Dernier quartier", "emoji": "🌗"}, {"date": "2027-05-06", "time": "06h58", "name": "Nouvelle lune", "emoji": "🌑"}, {"date": "2027-05-13", "time": "00h43", "name": "Premier quartier", "emoji": "🌓"}, {"date": "2027-05-20", "time": "06h58", "name": "Pleine lune", "emoji": "🌕"}, {"date": "2027-05-28", "time": "09h57", "name": "Dernier quartier", "emoji": "🌗"}, {"date": "2027-06-04", "time": "15h40", "name": "Nouvelle lune", "emoji": "🌑"}, {"date": "2027-06-11", "time": "06h56", "name": "Premier quartier", "emoji": "🌓"}, {"date": "2027-06-18", "time": "20h44", "name": "Pleine lune", "emoji": "🌕"}, {"date": "2027-06-27", "time": "00h54", "name": "Dernier quartier", "emoji": "🌗"}, {"date": "2027-07-03", "time": "23h01", "name": "Nouvelle lune", "emoji": "🌑"}, {"date": "2027-07-10", "time": "14h38", "name": "Premier quartier", "emoji": "🌓"}, {"date": "2027-07-18", "time": "11h44", "name": "Pleine lune", "emoji": "🌕"}, {"date": "2027-07-26", "time": "12h54", "name": "Dernier quartier", "emoji": "🌗"}, {"date": "2027-08-02", "time": "06h05", "name": "Nouvelle lune", "emoji": "🌑"}, {"date": "2027-08-09", "time": "00h54", "name": "Premier quartier", "emoji": "🌓"}, {"date": "2027-08-17", "time": "03h28", "name": "Pleine lune", "emoji": "🌕"}, {"date": "2027-08-24", "time": "22h27", "name": "Dernier quartier", "emoji": "🌗"}, {"date": "2027-08-31", "time": "13h41", "name": "Nouvelle lune", "emoji": "🌑"}, {"date": "2027-09-07", "time": "14h31", "name": "Premier quartier", "emoji": "🌓"}, {"date": "2027-09-15", "time": "19h03", "name": "Pleine lune", "emoji": "🌕"}, {"date": "2027-09-23", "time": "06h20", "name": "Dernier quartier", "emoji": "🌗"}], "turns": [{"date": "2026-07-26", "type": "montante"}, {"date": "2026-08-08", "type": "descendante"}, {"date": "2026-08-22", "type": "montante"}, {"date": "2026-09-05", "type": "descendante"}, {"date": "2026-09-18", "type": "montante"}, {"date": "2026-10-02", "type": "descendante"}, {"date": "2026-10-15", "type": "montante"}, {"date": "2026-10-29", "type": "descendante"}, {"date": "2026-11-12", "type": "montante"}, {"date": "2026-11-25", "type": "descendante"}, {"date": "2026-12-09", "type": "montante"}, {"date": "2026-12-23", "type": "descendante"}, {"date": "2027-01-05", "type": "montante"}, {"date": "2027-01-19", "type": "descendante"}, {"date": "2027-02-01", "type": "montante"}, {"date": "2027-02-16", "type": "descendante"}, {"date": "2027-03-01", "type": "montante"}, {"date": "2027-03-15", "type": "descendante"}, {"date": "2027-03-28", "type": "montante"}, {"date": "2027-04-11", "type": "descendante"}, {"date": "2027-04-24", "type": "montante"}, {"date": "2027-05-08", "type": "descendante"}, {"date": "2027-05-22", "type": "montante"}, {"date": "2027-06-05", "type": "descendante"}, {"date": "2027-06-18", "type": "montante"}, {"date": "2027-07-02", "type": "descendante"}, {"date": "2027-07-15", "type": "montante"}, {"date": "2027-07-30", "type": "descendante"}, {"date": "2027-08-11", "type": "montante"}, {"date": "2027-08-26", "type": "descendante"}], "peri_apo": [{"date": "2026-07-25", "type": "apogée"}, {"date": "2026-08-10", "type": "périgée"}, {"date": "2026-08-22", "type": "apogée"}, {"date": "2026-09-06", "type": "périgée"}, {"date": "2026-09-19", "type": "apogée"}, {"date": "2026-10-01", "type": "périgée"}, {"date": "2026-10-16", "type": "apogée"}, {"date": "2026-10-28", "type": "périgée"}, {"date": "2026-11-13", "type": "apogée"}, {"date": "2026-11-25", "type": "périgée"}, {"date": "2026-12-11", "type": "apogée"}, {"date": "2026-12-24", "type": "périgée"}, {"date": "2027-01-07", "type": "apogée"}, {"date": "2027-01-21", "type": "périgée"}, {"date": "2027-02-03", "type": "apogée"}, {"date": "2027-02-19", "type": "périgée"}, {"date": "2027-03-03", "type": "apogée"}, {"date": "2027-03-19", "type": "périgée"}, {"date": "2027-03-31", "type": "apogée"}, {"date": "2027-04-13", "type": "périgée"}, {"date": "2027-04-27", "type": "apogée"}, {"date": "2027-05-09", "type": "périgée"}, {"date": "2027-05-25", "type": "apogée"}, {"date": "2027-06-06", "type": "périgée"}, {"date": "2027-06-22", "type": "apogée"}, {"date": "2027-07-04", "type": "périgée"}, {"date": "2027-07-19", "type": "apogée"}, {"date": "2027-08-02", "type": "périgée"}, {"date": "2027-08-15", "type": "apogée"}, {"date": "2027-08-30", "type": "périgée"}], "monthly": {"2026-07": {"semis": [26, 27], "repiquage": []}, "2026-08": {"semis": [5, 6, 23, 24], "repiquage": [13, 14]}, "2026-09": {"semis": [1, 2, 20, 28, 29], "repiquage": [9]}, "2026-10": {"semis": [17, 25, 27], "repiquage": [7, 8]}, "2026-11": {"semis": [12, 14, 22, 23], "repiquage": [3, 4, 30]}, "2026-12": {"semis": [10, 19, 20], "repiquage": [1, 27, 28, 29]}, "2027-01": {"semis": [6, 16, 17], "repiquage": [24, 25]}, "2027-02": {"semis": [2, 4, 12, 13], "repiquage": [21]}, "2027-03": {"semis": [1, 2, 11, 12, 29, 30], "repiquage": [20, 21]}, "2027-04": {"semis": [7, 8, 9, 25, 26], "repiquage": [16, 17]}, "2027-05": {"semis": [5, 22, 23, 24], "repiquage": [13, 14]}, "2027-06": {"semis": [1, 2, 19, 20, 29, 30], "repiquage": [9, 10, 11]}}, "daily": {"2026-07-22": "descendante", "2026-07-23": "descendante", "2026-07-24": "descendante", "2026-07-25": "descendante", "2026-07-26": "montante", "2026-07-27": "montante", "2026-07-28": "montante", "2026-07-29": "montante", "2026-07-30": "montante", "2026-07-31": "montante", "2026-08-01": "montante", "2026-08-02": "montante", "2026-08-03": "montante", "2026-08-04": "montante", "2026-08-05": "montante", "2026-08-06": "montante", "2026-08-07": "montante", "2026-08-08": "descendante", "2026-08-09": "descendante", "2026-08-10": "descendante", "2026-08-11": "descendante", "2026-08-12": "descendante", "2026-08-13": "descendante", "2026-08-14": "descendante", "2026-08-15": "descendante", "2026-08-16": "descendante", "2026-08-17": "descendante", "2026-08-18": "descendante", "2026-08-19": "descendante", "2026-08-20": "descendante", "2026-08-21": "descendante", "2026-08-22": "montante", "2026-08-23": "montante", "2026-08-24": "montante", "2026-08-25": "montante", "2026-08-26": "montante", "2026-08-27": "montante", "2026-08-28": "montante", "2026-08-29": "montante", "2026-08-30": "montante", "2026-08-31": "montante", "2026-09-01": "montante", "2026-09-02": "montante", "2026-09-03": "montante", "2026-09-04": "montante", "2026-09-05": "descendante", "2026-09-06": "descendante", "2026-09-07": "descendante", "2026-09-08": "descendante", "2026-09-09": "descendante", "2026-09-10": "descendante", "2026-09-11": "descendante", "2026-09-12": "descendante", "2026-09-13": "descendante", "2026-09-14": "descendante", "2026-09-15": "descendante", "2026-09-16": "descendante", "2026-09-17": "descendante", "2026-09-18": "montante", "2026-09-19": "montante", "2026-09-20": "montante", "2026-09-21": "montante", "2026-09-22": "montante", "2026-09-23": "montante", "2026-09-24": "montante", "2026-09-25": "montante", "2026-09-26": "montante", "2026-09-27": "montante", "2026-09-28": "montante", "2026-09-29": "montante", "2026-09-30": "montante", "2026-10-01": "montante", "2026-10-02": "descendante", "2026-10-03": "descendante", "2026-10-04": "descendante", "2026-10-05": "descendante", "2026-10-06": "descendante", "2026-10-07": "descendante", "2026-10-08": "descendante", "2026-10-09": "descendante", "2026-10-10": "descendante", "2026-10-11": "descendante", "2026-10-12": "descendante", "2026-10-13": "descendante", "2026-10-14": "descendante", "2026-10-15": "montante", "2026-10-16": "montante", "2026-10-17": "montante", "2026-10-18": "montante", "2026-10-19": "montante", "2026-10-20": "montante", "2026-10-21": "montante", "2026-10-22": "montante", "2026-10-23": "montante", "2026-10-24": "montante", "2026-10-25": "montante", "2026-10-26": "montante", "2026-10-27": "montante", "2026-10-28": "montante", "2026-10-29": "descendante", "2026-10-30": "descendante", "2026-10-31": "descendante", "2026-11-01": "descendante", "2026-11-02": "descendante", "2026-11-03": "descendante", "2026-11-04": "descendante", "2026-11-05": "descendante", "2026-11-06": "descendante", "2026-11-07": "descendante", "2026-11-08": "descendante", "2026-11-09": "descendante", "2026-11-10": "descendante", "2026-11-11": "descendante", "2026-11-12": "montante", "2026-11-13": "montante", "2026-11-14": "montante", "2026-11-15": "montante", "2026-11-16": "montante", "2026-11-17": "montante", "2026-11-18": "montante", "2026-11-19": "montante", "2026-11-20": "montante", "2026-11-21": "montante", "2026-11-22": "montante", "2026-11-23": "montante", "2026-11-24": "montante", "2026-11-25": "descendante", "2026-11-26": "descendante", "2026-11-27": "descendante", "2026-11-28": "descendante", "2026-11-29": "descendante", "2026-11-30": "descendante", "2026-12-01": "descendante", "2026-12-02": "descendante", "2026-12-03": "descendante", "2026-12-04": "descendante", "2026-12-05": "descendante", "2026-12-06": "descendante", "2026-12-07": "descendante", "2026-12-08": "descendante", "2026-12-09": "montante", "2026-12-10": "montante", "2026-12-11": "montante", "2026-12-12": "montante", "2026-12-13": "montante", "2026-12-14": "montante", "2026-12-15": "montante", "2026-12-16": "montante", "2026-12-17": "montante", "2026-12-18": "montante", "2026-12-19": "montante", "2026-12-20": "montante", "2026-12-21": "montante", "2026-12-22": "montante", "2026-12-23": "descendante", "2026-12-24": "descendante", "2026-12-25": "descendante", "2026-12-26": "descendante", "2026-12-27": "descendante", "2026-12-28": "descendante", "2026-12-29": "descendante", "2026-12-30": "descendante", "2026-12-31": "descendante", "2027-01-01": "descendante", "2027-01-02": "descendante", "2027-01-03": "descendante", "2027-01-04": "descendante", "2027-01-05": "montante", "2027-01-06": "montante", "2027-01-07": "montante", "2027-01-08": "montante", "2027-01-09": "montante", "2027-01-10": "montante", "2027-01-11": "montante", "2027-01-12": "montante", "2027-01-13": "montante", "2027-01-14": "montante", "2027-01-15": "montante", "2027-01-16": "montante", "2027-01-17": "montante", "2027-01-18": "montante", "2027-01-19": "descendante", "2027-01-20": "descendante", "2027-01-21": "descendante", "2027-01-22": "descendante", "2027-01-23": "descendante", "2027-01-24": "descendante", "2027-01-25": "descendante", "2027-01-26": "descendante", "2027-01-27": "descendante", "2027-01-28": "descendante", "2027-01-29": "descendante", "2027-01-30": "descendante", "2027-01-31": "descendante", "2027-02-01": "montante", "2027-02-02": "montante", "2027-02-03": "montante", "2027-02-04": "montante", "2027-02-05": "montante", "2027-02-06": "montante", "2027-02-07": "montante", "2027-02-08": "montante", "2027-02-09": "montante", "2027-02-10": "montante", "2027-02-11": "montante", "2027-02-12": "montante", "2027-02-13": "montante", "2027-02-14": "montante", "2027-02-15": "montante", "2027-02-16": "descendante", "2027-02-17": "descendante", "2027-02-18": "descendante", "2027-02-19": "descendante", "2027-02-20": "descendante", "2027-02-21": "descendante", "2027-02-22": "descendante", "2027-02-23": "descendante", "2027-02-24": "descendante", "2027-02-25": "descendante", "2027-02-26": "descendante", "2027-02-27": "descendante", "2027-02-28": "descendante", "2027-03-01": "montante", "2027-03-02": "montante", "2027-03-03": "montante", "2027-03-04": "montante", "2027-03-05": "montante", "2027-03-06": "montante", "2027-03-07": "montante", "2027-03-08": "montante", "2027-03-09": "montante", "2027-03-10": "montante", "2027-03-11": "montante", "2027-03-12": "montante", "2027-03-13": "montante", "2027-03-14": "montante", "2027-03-15": "descendante", "2027-03-16": "descendante", "2027-03-17": "descendante", "2027-03-18": "descendante", "2027-03-19": "descendante", "2027-03-20": "descendante", "2027-03-21": "descendante", "2027-03-22": "descendante", "2027-03-23": "descendante", "2027-03-24": "descendante", "2027-03-25": "descendante", "2027-03-26": "descendante", "2027-03-27": "descendante", "2027-03-28": "montante", "2027-03-29": "montante", "2027-03-30": "montante", "2027-03-31": "montante", "2027-04-01": "montante", "2027-04-02": "montante", "2027-04-03": "montante", "2027-04-04": "montante", "2027-04-05": "montante", "2027-04-06": "montante", "2027-04-07": "montante", "2027-04-08": "montante", "2027-04-09": "montante", "2027-04-10": "montante", "2027-04-11": "descendante", "2027-04-12": "descendante", "2027-04-13": "descendante", "2027-04-14": "descendante", "2027-04-15": "descendante", "2027-04-16": "descendante", "2027-04-17": "descendante", "2027-04-18": "descendante", "2027-04-19": "descendante", "2027-04-20": "descendante", "2027-04-21": "descendante", "2027-04-22": "descendante", "2027-04-23": "descendante", "2027-04-24": "montante", "2027-04-25": "montante", "2027-04-26": "montante", "2027-04-27": "montante", "2027-04-28": "montante", "2027-04-29": "montante", "2027-04-30": "montante", "2027-05-01": "montante", "2027-05-02": "montante", "2027-05-03": "montante", "2027-05-04": "montante", "2027-05-05": "montante", "2027-05-06": "montante", "2027-05-07": "montante", "2027-05-08": "descendante", "2027-05-09": "descendante", "2027-05-10": "descendante", "2027-05-11": "descendante", "2027-05-12": "descendante", "2027-05-13": "descendante", "2027-05-14": "descendante", "2027-05-15": "descendante", "2027-05-16": "descendante", "2027-05-17": "descendante", "2027-05-18": "descendante", "2027-05-19": "descendante", "2027-05-20": "descendante", "2027-05-21": "descendante", "2027-05-22": "montante", "2027-05-23": "montante", "2027-05-24": "montante", "2027-05-25": "montante", "2027-05-26": "montante", "2027-05-27": "montante", "2027-05-28": "montante", "2027-05-29": "montante", "2027-05-30": "montante", "2027-05-31": "montante", "2027-06-01": "montante", "2027-06-02": "montante", "2027-06-03": "montante", "2027-06-04": "montante", "2027-06-05": "descendante", "2027-06-06": "descendante", "2027-06-07": "descendante", "2027-06-08": "descendante", "2027-06-09": "descendante", "2027-06-10": "descendante", "2027-06-11": "descendante", "2027-06-12": "descendante", "2027-06-13": "descendante", "2027-06-14": "descendante", "2027-06-15": "descendante", "2027-06-16": "descendante", "2027-06-17": "descendante", "2027-06-18": "montante", "2027-06-19": "montante", "2027-06-20": "montante", "2027-06-21": "montante", "2027-06-22": "montante", "2027-06-23": "montante", "2027-06-24": "montante", "2027-06-25": "montante", "2027-06-26": "montante", "2027-06-27": "montante", "2027-06-28": "montante", "2027-06-29": "montante", "2027-06-30": "montante"}, "fruit_days": ["2026-07-26", "2026-07-27", "2026-08-05", "2026-08-06", "2026-08-13", "2026-08-14", "2026-08-22", "2026-08-23", "2026-08-24", "2026-09-01", "2026-09-02", "2026-09-09", "2026-09-10", "2026-09-19", "2026-09-20", "2026-09-28", "2026-09-29", "2026-10-07", "2026-10-08", "2026-10-16", "2026-10-17", "2026-10-25", "2026-10-26", "2026-10-27", "2026-11-03", "2026-11-04", "2026-11-12", "2026-11-13", "2026-11-14", "2026-11-22", "2026-11-23", "2026-11-30", "2026-12-01", "2026-12-10", "2026-12-11", "2026-12-19", "2026-12-20", "2026-12-27", "2026-12-28", "2026-12-29", "2027-01-06", "2027-01-07", "2027-01-16", "2027-01-17", "2027-01-24", "2027-01-25", "2027-02-02", "2027-02-03", "2027-02-04", "2027-02-12", "2027-02-13", "2027-02-20", "2027-02-21", "2027-03-01", "2027-03-02", "2027-03-03", "2027-03-11", "2027-03-12", "2027-03-20", "2027-03-21", "2027-03-29", "2027-03-30", "2027-04-07", "2027-04-08", "2027-04-09", "2027-04-16", "2027-04-17", "2027-04-25", "2027-04-26", "2027-04-27", "2027-05-05", "2027-05-06", "2027-05-13", "2027-05-14", "2027-05-22", "2027-05-23", "2027-05-24", "2027-06-01", "2027-06-02", "2027-06-09", "2027-06-10", "2027-06-11", "2027-06-19", "2027-06-20", "2027-06-29", "2027-06-30", "2027-07-07", "2027-07-08", "2027-07-16", "2027-07-17", "2027-07-26", "2027-07-27", "2027-08-03", "2027-08-04", "2027-08-12", "2027-08-13", "2027-08-14", "2027-08-22", "2027-08-23", "2027-08-31"], "repos": ["2026-07-29", "2026-08-12", "2026-08-28", "2026-09-10", "2026-09-26", "2026-10-10", "2026-10-26", "2026-11-09", "2026-11-24", "2026-12-08", "2026-12-23", "2027-01-07", "2027-01-22", "2027-02-06", "2027-02-20", "2027-03-08", "2027-03-22", "2027-04-06", "2027-04-20", "2027-05-06", "2027-05-20", "2027-06-04", "2027-06-18", "2027-07-03", "2027-07-18", "2027-08-02", "2027-08-17", "2027-08-31", "2027-09-15"]};
+
+const MOIS = [
+ {n:"Janvier",   s:"careme", cyc:false, cc:"Pleine fenêtre. Semer en godets et repiquer. Sol riche, plein soleil, palissage dès le départ.", gg:"Semer en poquets de 3 graines (2 m d'écart) ou en pépinière. Pincer la tige après 2 feuilles."},
+ {n:"Février",   s:"careme", cyc:false, cc:"Continuer les semis et récolter les plants de décembre. Arroser au pied, sans mouiller le feuillage.", gg:"Arrosage régulier (saison sèche). Nouveaux semis encore possibles."},
+ {n:"Mars",      s:"careme", cyc:false, cc:"Récolte pleine des semis de déc.–janv. Derniers semis avant la montée des pluies.", gg:"Floraison et nouaison. Tailler les tiges qui ne portent pas de fruit."},
+ {n:"Avril",     s:"careme", cyc:false, cc:"Récolte. Fin de la fenêtre idéale : éviter de lancer de nouveaux plants sensibles.", gg:"Récolte + semer une planche rustique pour traverser l'hivernage."},
+ {n:"Mai",       s:"trans",  cyc:false, cc:"Terminer les récoltes. Pause conseillée en pleine terre : l'humidité amène mildiou et oïdium.", gg:"Semis encore possible (plus résistant). Tuteurer, bien aérer les plants."},
+ {n:"Juin",      s:"hiver",  cyc:true,  cc:"Pause pleine terre (trop humide). À réserver à une culture sous abri aéré.", gg:"Entretien, drainage soigné, surveiller l'oïdium. Isoler les fruits du sol."},
+ {n:"Juillet",   s:"hiver",  cyc:true,  cc:"Pause. Amender et préparer le sol pour le prochain carême.", gg:"Récolte des semis d'avril–mai. Isoler les fruits du sol détrempé."},
+ {n:"Août",      s:"hiver",  cyc:true,  cc:"Pause. Composter, entretenir, préparer les purins (ortie, prêle).", gg:"Protéger la planche, éviter les jeunes plants fragiles. Veille cyclonique."},
+ {n:"Septembre", s:"hiver",  cyc:true,  cc:"Pause active : compost, purins préventifs, préparer les godets pour la reprise.", gg:"Récolte et protection des plants. Veille cyclonique maintenue."},
+ {n:"Octobre",   s:"hiver",  cyc:true,  cc:"Reprise : semer en godets à l'abri en fin de mois pour repiquer en novembre.", gg:"Semer pour viser une récolte en plein carême."},
+ {n:"Novembre",  s:"trans",  cyc:false, cc:"Semer en godets pour repiquage en décembre → récolte en carême. Préparer les planches.", gg:"Semer. Former les billons, apporter le compost."},
+ {n:"Décembre",  s:"careme", cyc:false, cc:"Repiquer les plants de novembre + semer. Plein soleil, palissage, paillage au pied.", gg:"Semer, pleine croissance. Récupérer les graines des giraumons bien mûrs."},
+];
+const SEASON_CLASS={careme:"yb-careme",trans:"yb-trans",hiver:"yb-hiver"};
+const SEASON_LBL={careme:"Carême",trans:"Transition",hiver:"Hivernage"};
+const SEASON_PILL={careme:"s-careme",trans:"s-trans",hiver:"s-hiver"};
+const MOIS_ABBR=["Jan","Fév","Mar","Avr","Mai","Juin","Juil","Aoû","Sep","Oct","Nov","Déc"];
+
+// ---------- util lune ----------
+function parseD(s){const[y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d);}
+const NEWMOONS=DATA.phases.filter(p=>p.name==="Nouvelle lune").map(p=>parseD(p.date));
+function moonAge(date){ // jours depuis dernière nouvelle lune
+  let last=null;
+  const all=[...NEWMOONS].sort((a,b)=>a-b);
+  // approx : trouver la NM précédente, sinon estimer
+  for(const nm of all){ if(nm<=date) last=nm; }
+  if(!last){ // avant la 1re NM connue : estimer avec 29.53
+    last=new Date(all[0]); 
+    while(last>date) last=new Date(last.getTime()-29.53059*864e5);
+  }
+  return (date-last)/864e5;
+}
+function illum(age){ // 0..1 fraction éclairée
+  const ph=age/29.53059; return (1-Math.cos(2*Math.PI*ph))/2;
+}
+function waxing(age){return age< 29.53059/2;}
+function phaseName(age){
+  const a=age%29.53059;
+  if(a<1.4||a>28.1)return"Nouvelle lune";
+  if(a<6.4)return"Premier croissant";
+  if(a<8.4)return"Premier quartier";
+  if(a<13.8)return"Gibbeuse croissante";
+  if(a<15.8)return"Pleine lune";
+  if(a<21.1)return"Gibbeuse décroissante";
+  if(a<23.1)return"Dernier quartier";
+  return"Dernier croissant";
+}
+// dessine une phase sur un élément .moon (lit + shadow)
+function drawMoon(litEl,shEl,frac,wax){
+  litEl.style.display="block";
+  // shadow largeur = (1-frac) du disque, positionnée selon waxing
+  const w=(1-frac)*100;
+  shEl.style.width=w+"%";
+  if(wax){ shEl.style.left="0"; shEl.style.right="auto"; }
+  else   { shEl.style.right="0"; shEl.style.left="auto"; }
+  // arrondi côté terminateur
+  shEl.style.borderRadius="50%";
+}
+
+// état montante/descendante pour une date
+function mvtFor(dateStr){ return DATA.daily[dateStr]||null; }
+function fmtFR(d){return d.toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"});}
+function isoOf(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
+
+// ---------- HERO ----------
+(function(){
+  const now=new Date();
+  const age=moonAge(now);
+  const fr=illum(age),wax=waxing(age);
+  drawMoon(document.getElementById("lit"),document.getElementById("shadow"),fr,wax);
+  document.getElementById("todayLbl").textContent=now.toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
+  document.getElementById("phaseLbl").textContent=phaseName(age)+" · "+Math.round(fr*100)+"%";
+  const mvt=mvtFor(isoOf(now));
+  const mvtEl=document.getElementById("mvtLbl");
+  if(mvt){
+    const col=mvt==="montante"?"var(--montante)":"var(--descendante)";
+    const txt=mvt==="montante"?"⬆ Lune montante — semis & récolte":"⬇ Lune descendante — repiquage & travail du sol";
+    mvtEl.innerHTML=`<span class="pill" style="background:${col}22;color:${col}">${txt}</span>`;
+  }
+  // prochaine action : prochain jour semis à venir
+  const upcoming=[];
+  Object.keys(DATA.monthly).forEach(mk=>{
+    DATA.monthly[mk].semis.forEach(d=>upcoming.push({t:"semis",date:new Date(+mk.slice(0,4),+mk.slice(5,7)-1,d)}));
+    DATA.monthly[mk].repiquage.forEach(d=>upcoming.push({t:"repiquage",date:new Date(+mk.slice(0,4),+mk.slice(5,7)-1,d)}));
+  });
+  upcoming.sort((a,b)=>a.date-b.date);
+  const nx=upcoming.find(u=>u.date>=new Date(now.getFullYear(),now.getMonth(),now.getDate()));
+  if(nx){
+    const verb=nx.t==="semis"?"semer (lune montante + jour fruit)":"repiquer / planter (lune descendante + jour fruit)";
+    document.getElementById("nextAction").innerHTML=`Prochain jour idéal pour <b>${nx.t==="semis"?"semer":"repiquer"}</b> : <b>${fmtFR(nx.date)}</b>.<br><span style="color:var(--muted);font-size:12.5px">${verb}</span>`;
+  }
+})();
+
+// ---------- BANDE ANNÉE ----------
+(function(){
+  const yb=document.getElementById("yearbar");
+  MOIS.forEach((m,i)=>{
+    const seg=document.createElement("div");
+    seg.className="yb-seg "+(m.cyc?"yb-cyc":SEASON_CLASS[m.s]);
+    seg.innerHTML=`<span>${MOIS_ABBR[i]}</span>`;
+    seg.onclick=()=>selectMonth(i);
+    seg.dataset.i=i;
+    yb.appendChild(seg);
+  });
+})();
+
+// ---------- NAV MOIS ----------
+const nav=document.getElementById("monthNav");
+MOIS.forEach((m,i)=>{
+  const b=document.createElement("button");
+  b.className="mn-btn"; b.dataset.i=i;
+  b.innerHTML=`${MOIS_ABBR[i]}<span class="mn-dot">${m.cyc?"⚡":"●"}</span>`;
+  b.onclick=()=>selectMonth(i);
+  nav.appendChild(b);
+});
+
+function daysHTML(arr,cls){
+  if(!arr||!arr.length)return `<span class="day none">à ajuster selon météo</span>`;
+  return arr.map(d=>`<span class="day ${cls}">${d}</span>`).join("");
+}
+
+function selectMonth(i){
+  document.querySelectorAll(".mn-btn").forEach(b=>b.classList.toggle("on",+b.dataset.i===i));
+  document.querySelectorAll(".yb-seg").forEach(s=>s.classList.toggle("on",+s.dataset.i===i));
+  const m=MOIS[i];
+  // mapper mois -> clé année (juil2026..juin2027)
+  const mk = i>=6 ? `2026-${String(i+1).padStart(2,"0")}` : `2027-${String(i+1).padStart(2,"0")}`;
+  const md = DATA.monthly[mk]||{semis:[],repiquage:[]};
+  const el=document.getElementById("monthDetail");
+  el.innerHTML=`
+   <div class="mcard">
+    <div class="mcard-top">
+      <div>
+        <div class="mcard-month">${m.n}</div>
+        ${m.cyc?'<div class="cyc-warn">⚡ Saison cyclonique — veille météo</div>':''}
+      </div>
+      <div style="text-align:right">
+        <div class="mcard-season ${SEASON_PILL[m.s]}">${SEASON_LBL[m.s]}</div>
+      </div>
+    </div>
+    <div class="crop">
+      <div class="crop-ic cc">🥒</div>
+      <div class="crop-body cc"><h4>Concombre</h4><p>${m.cc}</p></div>
+    </div>
+    <div class="crop">
+      <div class="crop-ic gg">🎃</div>
+      <div class="crop-body gg"><h4>Giraumon</h4><p>${m.gg}</p></div>
+    </div>
+    <div class="lunebox">
+      <div class="lunebox-h">🌙 Jours favorables — ${m.n} ${mk.slice(0,4)}</div>
+      <div class="lune-row"><span class="lbl">⬆ Semer</span><div class="days">${daysHTML(md.semis,"semis")}</div></div>
+      <div class="lune-row"><span class="lbl">⬇ Repiquer</span><div class="days">${daysHTML(md.repiquage,"repiq")}</div></div>
+    </div>
+   </div>`;
+}
+
+// ---------- PRINCIPES : dessiner phases ----------
+document.querySelectorAll(".pr-ph").forEach(el=>{
+  const ph=parseFloat(el.dataset.ph); // 0=NL,0.25=PQ,0.5? ,0.75=DQ,1=PL
+  const lit=document.createElement("div");lit.className="lit";
+  const sh=document.createElement("div");sh.className="shadow";
+  el.appendChild(lit);el.appendChild(sh);
+  let frac,wax;
+  if(ph===0){frac=0.06;wax=true;}
+  else if(ph===0.25){frac=0.5;wax=true;}
+  else if(ph===1){frac=1;wax=true;}
+  else if(ph===0.75){frac=0.5;wax=false;}
+  drawMoon(lit,sh,frac,wax);
+});
+
+// ---------- DATES CLÉS ----------
+(function(){
+  const kd=document.getElementById("keydates");
+  const now=new Date();now.setHours(0,0,0,0);
+  const notes={"Nouvelle lune":"repos · sol","Premier quartier":"croissance","Pleine lune":"récolte · graines","Dernier quartier":"racines"};
+  const up=DATA.phases.map(p=>({...p,d:parseD(p.date)})).filter(p=>p.d>=now).slice(0,10);
+  up.forEach(p=>{
+    const row=document.createElement("div");row.className="kd-row";
+    row.innerHTML=`<span class="kd-emoji">${p.emoji}</span>
+      <span class="kd-date">${p.d.toLocaleDateString("fr-FR",{day:"2-digit",month:"short"})} · ${p.time}</span>
+      <span class="kd-name">${p.name}</span>
+      <span class="kd-note">${notes[p.name]||""}</span>`;
+    kd.appendChild(row);
+  });
+})();
+
+// init : sélectionner le mois courant
+selectMonth(new Date().getMonth());
+</script>
+</body>
+</html>
