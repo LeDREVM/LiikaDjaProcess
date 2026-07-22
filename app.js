@@ -8731,13 +8731,14 @@ const POTAGER_BIBLE = [
 ];
 const normPot = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 // Retrouve la fiche bible correspondant au nom d'une plante (ex. « Tomate cerise » → Tomate).
-// Durée mini d'un cycle de culture, en mois, lue depuis la bible ('2–3 mois' → 2).
+// Durée maxi d'un cycle de culture, en mois, lue depuis la bible ('2–3 mois' → 3).
+// On prend la borne haute pour n'alerter qu'une fois le cycle vraiment écoulé.
 // null quand la fiche ne donne pas de durée chiffrée (ex. 'Vivace grimpante').
-function cycleMoisMin(cycle) {
+function cycleMoisMax(cycle) {
   const s = String(cycle || '');
   if (!/mois/i.test(s)) return null;
-  const m = s.match(/(\d+(?:[.,]\d+)?)/);
-  return m ? parseFloat(m[1].replace(',', '.')) : null;
+  const nums = s.match(/\d+(?:[.,]\d+)?/g);
+  return nums ? parseFloat(nums[nums.length - 1].replace(',', '.')) : null;
 }
 
 // Alertes du Potager — regroupe les 3 sources (plantes, graines, lune) en une
@@ -8762,7 +8763,7 @@ function potagerAlertes(plantes, semansye, today) {
       return;
     }
     const b = findBible(p.nom);
-    const mois = b && cycleMoisMin(b.cycle);
+    const mois = b && cycleMoisMax(b.cycle);
     const j = jours(p.datePlantation);
     if (mois && j != null && j >= mois * 30) {
       out.push({ id:'cyc-' + p.id, icon:'⏳', txt:p.nom + ' : ' + Math.floor(j / 30) + ' mois en terre (cycle ' + b.cycle + ') — vérifier la récolte.', col:'var(--warn)', tab:'plantes' });
