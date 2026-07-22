@@ -7961,7 +7961,9 @@ function SortieView() {
   );
 }
 
-function compressImage(file) {
+function compressImage(file, maxW, quality) {
+  maxW = maxW || 1080;
+  quality = quality || 0.78;
   return new Promise(function(resolve, reject) {
     var reader = new FileReader();
     reader.onerror = reject;
@@ -7969,13 +7971,12 @@ function compressImage(file) {
       var img = new Image();
       img.onerror = reject;
       img.onload = function() {
-        var maxW = 1080;
         var ratio = Math.min(maxW / img.width, maxW / img.height, 1);
         var canvas = document.createElement('canvas');
         canvas.width = Math.round(img.width * ratio);
         canvas.height = Math.round(img.height * ratio);
         canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL('image/jpeg', 0.78));
+        resolve(canvas.toDataURL('image/jpeg', quality));
       };
       img.src = e.target.result;
     };
@@ -8464,15 +8465,24 @@ function PotagerView({ plantes, addPlante, updatePlante, deletePlante }) {
     if (!file) return;
     setUploading(true);
     try {
-      const dataUrl = await compressImage(file);
-      const blob = dataURLtoBlob(dataUrl);
-      const path = 'potager/' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.jpg';
-      const { error } = await sb.storage.from('album-photos').upload(path, blob, { contentType: 'image/jpeg', upsert: false });
-      if (error) throw error;
-      const { data: urlData } = sb.storage.from('album-photos').getPublicUrl(path);
-      const entry = { id: Date.now().toString(), date: new Date().toISOString().slice(0, 10), src: urlData.publicUrl };
+      // Compression légère (photos de suivi) → dataURL toujours dispo comme repli.
+      const dataUrl = await compressImage(file, 800, 0.6);
+      let src = dataUrl;
+      try {
+        const blob = dataURLtoBlob(dataUrl);
+        const path = 'potager/' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.jpg';
+        const { error } = await sb.storage.from('album-photos').upload(path, blob, { contentType: 'image/jpeg', upsert: false });
+        if (error) throw error;
+        src = sb.storage.from('album-photos').getPublicUrl(path).data.publicUrl;
+      } catch (up) {
+        // Storage indisponible → on garde l'image intégrée (data-URL) : elle s'affiche et se synchronise via le blob.
+        src = dataUrl;
+      }
+      const entry = { id: Date.now().toString(), date: new Date().toISOString().slice(0, 10), src: src };
       updatePlante(p.id, { journal: [entry, ...(p.journal || [])] });
-    } catch (err) { alert('Échec de l\'envoi de la photo : ' + (err && err.message ? err.message : err)); }
+    } catch (err) {
+      alert('Impossible de traiter la photo : ' + (err && err.message ? err.message : err));
+    }
     setUploading(false);
   };
   const delJournalEntry = (p, eid) => updatePlante(p.id, { journal: (p.journal || []).filter(e => e.id !== eid) });
