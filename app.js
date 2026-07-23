@@ -68,6 +68,23 @@ const NAME_LIIKA  = DEMO ? 'Sam'  : 'Liika';
 const COUPLE_NAME = DEMO ? 'Alex & Sam' : 'Dja & Liika';
 const CALLSIGN    = DEMO ? 'Nova' : 'Purple Moon';
 
+// ─── Mode de gestion de vie : Couple (2 profils) ou Solo (1 profil) ──────────
+// Pensé pour un usage public/perso : chacun choisit son mode et personnalise son
+// profil. Le défaut reste « couple » → comportement historique inchangé.
+// ACTIVE_MODE / ACTIVE_SOLO sont rafraîchis par <App> à chaque rendu (avant la
+// création de l'arbre enfant) pour que les vues lisent la bonne valeur sans avoir
+// à faire descendre le mode en props partout.
+let ACTIVE_MODE = 'couple'; // 'couple' | 'solo'
+let ACTIVE_SOLO = 'dja';    // 'dja' | 'liika' (personne active en solo)
+// Clés de personnes affichées par les sélecteurs (repas, budget, sport, objectifs…).
+function personKeys(){ return ACTIVE_MODE === 'solo' ? [ACTIVE_SOLO] : ['dja', 'liika', 'couple']; }
+// Catégories visibles : en solo, on masque la catégorie « Pro » du partenaire.
+function visibleCategories(){
+  if (ACTIVE_MODE !== 'solo') return CATEGORIES;
+  const hide = ACTIVE_SOLO === 'dja' ? 'prolia' : 'prodja';
+  return CATEGORIES.filter(c => c.id !== hide);
+}
+
 // ─── Supabase ───
 const SB_URL = 'https://mvtwotbyphuxdkcwgime.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im12dHdvdGJ5cGh1eGRrY3dnaW1lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzMTA5NTIsImV4cCI6MjA5MDg4Njk1Mn0.pZvyjzD9Qpl4IKjBYJcL4ObqdH-UXu47tHLFIzxfde8';
@@ -374,7 +391,7 @@ const realDefaultData = {
   },
   liika: {
     name: "Liika",
-    role: "VT — Monitrice PL · RSMA Guadeloupe — indicatif « Purple Moon »",
+    role: "Vie active & projets perso",
     location: "",
     color: "liika",
     objectives: [{
@@ -2124,7 +2141,7 @@ function MealsView({
   upsertMeal,
   deleteMeal
 }) {
-  const [who, setWho] = useState('dja');
+  const [who, setWho] = useState(personKeys()[0]);
   const meals = (who === 'couple' ? data.couple.meals : data[who].meals) || [];
   const getMeal = (jour, type) => meals.find(m => m.jour === jour && m.type === type);
   const [editId, setEditId] = useState(null);
@@ -2189,7 +2206,7 @@ function MealsView({
       cursor: 'pointer',
       transition: 'all .15s'
     }
-  }, "⎙ Imprimer / PDF"), ['dja', 'liika', 'couple'].map(w => /*#__PURE__*/React.createElement("button", {
+  }, "⎙ Imprimer / PDF"), personKeys().map(w => /*#__PURE__*/React.createElement("button", {
     key: w,
     onClick: () => setWho(w),
     style: {
@@ -2333,7 +2350,7 @@ function BudgetView({
   upsertBudgetLine,
   deleteBudgetLine
 }) {
-  const [who, setWho] = useState('dja');
+  const [who, setWho] = useState(personKeys()[0]);
   const budget = (who === 'couple' ? data.couple.budget : data[who].budget) || {
     revenus: [],
     depenses: []
@@ -2544,7 +2561,7 @@ function BudgetView({
       display: 'flex',
       gap: 6
     }
-  }, ['dja', 'liika', 'couple'].map(w => /*#__PURE__*/React.createElement("button", {
+  }, personKeys().map(w => /*#__PURE__*/React.createElement("button", {
     key: w,
     onClick: () => setWho(w),
     style: {
@@ -2691,7 +2708,7 @@ function VisionView({
   data,
   updateVision
 }) {
-  const [who, setWho] = useState('dja');
+  const [who, setWho] = useState(personKeys()[0]);
   const vision = (who === 'couple' ? data.couple.vision : data[who]?.vision) || '';
   const name = who === 'dja' ? data.dja.name : who === 'liika' ? data.liika.name : COUPLE_NAME;
   const av = accent[who];
@@ -2727,7 +2744,7 @@ function VisionView({
       display: 'flex',
       gap: 6
     }
-  }, ['dja', 'liika', 'couple'].map(w => /*#__PURE__*/React.createElement("button", {
+  }, personKeys().map(w => /*#__PURE__*/React.createElement("button", {
     key: w,
     onClick: () => setWho(w),
     style: {
@@ -2837,7 +2854,7 @@ function SportView({
   upsertSport,
   deleteSport
 }) {
-  const [who, setWho] = useState('dja');
+  const [who, setWho] = useState(personKeys()[0]);
   const sport = (who === 'couple' ? data.couple.sport : data[who]?.sport) || [];
   const av = accent[who];
   const [showForm, setShowForm] = useState(false);
@@ -2888,7 +2905,7 @@ function SportView({
       display: 'flex',
       gap: 6
     }
-  }, ['dja', 'liika', 'couple'].map(w => /*#__PURE__*/React.createElement("button", {
+  }, personKeys().map(w => /*#__PURE__*/React.createElement("button", {
     key: w,
     onClick: () => setWho(w),
     style: {
@@ -8135,7 +8152,7 @@ function CategoryHome({ catIdx, prevCatIdx, setView, goToCategory }) {
       React.createElement('button', { className:'hero-arrow hero-arrow-right', onClick:goNext, 'aria-label':'Suivant' }, '›'),
       // Points de navigation
       React.createElement('div', { className:'hero-dots' },
-        CATEGORIES.map(function(c, i) {
+        visibleCategories().map(function(c, i) {
           return React.createElement('button', {
             key: c.id,
             className: 'hero-dot' + (i === catIdx ? ' active' : ''),
@@ -9950,6 +9967,53 @@ function MotivationToast({ message, onClose }) {
 }
 
 // ─── Main App ───
+// ─── Panneau « Mon profil » : choix Couple/Solo + édition noms & rôles ───────
+function ProfilModal({ data, ui, setData, setUI, onClose }){
+  const h = React.createElement;
+  const mode = ui.mode || 'couple';
+  const soloWho = ui.soloWho || 'dja';
+  const setMode = (m) => setUI(prev => ({ ...prev, mode: m }));
+  const setSoloWho = (w) => setUI(prev => ({ ...prev, soloWho: w }));
+  const setField = (who, field, val) => setData(prev => { const n = clone(prev); n[who] = { ...n[who], [field]: val }; return n; });
+  const editable = mode === 'solo' ? [soloWho] : ['dja', 'liika'];
+  const overlay = { position:'fixed', inset:0, background:'rgba(0,0,0,.6)', backdropFilter:'blur(4px)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:16 };
+  const card = { background:'var(--bg2)', border:'1px solid var(--border2)', borderRadius:16, padding:'22px 20px', maxWidth:440, width:'100%', maxHeight:'88vh', overflowY:'auto', boxShadow:'0 20px 60px rgba(0,0,0,.5)' };
+  const seg = (active) => ({ flex:1, padding:'10px 12px', borderRadius:10, cursor:'pointer', fontSize:14, fontWeight:600, border:'1px solid '+(active?'var(--gold)':'var(--border)'), background: active?'rgba(212,175,55,.15)':'transparent', color: active?'var(--gold)':'var(--text)' });
+  const inp = { width:'100%', padding:'9px 11px', borderRadius:9, border:'1px solid var(--border)', background:'var(--bg3)', color:'var(--text)', fontSize:14, marginTop:4, boxSizing:'border-box' };
+  const lbl = { fontSize:12, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.04em' };
+  const profLabel = (w) => w === 'couple' ? 'Couple' : (mode === 'solo' ? 'Moi' : (w === 'dja' ? 'Profil A' : 'Profil B'));
+  return h('div', { style:overlay, onClick:onClose },
+    h('div', { style:card, onClick:e=>e.stopPropagation() },
+      h('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 } },
+        h('h2', { style:{ margin:0, fontSize:20, color:'var(--gold)' } }, '👤 Mon profil'),
+        h('button', { onClick:onClose, 'aria-label':'Fermer', style:{ background:'none', border:'none', color:'var(--text3)', fontSize:24, cursor:'pointer', lineHeight:1 } }, '×')
+      ),
+      h('div', { style:lbl }, 'Mode de gestion'),
+      h('div', { style:{ display:'flex', gap:8, margin:'6px 0 18px' } },
+        h('button', { onClick:()=>setMode('couple'), style:seg(mode==='couple') }, '👫 Couple'),
+        h('button', { onClick:()=>setMode('solo'), style:seg(mode==='solo') }, '🧑 Solo')
+      ),
+      mode==='solo' && h('div', { style:{ marginBottom:18 } },
+        h('div', { style:lbl }, "C'est moi"),
+        h('div', { style:{ display:'flex', gap:8, marginTop:6 } },
+          ['dja','liika'].map(w => h('button', { key:w, onClick:()=>setSoloWho(w), style:seg(soloWho===w) }, (data[w] && data[w].name) || (w==='dja'?'Profil A':'Profil B')))
+        )
+      ),
+      h('div', { style:lbl }, mode==='solo' ? 'Mon profil' : 'Les deux profils'),
+      editable.map(w => h('div', { key:w, style:{ marginTop:12, padding:'12px', border:'1px solid var(--border)', borderRadius:10 } },
+        h('div', { style:{ fontSize:12, color:accent[w]||'var(--text3)', fontWeight:700, marginBottom:6 } }, profLabel(w)),
+        h('label', { style:{ ...lbl, display:'block' } }, 'Nom',
+          h('input', { style:inp, value:(data[w] && data[w].name)||'', onChange:e=>setField(w,'name',e.target.value), placeholder:'Ton prénom' })
+        ),
+        h('label', { style:{ ...lbl, display:'block', marginTop:10 } }, 'Rôle / description',
+          h('input', { style:inp, value:(data[w] && data[w].role)||'', onChange:e=>setField(w,'role',e.target.value), placeholder:'Ex : projets & voyages' })
+        )
+      )),
+      h('button', { onClick:onClose, style:{ ...seg(true), width:'100%', marginTop:18 } }, 'Terminé')
+    )
+  );
+}
+
 function App(){
 const vw=useWindowWidth();
 const isMobile=vw<=768;
@@ -9964,6 +10028,21 @@ const setData=useCallback((updater)=>{
 // Vrai juste après l'application d'un état reçu en temps réel → évite de le re-pousser (anti-écho).
 const remoteApplyRef=useRef(false);
 const [ui,setUI]=useState(loadUI);
+// Mode de vie (couple/solo) : on rafraîchit les variables module AVANT de créer
+// l'arbre enfant, pour que personKeys()/visibleCategories() lisent la bonne valeur.
+const lifeMode = ui?.mode === 'solo' ? 'solo' : 'couple';
+const soloWho = ui?.soloWho === 'liika' ? 'liika' : 'dja';
+ACTIVE_MODE = lifeMode;
+ACTIVE_SOLO = soloWho;
+const [showProfil,setShowProfil]=useState(false);
+// Nom affiché dans l'en-tête : en solo le nom de la personne, sinon « A & B ».
+const displayName = lifeMode === 'solo'
+  ? ((data[soloWho] && data[soloWho].name) || COUPLE_NAME)
+  : (((data.dja && data.dja.name) || NAME_DJA) + ' & ' + ((data.liika && data.liika.name) || NAME_LIIKA));
+// Si la catégorie active devient masquée (passage en solo), on revient à l'accueil.
+useEffect(()=>{
+  if(!visibleCategories().some(c=>c.id===activeCat)){ setActiveCat('lifestyle'); setView(null); }
+},[lifeMode,soloWho]); // eslint-disable-line
 const [session,setSession]=useState({id:'couple',name:COUPLE_NAME,loggedAt:Date.now(),token:null});
 const [view,setView]=useState(null);
 const [activeCat,setActiveCat]=useState('lifestyle');
@@ -9982,8 +10061,8 @@ const activeProfile=ui?.activeProfile||'dja';
 const profileLabel=activeProfile==='dja'?NAME_DJA:activeProfile==='liika'?NAME_LIIKA:'Couple';
 const setActiveProfile=useCallback((who)=>setUI(prev=>({...prev,activeProfile:who})),[]);
 const goToCategory=useCallback((catId)=>{
-  const newIdx=CATEGORIES.findIndex(c=>c.id===catId);
-  const oldIdx=CATEGORIES.findIndex(c=>c.id===activeCat);
+  const newIdx=visibleCategories().findIndex(c=>c.id===catId);
+  const oldIdx=visibleCategories().findIndex(c=>c.id===activeCat);
   setPrevCatIdx(oldIdx);
   setActiveCat(catId);
   setView(null);
@@ -10981,7 +11060,7 @@ const ch=sb.channel('ld-realtime')
         color: 'var(--gold)',
         lineHeight: 1.1
       }
-    }, COUPLE_NAME), /*#__PURE__*/React.createElement("p", {
+    }, displayName), /*#__PURE__*/React.createElement("p", {
       style: {
         fontSize: 13,
         color: 'var(--text3)',
@@ -11239,11 +11318,11 @@ const ch=sb.channel('ld-realtime')
       color: "couple",
       icon: "\u25B8"
     }), (() => {
-      const totRev = ['dja', 'liika', 'couple'].reduce((s, w) => {
+      const totRev = personKeys().reduce((s, w) => {
         const b = w === 'couple' ? data.couple.budget : data[w].budget;
         return s + (b?.revenus || []).reduce((a, r) => a + Number(r.montant), 0);
       }, 0);
-      const totDep = ['dja', 'liika', 'couple'].reduce((s, w) => {
+      const totDep = personKeys().reduce((s, w) => {
         const b = w === 'couple' ? data.couple.budget : data[w].budget;
         return s + (b?.depenses || []).reduce((a, d) => a + Number(d.montant), 0);
       }, 0);
@@ -11260,7 +11339,7 @@ const ch=sb.channel('ld-realtime')
         gap: 12,
         marginBottom: 28
       }
-    }, ['dja', 'liika', 'couple'].map(w => {
+    }, personKeys().map(w => {
       const v = w === 'couple' ? data.couple.vision : data[w].vision;
       const name = w === 'dja' ? data.dja.name : w === 'liika' ? data.liika.name : 'Couple';
       return v ? /*#__PURE__*/React.createElement("div", {
@@ -11503,7 +11582,7 @@ const ch=sb.channel('ld-realtime')
         gridTemplateColumns: 'repeat(auto-fit,minmax(250px,1fr))',
         gap: 16
       }
-    }, ['dja', 'liika', 'couple'].map(who => {
+    }, personKeys().map(who => {
       const label = who === 'dja' ? 'Dja' : who === 'liika' ? 'Liika' : 'Couple';
       return /*#__PURE__*/React.createElement("div", {
         key: who,
@@ -12070,7 +12149,7 @@ const ch=sb.channel('ld-realtime')
       textOverflow: 'ellipsis',
       whiteSpace: 'nowrap'
     }
-  }, COUPLE_NAME), /*#__PURE__*/React.createElement("div", {
+  }, displayName), /*#__PURE__*/React.createElement("div", {
     className: "eyebrow",
     style: {
       opacity: .55,
@@ -12184,7 +12263,7 @@ const ch=sb.channel('ld-realtime')
     }
   }, "R\xE9initialiser"))), React.createElement('nav',{className:'cat-mobile-nav'},
     React.createElement('div',{className:'cat-mobile-nav-inner'},
-      CATEGORIES.map(cat=>React.createElement('button',{
+      visibleCategories().map(cat=>React.createElement('button',{
         key:cat.id,
         onClick:()=>goToCategory(cat.id),
         className:'cat-mobile-btn'+(activeCat===cat.id?' active':'')
@@ -12199,7 +12278,7 @@ const ch=sb.channel('ld-realtime')
       onClick:()=>setView(null)
     },'← Retour'),
     !view && React.createElement(CategoryHome,{
-      catIdx:CATEGORIES.findIndex(c=>c.id===activeCat),
+      catIdx:visibleCategories().findIndex(c=>c.id===activeCat),
       prevCatIdx,
       setView,
       goToCategory
@@ -12242,7 +12321,14 @@ const ch=sb.channel('ld-realtime')
   }), showMotivation && React.createElement(MotivationToast, {
     message: motivationMsg,
     onClose: () => setShowMotivation(false)
-  }));
+  }),
+  React.createElement('button', {
+    onClick: () => setShowProfil(true),
+    'aria-label': 'Mon profil',
+    title: 'Mon profil — mode & noms',
+    style: { position:'fixed', top:12, right:12, zIndex:900, display:'flex', alignItems:'center', gap:6, padding:'8px 12px', borderRadius:999, border:'1px solid var(--border2)', background:'rgba(20,40,28,.82)', backdropFilter:'blur(6px)', color:'var(--text)', fontSize:13, cursor:'pointer', boxShadow:'0 4px 14px rgba(0,0,0,.3)' }
+  }, '👤 ' + (lifeMode==='solo' ? 'Solo' : 'Couple')),
+  showProfil && React.createElement(ProfilModal, { data, ui, setData, setUI, onClose: () => setShowProfil(false) }));
 }
 // ── Écran d'ouverture animé ───────────────────────────────────────────────────
 // Affiché au lancement pendant SPLASH_HOLD, puis fondu de sortie vers l'app.
