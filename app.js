@@ -36,6 +36,38 @@ const accentBorder = {
 const clone = o => typeof structuredClone === 'function' ? structuredClone(o) : JSON.parse(JSON.stringify(o));
 const defaultUI = {};
 
+// ─── Mode DÉMO « Highdrevm » (bêta publique) ───────────────────────────────
+// Version d'essai publique, TOTALEMENT isolée de l'app privée du couple :
+//   • aucune synchro Supabase (pas de lecture/écriture des vraies données) ;
+//   • stockage localStorage préfixé « hd: » (aucune collision avec l'app réelle) ;
+//   • données de départ 100 % neutres (voir demoData) ;
+//   • marque rebrandée « Highdrevm ».
+// Activation : page dédiée (window.__HIGHDREVM_DEMO__=true), chemin /highdrevm/,
+// ou paramètre ?demo=1. Sinon l'app réelle fonctionne exactement comme avant.
+const DEMO = (typeof window !== 'undefined') && (
+  window.__HIGHDREVM_DEMO__ === true ||
+  /(?:^|[?&])demo=1(?:&|$)/.test((window.location && window.location.search) || '') ||
+  /\/highdrevm(?:\/(?:index\.html)?)?$/i.test((window.location && window.location.pathname) || '')
+);
+
+// Stockage local : en démo, tout est préfixé pour ne jamais toucher aux clés réelles.
+const _rawLS = (typeof window !== 'undefined' && window.localStorage) ? window.localStorage : {
+  getItem() { return null; }, setItem() {}, removeItem() {}
+};
+const LS = DEMO ? {
+  getItem: (k) => _rawLS.getItem('hd:' + k),
+  setItem: (k, v) => _rawLS.setItem('hd:' + k, v),
+  removeItem: (k) => _rawLS.removeItem('hd:' + k)
+} : _rawLS;
+
+// Libellés de marque / identité — neutres en démo, identiques à l'original sinon.
+const BRAND       = DEMO ? 'Highdrevm' : 'Lanmou Douvan';
+const BRAND_TAG   = DEMO ? 'Bêta publique' : 'Mix Vibz';
+const NAME_DJA    = DEMO ? 'Alex' : 'Dja';
+const NAME_LIIKA  = DEMO ? 'Sam'  : 'Liika';
+const COUPLE_NAME = DEMO ? 'Alex & Sam' : 'Dja & Liika';
+const CALLSIGN    = DEMO ? 'Nova' : 'Purple Moon';
+
 // ─── Supabase ───
 const SB_URL = 'https://mvtwotbyphuxdkcwgime.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im12dHdvdGJ5cGh1eGRrY3dnaW1lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzMTA5NTIsImV4cCI6MjA5MDg4Njk1Mn0.pZvyjzD9Qpl4IKjBYJcL4ObqdH-UXu47tHLFIzxfde8';
@@ -43,14 +75,15 @@ const sb = supabase.createClient(SB_URL, SB_KEY);
 
 // ID unique de cet appareil (généré une seule fois, persisté en localStorage)
 const DEVICE_ID = (() => {
-  let id = localStorage.getItem('ld-device-id');
+  let id = LS.getItem('ld-device-id');
   if (!id) {
     id = 'dev_' + Math.random().toString(36).slice(2, 10);
-    localStorage.setItem('ld-device-id', id);
+    LS.setItem('ld-device-id', id);
   }
   return id;
 })();
 async function sbLoad(token) {
+  if (DEMO) return clone(defaultData); // démo : jamais de lecture Supabase
   if (token) {
     try {
       const { data, error } = await sb.rpc('ld_get_app_state', { p_token: token });
@@ -63,6 +96,7 @@ async function sbLoad(token) {
   return normalize(data.data);
 }
 async function sbSave(d, token) {
+  if (DEMO) return; // démo : jamais d'écriture Supabase
   // recipes, ferments, courses & media vivent dans leurs tables dédiées → hors du blob app_state
   const { recipes, ferments, courses, media, ...rest } = d || {};
   if (token) {
@@ -163,7 +197,7 @@ async function sbUpsertMedia(m) {
 async function sbDeleteMedia(id) { return sb.from('media').delete().eq('id', id); }
 
 // ─── Data ───
-const defaultData = {
+const realDefaultData = {
   dja: {
     name: "Negus Dja",
     role: "Directeur artistique & Dev",
@@ -693,6 +727,215 @@ const defaultData = {
   },
   album: []
 };
+
+// ─── Données de départ NEUTRES pour la démo publique « Highdrevm » ──────────
+// Aucune information personnelle : noms génériques (Alex / Sam), objectifs,
+// finances, repas, sport et plan « exemple ». Même forme exacte que realDefaultData
+// (normalize() complète toute clé manquante à partir de defaultData, donc en démo
+// il ne doit JAMAIS retomber sur les vraies données du couple).
+const demoData = {
+  dja: {
+    name: "Alex",
+    role: "Créatif indépendant (exemple)",
+    location: "",
+    color: "dja",
+    objectives: [
+      { id: "d1", cat: "Carriere", title: "Lancer un premier projet perso", desc: "Cadrer l'idée, tester, publier", progress: 20, done: false },
+      { id: "d2", cat: "Carriere", title: "Se construire une identité pro", desc: "Portfolio, réseau, régularité", progress: 15, done: false },
+      { id: "d3", cat: "Sante", title: "Routine alimentaire stable", desc: "Repas préparés à l'avance", progress: 30, done: false },
+      { id: "d4", cat: "Sante", title: "Meilleure organisation au quotidien", desc: "Petites tâches, outils simples", progress: 25, done: false },
+      { id: "d5", cat: "Finances", title: "Mettre en place une épargne", desc: "Un peu chaque mois", progress: 10, done: false },
+      { id: "d6", cat: "Finances", title: "Diversifier ses revenus", desc: "Idées de revenus complémentaires", progress: 5, done: false }
+    ],
+    actions: [
+      { id: "da1", text: "Définir le périmètre du premier projet", cat: "Carriere", done: false },
+      { id: "da2", text: "Lister 10 idées à explorer", cat: "Carriere", done: false },
+      { id: "da3", text: "Créer un planning de repas hebdo", cat: "Sante", done: false },
+      { id: "da4", text: "Faire un budget mensuel simple", cat: "Finances", done: false },
+      { id: "da5", text: "Prototyper une première maquette", cat: "Carriere", done: false },
+      { id: "da6", text: "Tester 3 nouvelles recettes", cat: "Sante", done: false }
+    ],
+    notes: [],
+    meals: [
+      { id: 'dm1', jour: 'Lundi', type: 'Matin', plat: 'Smoothie de fruits', note: '' },
+      { id: 'dm2', jour: 'Lundi', type: 'Midi', plat: 'Riz complet & légumineuses', note: '' },
+      { id: 'dm3', jour: 'Lundi', type: 'Soir', plat: 'Soupe de lentilles', note: '' },
+      { id: 'dm4', jour: 'Mardi', type: 'Midi', plat: 'Salade de quinoa', note: '' },
+      { id: 'dm5', jour: 'Mercredi', type: 'Midi', plat: 'Curry de pois chiches', note: '' }
+    ],
+    budget: {
+      revenus: [
+        { id: 'dr1', label: 'Revenu principal', montant: 2500 },
+        { id: 'dr2', label: 'Revenu complémentaire', montant: 200 }
+      ],
+      depenses: [
+        { id: 'dd1', label: 'Loyer', montant: 800, cat: 'Logement' },
+        { id: 'dd2', label: 'Alimentation', montant: 350, cat: 'Vie' },
+        { id: 'dd3', label: 'Abonnements', montant: 80, cat: 'Tech' },
+        { id: 'dd4', label: 'Transport', montant: 120, cat: 'Transport' }
+      ]
+    },
+    vision: "Exemple de vision personnelle : mener à bien des projets créatifs, garder un bon équilibre de vie et avancer vers plus d'autonomie.",
+    sport: [
+      { id: 'ds1', jour: 'Lundi', activite: 'Yoga / étirements', duree: 30, intensite: 'Légère', fait: false },
+      { id: 'ds2', jour: 'Mercredi', activite: 'Course à pied', duree: 40, intensite: 'Modérée', fait: false },
+      { id: 'ds3', jour: 'Vendredi', activite: 'Renforcement', duree: 45, intensite: 'Intense', fait: false },
+      { id: 'ds4', jour: 'Dimanche', activite: 'Marche', duree: 60, intensite: 'Légère', fait: false }
+    ]
+  },
+  liika: {
+    name: "Sam",
+    role: "Sur la route (exemple)",
+    location: "",
+    color: "liika",
+    objectives: [
+      { id: "l1", cat: "Carriere", title: "Stabiliser son activité", desc: "Organiser, fidéliser", progress: 30, done: false },
+      { id: "l2", cat: "Carriere", title: "Trouver sa spécialité", desc: "Se différencier", progress: 10, done: false },
+      { id: "l3", cat: "Carriere", title: "Passer un cap pro", desc: "Nouvelles responsabilités", progress: 5, done: false },
+      { id: "l4", cat: "Sante", title: "Routine santé adaptée", desc: "Étirements, repas, sommeil", progress: 20, done: false },
+      { id: "l5", cat: "Perso", title: "Équilibre travail / maison", desc: "Mieux gérer son temps", progress: 15, done: false },
+      { id: "l6", cat: "Perso", title: "Construire à deux", desc: "Temps de qualité, projets communs", progress: 20, done: false }
+    ],
+    actions: [
+      { id: "la1", text: "Faire un bilan des 12 derniers mois", cat: "Carriere", done: false },
+      { id: "la2", text: "Identifier 3 spécialités possibles", cat: "Carriere", done: false },
+      { id: "la3", text: "Préparer un kit repas sains", cat: "Sante", done: false },
+      { id: "la4", text: "Routine d'étirements de 10 min", cat: "Sante", done: false },
+      { id: "la5", text: "Planifier un week-end détente", cat: "Perso", done: false },
+      { id: "la6", text: "Se renseigner sur une formation", cat: "Carriere", done: false }
+    ],
+    notes: [],
+    meals: [
+      { id: 'lm1', jour: 'Lundi', type: 'Matin', plat: 'Café & tartines', note: '' },
+      { id: 'lm2', jour: 'Lundi', type: 'Midi', plat: 'Repas préparé la veille', note: '' },
+      { id: 'lm3', jour: 'Mardi', type: 'Midi', plat: 'Salade composée / wrap', note: '' },
+      { id: 'lm4', jour: 'Mercredi', type: 'Matin', plat: 'Yaourt & fruits secs', note: '' },
+      { id: 'lm5', jour: 'Vendredi', type: 'Soir', plat: 'Repas maison', note: '' }
+    ],
+    budget: {
+      revenus: [
+        { id: 'lr1', label: 'Revenu principal', montant: 3200 }
+      ],
+      depenses: [
+        { id: 'ld1', label: 'Charges pro', montant: 900, cat: 'Pro' },
+        { id: 'ld2', label: 'Carburant', montant: 400, cat: 'Transport' },
+        { id: 'ld3', label: 'Alimentation', montant: 250, cat: 'Vie' },
+        { id: 'ld4', label: 'Assurances', montant: 180, cat: 'Pro' }
+      ]
+    },
+    vision: "Exemple de vision : progresser dans son métier, préserver sa santé sur la route et construire un projet de vie solide à deux.",
+    codeRousseau: { eleves: [], fiches: [], notes: '' },
+    route: { km: 0, checklist: {} },
+    sport: [
+      { id: 'ls1', jour: 'Mardi', activite: 'Étirements', duree: 15, intensite: 'Légère', fait: false },
+      { id: 'ls2', jour: 'Jeudi', activite: 'Marche', duree: 30, intensite: 'Légère', fait: false },
+      { id: 'ls3', jour: 'Samedi', activite: 'Sport maison', duree: 40, intensite: 'Modérée', fait: false },
+      { id: 'ls4', jour: 'Dimanche', activite: 'Vélo ou natation', duree: 45, intensite: 'Modérée', fait: false }
+    ]
+  },
+  couple: {
+    objectives: [
+      { id: "c1", cat: "Couple", title: "Définir des objectifs communs", desc: "Logement, voyages, finances", progress: 10, done: false },
+      { id: "c2", cat: "Couple", title: "Synchroniser les rythmes de vie", desc: "Adapter les plannings", progress: 15, done: false },
+      { id: "c3", cat: "Couple", title: "Épargner pour un projet", desc: "Construire à deux", progress: 5, done: false }
+    ],
+    actions: [
+      { id: "ca1", text: "Planifier une soirée objectifs", cat: "Couple", done: false },
+      { id: "ca2", text: "Ouvrir une épargne commune", cat: "Couple", done: false },
+      { id: "ca3", text: "Choisir une destination de vacances", cat: "Couple", done: false }
+    ],
+    notes: [],
+    meals: [
+      { id: 'cm1', jour: 'Samedi', type: 'Midi', plat: 'Brunch maison', note: 'Rituel hebdo' },
+      { id: 'cm2', jour: 'Samedi', type: 'Soir', plat: 'Repas convivial', note: '' },
+      { id: 'cm3', jour: 'Dimanche', type: 'Midi', plat: 'Repas en famille ou sortie', note: '' }
+    ],
+    budget: {
+      revenus: [
+        { id: 'cr1', label: 'Contribution A', montant: 800 },
+        { id: 'cr2', label: 'Contribution B', montant: 800 }
+      ],
+      depenses: [
+        { id: 'cd1', label: 'Fond vacances', montant: 500, cat: 'Projets' },
+        { id: 'cd2', label: 'Épargne logement', montant: 600, cat: 'Épargne' },
+        { id: 'cd3', label: 'Loisirs', montant: 200, cat: 'Vie' }
+      ]
+    },
+    vision: "Exemple de vision commune : un foyer à soi, un voyage par an et des projets partagés. Construire une belle vie à deux.",
+    sport: [
+      { id: 'cs1', jour: 'Samedi', activite: 'Balade ensemble', duree: 60, intensite: 'Légère', fait: false },
+      { id: 'cs2', jour: 'Dimanche', activite: 'Randonnée', duree: 90, intensite: 'Modérée', fait: false }
+    ],
+    planning: {},
+    ideeJour: { liste: [], custom: [] },
+    motivations: [],
+    medical: [],
+    soirees: [],
+    maison: { checked: {}, custom: [], lastReset: '' },
+    objMensuels: [],
+    survie: {
+      foyer: 2,
+      stocks: [
+        { id: 'sv-eau', nom: 'Eau potable', cat: 'Eau', qte: 24, unite: 'L', parJour: 3, peremption: '', note: 'Réserve (≈3 L/pers/j)' },
+        { id: 'sv-riz', nom: 'Riz', cat: 'Nourriture', qte: 5, unite: 'kg', parJour: 0.25, peremption: '', note: '' },
+        { id: 'sv-conserves', nom: 'Conserves diverses', cat: 'Nourriture', qte: 20, unite: 'boîtes', parJour: 1, peremption: '', note: '' },
+        { id: 'sv-trousse', nom: 'Trousse de premiers secours', cat: 'Médical', qte: 1, unite: 'kit', parJour: 0, peremption: '', note: 'Vérifier péremptions' },
+        { id: 'sv-piles', nom: 'Piles AA', cat: 'Énergie', qte: 12, unite: 'u', parJour: 0, peremption: '', note: '' },
+        { id: 'sv-lampe', nom: 'Lampe frontale', cat: 'Outils', qte: 2, unite: 'u', parJour: 0, peremption: '', note: '' }
+      ],
+      bob: {
+        dja: [
+          { id: 'bd1', label: 'Eau (1,5 L) + pastilles', done: false },
+          { id: 'bd2', label: 'Rations 48 h', done: false },
+          { id: 'bd3', label: 'Couverture de survie', done: false },
+          { id: 'bd4', label: 'Multi-outil + briquet', done: false }
+        ],
+        liika: [
+          { id: 'bl1', label: 'Eau (1,5 L) + pastilles', done: false },
+          { id: 'bl2', label: 'Rations 48 h', done: false },
+          { id: 'bl3', label: 'Trousse médicale perso', done: false },
+          { id: 'bl4', label: 'Lampe + radio dynamo', done: false }
+        ],
+        commun: [
+          { id: 'bc1', label: 'Documents (copies) étanches', done: false },
+          { id: 'bc2', label: 'Cash en petites coupures', done: false },
+          { id: 'bc3', label: 'Carte papier + boussole', done: false }
+        ]
+      },
+      plan: {
+        ralliement: [
+          { id: 'rp1', nom: 'Point A — domicile', adresse: '', note: 'Premier repli' }
+        ],
+        contacts: [
+          { id: 'pc1', nom: 'Contact 1', role: 'Coordination', tel: '' },
+          { id: 'pc2', nom: 'Contact 2', role: 'Intendance', tel: '' }
+        ],
+        protocoles: [
+          { id: 'pr1', scenario: 'Coupure prolongée (eau/élec)', texte: 'Activer les réserves, rationner l\'eau, rejoindre le point A si > 72 h.' }
+        ]
+      }
+    }
+  },
+  recipes: [],
+  ferments: [],
+  courses: [],
+  media: [{
+    id: 'pl-seed', kind: 'playlist',
+    ytId: 'PLniFU1EmwtN-rC-s6vgj_ZdFYi3FcJtWB',
+    title: 'Playlist démo', thumb: ''
+  }],
+  games: {
+    chess: { fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', lastBy: '', result: '' },
+    crossword: { filled: {}, done: false },
+    streak: { count: 0, lastDay: '' },
+    badges: []
+  },
+  album: []
+};
+
+// En démo, TOUTE la logique (normalize, reset, chargement…) part de ce seed neutre.
+const defaultData = DEMO ? demoData : realDefaultData;
+
 // Garantit que les données chargées/reçues ont toujours la forme attendue
 // (dja / liika / couple complets). Évite l'écran blanc si Supabase renvoie
 // un état partiel, null ou d'une ancienne version.
@@ -830,18 +1073,18 @@ function mergeStates(local, remote) {
 }
 function loadData() {
   try {
-    const d = localStorage.getItem('dja-liika-goals');
+    const d = LS.getItem('dja-liika-goals');
     return normalize(d ? JSON.parse(d) : defaultData);
   } catch (e) {
     return clone(defaultData);
   }
 }
 function saveData(d) {
-  localStorage.setItem('dja-liika-goals', JSON.stringify(d));
+  LS.setItem('dja-liika-goals', JSON.stringify(d));
 }
 function loadUI() {
   try {
-    const u = localStorage.getItem('dja-liika-ui');
+    const u = LS.getItem('dja-liika-ui');
     return u ? {
       ...defaultUI,
       ...JSON.parse(u)
@@ -851,7 +1094,7 @@ function loadUI() {
   }
 }
 function saveUI(u) {
-  localStorage.setItem('dja-liika-ui', JSON.stringify(u));
+  LS.setItem('dja-liika-ui', JSON.stringify(u));
 }
 
 // ─── Components ───
@@ -1860,7 +2103,7 @@ tr.alt .cell{background:#faf8f0}
 </style></head>
 <body>
 <div class="band">
-  <div class="eyebrow">🍃 Lanmou Douvan — Mix Vibz</div>
+  <div class="eyebrow">🍃 ${BRAND} — ${BRAND_TAG}</div>
   <div class="title">Plan de repas — <b>${pm.label}</b></div>
   <div class="sub">Planning alimentaire de la semaine</div>
 </div>
@@ -2455,7 +2698,7 @@ function VisionView({
 }) {
   const [who, setWho] = useState('dja');
   const vision = (who === 'couple' ? data.couple.vision : data[who]?.vision) || '';
-  const name = who === 'dja' ? data.dja.name : who === 'liika' ? data.liika.name : 'Dja & Liika';
+  const name = who === 'dja' ? data.dja.name : who === 'liika' ? data.liika.name : COUPLE_NAME;
   const av = accent[who];
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -4104,7 +4347,7 @@ function MaisonView({
       tasks.filter(t => t.heure === hhmm && !chk[t.id]).forEach(t => {
         try {
           new Notification(`🏠 ${t.titre}`, {
-            body: `Rappel ${t.freq.toLowerCase()} · Lanmou Douvan`
+            body: `Rappel ${t.freq.toLowerCase()} · ${BRAND}`
           });
         } catch (_) {}
       });
@@ -4670,7 +4913,7 @@ function PlanningView({
       textTransform: 'uppercase',
       marginBottom: 2
     }
-  }, "Lanmou Douvan"), /*#__PURE__*/React.createElement("h1", {
+  }, BRAND), /*#__PURE__*/React.createElement("h1", {
     style: {
       margin: 0,
       fontSize: 22,
@@ -4678,14 +4921,14 @@ function PlanningView({
       color: '#f0faf0',
       lineHeight: 1
     }
-  }, "Liika & Dja"))), /*#__PURE__*/React.createElement("p", {
+  }, DEMO ? COUPLE_NAME : "Liika & Dja"))), /*#__PURE__*/React.createElement("p", {
     style: {
       margin: '6px 0 0',
       fontSize: 12,
       color: '#6b9e7a',
       fontStyle: 'italic'
     }
-  }, "Planning vie de couple \u2022 Guadeloupe \uD83C\uDF34"), /*#__PURE__*/React.createElement("div", {
+  }, DEMO ? "Tableau de bord partag\u00E9 \u2014 version d'exemple" : "Planning vie de couple \u2022 Guadeloupe \uD83C\uDF34"), /*#__PURE__*/React.createElement("div", {
     className: "scroll-x",
     style: {
       display: 'flex',
@@ -5840,7 +6083,7 @@ function downloadIcs(events, filename) {
 function eventsToIcs(events) {
   const stamp = icsStamp();
   const pad = n => String(n).padStart(2, '0');
-  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Lanmou Douvan//Mix Vibz//FR', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:Lanmou Douvan — Mix Vibz'];
+  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//' + BRAND + '//' + BRAND_TAG + '//FR', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:' + BRAND + ' — ' + BRAND_TAG];
   (events || []).forEach((evnt, idx) => {
     lines.push('BEGIN:VEVENT');
     lines.push('UID:' + (evnt.uid || stamp + '-' + idx + '@lanmou-douvan'));
@@ -6277,7 +6520,7 @@ function SurvieView({ survie, updateSurvie, ferments, addCourse }) {
     // En-tête + condition
     h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 18 } },
       h('div', null,
-        h('h2', { style: { color: 'var(--gold)', margin: 0 } }, '🪖 Base Purple Moon'),
+        h('h2', { style: { color: 'var(--gold)', margin: 0 } }, '🪖 Base ' + CALLSIGN),
         h('div', { style: { fontSize: 12, color: 'var(--text2)', fontFamily: "'Space Mono',monospace", marginTop: 2 } }, 'Protocole survie — foyer ' + foyer + ' pers.')
       ),
       h('div', { style: { textAlign: 'right' } },
@@ -6356,7 +6599,7 @@ function SurvieView({ survie, updateSurvie, ferments, addCourse }) {
     // ── BOB ──
     h('h3', { style: { color: 'var(--gold)', fontSize: 15, marginBottom: 10 } }, '🎒 Sacs d\'évacuation (BOB)'),
     h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', gap: 12, marginBottom: 26 } },
-      [['dja', 'Dja'], ['liika', 'Liika (Purple Moon)'], ['commun', 'Commun']].map(([key, label]) =>
+      [['dja', NAME_DJA], ['liika', NAME_LIIKA + ' (' + CALLSIGN + ')'], ['commun', 'Commun']].map(([key, label]) =>
         h('div', { key: key, style: card },
           h('div', { style: { fontWeight: 700, color: 'var(--gold)', marginBottom: 8, fontSize: 13 } }, label),
           (bob[key] || []).map(b =>
@@ -6534,7 +6777,7 @@ function DrevmCookView({
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem('ld-ferment-ready-alerted');
+      const raw = LS.getItem('ld-ferment-ready-alerted');
       const ids = raw ? JSON.parse(raw) : [];
       alertedReadyRef.current = new Set(Array.isArray(ids) ? ids : []);
     } catch (_) {
@@ -6556,7 +6799,7 @@ function DrevmCookView({
     if (fresh.length) {
       setNewReadyAlerts(prev => [...fresh, ...prev].slice(0, 6));
       try {
-        localStorage.setItem('ld-ferment-ready-alerted', JSON.stringify([...alerted]));
+        LS.setItem('ld-ferment-ready-alerted', JSON.stringify([...alerted]));
       } catch (_) {}
     }
   }, [fermentList, fermentMetaById]);
@@ -6875,7 +7118,7 @@ const BADGES = [
 ];
 // Mini grille de mots croisés gwada/couple — les mots se croisent sur AMOUR (vertical)
 const CW_WORDS = [
-  { num:1, dir:'across', r:0, c:0, answer:'DJA',   clue:'Negus ___, ton nom d’artiste' },
+  { num:1, dir:'across', r:0, c:0, answer:'DJA',   clue: DEMO ? 'Mot de 3 lettres (exemple)' : 'Negus ___, ton nom d’artiste' },
   { num:2, dir:'down',   r:0, c:2, answer:'AMOUR', clue:'Ce qui vous lie ♡' },
   { num:3, dir:'across', r:2, c:0, answer:'GWO',   clue:'« Gros » en créole' },
   { num:4, dir:'across', r:4, c:2, answer:'RIVYE', clue:'« Rivière » en créole' }
@@ -6903,7 +7146,7 @@ function JeuxView({ games, updateGames }) {
   const h = React.createElement;
   const [tab, setTab] = useState('chess');
   const [sel, setSel] = useState(null);
-  const me = localStorage.getItem('ld-username') || 'Joueur';
+  const me = LS.getItem('ld-username') || 'Joueur';
   const hasChess = typeof window.Chess === 'function';
 
   // Reconstruit la partie depuis le FEN stocké (sync via Supabase)
@@ -8218,7 +8461,7 @@ const CATEGORIES = [
     ],
   },
   {
-    id:'prolia', label:'Pro · Purple Moon', emoji:'🎖️',
+    id:'prolia', label:'Pro · ' + (DEMO ? NAME_LIIKA : CALLSIGN), emoji:'🎖️',
     color:'#f472b6',
     grad:'linear-gradient(135deg,#831843 0%,#be185d 55%,#f472b6 100%)',
     desc:'Planning · REMC · Route · Survie',
@@ -8233,7 +8476,7 @@ const CATEGORIES = [
     ],
   },
   {
-    id:'prodja', label:'Pro · Negus Dja', emoji:'🎨',
+    id:'prodja', label:'Pro · ' + (DEMO ? NAME_DJA : 'Negus Dja'), emoji:'🎨',
     color:'#a78bfa',
     grad:'linear-gradient(135deg,#2e1065 0%,#6d28d9 55%,#a78bfa 100%)',
     desc:'Art · Création · Direction artistique',
@@ -8375,10 +8618,10 @@ function CategoryHome({ catIdx, prevCatIdx, setView, goToCategory }) {
 
 // ── Stub views ────────────────────────────────────────────────────────────────
 function SortieView() {
-  const [list, setList] = React.useState(() => { try { return JSON.parse(localStorage.getItem('ld-sorties')||'[]'); } catch { return []; } });
+  const [list, setList] = React.useState(() => { try { return JSON.parse(LS.getItem('ld-sorties')||'[]'); } catch { return []; } });
   const [form, setForm] = React.useState({ titre:'', date:'', lieu:'', notes:'' });
   const [show, setShow] = React.useState(false);
-  const save = l => { setList(l); localStorage.setItem('ld-sorties', JSON.stringify(l)); };
+  const save = l => { setList(l); LS.setItem('ld-sorties', JSON.stringify(l)); };
   const add = () => { if (!form.titre.trim()) return; save([{ id:Date.now().toString(), ...form }, ...list]); setForm({ titre:'', date:'', lieu:'', notes:'' }); setShow(false); };
   const del = id => save(list.filter(x => x.id !== id));
   const inp = { background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'8px 12px', fontSize:13, width:'100%', boxSizing:'border-box' };
@@ -8443,7 +8686,7 @@ function AlbumView({ album, addAlbumPhoto, deleteAlbumPhoto }) {
   // Migration unique : photos URL existantes depuis ld-album localStorage → app_state synced
   React.useEffect(function() {
     try {
-      var local = JSON.parse(localStorage.getItem('ld-album') || '[]');
+      var local = JSON.parse(LS.getItem('ld-album') || '[]');
       var syncedIds = new Set((album || []).map(function(p) { return p.id; }));
       var toMigrate = local.filter(function(p) {
         if (syncedIds.has(p.id)) return false;
@@ -8451,7 +8694,7 @@ function AlbumView({ album, addAlbumPhoto, deleteAlbumPhoto }) {
         return src.startsWith('http'); // URLs seulement (pas base64)
       });
       toMigrate.forEach(function(p) { addAlbumPhoto(p); });
-      if (local.length > 0) localStorage.removeItem('ld-album');
+      if (local.length > 0) LS.removeItem('ld-album');
     } catch(_) {}
   }, []); // eslint-disable-line
 
@@ -8479,6 +8722,10 @@ function AlbumView({ album, addAlbumPhoto, deleteAlbumPhoto }) {
     setUploading(true);
     try {
       const dataUrl = await compressImage(file);
+      if (DEMO) { // démo : photo gardée en local (data-URL), aucun envoi cloud
+        addPhoto({ id: Date.now().toString(), src: dataUrl, caption: caption.trim(), date: new Date().toISOString().slice(0,10) });
+        return;
+      }
       const blob = dataURLtoBlob(dataUrl);
       const path = 'photos/' + Date.now() + '-' + Math.random().toString(36).slice(2,8) + '.jpg';
       const { error } = await sb.storage.from('album-photos').upload(path, blob, { contentType:'image/jpeg', upsert:false });
@@ -8623,12 +8870,12 @@ function AlbumView({ album, addAlbumPhoto, deleteAlbumPhoto }) {
 }
 
 function IdeesView() {
-  const [idees, setIdees] = React.useState(() => { try { return JSON.parse(localStorage.getItem('ld-idees')||'[]'); } catch { return []; } });
+  const [idees, setIdees] = React.useState(() => { try { return JSON.parse(LS.getItem('ld-idees')||'[]'); } catch { return []; } });
   const [text, setText] = React.useState('');
   const [cat, setCat] = React.useState('Idée');
   const CATS = ['Idée','Projet','Rêve','Question','À explorer'];
   const CAT_C = { 'Idée':'var(--gold)', 'Projet':'var(--accent-liika)', 'Rêve':'var(--accent-dja)', 'Question':'var(--warn)', 'À explorer':'var(--success)' };
-  const save = l => { setIdees(l); localStorage.setItem('ld-idees', JSON.stringify(l)); };
+  const save = l => { setIdees(l); LS.setItem('ld-idees', JSON.stringify(l)); };
   const add = () => { if (!text.trim()) return; save([{ id:Date.now().toString(), text:text.trim(), cat, date:new Date().toISOString().slice(0,10) }, ...idees]); setText(''); };
   const del = id => save(idees.filter(i => i.id !== id));
   return React.createElement('div', null,
@@ -8660,11 +8907,11 @@ function MedicalView({ rdvs, addMedical, deleteMedical }) {
   // Migration unique depuis localStorage
   React.useEffect(function() {
     try {
-      var local = JSON.parse(localStorage.getItem('ld-medical') || '[]');
+      var local = JSON.parse(LS.getItem('ld-medical') || '[]');
       if (!local.length) return;
       var syncedIds = new Set((rdvs || []).map(function(r) { return r.id; }));
       local.filter(function(r) { return !syncedIds.has(r.id); }).forEach(function(r) { addMedical(r); });
-      localStorage.removeItem('ld-medical');
+      LS.removeItem('ld-medical');
     } catch(_) {}
   }, []);
   const add = () => { if (!form.titre.trim()) return; addMedical({ id:Date.now().toString(), ...form }); setForm({ titre:'', date:'', medecin:'', notes:'', qui:'Couple' }); setShow(false); };
@@ -8983,7 +9230,7 @@ function KalandriyeLalin({ semansye, addLot, updateLot, deleteLot }) {
   return h('div', { style:{ fontFamily:"'Playfair Display', Georgia, serif", color:'#e8f5e0' } },
     // ── En-tête ──
     h('div', { style:{ paddingBottom:16, borderBottom:'1px solid #1e3a2a', marginBottom:18 } },
-      h('div', { className:'eyebrow', style:{ marginBottom:6 } }, 'Lanmou Douvan · Potager 🌴'),
+      h('div', { className:'eyebrow', style:{ marginBottom:6 } }, BRAND + ' · Potager 🌴'),
       h('h3', { style:{ margin:0, fontSize:28, fontWeight:700, color:'#f0faf0', lineHeight:1.1 } },
         'Kalandriye ', h('span', { style:{ fontStyle:'italic', fontWeight:400, color:LAL_GOLD } }, 'Lalin')
       ),
@@ -9409,6 +9656,7 @@ function PotagerView({ plantes, addPlante, updatePlante, deletePlante, semansye,
       const dataUrl = await compressImage(file, 800, 0.6);
       let src = dataUrl;
       try {
+        if (DEMO) throw new Error('demo'); // démo : on garde la data-URL, pas d'envoi cloud
         const blob = dataURLtoBlob(dataUrl);
         const path = 'potager/' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.jpg';
         const { error } = await sb.storage.from('album-photos').upload(path, blob, { contentType: 'image/jpeg', upsert: false });
@@ -9583,12 +9831,12 @@ function PotagerView({ plantes, addPlante, updatePlante, deletePlante, semansye,
 }
 
 function VoyagesView() {
-  const [voyages, setVoyages] = React.useState(() => { try { return JSON.parse(localStorage.getItem('ld-voyages')||'[]'); } catch { return []; } });
+  const [voyages, setVoyages] = React.useState(() => { try { return JSON.parse(LS.getItem('ld-voyages')||'[]'); } catch { return []; } });
   const [form, setForm] = React.useState({ dest:'', periode:'', budget:'', notes:'', statut:'Rêve' });
   const [show, setShow] = React.useState(false);
   const STATUTS = ['Rêve','Planifié','Réservé','Fait ✓'];
   const STAT_C = { 'Rêve':'var(--accent-dja)', 'Planifié':'var(--gold)', 'Réservé':'var(--accent-liika)', 'Fait ✓':'var(--success)' };
-  const save = l => { setVoyages(l); localStorage.setItem('ld-voyages', JSON.stringify(l)); };
+  const save = l => { setVoyages(l); LS.setItem('ld-voyages', JSON.stringify(l)); };
   const add = () => { if (!form.dest.trim()) return; save([{ id:Date.now().toString(), ...form }, ...voyages]); setForm({ dest:'', periode:'', budget:'', notes:'', statut:'Rêve' }); setShow(false); };
   const del = id => save(voyages.filter(v => v.id !== id));
   const upd = (id, statut) => save(voyages.map(v => v.id===id ? { ...v, statut } : v));
@@ -9629,20 +9877,20 @@ function VoyagesView() {
 }
 
 function ArtView() {
-  const [projets, setProjets] = React.useState(() => { try { return JSON.parse(localStorage.getItem('ld-artiste')||'[]'); } catch { return []; } });
+  const [projets, setProjets] = React.useState(() => { try { return JSON.parse(LS.getItem('ld-artiste')||'[]'); } catch { return []; } });
   const [form, setForm] = React.useState({ titre:'', type:'Musique', statut:'En cours', desc:'' });
   const [show, setShow] = React.useState(false);
   const TYPES = ['Musique','Visuel','Vidéo','Texte','Collab','Autre'];
   const STATUTS = ['Idée','En cours','Terminé','Publié 🎉'];
   const STAT_C = { 'Idée':'var(--text3)', 'En cours':'var(--gold)', 'Terminé':'var(--accent-liika)', 'Publié 🎉':'var(--success)' };
-  const save = l => { setProjets(l); localStorage.setItem('ld-artiste', JSON.stringify(l)); };
+  const save = l => { setProjets(l); LS.setItem('ld-artiste', JSON.stringify(l)); };
   const add = () => { if (!form.titre.trim()) return; save([{ id:Date.now().toString(), date:new Date().toISOString().slice(0,10), ...form }, ...projets]); setForm({ titre:'', type:'Musique', statut:'En cours', desc:'' }); setShow(false); };
   const del = id => save(projets.filter(p => p.id !== id));
   const upd = (id, statut) => save(projets.map(p => p.id===id ? { ...p, statut } : p));
   const inp = { background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'8px 12px', fontSize:13, width:'100%', boxSizing:'border-box' };
   return React.createElement('div', null,
     React.createElement('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 } },
-      React.createElement('h2', { style:{ margin:0, fontSize:20 } }, '🎨 Art & Projets — Negus Dja'),
+      React.createElement('h2', { style:{ margin:0, fontSize:20 } }, '🎨 Art & Projets — ' + (DEMO ? NAME_DJA : 'Negus Dja')),
       React.createElement('button', { onClick:()=>setShow(!show), style:{ padding:'8px 18px', borderRadius:20, border:'none', background:'var(--accent-dja)', color:'#fff', cursor:'pointer', fontWeight:700 } }, show ? '✕' : '+ Projet')
     ),
     show && React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid var(--accent-dja-border)', borderRadius:'var(--radius)', padding:16, marginBottom:16 } },
@@ -9730,9 +9978,13 @@ function CodeRousseauView({ codeRousseau, updateCodeRousseau }) {
     { id: 'securite',    label: '🛡 Sécurité (8)' },
     { id: 'loi',         label: '⚖️ Loi (6)' },
     { id: 'edpm',        label: '🛴 EDPM (5)' },
-    { id: 'pl',          label: '🚛 Permis PL' },
-    { id: 'rsma',        label: '🎖️ RSMA' },
-    { id: 'edpms',       label: '📊 EDPMS' },
+    // Démo Highdrevm : on retire tout le RSMA (Permis PL, RSMA, EDPMS) et on garde
+    // uniquement le code de la route généraliste.
+    ...(DEMO ? [] : [
+      { id: 'pl',          label: '🚛 Permis PL' },
+      { id: 'rsma',        label: '🎖️ RSMA' },
+      { id: 'edpms',       label: '📊 EDPMS' },
+    ]),
     { id: 'eleves',      label: `👥 Élèves (${(cr.eleves||[]).length})` },
     { id: 'fiches',      label: `📝 Fiches (${(cr.fiches||[]).length})` },
     { id: 'notes',       label: '✏️ Notes' },
@@ -9750,8 +10002,8 @@ function CodeRousseauView({ codeRousseau, updateCodeRousseau }) {
       React.createElement('div', { style:{ display:'flex', alignItems:'center', gap:12 } },
         React.createElement('span', { style:{ fontSize:28 } }, '🎓'),
         React.createElement('div', null,
-          React.createElement('h2', { style:{ margin:0, color:'var(--accent-liika)', fontSize:18 } }, 'Guide Monitrice — REMC & Permis PL'),
-          React.createElement('p', { style:{ margin:0, fontSize:13, color:'var(--text-muted)' } }, 'VT · RSMA Guadeloupe · Monitrice Poids Lourd (C/CE) ◇ Purple Moon')
+          React.createElement('h2', { style:{ margin:0, color:'var(--accent-liika)', fontSize:18 } }, DEMO ? 'Guide Code de la route — exemple' : 'Guide Monitrice — REMC & Permis PL'),
+          React.createElement('p', { style:{ margin:0, fontSize:13, color:'var(--text-muted)' } }, DEMO ? 'Guide pédagogique — exemple' : 'VT · RSMA Guadeloupe · Monitrice Poids Lourd (C/CE) ◇ Purple Moon')
         )
       )
     ),
@@ -10590,7 +10842,7 @@ const setData=useCallback((updater)=>{
 // Vrai juste après l'application d'un état reçu en temps réel → évite de le re-pousser (anti-écho).
 const remoteApplyRef=useRef(false);
 const [ui,setUI]=useState(loadUI);
-const [session,setSession]=useState({id:'couple',name:'Dja & Liika',loggedAt:Date.now(),token:null});
+const [session,setSession]=useState({id:'couple',name:COUPLE_NAME,loggedAt:Date.now(),token:null});
 const [view,setView]=useState(null);
 const [activeCat,setActiveCat]=useState('lifestyle');
 const [prevCatIdx,setPrevCatIdx]=useState(0);
@@ -10626,7 +10878,7 @@ const setRouteChecklist=useCallback(fn=>{
 const [showMotivation,setShowMotivation]=useState(false);
 const [motivationMsg,setMotivationMsg]=useState('');
 const activeProfile=ui?.activeProfile||'dja';
-const profileLabel=activeProfile==='dja'?'Dja':activeProfile==='liika'?'Liika':'Couple';
+const profileLabel=activeProfile==='dja'?NAME_DJA:activeProfile==='liika'?NAME_LIIKA:'Couple';
 const setActiveProfile=useCallback((who)=>setUI(prev=>({...prev,activeProfile:who})),[]);
 const goToCategory=useCallback((catId)=>{
   const newIdx=CATEGORIES.findIndex(c=>c.id===catId);
@@ -10671,8 +10923,8 @@ useEffect(()=>{
 useEffect(()=>{
   if(!initialSyncDone) return; // attendre les données Supabase (motivations custom)
   const today=new Date().toDateString();
-  if(localStorage.getItem('ld-motivation-date')===today) return;
-  localStorage.setItem('ld-motivation-date',today); // marquer avant le timer (survit à un démontage rapide)
+  if(LS.getItem('ld-motivation-date')===today) return;
+  LS.setItem('ld-motivation-date',today); // marquer avant le timer (survit à un démontage rapide)
   const custom=((data.couple||{}).motivations||[]).filter(Boolean); // filtrer les entrées null
   const all=[...DEFAULT_MOTIVATIONS,...custom];
   const now=new Date();
@@ -10688,6 +10940,7 @@ useEffect(()=>saveData(data),[data]);
 
 // Hydrate depuis Supabase au démarrage (si plus récent que le local)
 useEffect(()=>{
+if(DEMO){setSyncStatus('idle');setInitialSyncDone(true);return;} // démo : aucune synchro distante
 let alive=true;
 (async()=>{
   setSyncStatus('syncing');
@@ -10736,6 +10989,7 @@ return ()=>{alive=false;};
 
 // Sync Supabase debounce 1.5s
 useEffect(()=>{
+if(DEMO)return; // démo : pas d'écriture distante (persistance locale « hd: » uniquement)
 if(!initialSyncDone)return;
 // Cet état vient d'être reçu/fusionné depuis le serveur → déjà à jour côté distant, pas de re-push.
 if(remoteApplyRef.current){remoteApplyRef.current=false;return;}
@@ -10748,6 +11002,7 @@ return ()=>clearTimeout(t);
 
 // ─── Realtime cross-device sync + présence ───
 useEffect(()=>{
+if(DEMO)return; // démo : pas de temps réel ni de présence Supabase
 // Présence : lit les sessions actives (<5 min)
 const refreshOnline=()=>sb.from('app_sessions')
   .select('id').gte('last_seen',new Date(Date.now()-300000).toISOString())
@@ -10755,7 +11010,7 @@ const refreshOnline=()=>sb.from('app_sessions')
 // Ping : enregistre / met à jour cet appareil
 const ping=()=>sb.from('app_sessions').upsert({
   id:DEVICE_ID,
-  user_name:localStorage.getItem('ld-username')||'Appareil',
+  user_name:LS.getItem('ld-username')||'Appareil',
   last_seen:new Date().toISOString(),
   is_online:true
 }).then(undefined,()=>{});
@@ -10789,6 +11044,7 @@ const ch=sb.channel('ld-realtime')
 
   // ─── DrevmCook : temps réel (refetch simple sur tout changement) ───
   useEffect(() => {
+    if(DEMO)return; // démo : pas de temps réel Supabase
     const ch = sb.channel('ld-drevmcook')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'recipes' },
         async () => { try { const recs = await sbLoadRecipes(); remoteApplyRef.current = true; setDataRaw(prev => ({ ...prev, recipes: recs })); } catch (_) {} })
@@ -11134,7 +11390,7 @@ const ch=sb.channel('ld-realtime')
     // remove() ne rejette pas sur refus de policy : il renvoie {data, error}.
     // Les deux cas (erreur applicative et erreur réseau) doivent remonter, sinon
     // le fichier reste orphelin dans le bucket sans que personne le sache.
-    if (storagePath) {
+    if (storagePath && !DEMO) {
       sb.storage.from('album-photos').remove([storagePath])
         .then(function(res) {
           if (res && res.error) throw res.error;
@@ -11628,7 +11884,7 @@ const ch=sb.channel('ld-realtime')
         color: 'var(--gold)',
         lineHeight: 1.1
       }
-    }, "Dja & Liika"), /*#__PURE__*/React.createElement("p", {
+    }, COUPLE_NAME), /*#__PURE__*/React.createElement("p", {
       style: {
         fontSize: 13,
         color: 'var(--text3)',
@@ -11636,7 +11892,7 @@ const ch=sb.channel('ld-realtime')
         fontFamily: "'Cormorant Garamond',serif",
         fontStyle: 'italic'
       }
-    }, "Lanmou Douvan \u2014 Vision commune")), /*#__PURE__*/React.createElement("div", {
+    }, BRAND + " \u2014 Vision commune")), /*#__PURE__*/React.createElement("div", {
       className: "person-actions",
       style: {
         display: 'flex',
@@ -11748,7 +12004,7 @@ const ch=sb.channel('ld-realtime')
       style: {
         marginBottom: 10
       }
-    }, "\uD83C\uDF34 Lanmou Douvan \xB7 Guadeloupe"), /*#__PURE__*/React.createElement("h2", {
+    }, "\uD83C\uDF34 " + BRAND + (DEMO ? "" : " \xB7 Guadeloupe")), /*#__PURE__*/React.createElement("h2", {
       style: {
         fontSize: 30,
         fontWeight: 600,
@@ -12066,7 +12322,7 @@ const ch=sb.channel('ld-realtime')
         color: 'var(--text3)',
         marginBottom: 16
       }
-    }, "Lanmou Douvan \u2014 projets communs"), data.couple.objectives.map(o => /*#__PURE__*/React.createElement("div", {
+    }, BRAND + " \u2014 projets communs"), data.couple.objectives.map(o => /*#__PURE__*/React.createElement("div", {
       key: o.id,
       style: {
         display: 'flex',
@@ -13132,7 +13388,7 @@ const ch=sb.channel('ld-realtime')
       textOverflow: 'ellipsis',
       whiteSpace: 'nowrap'
     }
-  }, 'Dja & Liika'), /*#__PURE__*/React.createElement("div", {
+  }, COUPLE_NAME), /*#__PURE__*/React.createElement("div", {
     className: "eyebrow",
     style: {
       opacity: .55,
@@ -13229,7 +13485,7 @@ const ch=sb.channel('ld-realtime')
   }), onlineCount)), /*#__PURE__*/React.createElement("button", {
     onClick: () => {
       if (confirm('Réinitialiser toutes les données ?')) {
-        localStorage.removeItem('dja-liika-goals');
+        LS.removeItem('dja-liika-goals');
         setData(defaultData);
       }
     },
@@ -13343,18 +13599,18 @@ function SplashScreen({ onDone }) {
     className: 'splash' + (leaving ? ' splash--out' : ''),
     role: 'dialog',
     'aria-modal': 'true',
-    'aria-label': 'Ouverture de Lanmou Douvan',
+    'aria-label': 'Ouverture de ' + BRAND,
     onClick: dismiss
   },
     React.createElement('div', { className: 'splash-crest', 'aria-hidden': 'true' }, '♡'),
-    React.createElement('h1', { className: 'splash-title' }, 'Lanmou Douvan'),
+    React.createElement('h1', { className: 'splash-title' }, BRAND),
     React.createElement('div', { className: 'splash-rule', 'aria-hidden': 'true' }),
     React.createElement('div', { className: 'splash-names' },
-      React.createElement('span', { className: 'n-dja' }, 'Dja'),
+      React.createElement('span', { className: 'n-dja' }, NAME_DJA),
       React.createElement('span', { className: 'n-amp' }, '&'),
-      React.createElement('span', { className: 'n-liika' }, 'Liika')
+      React.createElement('span', { className: 'n-liika' }, NAME_LIIKA)
     ),
-    React.createElement('div', { className: 'eyebrow splash-tag' }, 'Mix Vibz'),
+    React.createElement('div', { className: 'eyebrow splash-tag' }, BRAND_TAG),
     React.createElement('button', {
       className: 'splash-skip',
       autoFocus: true,

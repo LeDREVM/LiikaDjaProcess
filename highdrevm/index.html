@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Highdrevm — Bêta publique</title>
+<meta name="description" content="Highdrevm — version bêta publique de démonstration. Toutes les données sont des exemples ; rien n'est enregistré en ligne.">
+<meta name="robots" content="index, follow">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧪</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,500;0,700;1,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<!-- Feuille de style partagée avec l'app (chemin absolu → OK en /highdrevm/ comme en déploiement dédié) -->
+<link rel="stylesheet" href="/styles.css">
+<style>
+  /* Pastille « démo » discrète, non intrusive */
+  #hd-demo-badge{
+    position:fixed;left:12px;bottom:12px;z-index:9999;
+    font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.06em;
+    text-transform:uppercase;color:#f0faf0;background:rgba(20,40,28,.82);
+    border:1px solid rgba(240,250,240,.25);border-radius:999px;
+    padding:6px 12px;backdrop-filter:blur(6px);pointer-events:none;
+    box-shadow:0 4px 14px rgba(0,0,0,.35);
+  }
+  #hd-demo-badge b{color:#ffd766}
+</style>
+</head>
+<body>
+<!-- Active le mode démo AVANT le chargement d'app.js -->
+<script>window.__HIGHDREVM_DEMO__ = true;</script>
+<div id="root"></div>
+<div id="hd-demo-badge"><b>Highdrevm</b> · bêta — données d'exemple</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chess.js@0.12.1/chess.js"></script>
+<!-- Même app.js que l'app réelle ; le mode démo neutralise Supabase et les données -->
+<script src="/app.js"></script>
+</body>
+</html>
