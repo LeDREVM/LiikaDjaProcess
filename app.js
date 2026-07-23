@@ -9978,9 +9978,13 @@ function CodeRousseauView({ codeRousseau, updateCodeRousseau }) {
     { id: 'securite',    label: '🛡 Sécurité (8)' },
     { id: 'loi',         label: '⚖️ Loi (6)' },
     { id: 'edpm',        label: '🛴 EDPM (5)' },
-    { id: 'pl',          label: '🚛 Permis PL' },
-    { id: 'rsma',        label: '🎖️ RSMA' },
-    { id: 'edpms',       label: '📊 EDPMS' },
+    // Démo Highdrevm : on retire tout le RSMA (Permis PL, RSMA, EDPMS) et on garde
+    // uniquement le code de la route généraliste.
+    ...(DEMO ? [] : [
+      { id: 'pl',          label: '🚛 Permis PL' },
+      { id: 'rsma',        label: '🎖️ RSMA' },
+      { id: 'edpms',       label: '📊 EDPMS' },
+    ]),
     { id: 'eleves',      label: `👥 Élèves (${(cr.eleves||[]).length})` },
     { id: 'fiches',      label: `📝 Fiches (${(cr.fiches||[]).length})` },
     { id: 'notes',       label: '✏️ Notes' },
@@ -9998,7 +10002,7 @@ function CodeRousseauView({ codeRousseau, updateCodeRousseau }) {
       React.createElement('div', { style:{ display:'flex', alignItems:'center', gap:12 } },
         React.createElement('span', { style:{ fontSize:28 } }, '🎓'),
         React.createElement('div', null,
-          React.createElement('h2', { style:{ margin:0, color:'var(--accent-liika)', fontSize:18 } }, 'Guide Monitrice — REMC & Permis PL'),
+          React.createElement('h2', { style:{ margin:0, color:'var(--accent-liika)', fontSize:18 } }, DEMO ? 'Guide Code de la route — exemple' : 'Guide Monitrice — REMC & Permis PL'),
           React.createElement('p', { style:{ margin:0, fontSize:13, color:'var(--text-muted)' } }, DEMO ? 'Guide pédagogique — exemple' : 'VT · RSMA Guadeloupe · Monitrice Poids Lourd (C/CE) ◇ Purple Moon')
         )
       )
