@@ -98,6 +98,15 @@ bascule tout le comportement.
 Un visiteur peut donc **tout tester** (ajouter, modifier, supprimer) sans jamais affecter les vraies
 données. Ses modifications restent **locales à son navigateur**.
 
+### 5.3 Onboarding public (démo uniquement)
+Au **premier lancement** de la démo (après l'écran d'ouverture), un onboarding accueille le visiteur :
+1. **Bienvenue** — présentation courte + rappel « données d'exemple, rien n'est enregistré en ligne ».
+2. **Configuration express** — choix du mode (À deux / Solo) et saisie du/des prénom(s).
+
+À la fin, le mode et les prénoms sont appliqués, et l'onboarding est marqué comme vu
+(clé `hd-onboarded` dans le `localStorage` préfixé). Il ne réapparaît plus ensuite. Le visiteur peut
+aussi **passer** l'étape. L'onboarding ne s'affiche **jamais** dans l'app réelle (gated par `DEMO`).
+
 ---
 
 ## 6. Données d'exemple (`demoData`)
@@ -188,7 +197,7 @@ Le reste (logique, styles) est **partagé** avec l'app réelle :
 - La bascule Couple/Solo prend pleinement effet à la navigation (une vue déjà ouverte garde sa
   sélection jusqu'au prochain changement d'onglet).
 - En solo, la catégorie « Pro » du partenaire est **masquée** (non grisée).
-- Pistes : personnalisation plus poussée (avatars, thème par profil), onboarding public,
+- Pistes : personnalisation plus poussée (avatars, thème par profil),
   export/import du profil démo, internationalisation.
 
 ---

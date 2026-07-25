@@ -9968,6 +9968,66 @@ function MotivationToast({ message, onClose }) {
 
 // ─── Main App ───
 // ─── Panneau « Mon profil » : choix Couple/Solo + édition noms & rôles ───────
+// ─── Onboarding public (DÉMO uniquement) : accueil + configuration express ───
+// Affiché une seule fois (clé LS « hd-onboarded »), après le splash. Permet au
+// visiteur de choisir Couple/Solo et de saisir son/ses prénom(s) avant d'entrer.
+function OnboardingDemo({ data, setData, setUI, onDone }){
+  const h = React.createElement;
+  const [step, setStep] = React.useState(0);
+  const [mode, setMode] = React.useState('couple');
+  const [nameA, setNameA] = React.useState('');
+  const [nameB, setNameB] = React.useState('');
+  const finish = () => {
+    setUI(prev => ({ ...prev, mode, soloWho: 'dja' }));
+    setData(prev => {
+      const n = clone(prev);
+      if (nameA.trim()) n.dja = { ...n.dja, name: nameA.trim() };
+      if (mode === 'couple' && nameB.trim()) n.liika = { ...n.liika, name: nameB.trim() };
+      return n;
+    });
+    onDone();
+  };
+  const overlay = { position:'fixed', inset:0, background:'rgba(6,14,10,.92)', backdropFilter:'blur(6px)', zIndex:1100, display:'flex', alignItems:'center', justifyContent:'center', padding:16 };
+  const card = { background:'var(--bg2)', border:'1px solid var(--gold-border)', borderRadius:18, padding:'26px 22px', maxWidth:460, width:'100%', maxHeight:'90vh', overflowY:'auto', boxShadow:'0 24px 70px rgba(0,0,0,.6)', textAlign:'center' };
+  const seg = (active) => ({ flex:1, padding:'12px', borderRadius:12, cursor:'pointer', fontSize:15, fontWeight:600, border:'1px solid '+(active?'var(--gold)':'var(--border)'), background: active?'rgba(212,175,55,.15)':'transparent', color: active?'var(--gold)':'var(--text)' });
+  const inp = { width:'100%', padding:'11px 12px', borderRadius:10, border:'1px solid var(--border)', background:'var(--bg3)', color:'var(--text)', fontSize:15, marginTop:6, boxSizing:'border-box' };
+  const cta = { width:'100%', padding:'13px', borderRadius:12, border:'none', cursor:'pointer', fontSize:15, fontWeight:700, background:'var(--gold)', color:'#1a1206', marginTop:20 };
+  const skip = { background:'none', border:'none', color:'var(--text3)', fontSize:12, cursor:'pointer', marginTop:14, textDecoration:'underline' };
+  const lbl = { fontSize:12, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em', display:'block', textAlign:'left' };
+
+  if (step === 0) {
+    return h('div', { style:overlay },
+      h('div', { style:card },
+        h('div', { style:{ fontSize:40, marginBottom:8 } }, '👋'),
+        h('h2', { style:{ margin:'0 0 8px', fontSize:24, color:'var(--gold)', fontFamily:"'Cormorant Garamond',serif" } }, 'Bienvenue sur ' + BRAND),
+        h('p', { style:{ margin:'0 0 6px', fontSize:14, color:'var(--text)', lineHeight:1.6 } }, 'Ton tableau de bord de vie personnalisé : objectifs, repas, budget, sport, projets…'),
+        h('p', { style:{ margin:'0', fontSize:12.5, color:'var(--text3)', lineHeight:1.6 } }, "🔒 Version de démonstration : toutes les données sont des exemples et restent sur ton appareil. Rien n'est enregistré en ligne."),
+        h('button', { style:cta, onClick:()=>setStep(1) }, 'Commencer →'),
+        h('button', { style:skip, onClick:onDone }, 'Explorer sans configurer')
+      )
+    );
+  }
+  return h('div', { style:overlay },
+    h('div', { style:card },
+      h('h2', { style:{ margin:'0 0 4px', fontSize:20, color:'var(--gold)' } }, 'On personnalise ?'),
+      h('p', { style:{ margin:'0 0 18px', fontSize:13, color:'var(--text3)' } }, 'Tu pourras tout changer plus tard via 👤 dans l\'en-tête.'),
+      h('div', { style:lbl }, 'Je gère ma vie…'),
+      h('div', { style:{ display:'flex', gap:8, margin:'8px 0 18px' } },
+        h('button', { onClick:()=>setMode('couple'), style:seg(mode==='couple') }, '👫 À deux'),
+        h('button', { onClick:()=>setMode('solo'), style:seg(mode==='solo') }, '🧑 Solo')
+      ),
+      h('label', { style:lbl }, mode==='couple' ? 'Ton prénom' : 'Ton prénom',
+        h('input', { style:inp, autoFocus:true, value:nameA, onChange:e=>setNameA(e.target.value), placeholder:'Ex : Alex', onKeyDown:e=>{ if(e.key==='Enter' && mode==='solo') finish(); } })
+      ),
+      mode==='couple' && h('label', { style:{ ...lbl, marginTop:14 } }, 'Le prénom de ta moitié',
+        h('input', { style:inp, value:nameB, onChange:e=>setNameB(e.target.value), placeholder:'Ex : Sam', onKeyDown:e=>{ if(e.key==='Enter') finish(); } })
+      ),
+      h('button', { style:cta, onClick:finish }, "C'est parti →"),
+      h('button', { style:skip, onClick:()=>setStep(0) }, '← Retour')
+    )
+  );
+}
+
 function ProfilModal({ data, ui, setData, setUI, onClose }){
   const h = React.createElement;
   const mode = ui.mode || 'couple';
@@ -10035,6 +10095,9 @@ const soloWho = ui?.soloWho === 'liika' ? 'liika' : 'dja';
 ACTIVE_MODE = lifeMode;
 ACTIVE_SOLO = soloWho;
 const [showProfil,setShowProfil]=useState(false);
+// Onboarding public : seulement en démo, une seule fois (persisté sous « hd-onboarded »).
+const [showOnboarding,setShowOnboarding]=useState(()=>{ try { return DEMO && LS.getItem('hd-onboarded')!=='1'; } catch(e){ return false; } });
+const finishOnboarding=useCallback(()=>{ try { LS.setItem('hd-onboarded','1'); } catch(e){} setShowOnboarding(false); },[]);
 // Nom affiché dans l'en-tête : en solo le nom de la personne, sinon « A & B ».
 const displayName = lifeMode === 'solo'
   ? ((data[soloWho] && data[soloWho].name) || COUPLE_NAME)
@@ -12333,7 +12396,8 @@ const ch=sb.channel('ld-realtime')
     message: motivationMsg,
     onClose: () => setShowMotivation(false)
   }),
-  showProfil && React.createElement(ProfilModal, { data, ui, setData, setUI, onClose: () => setShowProfil(false) }));
+  showProfil && React.createElement(ProfilModal, { data, ui, setData, setUI, onClose: () => setShowProfil(false) }),
+  showOnboarding && React.createElement(OnboardingDemo, { data, setData, setUI, onDone: finishOnboarding }));
 }
 // ── Écran d'ouverture animé ───────────────────────────────────────────────────
 // Affiché au lancement pendant SPLASH_HOLD, puis fondu de sortie vers l'app.
