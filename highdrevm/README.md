@@ -4,6 +4,8 @@ Version d'essai **publique** de l'app, **totalement isolée** de l'app privée d
 
 > 📘 **Dossier complet du projet : [`DOSSIER.md`](./DOSSIER.md)** — présentation, architecture,
 > fonctionnement du mode démo, mode Couple/Solo, déploiement, sécurité et tests.
+> 📋 **Spécifications produit : [`PRD.md`](./PRD.md)** — vision, objectifs, personas, parcours,
+> exigences fonctionnelles/non-fonctionnelles, risques et roadmap.
 
 ## Ce qu'elle fait
 - **Aucune synchro Supabase** : rien n'est lu ni écrit sur la vraie base. Toutes les
