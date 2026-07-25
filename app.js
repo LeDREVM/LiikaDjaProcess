@@ -12155,12 +12155,17 @@ const ch=sb.channel('ld-realtime')
       opacity: .55,
       marginTop: 1
     }
-  }, 'Tableau de bord')))), /*#__PURE__*/React.createElement("div", {
+  }, 'Tableau de bord')), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShowProfil(true),
+    'aria-label': 'Mon profil',
+    title: 'Mon profil — mode & noms',
+    style: { flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5, padding: '6px 10px', borderRadius: 999, border: '1px solid var(--border2)', background: 'var(--glass)', color: 'var(--text)', fontSize: 12, cursor: 'pointer' }
+  }, '👤 ' + (lifeMode === 'solo' ? 'Solo' : 'Couple')))), /*#__PURE__*/React.createElement("div", {
     style: {
       flex: 1,
       overflowY: 'auto'
     }
-  }, CATEGORIES.flatMap(cat=>{
+  }, visibleCategories().flatMap(cat=>{
     const isCatActive=activeCat===cat.id;
     const items=[
       React.createElement('button',{
@@ -12263,6 +12268,12 @@ const ch=sb.channel('ld-realtime')
     }
   }, "R\xE9initialiser"))), React.createElement('nav',{className:'cat-mobile-nav'},
     React.createElement('div',{className:'cat-mobile-nav-inner'},
+      React.createElement('button',{
+        key:'profil', onClick:()=>setShowProfil(true), className:'cat-mobile-btn', 'aria-label':'Mon profil'
+      },
+        React.createElement('span',{className:'cat-m-emoji'},'👤'),
+        React.createElement('span',{className:'cat-m-label'}, lifeMode==='solo'?'Solo':'Couple')
+      ),
       visibleCategories().map(cat=>React.createElement('button',{
         key:cat.id,
         onClick:()=>goToCategory(cat.id),
@@ -12322,12 +12333,6 @@ const ch=sb.channel('ld-realtime')
     message: motivationMsg,
     onClose: () => setShowMotivation(false)
   }),
-  React.createElement('button', {
-    onClick: () => setShowProfil(true),
-    'aria-label': 'Mon profil',
-    title: 'Mon profil — mode & noms',
-    style: { position:'fixed', top:12, right:12, zIndex:900, display:'flex', alignItems:'center', gap:6, padding:'8px 12px', borderRadius:999, border:'1px solid var(--border2)', background:'rgba(20,40,28,.82)', backdropFilter:'blur(6px)', color:'var(--text)', fontSize:13, cursor:'pointer', boxShadow:'0 4px 14px rgba(0,0,0,.3)' }
-  }, '👤 ' + (lifeMode==='solo' ? 'Solo' : 'Couple')),
   showProfil && React.createElement(ProfilModal, { data, ui, setData, setUI, onClose: () => setShowProfil(false) }));
 }
 // ── Écran d'ouverture animé ───────────────────────────────────────────────────

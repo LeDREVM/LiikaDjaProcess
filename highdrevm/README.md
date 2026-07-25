@@ -2,6 +2,9 @@
 
 Version d'essai **publique** de l'app, **totalement isolée** de l'app privée du couple.
 
+> 📘 **Dossier complet du projet : [`DOSSIER.md`](./DOSSIER.md)** — présentation, architecture,
+> fonctionnement du mode démo, mode Couple/Solo, déploiement, sécurité et tests.
+
 ## Ce qu'elle fait
 - **Aucune synchro Supabase** : rien n'est lu ni écrit sur la vraie base. Toutes les
   fonctions de chargement/sauvegarde distantes, la présence temps réel et l'upload
