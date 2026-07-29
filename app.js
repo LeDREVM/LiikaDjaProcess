@@ -809,7 +809,11 @@ const demoData = {
       { id: 'ds3', jour: 'Vendredi', activite: 'Renforcement', duree: 45, intensite: 'Intense', fait: false },
       { id: 'ds4', jour: 'Dimanche', activite: 'Marche', duree: 60, intensite: 'Légère', fait: false }
     ],
-    entretien: []
+    entretien: [
+      { id: 'de1', titre: 'Vidange + filtre à huile', vehicule: 'Voiture', date: '2026-04-12', km: '82000', cout: '95', prochainDate: '2026-10-12', prochainKm: '92000', notes: 'Huile 5W30 · garage du centre' },
+      { id: 'de2', titre: 'Contrôle technique', vehicule: 'Voiture', date: '', km: '', cout: '', prochainDate: '2026-09-01', prochainKm: '', notes: '' },
+      { id: 'de3', titre: 'Pneus avant', vehicule: 'Voiture', date: '2026-01-20', km: '78000', cout: '210', prochainDate: '', prochainKm: '118000', notes: 'Surveiller l\'usure' }
+    ]
   },
   liika: {
     name: "Sam",
