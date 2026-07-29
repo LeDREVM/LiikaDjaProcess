@@ -214,6 +214,18 @@ async function sbUpsertMedia(m) {
 async function sbDeleteMedia(id) { return sb.from('media').delete().eq('id', id); }
 
 // ─── Data ───
+// Young Boudha : journal 7 jours du chakra de la gorge (Vishuddha). Forme par défaut
+// réutilisée par realDefaultData, demoData, normalize() et le bouton « Nouveau cycle ».
+function ybEmpty() {
+  return {
+    jours: Array.from({ length: 7 }, () => ({
+      etat: '', parole: '', mantra: '', ecriture: '',
+      respiration: false, chant: false, silence: false,
+      rituel: '', affirmation: ''
+    })),
+    integration: ''
+  };
+}
 const realDefaultData = {
   dja: {
     name: "Negus Dja",
@@ -398,7 +410,8 @@ const realDefaultData = {
       prochainDate: '',
       prochainKm: '',
       notes: ''
-    }]
+    }],
+    youngBoudha: ybEmpty()
   },
   liika: {
     name: "Liika",
@@ -813,7 +826,8 @@ const demoData = {
       { id: 'de1', titre: 'Vidange + filtre à huile', vehicule: 'Voiture', date: '2026-04-12', km: '82000', cout: '95', prochainDate: '2026-10-12', prochainKm: '92000', notes: 'Huile 5W30 · garage du centre' },
       { id: 'de2', titre: 'Contrôle technique', vehicule: 'Voiture', date: '', km: '', cout: '', prochainDate: '2026-09-01', prochainKm: '', notes: '' },
       { id: 'de3', titre: 'Pneus avant', vehicule: 'Voiture', date: '2026-01-20', km: '78000', cout: '210', prochainDate: '', prochainKm: '118000', notes: 'Surveiller l\'usure' }
-    ]
+    ],
+    youngBoudha: ybEmpty()
   },
   liika: {
     name: "Sam",
@@ -1002,6 +1016,29 @@ function normalize(d) {
   if (!Array.isArray(base.liika.codeRousseau.eleves)) base.liika.codeRousseau.eleves = [];
   if (!Array.isArray(base.liika.codeRousseau.fiches)) base.liika.codeRousseau.fiches = [];
   if (typeof base.liika.codeRousseau.notes !== 'string') base.liika.codeRousseau.notes = '';
+  // Young Boudha : garantir la forme (7 jours + integration) après le spread de dja,
+  // qui a pu remplacer youngBoudha par une version distante partielle.
+  {
+    const yd = (base.dja.youngBoudha && typeof base.dja.youngBoudha === 'object') ? base.dja.youngBoudha : {};
+    const jin = Array.isArray(yd.jours) ? yd.jours : [];
+    base.dja.youngBoudha = {
+      jours: Array.from({ length: 7 }, (_, i) => {
+        const j = (jin[i] && typeof jin[i] === 'object') ? jin[i] : {};
+        return {
+          etat: typeof j.etat === 'string' ? j.etat : '',
+          parole: typeof j.parole === 'string' ? j.parole : '',
+          mantra: typeof j.mantra === 'string' ? j.mantra : '',
+          ecriture: typeof j.ecriture === 'string' ? j.ecriture : '',
+          respiration: !!j.respiration,
+          chant: !!j.chant,
+          silence: !!j.silence,
+          rituel: typeof j.rituel === 'string' ? j.rituel : '',
+          affirmation: typeof j.affirmation === 'string' ? j.affirmation : ''
+        };
+      }),
+      integration: typeof yd.integration === 'string' ? yd.integration : ''
+    };
+  }
   // Survie : garantir la forme (le spread couple ci-dessus a pu remplacer survie par une version partielle)
   {
     const sd = (d.couple && typeof d.couple.survie === 'object' && d.couple.survie) ? d.couple.survie : {};
@@ -8060,11 +8097,12 @@ const CATEGORIES = [
     grad:'linear-gradient(135deg,#2e1065 0%,#6d28d9 55%,#a78bfa 100%)',
     desc:'Art · Création · Direction artistique',
     views:[
-      { id:'artiste',   label:'Art & Projets',   icon:'🎨' },
+      { id:'artiste',      label:'Art & Projets',   icon:'🎨' },
       { id:'entretien', label:'Entretien méca',  icon:'🔧' },
-      { id:'dja',       label:'Profil Dja',      icon:'◆'  },
-      { id:'vision',    label:'Vision board',    icon:'✦'  },
-      { id:'calendar',  label:'Calendrier',      icon:'📅' },
+      { id:'dja',          label:'Profil Dja',      icon:'◆'  },
+      { id:'youngboudha',label:'Young Boudha',   icon:'🧘' },
+      { id:'vision',       label:'Vision board',    icon:'✦'  },
+      { id:'calendar',     label:'Calendrier',      icon:'📅' },
     ],
   },
   {
@@ -8081,115 +8119,168 @@ const CATEGORIES = [
   },
 ];
 
-function CategoryHome({ catIdx, prevCatIdx, setView, goToCategory }) {
-  var cat = CATEGORIES[catIdx] || CATEGORIES[0];
-  var dir = catIdx >= prevCatIdx ? 'right' : 'left';
-  var [touchX, setTouchX] = React.useState(null);
-  var [paused, setPaused] = React.useState(false);
-  var [progKey, setProgKey] = React.useState(0); // force re-mount de la barre
-  var timerRef = React.useRef(null);
+// ─────────────────────────────────────────────────────────────────────────────
+// Direction « Matière » — coque (sidebar îlot, tabbar mobile, accueil sobre).
+// Composants de rendu uniquement ; aucune donnée touchée. Adaptés depuis le
+// handoff pour préserver : mode solo/couple (visibleCategories), bouton profil,
+// présence multi-appareils et bouton Réinitialiser.
+// ─────────────────────────────────────────────────────────────────────────────
+var MT_CAT_ICON = {
+  lifestyle: 'ph-light ph-flower-lotus',
+  sante:     'ph-light ph-heartbeat',
+  prolia:    'ph-light ph-steering-wheel',
+  prodja:    'ph-light ph-paint-brush',
+  media:     'ph-light ph-film-slate'
+};
+var MT_VIEW_ICON = {
+  dashboard:'ph-light ph-house', sortie:'ph-light ph-confetti', album:'ph-light ph-images',
+  idees:'ph-light ph-lightbulb', maison:'ph-light ph-house-line', couple:'ph-light ph-heart',
+  culture:'ph-light ph-mask-happy', vision:'ph-light ph-sparkle', sport:'ph-light ph-barbell',
+  budget:'ph-light ph-wallet', repas:'ph-light ph-fork-knife', courses:'ph-light ph-shopping-cart',
+  medical:'ph-light ph-first-aid-kit', drevmcook:'ph-light ph-plant', potager:'ph-light ph-leaf',
+  voyages:'ph-light ph-airplane-tilt', charts:'ph-light ph-chart-line-up', planning:'ph-light ph-calendar-blank',
+  objmensuel:'ph-light ph-target', coderousseau:'ph-light ph-graduation-cap', route:'ph-light ph-truck',
+  survie:'ph-light ph-compass', calendar:'ph-light ph-calendar-dots', liika:'ph-light ph-diamond',
+  artiste:'ph-light ph-palette', dja:'ph-light ph-diamonds-four', youngboudha:'ph-light ph-flower-lotus',
+  media:'ph-light ph-play-circle', jeux:'ph-light ph-game-controller', recettes:'ph-light ph-cooking-pot'
+};
+function mtIcon(name, style) {
+  return React.createElement('i', { className: name, style: style || null });
+}
 
-  var goTo = React.useCallback(function(newIdx) {
-    goToCategory(CATEGORIES[newIdx].id);
-    setPaused(true);
-    clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(function() { setPaused(false); }, 12000);
-  }, [goToCategory]);
-
-  var goPrev = function() { goTo((catIdx - 1 + CATEGORIES.length) % CATEGORIES.length); };
-  var goNext = function() { goTo((catIdx + 1) % CATEGORIES.length); };
-
-  // Auto-avance toutes les 5s
-  React.useEffect(function() {
-    setProgKey(function(k) { return k + 1; }); // reset barre de progression
-    if (paused) return;
-    var t = setTimeout(function() {
-      goToCategory(CATEGORIES[(catIdx + 1) % CATEGORIES.length].id);
-    }, 5000);
-    return function() { clearTimeout(t); };
-  }, [catIdx, paused]);
-
-  // Nettoyage timer au démontage
-  React.useEffect(function() { return function() { clearTimeout(timerRef.current); }; }, []);
-
-  var onTouchStart = function(e) { setTouchX(e.touches[0].clientX); };
-  var onTouchEnd = function(e) {
-    if (touchX === null) return;
-    var dx = e.changedTouches[0].clientX - touchX;
-    if (Math.abs(dx) > 48) { if (dx < 0) goNext(); else goPrev(); }
-    setTouchX(null);
-  };
-
-  return React.createElement('div', null,
-    // ── Heure + météo Guadeloupe + accès Tableau de bord (visible dès l'accueil) ──
-    React.createElement('div', { style:{ display:'flex', flexDirection:'column', alignItems:'center', gap:8, marginBottom:14 } },
-      React.createElement(GuadeloupeMeteo, null),
-      React.createElement('button', {
-        onClick: function(){ setView('dashboard'); },
-        style: { display:'inline-flex', alignItems:'center', gap:8, padding:'8px 18px', borderRadius:20, border:'1px solid var(--gold-border)', background:'var(--gold-bg)', color:'var(--gold2)', cursor:'pointer', fontWeight:700, fontSize:13 }
-      }, '◈ Ouvrir le tableau de bord')
-    ),
-    // ── Hero slider ──
-    React.createElement('div', {
-      className: 'hero-slider',
-      onTouchStart: onTouchStart, onTouchEnd: onTouchEnd,
-      onMouseEnter: function() { setPaused(true); },
-      onMouseLeave: function() { setPaused(false); }
-    },
-      // Slide
+// ── Sidebar (desktop) — profil + présence + reset conservés ──────────────────
+function MatiereSidebar(props) {
+  var activeCat = props.activeCat, view = props.view;
+  var items = [
+    React.createElement('button', {
+      key: 'home',
+      className: 'mt-nav-btn' + (view === 'dashboard' ? ' active' : ''),
+      onClick: function() { props.setView('dashboard'); }
+    }, mtIcon('ph-light ph-house'), React.createElement('span', null, "Aujourd'hui"))
+  ];
+  visibleCategories().forEach(function(cat) {
+    var isCatActive = activeCat === cat.id;
+    items.push(React.createElement('button', {
+      key: 'cat-' + cat.id,
+      className: 'mt-nav-btn' + (isCatActive ? ' active' : ''),
+      onClick: function() { props.goToCategory(cat.id); }
+    }, mtIcon(MT_CAT_ICON[cat.id] || 'ph-light ph-circle'), React.createElement('span', null, cat.label)));
+    if (isCatActive) {
+      cat.views.forEach(function(v) {
+        var target = v.target || v.id;
+        items.push(React.createElement('button', {
+          key: 'sv-' + v.id,
+          className: 'mt-sub-btn' + (view === target ? ' active' : ''),
+          onClick: function() { props.setView(target); }
+        }, mtIcon(MT_VIEW_ICON[target] || 'ph-light ph-circle'), React.createElement('span', null, v.label)));
+      });
+    }
+  });
+  return React.createElement('nav', { className: 'mt-sidebar' },
+    React.createElement('div', { className: 'mt-brand' }, 'Lanmou ', React.createElement('em', null, 'Douvan')),
+    React.createElement('button', {
+      className: 'mt-nav-btn', onClick: props.onProfil, 'aria-label': 'Mon profil',
+      title: 'Mon profil — mode & noms', style: { margin: '0 10px 6px' }
+    }, mtIcon('ph-light ph-user-circle'), React.createElement('span', null, props.lifeMode === 'solo' ? 'Solo' : 'Couple')),
+    React.createElement('div', { className: 'mt-nav' }, items),
+    React.createElement('div', { style: { padding: '0 18px', display: 'flex', flexDirection: 'column', gap: 8 } },
       React.createElement('div', {
-        key: cat.id,
-        className: 'hero-slide hero-slide-enter-' + dir,
-        style: { background: cat.grad }
+        style: { display: 'flex', alignItems: 'center', gap: 7, font: "400 10.5px 'Space Mono',monospace", color: 'var(--text2)' }
       },
-        // Blobs flottants (parallax décoratif)
-        React.createElement('div', { className:'hero-blob hero-blob-1', style:{ background:'rgba(255,255,255,.07)' } }),
-        React.createElement('div', { className:'hero-blob hero-blob-2', style:{ background:'rgba(0,0,0,.12)' } }),
-        React.createElement('div', { className:'hero-blob hero-blob-3', style:{ background:'rgba(255,255,255,.05)' } }),
-        // Contenu
-        React.createElement('div', { style:{ position:'relative', zIndex:2 } },
-          React.createElement('div', { className:'hero-emoji', style:{ fontSize:60, lineHeight:1, marginBottom:14 } }, cat.emoji),
-          React.createElement('h1', { style:{ color:'#fff', margin:'0 0 6px', fontSize:28, fontWeight:900, letterSpacing:'-.5px', textShadow:'0 2px 12px rgba(0,0,0,.4)', lineHeight:1.1 } }, cat.label),
-          React.createElement('p', { style:{ color:'rgba(255,255,255,.75)', margin:'0 0 18px', fontSize:13, lineHeight:1.5, fontStyle:'italic' } }, cat.desc),
-          // Pills raccourcis
-          React.createElement('div', { style:{ display:'flex', gap:7, flexWrap:'wrap' } },
-            cat.views.slice(0, 4).map(function(v) {
-              return React.createElement('button', {
-                key: v.id, className:'hero-pill',
-                onClick: function() { setView(v.target || v.id); }
-              }, v.icon, ' ', v.label);
-            })
-          )
-        ),
-        // Barre de progression auto-avance
-        !paused && React.createElement('div', { key: 'prog-' + progKey, className:'hero-progress hero-progress-anim' })
+        React.createElement('span', {
+          style: { width: 5, height: 5, borderRadius: '50%', background: props.syncStatus === 'error' ? 'var(--danger)' : 'var(--success)' }
+        }),
+        props.syncStatus === 'ok' ? 'Synchronisé' : props.syncStatus === 'error' ? 'Hors ligne' : 'Synchro…',
+        props.onlineCount > 0 && React.createElement('span', {
+          title: props.onlineCount + ' appareil(s) connecté(s)',
+          style: { marginLeft: 'auto', color: 'var(--success)' }
+        }, '● ' + props.onlineCount)
       ),
-      // Flèche gauche
-      React.createElement('button', { className:'hero-arrow hero-arrow-left', onClick:goPrev, 'aria-label':'Précédent' }, '‹'),
-      // Flèche droite
-      React.createElement('button', { className:'hero-arrow hero-arrow-right', onClick:goNext, 'aria-label':'Suivant' }, '›'),
-      // Points de navigation
-      React.createElement('div', { className:'hero-dots' },
-        visibleCategories().map(function(c, i) {
+      React.createElement('button', {
+        className: 'mt-btn mt-btn-ghost', onClick: props.onReset,
+        style: { fontSize: 11, padding: '6px 10px', justifyContent: 'center' }
+      }, 'Réinitialiser')
+    )
+  );
+}
+
+// ── Barre d'onglets (mobile & tablette) — bouton profil conservé ─────────────
+function MatiereTabBar(props) {
+  var tabs = [
+    React.createElement('button', {
+      key: 'profil', className: 'mt-tab', onClick: props.onProfil, 'aria-label': 'Mon profil'
+    }, mtIcon('ph-light ph-user-circle'), React.createElement('span', null, props.lifeMode === 'solo' ? 'Solo' : 'Couple'))
+  ];
+  visibleCategories().forEach(function(cat) {
+    tabs.push(React.createElement('button', {
+      key: cat.id,
+      className: 'mt-tab' + (props.activeCat === cat.id ? ' active' : ''),
+      onClick: function() { props.goToCategory(cat.id); }
+    }, mtIcon(MT_CAT_ICON[cat.id] || 'ph-light ph-circle'), React.createElement('span', null, cat.label)));
+  });
+  return React.createElement('nav', { className: 'mt-tabbar' }, tabs);
+}
+
+// ── Accueil d'une catégorie (statique, sobre) ────────────────────────────────
+function MatiereCategoryHome(props) {
+  var cats = visibleCategories();
+  var cat = cats[props.catIdx] || cats[0];
+  return React.createElement(React.Fragment, null,
+    React.createElement('div', {
+      style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 8px' }
+    },
+      React.createElement('div', { style: { display: 'flex', alignItems: 'baseline', gap: 14 } },
+        React.createElement('h1', { className: 'mt-h1' }, cat.label),
+        React.createElement('span', { className: 'mt-meta' }, cat.desc)
+      ),
+      React.createElement(GuadeloupeMeteo, null)
+    ),
+    React.createElement('div', {
+      className: 'mt-panel',
+      style: { display: 'flex', alignItems: 'center', gap: 30 }
+    },
+      React.createElement('div', { className: 'hero-emoji', style: { fontSize: 74, lineHeight: 1 } }, cat.emoji),
+      React.createElement('div', { style: { flex: 1, minWidth: 0 } },
+        React.createElement('div', { className: 'mt-kicker', style: { marginBottom: 12 } },
+          'Catégorie ' + (props.catIdx + 1) + ' / ' + cats.length),
+        React.createElement('p', { className: 'mt-quote', style: { marginBottom: 18, maxWidth: 520 } }, cat.desc),
+        React.createElement('div', { style: { display: 'flex', gap: 9, flexWrap: 'wrap' } },
+          cat.views.slice(0, 4).map(function(v) {
+            var target = v.target || v.id;
+            return React.createElement('button', {
+              key: v.id, className: 'mt-btn',
+              onClick: function() { props.setView(target); }
+            }, mtIcon(MT_VIEW_ICON[target] || 'ph-light ph-circle'), v.label);
+          })
+        )
+      ),
+      React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 7 } },
+        cats.map(function(c, i) {
           return React.createElement('button', {
             key: c.id,
-            className: 'hero-dot' + (i === catIdx ? ' active' : ''),
-            onClick: function() { goTo(i); },
-            'aria-label': c.label
+            'aria-label': c.label,
+            onClick: function() { props.goToCategory(c.id); },
+            style: {
+              width: 6, height: i === props.catIdx ? 22 : 6, padding: 0, border: 'none',
+              borderRadius: 3, cursor: 'pointer',
+              background: i === props.catIdx ? 'var(--text)' : 'rgba(255,255,255,.38)',
+              transition: 'height .3s cubic-bezier(.34,1.56,.64,1)'
+            }
           });
         })
       )
     ),
-    // ── Grille de tuiles ──
-    React.createElement('div', { style:{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(96px,1fr))', gap:12 } },
-      cat.views.map(function(v, i) {
+    React.createElement('div', {
+      style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(150px,1fr))', gap: 14 }
+    },
+      cat.views.map(function(v) {
+        var target = v.target || v.id;
         return React.createElement('button', {
-          key: v.id, className:'view-tile',
-          style: { animationDelay: i * 55 + 'ms' },
-          onClick: function() { setView(v.target || v.id); }
+          key: v.id, className: 'mt-tile',
+          onClick: function() { props.setView(target); }
         },
-          React.createElement('span', { className:'view-tile-icon' }, v.icon),
-          React.createElement('span', { className:'view-tile-label' }, v.label)
+          React.createElement('span', { className: 'mt-tile-emoji' }, v.icon),
+          React.createElement('span', { className: 'mt-tile-label' }, v.label)
         );
       })
     )
@@ -9230,6 +9321,64 @@ const normPot = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u
 // Durée maxi d'un cycle de culture, en mois, lue depuis la bible ('2–3 mois' → 3).
 // On prend la borne haute pour n'alerter qu'une fois le cycle vraiment écoulé.
 // null quand la fiche ne donne pas de durée chiffrée (ex. 'Vivace grimpante').
+// ─── Référentiel plantes médicinales & utiles (lecture seule, 4 sources) ───
+const POTAGER_MEDICINALES = [
+  { famille: '🌿 Médicinales caribéennes (TRAMIL)', plantes: [
+    { nom: 'Aloès', latin: 'Aloe vera' },
+    { nom: 'Atoumo', latin: 'Curcuma longa, gingembre sauvage' },
+    { nom: 'Bois d’Inde', latin: 'Pimenta racemosa' },
+    { nom: 'Citronnelle', latin: 'Cymbopogon citratus' },
+    { nom: 'Corossol', latin: 'Annona muricata' },
+    { nom: 'Goyavier', latin: 'Psidium guajava' },
+    { nom: 'Groseille pays / Bissap', latin: 'Hibiscus sabdariffa' },
+    { nom: 'Liane à mal', latin: 'Aristolochia trilobata' },
+    { nom: 'Moringa', latin: 'Moringa oleifera' },
+    { nom: 'Noni', latin: 'Morinda citrifolia' },
+    { nom: 'Papaye', latin: 'Carica papaya' },
+    { nom: 'Pois doux', latin: 'Cajanus cajan' },
+    { nom: 'Quenettier', latin: 'Melicoccus bijugatus' },
+    { nom: 'Zèb à fè', latin: 'Phyllanthus niruri' },
+    { nom: 'Zèb chapantye', latin: 'Neurolaena lobata' },
+    { nom: 'Zèb à pik', latin: 'Eryngium foetidum' }
+  ]},
+  { famille: '🌍 Colonies françaises (1908)', plantes: [
+    { nom: 'Abrasin', latin: 'Aleurites cordata' },
+    { nom: 'Acajou à fruits', latin: 'Anacardium occidentale = cajou' },
+    { nom: 'Acacia continua', latin: 'savonnier' },
+    { nom: 'Albizzia amara', latin: 'Aroupou' },
+    { nom: 'Allanblackia floribunda', latin: 'fruit oléagineux du Congo' },
+    { nom: 'Amandier', latin: 'Prunus amygdalus' },
+    { nom: 'Anacardier', latin: 'Semecarpus anacardium' },
+    { nom: 'Aouara', latin: 'Astrocaryum vulgare, palmier' },
+    { nom: 'Arachide', latin: 'Arachis hypogaea' },
+    { nom: 'Arbre du voyageur', latin: 'Ravenala madagascariensis' },
+    { nom: 'Argémone', latin: 'Argemone mexicana, pavot du Mexique' },
+    { nom: 'Baobab', latin: 'Adansonia digitata, A. grandidieri' },
+    { nom: 'Ben', latin: 'Moringa pterygosperma' },
+    { nom: 'Calophyllum', latin: 'C. calaba, C. inophyllum – takamaka' },
+    { nom: 'Cacao', latin: 'Theobroma cacao' },
+    { nom: 'Carapa', latin: 'Carapa guianensis, huile de carapa' }
+  ]},
+  { famille: '🌳 Flore du Congo (Wildeman, 1903)', plantes: [
+    { nom: 'Sekegna ou Saccagna', latin: 'Bosqueia angolensis, bois tinctorial + fruit comestible' },
+    { nom: 'Musanga smithii', latin: 'Parasolier, arbre à eau' },
+    { nom: 'Hyptis spicigera', latin: 'Téné-Fi, herbe aromatique, huile siccative' },
+    { nom: 'Pandanus butayei', latin: 'pandanus du Bas-Congo' }
+  ]},
+  { famille: '📖 Médecine herbale & antibiotiques naturels', plantes: [
+    { nom: 'Ail', latin: 'Allium sativum' },
+    { nom: 'Thym', latin: 'Thymus vulgaris' },
+    { nom: 'Origan', latin: 'Origanum vulgare' },
+    { nom: 'Sauge', latin: 'Salvia officinalis' },
+    { nom: 'Échinacée', latin: 'Echinacea purpurea' },
+    { nom: 'Camomille', latin: 'Matricaria recutita' },
+    { nom: 'Menthe poivrée', latin: 'Mentha piperita' },
+    { nom: 'Curcuma', latin: 'Curcuma longa' },
+    { nom: 'Gingembre', latin: 'Zingiber officinale' },
+    { nom: 'Cannelle', latin: 'Cinnamomum verum' }
+  ]}
+];
+
 function cycleMoisMax(cycle) {
   const s = String(cycle || '');
   if (!/mois/i.test(s)) return null;
@@ -9456,6 +9605,7 @@ function PotagerView({ plantes, addPlante, updatePlante, deletePlante, semansye,
     h('div', { style:{ display:'flex', gap:8, marginBottom:16 } },
       tabBtn('plantes', '🌱 Mes plantes' + (list.length ? ' ('+list.length+')' : '')),
       tabBtn('bible', '🪴 Bible'),
+      tabBtn('medicinales', '🌿 Médicinales'),
       tabBtn('almanach', '🌙 Almanach' + (alertes.length ? ' •' : ''))
     ),
 
@@ -9529,6 +9679,28 @@ function PotagerView({ plantes, addPlante, updatePlante, deletePlante, semansye,
       );
     })(),
 
+    tab === 'medicinales' && (() => {
+      const nq = normPot(q);
+      const groupes = POTAGER_MEDICINALES.map(g => ({
+        famille: g.famille,
+        plantes: g.plantes.filter(p => !nq || normPot(p.nom).indexOf(nq) !== -1 || normPot(p.latin).indexOf(nq) !== -1 || normPot(g.famille).indexOf(nq) !== -1)
+      })).filter(g => g.plantes.length);
+      const total = POTAGER_MEDICINALES.reduce((n, g) => n + g.plantes.length, 0);
+      return h('div', null,
+        h('div', { style:{ fontSize:12, color:'var(--text3)', marginBottom:10 } }, 'Référentiel de ' + total + ' plantes médicinales & utiles (lecture seule) — nom commun et nom latin, groupés par source.'),
+        h('input', { placeholder:'🔎 Chercher (nom, latin, source…)', value:q, onChange:e=>setQ(e.target.value), style:{ background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'8px 12px', fontSize:13, width:'100%', boxSizing:'border-box', marginBottom:14 } }),
+        groupes.map(g => h('div', { key:g.famille, style:{ marginBottom:18 } },
+          h('div', { style:{ fontSize:13, fontWeight:700, color:'#10b981', marginBottom:8 } }, g.famille + ' · ' + g.plantes.length),
+          h('div', { style:{ display:'grid', gap:6 } },
+            g.plantes.map(p => h('div', { key:p.nom, style:{ display:'flex', alignItems:'baseline', gap:8, flexWrap:'wrap', background:'var(--glass)', border:'1px solid var(--border)', borderRadius:10, padding:'8px 12px' } },
+              h('span', { style:{ fontWeight:600, fontSize:13.5, color:'var(--text)' } }, p.nom),
+              h('span', { style:{ fontStyle:'italic', fontSize:12, color:'var(--text3)' } }, p.latin)
+            ))
+          )
+        )),
+        groupes.length === 0 && h('div', { style:{ textAlign:'center', padding:'30px 0', color:'var(--text3)' } }, 'Aucune plante trouvée.')
+      );
+    })(),
     tab === 'almanach' && h(KalandriyeLalin, { semansye, addLot, updateLot, deleteLot })
   );
 }
@@ -9618,6 +9790,135 @@ function ArtView() {
       ),
       React.createElement('button', { onClick:()=>del(p.id), style:{ background:'none', border:'none', color:'var(--danger)', cursor:'pointer', fontSize:18 } }, '×')
     ))
+  );
+}
+
+// ─── Young Boudha — données de référence statiques (journal du chakra de la gorge) ───
+const YB_ETATS = ['Sèche', 'Contractée', 'Fluide', 'Ouverte', 'Enflammée', 'Silencieuse'];
+const YB_PAROLE = ['Oui', 'Partiellement', 'Pas du tout'];
+const YB_RITUEL_LIBATION = [
+  'Assieds-toi face à l’Est (élément éther). Allume l’encens, respire profondément en chantant doucement le mantra HAM. Sens l’air traverser la gorge et nettoyer toute tension.',
+  'Formule sacrée : « O toi Source invisible qui traverse ma gorge, je t’offre l’eau de ma parole. Que ce qui était tu puisse danser. Que ce qui était faux se dissolve. Et que ma voix serve le vivant. »',
+  'Verse lentement l’eau en 3 temps (au sol, dans une plante, dans un ruisseau). À chaque versement, libère un mot : « J’efface le silence. » « Je libère la peur. » « J’invite la fluidité. »',
+  'Ancrage : bois une gorgée, pose les mains sur ta gorge puis sur ton cœur. Chuchote ton prénom suivi de : « Je m’écoute. Je me crois. Je me dis. »'
+];
+const YB_FICHE = [
+  ['Élément', 'Éther (espace)'],
+  ['Couleur', 'Bleu clair / turquoise'],
+  ['Bija mantra', 'HAM'],
+  ['Note', 'SOL'],
+  ['Localisation', 'Base du cou, au niveau de la glande thyroïde'],
+  ['Pierres', 'Aigue-marine, turquoise, lapis-lazuli, calcédoine bleue, larimar, célestite'],
+  ['Postures', 'Poisson (Matsyasana), chameau (Ustrasana), cobra (Bhujangasana), lion (Simhasana)'],
+  ['Plantes', 'Thym, guimauve, mauve, réglisse · HE : eucalyptus, menthe poivrée, camomille, lavande'],
+  ['Affirmations', '« Je m’exprime avec clarté et bienveillance. » · « Ma voix est un canal sacré. » · « Je mérite d’être entendu·e. »']
+];
+
+function YoungBoudhaView({ yb, updateYoungBoudha }) {
+  const h = React.createElement;
+  const y = (yb && Array.isArray(yb.jours) && yb.jours.length === 7) ? yb : ybEmpty();
+  const [open, setOpen] = React.useState(0);        // index du jour ouvert (-1 = aucun)
+  const [showRituel, setShowRituel] = React.useState(false);
+  const [showFiche, setShowFiche] = React.useState(false);
+
+  const setJour = (i, field, val) => updateYoungBoudha(s => { s.jours[i][field] = val; });
+  const toggleJour = (i, field) => updateYoungBoudha(s => { s.jours[i][field] = !s.jours[i][field]; });
+  const resetCycle = () => {
+    if (window.confirm('Remettre les 7 jours à zéro pour un nouveau cycle ? (tes observations d’intégration sont conservées)'))
+      updateYoungBoudha(s => { s.jours = ybEmpty().jours; });
+  };
+
+  const isFilled = j => !!(j.etat || j.parole || j.mantra || j.ecriture || j.rituel || j.affirmation || j.respiration || j.chant || j.silence);
+  const doneCount = y.jours.filter(isFilled).length;
+
+  // Styles (thème sombre, accent Dja violet)
+  const wrap = { maxWidth: 760, margin: '0 auto' };
+  const card = { background: 'var(--glass)', border: '1px solid var(--accent-dja-border)', borderRadius: 'var(--radius)', padding: 16, marginBottom: 12 };
+  const lbl = { fontSize: 12, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6, display: 'block' };
+  const input = { width: '100%', background: 'rgba(0,0,0,.2)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', padding: '8px 10px', fontSize: 14, fontFamily: 'inherit', boxSizing: 'border-box' };
+  const pill = active => ({ padding: '5px 11px', borderRadius: 999, fontSize: 12.5, cursor: 'pointer', border: '1px solid ' + (active ? 'var(--accent-dja)' : 'var(--border)'), background: active ? 'var(--accent-dja)' : 'transparent', color: active ? '#fff' : 'var(--text2)' });
+  const chk = active => ({ padding: '7px 12px', borderRadius: 8, fontSize: 13, cursor: 'pointer', border: '1px solid ' + (active ? 'var(--accent-dja)' : 'var(--border)'), background: active ? 'var(--accent-dja-bg)' : 'transparent', color: active ? 'var(--text)' : 'var(--text2)' });
+  const accordHead = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' };
+  const accordTitle = { fontFamily: "'Cormorant Garamond',serif", fontSize: 18, color: 'var(--text)' };
+  const caret = { color: 'var(--text3)', fontSize: 13 };
+
+  const renderJour = (j, i) => h('div', { key: 'j' + i, style: card },
+    h('div', { onClick: () => setOpen(open === i ? -1 : i), style: accordHead },
+      h('div', null,
+        h('span', { style: accordTitle }, 'Jour ' + (i + 1)),
+        j.etat && h('span', { style: { marginLeft: 10, fontSize: 12, color: 'var(--accent-dja)' } }, j.etat)
+      ),
+      h('span', { style: caret }, open === i ? '▾' : '▸')
+    ),
+    open === i && h('div', { style: { marginTop: 14, display: 'grid', gap: 14 } },
+      h('div', null,
+        h('label', { style: lbl }, 'État de la gorge'),
+        h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 6 } },
+          YB_ETATS.map(o => h('span', { key: o, onClick: () => setJour(i, 'etat', j.etat === o ? '' : o), style: pill(j.etat === o) }, o)))
+      ),
+      h('div', null,
+        h('label', { style: lbl }, 'Ai-je parlé avec vérité ?'),
+        h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 6 } },
+          YB_PAROLE.map(o => h('span', { key: o, onClick: () => setJour(i, 'parole', j.parole === o ? '' : o), style: pill(j.parole === o) }, o)))
+      ),
+      h('div', null,
+        h('label', { style: lbl }, 'Mantra du jour (à répéter 7×)'),
+        h('input', { value: j.mantra, onChange: e => setJour(i, 'mantra', e.target.value), placeholder: 'HAM · « Ma voix est libre » · « Je m’écoute »', style: input })
+      ),
+      h('div', null,
+        h('label', { style: lbl }, 'Écriture libre (5–10 min)'),
+        h('textarea', { value: j.ecriture, onChange: e => setJour(i, 'ecriture', e.target.value), rows: 4, placeholder: 'Si je pouvais dire ce que je tais depuis longtemps, je dirais…', style: { ...input, resize: 'vertical', lineHeight: 1.5 } })
+      ),
+      h('div', null,
+        h('label', { style: lbl }, 'Respiration · Chant · Silence'),
+        h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 6 } },
+          [['respiration', '🌬️ Respiration'], ['chant', '🎶 Chant'], ['silence', '🤫 Silence']].map(pair =>
+            h('span', { key: pair[0], onClick: () => toggleJour(i, pair[0]), style: chk(j[pair[0]]) }, (j[pair[0]] ? '✓ ' : '') + pair[1])))
+      ),
+      h('div', null,
+        h('label', { style: lbl }, 'Petit rituel du jour'),
+        h('input', { value: j.rituel, onChange: e => setJour(i, 'rituel', e.target.value), placeholder: 'boire une eau bleue · porter du bleu · dire une vérité à voix haute…', style: input })
+      ),
+      h('div', null,
+        h('label', { style: lbl }, 'Affirmation finale'),
+        h('input', { value: j.affirmation, onChange: e => setJour(i, 'affirmation', e.target.value), placeholder: 'Je choisis aujourd’hui de croire que…', style: input })
+      )
+    )
+  );
+
+  return h('div', { style: wrap },
+    h('div', { style: { marginBottom: 18 } },
+      h('p', { className: 'eyebrow', style: { marginBottom: 6 } }, '🧘 Young Boudha'),
+      h('h2', { style: { fontSize: 26, fontWeight: 600, fontFamily: "'Cormorant Garamond',serif", color: 'var(--text)', lineHeight: 1.1, margin: 0 } }, 'Chakra de la gorge · Vishuddha'),
+      h('p', { style: { fontSize: 13, color: 'var(--text3)', marginTop: 6, lineHeight: 1.5 } }, 'Journal de 7 jours pour libérer la parole intérieure, équilibrer l’expression et se réconcilier avec sa voix. Mantra du centre : HAM.')
+    ),
+    h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: 'wrap' } },
+      h('div', { style: { fontSize: 13, color: 'var(--text2)' } }, doneCount + ' / 7 jours entamés'),
+      h('button', { onClick: resetCycle, style: { background: 'none', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text2)', cursor: 'pointer', fontSize: 12.5, padding: '6px 12px' } }, '↺ Nouveau cycle')
+    ),
+    y.jours.map(renderJour),
+    h('div', { style: card },
+      h('div', { onClick: () => setShowRituel(!showRituel), style: accordHead },
+        h('span', { style: accordTitle }, '🌊 Rituel de libation (Vishuddha)'),
+        h('span', { style: caret }, showRituel ? '▾' : '▸')
+      ),
+      showRituel && h('ol', { style: { marginTop: 12, paddingLeft: 18, display: 'grid', gap: 10, color: 'var(--text2)', fontSize: 13.5, lineHeight: 1.55 } },
+        YB_RITUEL_LIBATION.map((t, k) => h('li', { key: k }, t)))
+    ),
+    h('div', { style: card },
+      h('div', { onClick: () => setShowFiche(!showFiche), style: accordHead },
+        h('span', { style: accordTitle }, '🔵 Fiche technique — Vishuddha'),
+        h('span', { style: caret }, showFiche ? '▾' : '▸')
+      ),
+      showFiche && h('div', { style: { marginTop: 12, display: 'grid', gap: 8 } },
+        YB_FICHE.map(row => h('div', { key: row[0], style: { display: 'grid', gridTemplateColumns: '110px 1fr', gap: 10, fontSize: 13, lineHeight: 1.5 } },
+          h('span', { style: { color: 'var(--accent-dja)', fontWeight: 600 } }, row[0]),
+          h('span', { style: { color: 'var(--text2)' } }, row[1]))))
+    ),
+    h('div', { style: card },
+      h('label', { style: lbl }, '🌌 Intégration — observations des 3 jours suivants'),
+      h('textarea', { value: y.integration, onChange: e => updateYoungBoudha(s => { s.integration = e.target.value; }), rows: 4, placeholder: 'Mots, rêves, conversations, révélations…', style: { ...input, resize: 'vertical', lineHeight: 1.5 } })
+    )
   );
 }
 
@@ -10901,6 +11202,16 @@ const ch=sb.channel('ld-realtime')
       const next = clone(prev);
       if (!next.liika.codeRousseau || typeof next.liika.codeRousseau !== 'object') next.liika.codeRousseau = clone(defaultData.liika.codeRousseau);
       next.liika.codeRousseau = { ...next.liika.codeRousseau, ...patch };
+      return next;
+    });
+  }, []);
+  // Young Boudha : édition mutative de dja.youngBoudha (même pattern que updateSurvie).
+  const updateYoungBoudha = useCallback(fn => {
+    setData(prev => {
+      const next = clone(prev);
+      if (!next.dja.youngBoudha || typeof next.dja.youngBoudha !== 'object') next.dja.youngBoudha = ybEmpty();
+      if (!Array.isArray(next.dja.youngBoudha.jours)) next.dja.youngBoudha.jours = ybEmpty().jours;
+      fn(next.dja.youngBoudha);
       return next;
     });
   }, []);
@@ -12299,229 +12610,27 @@ const ch=sb.channel('ld-realtime')
     }, "+ Ajouter un objectif pour ", MOIS_LABELS[objMoisFilter]));
   };
   return /*#__PURE__*/React.createElement("div", {
-    className: "app-layout"
-  }, /*#__PURE__*/React.createElement("nav", {
-    className: "app-sidebar",
-    style: {
-      background: 'var(--glass)',
-      backdropFilter: 'blur(16px)',
-      WebkitBackdropFilter: 'blur(16px)',
-      borderRight: '1px solid var(--gold-border)',
-      padding: '28px 0',
-      display: 'flex',
-      flexDirection: 'column',
-      position: 'sticky',
-      top: 0,
-      height: '100vh'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: '0 20px',
-      marginBottom: 28
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontFamily: "'Cormorant Garamond',serif",
-      fontSize: 22,
-      fontWeight: 600,
-      letterSpacing: '.01em',
-      lineHeight: 1.15
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      color: 'var(--gold)'
-    }
-  }, "Lanmou"), " ", /*#__PURE__*/React.createElement("span", {
-    style: {
-      color: 'var(--text)'
-    }
-  }, "Douvan")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginTop: 8,
-      height: 1,
-      background: 'linear-gradient(90deg,var(--gold-border),transparent)'
-    }
-  }), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginTop: 10,
-      display: 'flex',
-      alignItems: 'center',
-      gap: 8
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      width: 28,
-      height: 28,
-      borderRadius: '50%',
-      background: 'var(--gold-bg)',
-      border: '1px solid var(--gold-border)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      fontSize: 14,
-      flexShrink: 0
-    }
-  }, '❤'), /*#__PURE__*/React.createElement("div", {
-    style: {
-      flex: 1,
-      minWidth: 0
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 12,
-      fontWeight: 600,
-      color: 'var(--text)',
-      overflow: 'hidden',
-      textOverflow: 'ellipsis',
-      whiteSpace: 'nowrap'
-    }
-  }, displayName), /*#__PURE__*/React.createElement("div", {
-    className: "eyebrow",
-    style: {
-      opacity: .55,
-      marginTop: 1
-    }
-  }, 'Tableau de bord')), /*#__PURE__*/React.createElement("button", {
-    onClick: () => setShowProfil(true),
-    'aria-label': 'Mon profil',
-    title: 'Mon profil — mode & noms',
-    style: { flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5, padding: '6px 10px', borderRadius: 999, border: '1px solid var(--border2)', background: 'var(--glass)', color: 'var(--text)', fontSize: 12, cursor: 'pointer' }
-  }, '👤 ' + (lifeMode === 'solo' ? 'Solo' : 'Couple')))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      flex: 1,
-      overflowY: 'auto'
-    }
-  }, visibleCategories().flatMap(cat=>{
-    const isCatActive=activeCat===cat.id;
-    const items=[
-      React.createElement('button',{
-        key:'cat-'+cat.id,
-        onClick:()=>goToCategory(cat.id),
-        className:'cat-nav-btn'+(isCatActive?' active':'')
-      },
-        React.createElement('span',{className:'cat-nav-emoji'},cat.emoji),
-        React.createElement('span',null,cat.label)
-      )
-    ];
-    if(isCatActive){
-      cat.views.forEach(v=>items.push(
-        React.createElement('button',{
-          key:'sv-'+v.id,
-          onClick:()=>setView(v.target||v.id),
-          className:'cat-subview-btn'+(view===(v.target||v.id)?' active':'')
-        },
-          React.createElement('span',null,v.icon),
-          React.createElement('span',null,' '+v.label)
-        )
-      ));
-    }
-    return items;
-  })), /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: '0 16px',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 8
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: 6,
-      padding: '7px 10px',
-      borderRadius: 'var(--radius-sm)',
-      border: '1px solid var(--gold-border)',
-      background: 'var(--gold-bg)'
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 12
-    }
-  }, "\uD83D\uDDC4"), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 11,
-      color: 'var(--gold)',
-      flex: 1,
-      letterSpacing: '.03em'
-    }
-  }, "Supabase"), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 9,
-      fontWeight: 600,
-      fontFamily: "'Space Mono',monospace",
-      color: syncStatus === 'ok' ? 'var(--success)' : syncStatus === 'error' ? '#f87171' : syncStatus === 'syncing' ? 'var(--gold)' : 'var(--text3)'
-    }
-  }, syncStatus === 'ok' ? '✓ sync' : syncStatus === 'error' ? '✗ err' : syncStatus === 'syncing' ? 'sync…' : 'idle'), onlineCount > 0 && /*#__PURE__*/React.createElement("span", {
-    title: `${onlineCount} appareil(s) connecté(s)`,
-    style: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: 2,
-      fontSize: 9,
-      fontFamily: "'Space Mono',monospace",
-      color: 'var(--success)',
-      background: 'var(--success-bg)',
-      padding: '1px 6px',
-      borderRadius: 8,
-      marginLeft: 2
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      width: 5,
-      height: 5,
-      borderRadius: '50%',
-      background: 'var(--success)',
-      display: 'inline-block',
-      animation: 'pulse 2s infinite'
-    }
-  }), onlineCount)), /*#__PURE__*/React.createElement("button", {
-    onClick: () => {
-      if (confirm('Réinitialiser toutes les données ?')) {
-        LS.removeItem('dja-liika-goals');
-        setData(defaultData);
-      }
-    },
-    style: {
-      width: '100%',
-      padding: '7px',
-      borderRadius: 'var(--radius-sm)',
-      border: '1px solid var(--border)',
-      background: 'transparent',
-      color: 'var(--text3)',
-      cursor: 'pointer',
-      fontSize: 11,
-      letterSpacing: '.03em'
-    }
-  }, "R\xE9initialiser"))), React.createElement('nav',{className:'cat-mobile-nav'},
-    React.createElement('div',{className:'cat-mobile-nav-inner'},
-      React.createElement('button',{
-        key:'profil', onClick:()=>setShowProfil(true), className:'cat-mobile-btn', 'aria-label':'Mon profil'
-      },
-        React.createElement('span',{className:'cat-m-emoji'},'👤'),
-        React.createElement('span',{className:'cat-m-label'}, lifeMode==='solo'?'Solo':'Couple')
-      ),
-      visibleCategories().map(cat=>React.createElement('button',{
-        key:cat.id,
-        onClick:()=>goToCategory(cat.id),
-        className:'cat-mobile-btn'+(activeCat===cat.id?' active':'')
-      },
-        React.createElement('span',{className:'cat-m-emoji'},cat.emoji),
-        React.createElement('span',{className:'cat-m-label'},cat.label)
-      ))
-    )
-  ), React.createElement("main", {className:"app-main"},
+    className: "mt-app"
+  }, React.createElement(MatiereSidebar, {
+    activeCat, view, setView, goToCategory, syncStatus, onlineCount, lifeMode,
+    onProfil: () => setShowProfil(true),
+    onReset: () => { if (confirm('R\u00e9initialiser toutes les donn\u00e9es ?')) { LS.removeItem('dja-liika-goals'); setData(defaultData); } }
+  }), React.createElement(MatiereTabBar, {
+    activeCat, goToCategory, lifeMode,
+    onProfil: () => setShowProfil(true)
+  }), React.createElement("main", {className:"mt-main"},
     view !== null && React.createElement('button',{
-      className:'view-back-btn',
+      className:'mt-btn mt-btn-ghost',
       onClick:()=>setView(null)
     },'← Retour'),
-    !view && React.createElement(CategoryHome,{
+    !view && React.createElement(MatiereCategoryHome,{
       catIdx:visibleCategories().findIndex(c=>c.id===activeCat),
-      prevCatIdx,
       setView,
       goToCategory
     }),
     view === 'dashboard' && renderDashboard(),
     view === 'dja' && renderPerson('dja'),
+    view === 'youngboudha' && React.createElement(YoungBoudhaView, { yb: (data.dja || {}).youngBoudha, updateYoungBoudha }),
     view === 'liika' && renderPerson('liika'),
     view === 'couple' && renderCouple(),
     view === 'jeux' && React.createElement(JeuxView,{games:data.games,updateGames}),
