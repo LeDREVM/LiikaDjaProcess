@@ -214,6 +214,18 @@ async function sbUpsertMedia(m) {
 async function sbDeleteMedia(id) { return sb.from('media').delete().eq('id', id); }
 
 // ─── Data ───
+// Young Boudha : journal 7 jours du chakra de la gorge (Vishuddha). Forme par défaut
+// réutilisée par realDefaultData, demoData, normalize() et le bouton « Nouveau cycle ».
+function ybEmpty() {
+  return {
+    jours: Array.from({ length: 7 }, () => ({
+      etat: '', parole: '', mantra: '', ecriture: '',
+      respiration: false, chant: false, silence: false,
+      rituel: '', affirmation: ''
+    })),
+    integration: ''
+  };
+}
 const realDefaultData = {
   dja: {
     name: "Negus Dja",
@@ -387,7 +399,8 @@ const realDefaultData = {
       duree: 60,
       intensite: 'Légère',
       fait: false
-    }]
+    }],
+    youngBoudha: ybEmpty()
   },
   liika: {
     name: "Liika",
@@ -797,7 +810,8 @@ const demoData = {
       { id: 'ds2', jour: 'Mercredi', activite: 'Course à pied', duree: 40, intensite: 'Modérée', fait: false },
       { id: 'ds3', jour: 'Vendredi', activite: 'Renforcement', duree: 45, intensite: 'Intense', fait: false },
       { id: 'ds4', jour: 'Dimanche', activite: 'Marche', duree: 60, intensite: 'Légère', fait: false }
-    ]
+    ],
+    youngBoudha: ybEmpty()
   },
   liika: {
     name: "Sam",
@@ -985,6 +999,29 @@ function normalize(d) {
   if (!Array.isArray(base.liika.codeRousseau.eleves)) base.liika.codeRousseau.eleves = [];
   if (!Array.isArray(base.liika.codeRousseau.fiches)) base.liika.codeRousseau.fiches = [];
   if (typeof base.liika.codeRousseau.notes !== 'string') base.liika.codeRousseau.notes = '';
+  // Young Boudha : garantir la forme (7 jours + integration) après le spread de dja,
+  // qui a pu remplacer youngBoudha par une version distante partielle.
+  {
+    const yd = (base.dja.youngBoudha && typeof base.dja.youngBoudha === 'object') ? base.dja.youngBoudha : {};
+    const jin = Array.isArray(yd.jours) ? yd.jours : [];
+    base.dja.youngBoudha = {
+      jours: Array.from({ length: 7 }, (_, i) => {
+        const j = (jin[i] && typeof jin[i] === 'object') ? jin[i] : {};
+        return {
+          etat: typeof j.etat === 'string' ? j.etat : '',
+          parole: typeof j.parole === 'string' ? j.parole : '',
+          mantra: typeof j.mantra === 'string' ? j.mantra : '',
+          ecriture: typeof j.ecriture === 'string' ? j.ecriture : '',
+          respiration: !!j.respiration,
+          chant: !!j.chant,
+          silence: !!j.silence,
+          rituel: typeof j.rituel === 'string' ? j.rituel : '',
+          affirmation: typeof j.affirmation === 'string' ? j.affirmation : ''
+        };
+      }),
+      integration: typeof yd.integration === 'string' ? yd.integration : ''
+    };
+  }
   // Survie : garantir la forme (le spread couple ci-dessus a pu remplacer survie par une version partielle)
   {
     const sd = (d.couple && typeof d.couple.survie === 'object' && d.couple.survie) ? d.couple.survie : {};
@@ -8043,10 +8080,11 @@ const CATEGORIES = [
     grad:'linear-gradient(135deg,#2e1065 0%,#6d28d9 55%,#a78bfa 100%)',
     desc:'Art · Création · Direction artistique',
     views:[
-      { id:'artiste', label:'Art & Projets',  icon:'🎨' },
-      { id:'dja',     label:'Profil Dja',     icon:'◆'  },
-      { id:'vision',  label:'Vision board',   icon:'✦'  },
-      { id:'calendar',label:'Calendrier',     icon:'📅' },
+      { id:'artiste',    label:'Art & Projets',  icon:'🎨' },
+      { id:'dja',        label:'Profil Dja',     icon:'◆'  },
+      { id:'youngboudha',label:'Young Boudha',   icon:'🧘' },
+      { id:'vision',     label:'Vision board',   icon:'✦'  },
+      { id:'calendar',   label:'Calendrier',     icon:'📅' },
     ],
   },
   {
@@ -9614,6 +9652,135 @@ function CodeRousseauView({ codeRousseau, updateCodeRousseau }) {
             ),
             React.createElement('div', { style:{ marginTop:12 } },
               React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'#f87171', marginBottom:6 } }, '🚫 Sanctions'),
+// ─── Young Boudha — données de référence statiques (journal du chakra de la gorge) ───
+const YB_ETATS = ['Sèche', 'Contractée', 'Fluide', 'Ouverte', 'Enflammée', 'Silencieuse'];
+const YB_PAROLE = ['Oui', 'Partiellement', 'Pas du tout'];
+const YB_RITUEL_LIBATION = [
+  'Assieds-toi face à l’Est (élément éther). Allume l’encens, respire profondément en chantant doucement le mantra HAM. Sens l’air traverser la gorge et nettoyer toute tension.',
+  'Formule sacrée : « O toi Source invisible qui traverse ma gorge, je t’offre l’eau de ma parole. Que ce qui était tu puisse danser. Que ce qui était faux se dissolve. Et que ma voix serve le vivant. »',
+  'Verse lentement l’eau en 3 temps (au sol, dans une plante, dans un ruisseau). À chaque versement, libère un mot : « J’efface le silence. » « Je libère la peur. » « J’invite la fluidité. »',
+  'Ancrage : bois une gorgée, pose les mains sur ta gorge puis sur ton cœur. Chuchote ton prénom suivi de : « Je m’écoute. Je me crois. Je me dis. »'
+];
+const YB_FICHE = [
+  ['Élément', 'Éther (espace)'],
+  ['Couleur', 'Bleu clair / turquoise'],
+  ['Bija mantra', 'HAM'],
+  ['Note', 'SOL'],
+  ['Localisation', 'Base du cou, au niveau de la glande thyroïde'],
+  ['Pierres', 'Aigue-marine, turquoise, lapis-lazuli, calcédoine bleue, larimar, célestite'],
+  ['Postures', 'Poisson (Matsyasana), chameau (Ustrasana), cobra (Bhujangasana), lion (Simhasana)'],
+  ['Plantes', 'Thym, guimauve, mauve, réglisse · HE : eucalyptus, menthe poivrée, camomille, lavande'],
+  ['Affirmations', '« Je m’exprime avec clarté et bienveillance. » · « Ma voix est un canal sacré. » · « Je mérite d’être entendu·e. »']
+];
+
+function YoungBoudhaView({ yb, updateYoungBoudha }) {
+  const h = React.createElement;
+  const y = (yb && Array.isArray(yb.jours) && yb.jours.length === 7) ? yb : ybEmpty();
+  const [open, setOpen] = React.useState(0);        // index du jour ouvert (-1 = aucun)
+  const [showRituel, setShowRituel] = React.useState(false);
+  const [showFiche, setShowFiche] = React.useState(false);
+
+  const setJour = (i, field, val) => updateYoungBoudha(s => { s.jours[i][field] = val; });
+  const toggleJour = (i, field) => updateYoungBoudha(s => { s.jours[i][field] = !s.jours[i][field]; });
+  const resetCycle = () => {
+    if (window.confirm('Remettre les 7 jours à zéro pour un nouveau cycle ? (tes observations d’intégration sont conservées)'))
+      updateYoungBoudha(s => { s.jours = ybEmpty().jours; });
+  };
+
+  const isFilled = j => !!(j.etat || j.parole || j.mantra || j.ecriture || j.rituel || j.affirmation || j.respiration || j.chant || j.silence);
+  const doneCount = y.jours.filter(isFilled).length;
+
+  // Styles (thème sombre, accent Dja violet)
+  const wrap = { maxWidth: 760, margin: '0 auto' };
+  const card = { background: 'var(--glass)', border: '1px solid var(--accent-dja-border)', borderRadius: 'var(--radius)', padding: 16, marginBottom: 12 };
+  const lbl = { fontSize: 12, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6, display: 'block' };
+  const input = { width: '100%', background: 'rgba(0,0,0,.2)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', padding: '8px 10px', fontSize: 14, fontFamily: 'inherit', boxSizing: 'border-box' };
+  const pill = active => ({ padding: '5px 11px', borderRadius: 999, fontSize: 12.5, cursor: 'pointer', border: '1px solid ' + (active ? 'var(--accent-dja)' : 'var(--border)'), background: active ? 'var(--accent-dja)' : 'transparent', color: active ? '#fff' : 'var(--text2)' });
+  const chk = active => ({ padding: '7px 12px', borderRadius: 8, fontSize: 13, cursor: 'pointer', border: '1px solid ' + (active ? 'var(--accent-dja)' : 'var(--border)'), background: active ? 'var(--accent-dja-bg)' : 'transparent', color: active ? 'var(--text)' : 'var(--text2)' });
+  const accordHead = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' };
+  const accordTitle = { fontFamily: "'Cormorant Garamond',serif", fontSize: 18, color: 'var(--text)' };
+  const caret = { color: 'var(--text3)', fontSize: 13 };
+
+  const renderJour = (j, i) => h('div', { key: 'j' + i, style: card },
+    h('div', { onClick: () => setOpen(open === i ? -1 : i), style: accordHead },
+      h('div', null,
+        h('span', { style: accordTitle }, 'Jour ' + (i + 1)),
+        j.etat && h('span', { style: { marginLeft: 10, fontSize: 12, color: 'var(--accent-dja)' } }, j.etat)
+      ),
+      h('span', { style: caret }, open === i ? '▾' : '▸')
+    ),
+    open === i && h('div', { style: { marginTop: 14, display: 'grid', gap: 14 } },
+      h('div', null,
+        h('label', { style: lbl }, 'État de la gorge'),
+        h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 6 } },
+          YB_ETATS.map(o => h('span', { key: o, onClick: () => setJour(i, 'etat', j.etat === o ? '' : o), style: pill(j.etat === o) }, o)))
+      ),
+      h('div', null,
+        h('label', { style: lbl }, 'Ai-je parlé avec vérité ?'),
+        h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 6 } },
+          YB_PAROLE.map(o => h('span', { key: o, onClick: () => setJour(i, 'parole', j.parole === o ? '' : o), style: pill(j.parole === o) }, o)))
+      ),
+      h('div', null,
+        h('label', { style: lbl }, 'Mantra du jour (à répéter 7×)'),
+        h('input', { value: j.mantra, onChange: e => setJour(i, 'mantra', e.target.value), placeholder: 'HAM · « Ma voix est libre » · « Je m’écoute »', style: input })
+      ),
+      h('div', null,
+        h('label', { style: lbl }, 'Écriture libre (5–10 min)'),
+        h('textarea', { value: j.ecriture, onChange: e => setJour(i, 'ecriture', e.target.value), rows: 4, placeholder: 'Si je pouvais dire ce que je tais depuis longtemps, je dirais…', style: { ...input, resize: 'vertical', lineHeight: 1.5 } })
+      ),
+      h('div', null,
+        h('label', { style: lbl }, 'Respiration · Chant · Silence'),
+        h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 6 } },
+          [['respiration', '🌬️ Respiration'], ['chant', '🎶 Chant'], ['silence', '🤫 Silence']].map(pair =>
+            h('span', { key: pair[0], onClick: () => toggleJour(i, pair[0]), style: chk(j[pair[0]]) }, (j[pair[0]] ? '✓ ' : '') + pair[1])))
+      ),
+      h('div', null,
+        h('label', { style: lbl }, 'Petit rituel du jour'),
+        h('input', { value: j.rituel, onChange: e => setJour(i, 'rituel', e.target.value), placeholder: 'boire une eau bleue · porter du bleu · dire une vérité à voix haute…', style: input })
+      ),
+      h('div', null,
+        h('label', { style: lbl }, 'Affirmation finale'),
+        h('input', { value: j.affirmation, onChange: e => setJour(i, 'affirmation', e.target.value), placeholder: 'Je choisis aujourd’hui de croire que…', style: input })
+      )
+    )
+  );
+
+  return h('div', { style: wrap },
+    h('div', { style: { marginBottom: 18 } },
+      h('p', { className: 'eyebrow', style: { marginBottom: 6 } }, '🧘 Young Boudha'),
+      h('h2', { style: { fontSize: 26, fontWeight: 600, fontFamily: "'Cormorant Garamond',serif", color: 'var(--text)', lineHeight: 1.1, margin: 0 } }, 'Chakra de la gorge · Vishuddha'),
+      h('p', { style: { fontSize: 13, color: 'var(--text3)', marginTop: 6, lineHeight: 1.5 } }, 'Journal de 7 jours pour libérer la parole intérieure, équilibrer l’expression et se réconcilier avec sa voix. Mantra du centre : HAM.')
+    ),
+    h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: 'wrap' } },
+      h('div', { style: { fontSize: 13, color: 'var(--text2)' } }, doneCount + ' / 7 jours entamés'),
+      h('button', { onClick: resetCycle, style: { background: 'none', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text2)', cursor: 'pointer', fontSize: 12.5, padding: '6px 12px' } }, '↺ Nouveau cycle')
+    ),
+    y.jours.map(renderJour),
+    h('div', { style: card },
+      h('div', { onClick: () => setShowRituel(!showRituel), style: accordHead },
+        h('span', { style: accordTitle }, '🌊 Rituel de libation (Vishuddha)'),
+        h('span', { style: caret }, showRituel ? '▾' : '▸')
+      ),
+      showRituel && h('ol', { style: { marginTop: 12, paddingLeft: 18, display: 'grid', gap: 10, color: 'var(--text2)', fontSize: 13.5, lineHeight: 1.55 } },
+        YB_RITUEL_LIBATION.map((t, k) => h('li', { key: k }, t)))
+    ),
+    h('div', { style: card },
+      h('div', { onClick: () => setShowFiche(!showFiche), style: accordHead },
+        h('span', { style: accordTitle }, '🔵 Fiche technique — Vishuddha'),
+        h('span', { style: caret }, showFiche ? '▾' : '▸')
+      ),
+      showFiche && h('div', { style: { marginTop: 12, display: 'grid', gap: 8 } },
+        YB_FICHE.map(row => h('div', { key: row[0], style: { display: 'grid', gridTemplateColumns: '110px 1fr', gap: 10, fontSize: 13, lineHeight: 1.5 } },
+          h('span', { style: { color: 'var(--accent-dja)', fontWeight: 600 } }, row[0]),
+          h('span', { style: { color: 'var(--text2)' } }, row[1]))))
+    ),
+    h('div', { style: card },
+      h('label', { style: lbl }, '🌌 Intégration — observations des 3 jours suivants'),
+      h('textarea', { value: y.integration, onChange: e => updateYoungBoudha(s => { s.integration = e.target.value; }), rows: 4, placeholder: 'Mots, rêves, conversations, révélations…', style: { ...input, resize: 'vertical', lineHeight: 1.5 } })
+    )
+  );
+}
+
               React.createElement('ul', { style:{ margin:0, paddingLeft:18 } },
                 f.sanctions.map((s,i) => React.createElement('li', { key:i, style:{ fontSize:12, color:'var(--text-muted)', lineHeight:1.6, marginBottom:4 } }, s))
               )
@@ -10875,6 +11042,16 @@ const ch=sb.channel('ld-realtime')
         progress: 0
       });
       return next;
+  // Young Boudha : édition mutative de dja.youngBoudha (même pattern que updateSurvie).
+  const updateYoungBoudha = useCallback(fn => {
+    setData(prev => {
+      const next = clone(prev);
+      if (!next.dja.youngBoudha || typeof next.dja.youngBoudha !== 'object') next.dja.youngBoudha = ybEmpty();
+      if (!Array.isArray(next.dja.youngBoudha.jours)) next.dja.youngBoudha.jours = ybEmpty().jours;
+      fn(next.dja.youngBoudha);
+      return next;
+    });
+  }, []);
     });
   }, []);
   const deleteObjMensuel = useCallback(id => {
@@ -12290,6 +12467,7 @@ const ch=sb.channel('ld-realtime')
     }
   }, syncStatus === 'ok' ? '✓ sync' : syncStatus === 'error' ? '✗ err' : syncStatus === 'syncing' ? 'sync…' : 'idle'), onlineCount > 0 && /*#__PURE__*/React.createElement("span", {
     title: `${onlineCount} appareil(s) connecté(s)`,
+    view === 'youngboudha' && React.createElement(YoungBoudhaView, { yb: (data.dja || {}).youngBoudha, updateYoungBoudha }),
     style: {
       display: 'flex',
       alignItems: 'center',
