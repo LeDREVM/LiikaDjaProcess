@@ -437,19 +437,14 @@ const realDefaultData = {
         { id: 'i5', label: 'Transmission', valeur: 'Chaîne · 5 vitesses' }
       ]
     }],
-    entretien: [{
-      id: 'de1',
-      titre: 'Vidange + filtre à huile',
-      vehicule: 'Corsa',
-      date: '',
-      km: '',
-      cout: '',
-      intervalMois: '12',
-      intervalKm: '15000',
-      prochainDate: '',
-      prochainKm: '',
-      notes: 'Huile 5W30 (Dexos2)'
-    }],
+    entretien: [
+      { id: 'de1', titre: 'Vidange + filtre à huile', vehicule: 'Corsa', date: '', km: '', cout: '', intervalMois: '12', intervalKm: '15000', prochainDate: '', prochainKm: '', notes: 'Huile 5W30 (Dexos2)' },
+      { id: 'de2', titre: 'Vidange moteur', vehicule: 'YBR 125', date: '', km: '', cout: '', intervalMois: '12', intervalKm: '3000', prochainDate: '', prochainKm: '', notes: 'Huile 10W40 semi-synthèse · ≈ 1 L' },
+      { id: 'de3', titre: 'Tension + graissage chaîne', vehicule: 'YBR 125', date: '', km: '', cout: '', intervalMois: '', intervalKm: '1000', prochainDate: '', prochainKm: '', notes: 'Vérifier la tension et lubrifier' },
+      { id: 'de4', titre: 'Bougie', vehicule: 'YBR 125', date: '', km: '', cout: '', intervalMois: '', intervalKm: '10000', prochainDate: '', prochainKm: '', notes: 'Réf selon millésime (à confirmer)' },
+      { id: 'de5', titre: 'Jeu aux soupapes (contrôle)', vehicule: 'YBR 125', date: '', km: '', cout: '', intervalMois: '', intervalKm: '12000', prochainDate: '', prochainKm: '', notes: 'Contrôle / réglage' },
+      { id: 'de6', titre: 'Filtre à air', vehicule: 'YBR 125', date: '', km: '', cout: '', intervalMois: '', intervalKm: '12000', prochainDate: '', prochainKm: '', notes: 'Nettoyage ou remplacement' }
+    ],
     youngBoudha: ybEmpty()
   },
   liika: {
@@ -869,7 +864,8 @@ const demoData = {
       { id: 'de1', titre: 'Vidange + filtre à huile', vehicule: 'Corsa', date: '2026-04-12', km: '82000', cout: '95', intervalMois: '12', intervalKm: '15000', prochainDate: '2026-10-12', prochainKm: '97000', notes: 'Huile 5W30 (Dexos2) · garage du centre' },
       { id: 'de2', titre: 'Contrôle technique', vehicule: 'Corsa', date: '', km: '', cout: '', intervalMois: '24', intervalKm: '', prochainDate: '2026-09-01', prochainKm: '', notes: '' },
       { id: 'de3', titre: 'Pneus avant', vehicule: 'Corsa', date: '2026-01-20', km: '78000', cout: '210', intervalMois: '', intervalKm: '40000', prochainDate: '', prochainKm: '118000', notes: 'Surveiller l\'usure' },
-      { id: 'de4', titre: 'Chaîne + plaquettes', vehicule: 'YBR 125', date: '2026-05-02', km: '19500', cout: '140', intervalMois: '', intervalKm: '15000', prochainDate: '', prochainKm: '34500', notes: '' }
+      { id: 'de4', titre: 'Chaîne + plaquettes', vehicule: 'YBR 125', date: '2026-05-02', km: '19500', cout: '140', intervalMois: '', intervalKm: '15000', prochainDate: '', prochainKm: '34500', notes: '' },
+      { id: 'de5', titre: 'Vidange moteur', vehicule: 'YBR 125', date: '2026-06-10', km: '20400', cout: '25', intervalMois: '12', intervalKm: '3000', prochainDate: '2027-06-10', prochainKm: '23400', notes: 'Huile 10W40 semi-synthèse · ≈ 1 L' }
     ],
     youngBoudha: ybEmpty()
   },
