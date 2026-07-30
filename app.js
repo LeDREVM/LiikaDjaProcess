@@ -8781,6 +8781,7 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
   const [showVeh, setShowVeh] = React.useState(false);  // panneau gestion véhicules
   const [vForm, setVForm] = React.useState({ nom:'', type:'🚗', km:'' });
   const [vExpand, setVExpand] = React.useState(null);   // id du véhicule dont la fiche est dépliée
+  const [showCosts, setShowCosts] = React.useState(false); // panneau synthèse des coûts
   const inp = { background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'8px 12px', fontSize:13, width:'100%', boxSizing:'border-box' };
   const ACCENT = 'var(--accent-dja)';
   const TYPES = ['🚗','🏍','🚐','🚙','🚲','🔧'];
@@ -8838,6 +8839,15 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
   });
   const hero = enRetard[0] || aVenir.find(m => m.planned) || null;
   const totalCout = list.reduce((s,e) => s + (numOr(e.cout) || 0), 0);
+  // Synthèse des coûts par véhicule : entretien cumulé (coûts saisis) + assurance annuelle
+  const costMap = {};
+  const ensureCost = nom => { const k = nom || 'Sans véhicule'; if (!costMap[k]) costMap[k] = { nom: k, entretien: 0, assurance: 0 }; return costMap[k]; };
+  (entretien || []).forEach(e => { const c = numOr(e.cout); if (c !== null) ensureCost(e.vehicule).entretien += c; });
+  (vehicules || []).forEach(v => { const a = numOr(v.assuranceCout); if (a !== null) ensureCost(v.nom).assurance += a; });
+  const costRows = Object.values(costMap).sort((a,b) => (b.entretien + b.assurance) - (a.entretien + a.assurance));
+  const costTotalEntretien = costRows.reduce((s,r) => s + r.entretien, 0);
+  const costTotalAssurance = costRows.reduce((s,r) => s + r.assurance, 0);
+  const costMax = Math.max(1, ...costRows.map(r => r.entretien));
   // Alertes échéances administratives (CT + assurance) : expirées ou à ≤ 60 jours
   const deadlineAlerts = [];
   (vehicules || []).forEach(v => {
@@ -8849,8 +8859,8 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
   deadlineAlerts.sort((a,b) => a.d - b.d);
 
   // ── Actions entretien ──
-  const openAdd = () => { setForm({ ...EMPTY, vehicule: filt || '' }); setEditId(null); setShow(true); setShowVeh(false); };
-  const openEdit = e => { setForm({ ...EMPTY, ...e }); setEditId(e.id); setShow(true); setShowVeh(false); };
+  const openAdd = () => { setForm({ ...EMPTY, vehicule: filt || '' }); setEditId(null); setShow(true); setShowVeh(false); setShowCosts(false); };
+  const openEdit = e => { setForm({ ...EMPTY, ...e }); setEditId(e.id); setShow(true); setShowVeh(false); setShowCosts(false); };
   const save = () => {
     if (!form.titre.trim()) return;
     const f = { ...form };
@@ -9013,7 +9023,8 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
     React.createElement('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14, gap:8, flexWrap:'wrap' } },
       React.createElement('h2', { style:{ margin:0, fontSize:20 } }, '🔧 Entretien mécanique'),
       React.createElement('div', { style:{ display:'flex', gap:8, flexWrap:'wrap' } },
-        React.createElement('button', { onClick:()=>{ setShowVeh(!showVeh); setShow(false); }, title:'Gérer les véhicules', style:{ padding:'8px 14px', borderRadius:20, border:'1px solid var(--border)', background: showVeh ? ACCENT+'22' : 'transparent', color: showVeh ? ACCENT : 'var(--text2)', cursor:'pointer', fontWeight:700, fontSize:13 } }, '🚗 Véhicules'),
+        React.createElement('button', { onClick:()=>{ setShowVeh(!showVeh); setShow(false); setShowCosts(false); }, title:'Gérer les véhicules', style:{ padding:'8px 14px', borderRadius:20, border:'1px solid var(--border)', background: showVeh ? ACCENT+'22' : 'transparent', color: showVeh ? ACCENT : 'var(--text2)', cursor:'pointer', fontWeight:700, fontSize:13 } }, '🚗 Véhicules'),
+        React.createElement('button', { onClick:()=>{ setShowCosts(!showCosts); setShow(false); setShowVeh(false); }, title:'Synthèse des coûts', style:{ padding:'8px 14px', borderRadius:20, border:'1px solid var(--border)', background: showCosts ? ACCENT+'22' : 'transparent', color: showCosts ? ACCENT : 'var(--text2)', cursor:'pointer', fontWeight:700, fontSize:13 } }, '📊 Coûts'),
         ((entretien||[]).some(e => e.prochainDate) || (vehicules||[]).some(v => v.controleTechnique || v.assuranceEcheance)) && React.createElement('button', { onClick:exportAll, title:'Exporter les échéances (.ics)', style:{ padding:'8px 14px', borderRadius:20, border:'1px solid var(--border)', background:'transparent', color:'var(--text2)', cursor:'pointer', fontWeight:700, fontSize:13 } }, '📅'),
         React.createElement('button', { onClick:()=> show ? (setShow(false), setEditId(null)) : openAdd(), style:{ padding:'8px 18px', borderRadius:20, border:'none', background:ACCENT, color:'#fff', cursor:'pointer', fontWeight:700 } }, show ? '✕' : '+ Entretien')
       )
@@ -9032,14 +9043,34 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
       )
     ),
 
+    // Synthèse des coûts par véhicule
+    showCosts && React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid rgba(167,139,250,.35)', borderRadius:'var(--radius)', padding:16, marginBottom:16 } },
+      React.createElement('div', { style:{ fontSize:11, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:12 } }, '📊 Synthèse des coûts'),
+      costRows.length === 0 && React.createElement('div', { style:{ fontSize:12, color:'var(--text3)' } }, 'Aucun coût saisi — renseigne les coûts d\'entretien et la cotisation d\'assurance.'),
+      costRows.map(r => { const v = vehByName(r.nom); const pct = Math.round(r.entretien / costMax * 100); return React.createElement('div', { key:r.nom, style:{ marginBottom:12 } },
+        React.createElement('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:8, marginBottom:4, flexWrap:'wrap' } },
+          React.createElement('span', { style:{ fontWeight:700, color:'var(--text)', fontSize:13 } }, (v ? (v.type||'🚗')+' ' : '') + r.nom),
+          React.createElement('span', { style:{ fontSize:12, color:'var(--text3)' } }, [r.entretien > 0 && ('Entretien ' + r.entretien.toLocaleString('fr-FR') + ' €'), r.assurance > 0 && ('Assurance ' + r.assurance.toLocaleString('fr-FR') + ' €/an')].filter(Boolean).join(' · ') || '—')
+        ),
+        React.createElement('div', { style:{ height:8, background:'var(--bg2)', borderRadius:6, overflow:'hidden' } },
+          React.createElement('div', { style:{ height:'100%', width: pct + '%', background:ACCENT, borderRadius:6 } })
+        )
+      ); }),
+      costRows.length > 0 && React.createElement('div', { style:{ display:'flex', justifyContent:'space-between', gap:8, marginTop:8, paddingTop:10, borderTop:'1px solid var(--border)', fontSize:13, flexWrap:'wrap' } },
+        React.createElement('span', { style:{ fontWeight:700, color:'var(--text)' } }, 'Total'),
+        React.createElement('span', { style:{ color:'var(--text2)' } }, 'Entretien cumulé ', React.createElement('b', null, costTotalEntretien.toLocaleString('fr-FR') + ' €'), ' · Assurance ', React.createElement('b', null, costTotalAssurance.toLocaleString('fr-FR') + ' €/an'))
+      ),
+      React.createElement('div', { style:{ fontSize:11, color:'var(--text3)', marginTop:8 } }, 'Entretien = somme des coûts saisis (historique cumulé) · Assurance = cotisation annuelle de la fiche.')
+    ),
+
     // Filtres par véhicule
-    vehNames.length > 1 && !show && React.createElement('div', { style:{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:14 } },
+    vehNames.length > 1 && !show && !showCosts && React.createElement('div', { style:{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:14 } },
       preset('Tous', ()=>setFilt(null), filt === null),
       vehNames.map(nom => { const v = vehByName(nom); const kmTxt = v && numOr(v.km) !== null ? ' · ' + fmtKm(v.km) : ''; return React.createElement(React.Fragment, { key:nom }, preset((v ? (v.type||'🚗')+' ' : '') + nom + kmTxt, ()=>setFilt(nom), filt === nom)); })
     ),
 
     // Alertes échéances administratives (CT + assurance)
-    deadlineAlerts.length > 0 && !show && !showVeh && React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid ' + (deadlineAlerts[0].d < 0 ? 'rgba(239,68,68,.45)' : 'rgba(245,158,11,.45)'), borderRadius:'var(--radius)', padding:'10px 14px', marginBottom:12 } },
+    deadlineAlerts.length > 0 && !show && !showVeh && !showCosts && React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid ' + (deadlineAlerts[0].d < 0 ? 'rgba(239,68,68,.45)' : 'rgba(245,158,11,.45)'), borderRadius:'var(--radius)', padding:'10px 14px', marginBottom:12 } },
       React.createElement('div', { style:{ fontSize:11, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:6 } }, '🛡 Échéances (contrôle technique · assurance)'),
       deadlineAlerts.map(x => React.createElement('div', { key:x.key, style:{ display:'flex', alignItems:'center', gap:8, fontSize:13, color:'var(--text2)', marginBottom:2 } },
         React.createElement('span', null, (x.v.type || '🚗') + ' ' + x.v.nom),
@@ -9050,7 +9081,7 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
     ),
 
     // Hero : prochain / à faire
-    hero && !show && !showVeh && React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid ' + (hero.overdue ? 'rgba(239,68,68,.4)' : 'rgba(167,139,250,.35)'), borderRadius:'var(--radius)', padding:'12px 16px', marginBottom:16, display:'flex', alignItems:'center', gap:12 } },
+    hero && !show && !showVeh && !showCosts && React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid ' + (hero.overdue ? 'rgba(239,68,68,.4)' : 'rgba(167,139,250,.35)'), borderRadius:'var(--radius)', padding:'12px 16px', marginBottom:16, display:'flex', alignItems:'center', gap:12 } },
       React.createElement('span', { style:{ fontSize:24 } }, hero.overdue ? '⚠️' : '🛠'),
       React.createElement('div', null,
         React.createElement('div', { style:{ fontSize:11, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em' } }, hero.overdue ? 'Entretien à faire' : 'Prochain entretien'),
