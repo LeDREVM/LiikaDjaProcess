@@ -863,8 +863,8 @@ const demoData = {
       { id: 'ds4', jour: 'Dimanche', activite: 'Marche', duree: 60, intensite: 'Légère', fait: false }
     ],
     vehicules: [
-      { id: 'v1', nom: 'Corsa', type: '🚗', km: '86000', immatriculation: 'AB-123-CD', marque: 'Opel', modele: 'Corsa 1.2', annee: '2013', huile: '5W30', controleTechnique: '2026-08-15', notes: 'Norme huile : GM Dexos2 / ACEA C3', infos: [ { id: 'i1', label: 'Capacité huile', valeur: '≈ 3,5 L' }, { id: 'i2', label: 'Pneus', valeur: '185/65 R15' }, { id: 'i3', label: 'Pression pneus', valeur: '2,1–2,3 bar' } ] },
-      { id: 'v2', nom: 'YBR 125', type: '🏍', km: '21000', immatriculation: 'EF-456-GH', marque: 'Yamaha', modele: 'YBR 125', annee: '2009', huile: '10W40', controleTechnique: '2027-03-10', notes: 'Semi-synthèse · monocylindre 124 cm³', infos: [ { id: 'i1', label: 'Capacité huile', valeur: '≈ 1,0 L' }, { id: 'i2', label: 'Pneus', valeur: '2.75-18 av · 90/90-18 ar' }, { id: 'i3', label: 'Réservoir', valeur: '≈ 13 L' } ] }
+      { id: 'v1', nom: 'Corsa', type: '🚗', km: '86000', immatriculation: 'AB-123-CD', marque: 'Opel', modele: 'Corsa 1.2', annee: '2013', huile: '5W30', controleTechnique: '2026-08-15', assureur: 'MAIF', assuranceContrat: 'A-2013-0456', assuranceCout: '520', assuranceEcheance: '2026-11-01', notes: 'Norme huile : GM Dexos2 / ACEA C3', infos: [ { id: 'i1', label: 'Capacité huile', valeur: '≈ 3,5 L' }, { id: 'i2', label: 'Pneus', valeur: '185/65 R15' }, { id: 'i3', label: 'Pression pneus', valeur: '2,1–2,3 bar' } ] },
+      { id: 'v2', nom: 'YBR 125', type: '🏍', km: '21000', immatriculation: 'EF-456-GH', marque: 'Yamaha', modele: 'YBR 125', annee: '2009', huile: '10W40', controleTechnique: '2027-03-10', assureur: 'Mutuelle des Motards', assuranceContrat: 'M-778812', assuranceCout: '180', assuranceEcheance: '2026-08-20', notes: 'Semi-synthèse · monocylindre 124 cm³', infos: [ { id: 'i1', label: 'Capacité huile', valeur: '≈ 1,0 L' }, { id: 'i2', label: 'Pneus', valeur: '2.75-18 av · 90/90-18 ar' }, { id: 'i3', label: 'Réservoir', valeur: '≈ 13 L' } ] }
     ],
     entretien: [
       { id: 'de1', titre: 'Vidange + filtre à huile', vehicule: 'Corsa', date: '2026-04-12', km: '82000', cout: '95', intervalMois: '12', intervalKm: '15000', prochainDate: '2026-10-12', prochainKm: '97000', notes: 'Huile 5W30 (Dexos2) · garage du centre' },
@@ -8738,6 +8738,15 @@ function ctToIcsEvent(v) {
     description: [v.immatriculation, v.marque, v.modele].filter(Boolean).join(' ')
   };
 }
+function assToIcsEvent(v) {
+  if (!v || !v.assuranceEcheance) return null;
+  return {
+    uid: 'assurance-' + v.id + '@lanmou-douvan',
+    startIso: v.assuranceEcheance,
+    summary: '📄 Assurance · ' + (v.nom || 'Véhicule'),
+    description: [v.assureur, v.assuranceContrat].filter(Boolean).join(' · ')
+  };
+}
 function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, deleteEntretien, addVehicule, updateVehicule, deleteVehicule }) {
   const EMPTY = { titre:'', vehicule:'', date:'', km:'', cout:'', intervalMois:'', intervalKm:'', prochainDate:'', prochainKm:'', notes:'' };
   const [form, setForm] = React.useState(EMPTY);
@@ -8804,8 +8813,15 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
   });
   const hero = enRetard[0] || aVenir.find(m => m.planned) || null;
   const totalCout = list.reduce((s,e) => s + (numOr(e.cout) || 0), 0);
-  // Alertes contrôle technique : véhicules dont le CT est expiré ou à ≤ 60 jours
-  const ctAlerts = (vehicules || []).map(v => ({ v, d: daysUntil(v.controleTechnique) })).filter(x => x.d !== null && x.d <= 60).sort((a,b) => a.d - b.d);
+  // Alertes échéances administratives (CT + assurance) : expirées ou à ≤ 60 jours
+  const deadlineAlerts = [];
+  (vehicules || []).forEach(v => {
+    const ct = daysUntil(v.controleTechnique);
+    if (ct !== null && ct <= 60) deadlineAlerts.push({ key: v.id + '-ct', v, label: 'Contrôle technique', d: ct, ev: ctToIcsEvent(v), file: 'controle-technique' });
+    const as = daysUntil(v.assuranceEcheance);
+    if (as !== null && as <= 60) deadlineAlerts.push({ key: v.id + '-ass', v, label: 'Assurance', d: as, ev: assToIcsEvent(v), file: 'assurance' });
+  });
+  deadlineAlerts.sort((a,b) => a.d - b.d);
 
   // ── Actions entretien ──
   const openAdd = () => { setForm({ ...EMPTY, vehicule: filt || '' }); setEditId(null); setShow(true); setShowVeh(false); };
@@ -8842,7 +8858,7 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
   const exportOne = e => { const ev = entretienToIcsEvent(e); if (!ev) { alert("Ajoute une date de prochain entretien pour l'exporter au calendrier."); return; } downloadIcs([ev], 'entretien-' + (e.titre||'meca').toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,30) + '.ics'); };
   const exportAll = () => {
     const evs = (entretien || []).map(entretienToIcsEvent).filter(Boolean);
-    (vehicules || []).forEach(v => { const ev = ctToIcsEvent(v); if (ev) evs.push(ev); });
+    (vehicules || []).forEach(v => { const ct = ctToIcsEvent(v); if (ct) evs.push(ct); const as = assToIcsEvent(v); if (as) evs.push(as); });
     if (!evs.length) { alert('Aucune échéance planifiée à exporter.'); return; }
     downloadIcs(evs, 'entretien-mecanique.ics');
   };
@@ -8899,6 +8915,7 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
     const open = vExpand === v.id;
     const sub = [v.marque, v.modele, v.annee].filter(Boolean).join(' ');
     const ctD = daysUntil(v.controleTechnique);
+    const asD = daysUntil(v.assuranceEcheance);
     return React.createElement('div', { key:v.id, style:{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:12, padding:'10px 12px', marginBottom:10 } },
       // Ligne principale
       React.createElement('div', { style:{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' } },
@@ -8910,6 +8927,7 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
         v.immatriculation && chip('🔖 ' + v.immatriculation, 'var(--text2)'),
         v.huile && chip('🛢 ' + v.huile, 'var(--text2)'),
         ctD !== null && chip('🛡 CT ' + ctLabel(ctD), ctColor(ctD)),
+        asD !== null && chip('📄 Assur. ' + ctLabel(asD), ctColor(asD)),
         React.createElement('div', { style:{ display:'flex', gap:6, alignItems:'center', marginLeft:'auto' } },
           React.createElement('input', { type:'number', inputMode:'numeric', value: v.km == null ? '' : v.km, placeholder:'Km', title:'Kilométrage actuel', onChange:e=>updateVehicule(v.id, { km:e.target.value }), style:{ ...inp, maxWidth:110 } }),
           React.createElement('span', { style:{ fontSize:12, color:'var(--text3)' } }, 'km'),
@@ -8937,7 +8955,22 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
           React.createElement('button', { onClick:()=>updateVehicule(v.id, { controleTechnique: addMonthsIso(v.controleTechnique || todayIso(), 24) }), title:'Reporter de 2 ans (rythme légal)', style:{ padding:'8px 12px', borderRadius:10, border:'1px solid var(--border)', background:'transparent', color:'var(--text2)', cursor:'pointer', fontSize:12, fontWeight:700 } }, '+2 ans'),
           ctD !== null && React.createElement('span', { style:{ fontSize:12, fontWeight:700, color:ctColor(ctD), paddingBottom:8 } }, ctLabel(ctD))
         ),
-        React.createElement('textarea', { placeholder:'Notes (assurance, garage habituel, carte grise…)', value: v.notes || '', onChange:e=>updateVehicule(v.id, { notes:e.target.value }), style:{ ...inp, minHeight:48, marginBottom:10, resize:'vertical' } }),
+        // Assurance
+        React.createElement('div', { style:{ fontSize:10, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:6 } }, '📄 Assurance'),
+        React.createElement('div', { style:{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))', gap:8, marginBottom:8 } },
+          field('Assureur', v.assureur, val=>updateVehicule(v.id, { assureur:val }), { ph:'Ex : MAIF' }),
+          field('N° contrat', v.assuranceContrat, val=>updateVehicule(v.id, { assuranceContrat:val }), { ph:'123456789' }),
+          field('Cotisation (€/an)', v.assuranceCout, val=>updateVehicule(v.id, { assuranceCout:val }), { ph:'450', inputMode:'numeric' })
+        ),
+        React.createElement('div', { style:{ display:'flex', gap:8, alignItems:'flex-end', marginBottom:10, flexWrap:'wrap' } },
+          React.createElement('label', { style:{ display:'flex', flexDirection:'column', gap:3, fontSize:10, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.03em' } },
+            'Échéance / renouvellement',
+            React.createElement('input', { type:'date', value: v.assuranceEcheance || '', onChange:e=>updateVehicule(v.id, { assuranceEcheance:e.target.value }), style:{ ...inp, textTransform:'none', letterSpacing:'normal', color:'var(--text)' } })
+          ),
+          React.createElement('button', { onClick:()=>updateVehicule(v.id, { assuranceEcheance: addMonthsIso(v.assuranceEcheance || todayIso(), 12) }), title:'Reporter d\'un an', style:{ padding:'8px 12px', borderRadius:10, border:'1px solid var(--border)', background:'transparent', color:'var(--text2)', cursor:'pointer', fontSize:12, fontWeight:700 } }, '+1 an'),
+          asD !== null && React.createElement('span', { style:{ fontSize:12, fontWeight:700, color:ctColor(asD), paddingBottom:8 } }, ctLabel(asD))
+        ),
+        React.createElement('textarea', { placeholder:'Notes (garage habituel, carte grise, n° série…)', value: v.notes || '', onChange:e=>updateVehicule(v.id, { notes:e.target.value }), style:{ ...inp, minHeight:48, marginBottom:10, resize:'vertical' } }),
         // Autres infos (libres)
         React.createElement('div', { style:{ fontSize:10, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:6 } }, 'Autres infos'),
         (v.infos || []).map(info => React.createElement('div', { key:info.id, style:{ display:'flex', gap:6, alignItems:'center', marginBottom:6 } },
@@ -8956,7 +8989,7 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
       React.createElement('h2', { style:{ margin:0, fontSize:20 } }, '🔧 Entretien mécanique'),
       React.createElement('div', { style:{ display:'flex', gap:8, flexWrap:'wrap' } },
         React.createElement('button', { onClick:()=>{ setShowVeh(!showVeh); setShow(false); }, title:'Gérer les véhicules', style:{ padding:'8px 14px', borderRadius:20, border:'1px solid var(--border)', background: showVeh ? ACCENT+'22' : 'transparent', color: showVeh ? ACCENT : 'var(--text2)', cursor:'pointer', fontWeight:700, fontSize:13 } }, '🚗 Véhicules'),
-        ((entretien||[]).some(e => e.prochainDate) || (vehicules||[]).some(v => v.controleTechnique)) && React.createElement('button', { onClick:exportAll, title:'Exporter les échéances (.ics)', style:{ padding:'8px 14px', borderRadius:20, border:'1px solid var(--border)', background:'transparent', color:'var(--text2)', cursor:'pointer', fontWeight:700, fontSize:13 } }, '📅'),
+        ((entretien||[]).some(e => e.prochainDate) || (vehicules||[]).some(v => v.controleTechnique || v.assuranceEcheance)) && React.createElement('button', { onClick:exportAll, title:'Exporter les échéances (.ics)', style:{ padding:'8px 14px', borderRadius:20, border:'1px solid var(--border)', background:'transparent', color:'var(--text2)', cursor:'pointer', fontWeight:700, fontSize:13 } }, '📅'),
         React.createElement('button', { onClick:()=> show ? (setShow(false), setEditId(null)) : openAdd(), style:{ padding:'8px 18px', borderRadius:20, border:'none', background:ACCENT, color:'#fff', cursor:'pointer', fontWeight:700 } }, show ? '✕' : '+ Entretien')
       )
     ),
@@ -8980,13 +9013,14 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
       vehNames.map(nom => { const v = vehByName(nom); const kmTxt = v && numOr(v.km) !== null ? ' · ' + fmtKm(v.km) : ''; return React.createElement(React.Fragment, { key:nom }, preset((v ? (v.type||'🚗')+' ' : '') + nom + kmTxt, ()=>setFilt(nom), filt === nom)); })
     ),
 
-    // Alertes contrôle technique
-    ctAlerts.length > 0 && !show && !showVeh && React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid ' + (ctAlerts[0].d < 0 ? 'rgba(239,68,68,.45)' : 'rgba(245,158,11,.45)'), borderRadius:'var(--radius)', padding:'10px 14px', marginBottom:12 } },
-      React.createElement('div', { style:{ fontSize:11, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:6 } }, '🛡 Contrôle technique'),
-      ctAlerts.map(x => React.createElement('div', { key:x.v.id, style:{ display:'flex', alignItems:'center', gap:8, fontSize:13, color:'var(--text2)', marginBottom:2 } },
+    // Alertes échéances administratives (CT + assurance)
+    deadlineAlerts.length > 0 && !show && !showVeh && React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid ' + (deadlineAlerts[0].d < 0 ? 'rgba(239,68,68,.45)' : 'rgba(245,158,11,.45)'), borderRadius:'var(--radius)', padding:'10px 14px', marginBottom:12 } },
+      React.createElement('div', { style:{ fontSize:11, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:6 } }, '🛡 Échéances (contrôle technique · assurance)'),
+      deadlineAlerts.map(x => React.createElement('div', { key:x.key, style:{ display:'flex', alignItems:'center', gap:8, fontSize:13, color:'var(--text2)', marginBottom:2 } },
         React.createElement('span', null, (x.v.type || '🚗') + ' ' + x.v.nom),
+        React.createElement('span', { style:{ fontSize:11, color:'var(--text3)' } }, x.label),
         React.createElement('span', { style:{ fontWeight:700, color:ctColor(x.d) } }, ctLabel(x.d)),
-        x.v.controleTechnique && React.createElement('button', { onClick:()=>{ const ev = ctToIcsEvent(x.v); if (ev) downloadIcs([ev], 'controle-technique-'+(x.v.nom||'vehicule').toLowerCase().replace(/[^a-z0-9]+/g,'-')+'.ics'); }, title:'Ajouter au calendrier (.ics)', style:{ background:'none', border:'1px solid var(--border)', borderRadius:8, color:'var(--text2)', cursor:'pointer', fontSize:12, padding:'1px 7px' } }, '📅')
+        x.ev && React.createElement('button', { onClick:()=>downloadIcs([x.ev], x.file + '-' + (x.v.nom||'vehicule').toLowerCase().replace(/[^a-z0-9]+/g,'-') + '.ics'), title:'Ajouter au calendrier (.ics)', style:{ background:'none', border:'1px solid var(--border)', borderRadius:8, color:'var(--text2)', cursor:'pointer', fontSize:12, padding:'1px 7px' } }, '📅')
       ))
     ),
 
