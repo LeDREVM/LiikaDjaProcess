@@ -8691,6 +8691,15 @@ function entretienToIcsEvent(e) {
     description: [e.prochainKm ? 'À ' + e.prochainKm + ' km' : '', e.notes].filter(Boolean).join(' — ')
   };
 }
+function ctToIcsEvent(v) {
+  if (!v || !v.controleTechnique) return null;
+  return {
+    uid: 'ct-' + v.id + '@lanmou-douvan',
+    startIso: v.controleTechnique,
+    summary: '🛡 Contrôle technique · ' + (v.nom || 'Véhicule'),
+    description: [v.immatriculation, v.marque, v.modele].filter(Boolean).join(' ')
+  };
+}
 function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, deleteEntretien, addVehicule, updateVehicule, deleteVehicule }) {
   const EMPTY = { titre:'', vehicule:'', date:'', km:'', cout:'', intervalMois:'', intervalKm:'', prochainDate:'', prochainKm:'', notes:'' };
   const [form, setForm] = React.useState(EMPTY);
@@ -8795,7 +8804,7 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
   const exportOne = e => { const ev = entretienToIcsEvent(e); if (!ev) { alert("Ajoute une date de prochain entretien pour l'exporter au calendrier."); return; } downloadIcs([ev], 'entretien-' + (e.titre||'meca').toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,30) + '.ics'); };
   const exportAll = () => {
     const evs = (entretien || []).map(entretienToIcsEvent).filter(Boolean);
-    (vehicules || []).forEach(v => { if (v.controleTechnique) evs.push({ uid:'ct-'+v.id+'@lanmou-douvan', startIso:v.controleTechnique, summary:'🛡 Contrôle technique · '+v.nom, description:[v.immatriculation, v.marque, v.modele].filter(Boolean).join(' ') }); });
+    (vehicules || []).forEach(v => { const ev = ctToIcsEvent(v); if (ev) evs.push(ev); });
     if (!evs.length) { alert('Aucune échéance planifiée à exporter.'); return; }
     downloadIcs(evs, 'entretien-mecanique.ics');
   };
@@ -8939,7 +8948,7 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
       ctAlerts.map(x => React.createElement('div', { key:x.v.id, style:{ display:'flex', alignItems:'center', gap:8, fontSize:13, color:'var(--text2)', marginBottom:2 } },
         React.createElement('span', null, (x.v.type || '🚗') + ' ' + x.v.nom),
         React.createElement('span', { style:{ fontWeight:700, color:ctColor(x.d) } }, ctLabel(x.d)),
-        x.v.controleTechnique && React.createElement('button', { onClick:()=>{ const ev = { uid:'ct-'+x.v.id+'@lanmou-douvan', startIso:x.v.controleTechnique, summary:'🛡 Contrôle technique · '+x.v.nom, description:[x.v.immatriculation, x.v.marque, x.v.modele].filter(Boolean).join(' ') }; downloadIcs([ev], 'controle-technique-'+(x.v.nom||'vehicule').toLowerCase().replace(/[^a-z0-9]+/g,'-')+'.ics'); }, title:'Ajouter au calendrier (.ics)', style:{ background:'none', border:'1px solid var(--border)', borderRadius:8, color:'var(--text2)', cursor:'pointer', fontSize:12, padding:'1px 7px' } }, '📅')
+        x.v.controleTechnique && React.createElement('button', { onClick:()=>{ const ev = ctToIcsEvent(x.v); if (ev) downloadIcs([ev], 'controle-technique-'+(x.v.nom||'vehicule').toLowerCase().replace(/[^a-z0-9]+/g,'-')+'.ics'); }, title:'Ajouter au calendrier (.ics)', style:{ background:'none', border:'1px solid var(--border)', borderRadius:8, color:'var(--text2)', cursor:'pointer', fontSize:12, padding:'1px 7px' } }, '📅')
       ))
     ),
 
