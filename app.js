@@ -436,6 +436,23 @@ const realDefaultData = {
         { id: 'i4', label: 'Réservoir', valeur: '≈ 13 L' },
         { id: 'i5', label: 'Transmission', valeur: 'Chaîne · 5 vitesses' }
       ]
+    }, {
+      id: 'v3',
+      nom: 'Soul',
+      type: '🚗',
+      km: '',
+      immatriculation: '',
+      marque: 'Kia',
+      modele: 'Soul 1.6 CRDi',
+      annee: '2011',
+      huile: '5W30',
+      controleTechnique: '',
+      notes: 'Diesel 128 ch (1.6 CRDi)',
+      infos: [
+        { id: 'i1', label: 'Capacité huile', valeur: '≈ 5,3 L' },
+        { id: 'i2', label: 'Pneus', valeur: '205/60 R16' },
+        { id: 'i3', label: 'Réservoir', valeur: '≈ 48 L' }
+      ]
     }],
     entretien: [
       { id: 'de1', titre: 'Vidange + filtre à huile', vehicule: 'Corsa', date: '', km: '', cout: '', intervalMois: '12', intervalKm: '15000', prochainDate: '', prochainKm: '', notes: 'Huile 5W30 (Dexos2)' },
@@ -449,7 +466,13 @@ const realDefaultData = {
       { id: 'de9', titre: 'Bougies', vehicule: 'Corsa', date: '', km: '', cout: '', intervalMois: '', intervalKm: '60000', prochainDate: '', prochainKm: '', notes: 'Essence · réf à confirmer' },
       { id: 'de10', titre: 'Liquide de frein (purge)', vehicule: 'Corsa', date: '', km: '', cout: '', intervalMois: '24', intervalKm: '', prochainDate: '', prochainKm: '', notes: 'Tous les 2 ans' },
       { id: 'de11', titre: 'Contrôle freins (plaquettes/disques)', vehicule: 'Corsa', date: '', km: '', cout: '', intervalMois: '', intervalKm: '20000', prochainDate: '', prochainKm: '', notes: 'Contrôle usure' },
-      { id: 'de12', titre: 'Distribution', vehicule: 'Corsa', date: '', km: '', cout: '', intervalMois: '', intervalKm: '', prochainDate: '', prochainKm: '', notes: 'À VÉRIFIER selon moteur : Z12XEP = chaîne (pas d\'échéance) · A12XER = courroie (~90 000 km / 10 ans)' }
+      { id: 'de12', titre: 'Distribution', vehicule: 'Corsa', date: '', km: '', cout: '', intervalMois: '', intervalKm: '', prochainDate: '', prochainKm: '', notes: 'À VÉRIFIER selon moteur : Z12XEP = chaîne (pas d\'échéance) · A12XER = courroie (~90 000 km / 10 ans)' },
+      { id: 'de13', titre: 'Vidange + filtre à huile', vehicule: 'Soul', date: '', km: '', cout: '', intervalMois: '12', intervalKm: '15000', prochainDate: '', prochainKm: '', notes: 'Huile 5W30 · ≈ 5,3 L' },
+      { id: 'de14', titre: 'Filtre à gasoil', vehicule: 'Soul', date: '', km: '', cout: '', intervalMois: '', intervalKm: '40000', prochainDate: '', prochainKm: '', notes: 'Purger l\'eau régulièrement' },
+      { id: 'de15', titre: 'Filtre à air', vehicule: 'Soul', date: '', km: '', cout: '', intervalMois: '', intervalKm: '45000', prochainDate: '', prochainKm: '', notes: '' },
+      { id: 'de16', titre: 'Filtre habitacle (pollen)', vehicule: 'Soul', date: '', km: '', cout: '', intervalMois: '12', intervalKm: '15000', prochainDate: '', prochainKm: '', notes: '' },
+      { id: 'de17', titre: 'Liquide de frein (purge)', vehicule: 'Soul', date: '', km: '', cout: '', intervalMois: '24', intervalKm: '', prochainDate: '', prochainKm: '', notes: 'Tous les 2 ans' },
+      { id: 'de18', titre: 'Distribution', vehicule: 'Soul', date: '', km: '', cout: '', intervalMois: '', intervalKm: '', prochainDate: '', prochainKm: '', notes: 'À VÉRIFIER (courroie ou chaîne selon série) — faire contrôler l\'état' }
     ],
     youngBoudha: ybEmpty()
   },
@@ -864,14 +887,16 @@ const demoData = {
     ],
     vehicules: [
       { id: 'v1', nom: 'Corsa', type: '🚗', km: '86000', immatriculation: 'AB-123-CD', marque: 'Opel', modele: 'Corsa 1.2', annee: '2013', huile: '5W30', controleTechnique: '2026-08-15', assureur: 'MAIF', assuranceContrat: 'A-2013-0456', assuranceCout: '520', assuranceEcheance: '2026-11-01', notes: 'Norme huile : GM Dexos2 / ACEA C3', infos: [ { id: 'i1', label: 'Capacité huile', valeur: '≈ 3,5 L' }, { id: 'i2', label: 'Pneus', valeur: '185/65 R15' }, { id: 'i3', label: 'Pression pneus', valeur: '2,1–2,3 bar' } ] },
-      { id: 'v2', nom: 'YBR 125', type: '🏍', km: '21000', immatriculation: 'EF-456-GH', marque: 'Yamaha', modele: 'YBR 125', annee: '2009', huile: '10W40', controleTechnique: '2027-03-10', assureur: 'Mutuelle des Motards', assuranceContrat: 'M-778812', assuranceCout: '180', assuranceEcheance: '2026-08-20', notes: 'Semi-synthèse · monocylindre 124 cm³', infos: [ { id: 'i1', label: 'Capacité huile', valeur: '≈ 1,0 L' }, { id: 'i2', label: 'Pneus', valeur: '2.75-18 av · 90/90-18 ar' }, { id: 'i3', label: 'Réservoir', valeur: '≈ 13 L' } ] }
+      { id: 'v2', nom: 'YBR 125', type: '🏍', km: '21000', immatriculation: 'EF-456-GH', marque: 'Yamaha', modele: 'YBR 125', annee: '2009', huile: '10W40', controleTechnique: '2027-03-10', assureur: 'Mutuelle des Motards', assuranceContrat: 'M-778812', assuranceCout: '180', assuranceEcheance: '2026-08-20', notes: 'Semi-synthèse · monocylindre 124 cm³', infos: [ { id: 'i1', label: 'Capacité huile', valeur: '≈ 1,0 L' }, { id: 'i2', label: 'Pneus', valeur: '2.75-18 av · 90/90-18 ar' }, { id: 'i3', label: 'Réservoir', valeur: '≈ 13 L' } ] },
+      { id: 'v3', nom: 'Soul', type: '🚗', km: '142000', immatriculation: 'IJ-789-KL', marque: 'Kia', modele: 'Soul 1.6 CRDi', annee: '2011', huile: '5W30', controleTechnique: '2026-10-05', assureur: 'Direct Assurance', assuranceContrat: 'D-334455', assuranceCout: '480', assuranceEcheance: '2026-12-15', notes: 'Diesel 128 ch (1.6 CRDi)', infos: [ { id: 'i1', label: 'Capacité huile', valeur: '≈ 5,3 L' }, { id: 'i2', label: 'Pneus', valeur: '205/60 R16' }, { id: 'i3', label: 'Réservoir', valeur: '≈ 48 L' } ] }
     ],
     entretien: [
       { id: 'de1', titre: 'Vidange + filtre à huile', vehicule: 'Corsa', date: '2026-04-12', km: '82000', cout: '95', intervalMois: '12', intervalKm: '15000', prochainDate: '2026-10-12', prochainKm: '97000', notes: 'Huile 5W30 (Dexos2) · garage du centre' },
       { id: 'de2', titre: 'Contrôle technique', vehicule: 'Corsa', date: '', km: '', cout: '', intervalMois: '24', intervalKm: '', prochainDate: '2026-09-01', prochainKm: '', notes: '' },
       { id: 'de3', titre: 'Pneus avant', vehicule: 'Corsa', date: '2026-01-20', km: '78000', cout: '210', intervalMois: '', intervalKm: '40000', prochainDate: '', prochainKm: '118000', notes: 'Surveiller l\'usure' },
       { id: 'de4', titre: 'Chaîne + plaquettes', vehicule: 'YBR 125', date: '2026-05-02', km: '19500', cout: '140', intervalMois: '', intervalKm: '15000', prochainDate: '', prochainKm: '34500', notes: '' },
-      { id: 'de5', titre: 'Vidange moteur', vehicule: 'YBR 125', date: '2026-06-10', km: '20400', cout: '25', intervalMois: '12', intervalKm: '3000', prochainDate: '2027-06-10', prochainKm: '23400', notes: 'Huile 10W40 semi-synthèse · ≈ 1 L' }
+      { id: 'de5', titre: 'Vidange moteur', vehicule: 'YBR 125', date: '2026-06-10', km: '20400', cout: '25', intervalMois: '12', intervalKm: '3000', prochainDate: '2027-06-10', prochainKm: '23400', notes: 'Huile 10W40 semi-synthèse · ≈ 1 L' },
+      { id: 'de6', titre: 'Vidange + filtre à huile', vehicule: 'Soul', date: '2026-03-18', km: '138000', cout: '110', intervalMois: '12', intervalKm: '15000', prochainDate: '2027-03-18', prochainKm: '153000', notes: 'Huile 5W30 · ≈ 5,3 L' }
     ],
     youngBoudha: ybEmpty()
   },
