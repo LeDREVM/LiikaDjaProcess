@@ -8752,7 +8752,7 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
     return (a.kmLeft === null ? Infinity : a.kmLeft) - (b.kmLeft === null ? Infinity : b.kmLeft);
   });
   const hero = enRetard[0] || aVenir.find(m => m.planned) || null;
-  const totalCout = (entretien || []).reduce((s,e) => s + (numOr(e.cout) || 0), 0);
+  const totalCout = list.reduce((s,e) => s + (numOr(e.cout) || 0), 0);
 
   // ── Actions entretien ──
   const openAdd = () => { setForm({ ...EMPTY, vehicule: filt || '' }); setEditId(null); setShow(true); setShowVeh(false); };
@@ -8768,14 +8768,22 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
     setForm(EMPTY); setEditId(null); setShow(false);
   };
   // Rappel intelligent : marque « fait aujourd'hui » et régénère la prochaine échéance.
+  // Le km n'est mis à jour que si le véhicule a un compteur courant renseigné : sinon
+  // on ne recopie pas l'ancien km (donnée trompeuse) ni ne régénère le rappel en km.
   const markFait = m => {
-    const e = m.e, veh = m.veh, today = todayIso();
-    const km = (veh && numOr(veh.km) !== null) ? String(numOr(veh.km)) : (e.km || '');
-    const patch = { date: today, km };
+    const e = m.e, today = todayIso();
+    const freshKm = m.veh ? numOr(m.veh.km) : null;   // km à jour (compteur du véhicule)
+    const patch = { date: today };
+    if (freshKm !== null) patch.km = String(freshKm);
     if (numOr(e.intervalMois) !== null) patch.prochainDate = addMonthsIso(today, numOr(e.intervalMois));
-    if (numOr(e.intervalKm) !== null && numOr(km) !== null) patch.prochainKm = String(numOr(km) + numOr(e.intervalKm));
-    const nextTxt = [patch.prochainDate && fmtFr(patch.prochainDate), fmtKm(patch.prochainKm)].filter(Boolean).join(' · ');
-    if (!confirm('Marquer « ' + (e.titre || 'cet entretien') + ' » fait aujourd\'hui' + (numOr(km) !== null ? ' à ' + fmtKm(km) : '') + ' ?' + (nextTxt ? '\n\nProchaine échéance régénérée : ' + nextTxt : ''))) return;
+    if (numOr(e.intervalKm) !== null && freshKm !== null) patch.prochainKm = String(freshKm + numOr(e.intervalKm));
+    const nextTxt = [patch.prochainDate && fmtFr(patch.prochainDate), patch.prochainKm && fmtKm(patch.prochainKm)].filter(Boolean).join(' · ');
+    const kmMissing = numOr(e.intervalKm) !== null && freshKm === null;
+    const msg = 'Marquer « ' + (e.titre || 'cet entretien') + ' » fait aujourd\'hui'
+      + (freshKm !== null ? ' à ' + fmtKm(freshKm) : '') + ' ?'
+      + (nextTxt ? '\n\nProchaine échéance régénérée : ' + nextTxt : '')
+      + (kmMissing ? '\n\n⚠ Rappel km non régénéré : renseigne d\'abord le compteur du véhicule (bouton « Véhicules »).' : '');
+    if (!confirm(msg)) return;
     updateEntretien(e.id, patch);
   };
   const exportOne = e => { const ev = entretienToIcsEvent(e); if (!ev) { alert("Ajoute une date de prochain entretien pour l'exporter au calendrier."); return; } downloadIcs([ev], 'entretien-' + (e.titre||'meca').toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,30) + '.ics'); };
