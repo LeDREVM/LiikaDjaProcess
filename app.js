@@ -400,19 +400,36 @@ const realDefaultData = {
       intensite: 'Légère',
       fait: false
     }],
-    vehicules: [],
+    vehicules: [{
+      id: 'v1',
+      nom: 'Corsa',
+      type: '🚗',
+      km: '',
+      immatriculation: '',
+      marque: 'Opel',
+      modele: 'Corsa 1.2',
+      annee: '2013',
+      huile: '5W30',
+      controleTechnique: '',
+      notes: 'Norme huile : GM Dexos2 / ACEA C3',
+      infos: [
+        { id: 'i1', label: 'Capacité huile', valeur: '≈ 3,5 L' },
+        { id: 'i2', label: 'Pneus', valeur: '185/65 R15' },
+        { id: 'i3', label: 'Pression pneus', valeur: '2,1–2,3 bar' }
+      ]
+    }],
     entretien: [{
       id: 'de1',
       titre: 'Vidange + filtre à huile',
-      vehicule: 'Voiture',
+      vehicule: 'Corsa',
       date: '',
       km: '',
       cout: '',
       intervalMois: '12',
-      intervalKm: '10000',
+      intervalKm: '15000',
       prochainDate: '',
       prochainKm: '',
-      notes: ''
+      notes: 'Huile 5W30 (Dexos2)'
     }],
     youngBoudha: ybEmpty()
   },
@@ -826,13 +843,13 @@ const demoData = {
       { id: 'ds4', jour: 'Dimanche', activite: 'Marche', duree: 60, intensite: 'Légère', fait: false }
     ],
     vehicules: [
-      { id: 'v1', nom: 'Voiture', type: '🚗', km: '86000', immatriculation: 'AB-123-CD', marque: 'Peugeot', modele: '208', annee: '2019', huile: '5W30', controleTechnique: '2026-08-15', notes: '', infos: [ { id: 'i1', label: 'Pression pneus', valeur: '2.4 bar' }, { id: 'i2', label: 'Ampoule phare', valeur: 'H7' } ] },
+      { id: 'v1', nom: 'Corsa', type: '🚗', km: '86000', immatriculation: 'AB-123-CD', marque: 'Opel', modele: 'Corsa 1.2', annee: '2013', huile: '5W30', controleTechnique: '2026-08-15', notes: 'Norme huile : GM Dexos2 / ACEA C3', infos: [ { id: 'i1', label: 'Capacité huile', valeur: '≈ 3,5 L' }, { id: 'i2', label: 'Pneus', valeur: '185/65 R15' }, { id: 'i3', label: 'Pression pneus', valeur: '2,1–2,3 bar' } ] },
       { id: 'v2', nom: 'Moto', type: '🏍', km: '21000', immatriculation: 'EF-456-GH', marque: 'Yamaha', modele: 'MT-07', annee: '2021', huile: '10W40', controleTechnique: '2027-03-10', notes: '', infos: [] }
     ],
     entretien: [
-      { id: 'de1', titre: 'Vidange + filtre à huile', vehicule: 'Voiture', date: '2026-04-12', km: '82000', cout: '95', intervalMois: '12', intervalKm: '10000', prochainDate: '2026-10-12', prochainKm: '92000', notes: 'Huile 5W30 · garage du centre' },
-      { id: 'de2', titre: 'Contrôle technique', vehicule: 'Voiture', date: '', km: '', cout: '', intervalMois: '24', intervalKm: '', prochainDate: '2026-09-01', prochainKm: '', notes: '' },
-      { id: 'de3', titre: 'Pneus avant', vehicule: 'Voiture', date: '2026-01-20', km: '78000', cout: '210', intervalMois: '', intervalKm: '40000', prochainDate: '', prochainKm: '118000', notes: 'Surveiller l\'usure' },
+      { id: 'de1', titre: 'Vidange + filtre à huile', vehicule: 'Corsa', date: '2026-04-12', km: '82000', cout: '95', intervalMois: '12', intervalKm: '15000', prochainDate: '2026-10-12', prochainKm: '97000', notes: 'Huile 5W30 (Dexos2) · garage du centre' },
+      { id: 'de2', titre: 'Contrôle technique', vehicule: 'Corsa', date: '', km: '', cout: '', intervalMois: '24', intervalKm: '', prochainDate: '2026-09-01', prochainKm: '', notes: '' },
+      { id: 'de3', titre: 'Pneus avant', vehicule: 'Corsa', date: '2026-01-20', km: '78000', cout: '210', intervalMois: '', intervalKm: '40000', prochainDate: '', prochainKm: '118000', notes: 'Surveiller l\'usure' },
       { id: 'de4', titre: 'Chaîne + plaquettes', vehicule: 'Moto', date: '2026-05-02', km: '19500', cout: '140', intervalMois: '', intervalKm: '15000', prochainDate: '', prochainKm: '34500', notes: '' }
     ],
     youngBoudha: ybEmpty()
