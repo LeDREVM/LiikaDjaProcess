@@ -8442,6 +8442,23 @@ function compressImage(file, maxW, quality) {
     reader.readAsDataURL(file);
   });
 }
+// Upload d'un document véhicule : compresse, puis envoie au bucket Supabase (comme l'album)
+// et renvoie l'URL publique. En démo, renvoie la data-URL base64 (aucun envoi cloud).
+async function uploadVehiclePhoto(file) {
+  const dataUrl = await compressImage(file, 1400, 0.72);
+  if (DEMO) return dataUrl;
+  const parts = dataUrl.split(',');
+  const mime = (parts[0].match(/:(.*?);/) || [])[1] || 'image/jpeg';
+  const binary = atob(parts[1]);
+  const arr = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i);
+  const blob = new Blob([arr], { type: mime });
+  const path = 'vehicules/' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.jpg';
+  const { error } = await sb.storage.from('album-photos').upload(path, blob, { contentType: 'image/jpeg', upsert: false });
+  if (error) throw error;
+  const { data: urlData } = sb.storage.from('album-photos').getPublicUrl(path);
+  return urlData.publicUrl;
+}
 function AlbumView({ album, addAlbumPhoto, deleteAlbumPhoto }) {
   const photos = album || [];
   const [url, setUrl] = React.useState('');
@@ -8797,6 +8814,39 @@ function assToIcsEvent(v) {
     description: [v.assureur, v.assuranceContrat].filter(Boolean).join(' · ')
   };
 }
+// Échéances mécaniques urgentes (pour le rappel sur l'accueil) : CT & assurance à ≤ 30 j,
+// entretiens en retard ou à ≤ 14 j / ≤ 500 km. Triées par urgence (retard d'abord).
+function mecaAlerts(dja) {
+  if (!dja || typeof dja !== 'object') return [];
+  const vehs = Array.isArray(dja.vehicules) ? dja.vehicules : [];
+  const ent = Array.isArray(dja.entretien) ? dja.entretien : [];
+  const byName = {};
+  vehs.forEach(v => { if (v && v.nom) byName[v.nom] = v; });
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const days = iso => { if (!iso) return null; const d = new Date(String(iso).slice(0, 10) + 'T00:00:00'); return isNaN(d.getTime()) ? null : Math.round((d.getTime() - today.getTime()) / 864e5); };
+  const num = x => (x === '' || x == null || isNaN(Number(x))) ? null : Number(x);
+  const dLabel = n => n < 0 ? 'en retard' : n === 0 ? "aujourd'hui" : n <= 60 ? 'dans ' + n + ' j' : 'dans ' + Math.round(n / 30.44) + ' mois';
+  const out = [];
+  vehs.forEach(v => {
+    const ct = days(v.controleTechnique); if (ct !== null && ct <= 30) out.push({ emoji: '🛡', veh: v.nom, label: 'Contrôle technique', text: dLabel(ct), sev: ct });
+    const as = days(v.assuranceEcheance); if (as !== null && as <= 30) out.push({ emoji: '📄', veh: v.nom, label: 'Assurance', text: dLabel(as), sev: as });
+  });
+  ent.forEach(e => {
+    const veh = byName[e.vehicule];
+    const d = days(e.prochainDate);
+    const vkm = veh ? num(veh.km) : null, pkm = num(e.prochainKm);
+    const kmLeft = (pkm !== null && vkm !== null) ? pkm - vkm : null;
+    const dOver = d !== null && d < 0, kmOver = kmLeft !== null && kmLeft < 0;
+    const dSoon = d !== null && d >= 0 && d <= 14, kmSoon = kmLeft !== null && kmLeft >= 0 && kmLeft <= 500;
+    if (dOver || kmOver || dSoon || kmSoon) {
+      const parts = [];
+      if (d !== null) parts.push(dLabel(d));
+      if (kmLeft !== null) parts.push(kmLeft < 0 ? 'dépassé de ' + (-kmLeft).toLocaleString('fr-FR') + ' km' : 'dans ' + kmLeft.toLocaleString('fr-FR') + ' km');
+      out.push({ emoji: '🔧', veh: e.vehicule, label: e.titre, text: parts.join(' · '), sev: (dOver || kmOver) ? -1 : (d !== null ? d : 30) });
+    }
+  });
+  return out.sort((a, b) => a.sev - b.sev);
+}
 function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, deleteEntretien, addVehicule, updateVehicule, deleteVehicule }) {
   const EMPTY = { titre:'', vehicule:'', date:'', km:'', cout:'', intervalMois:'', intervalKm:'', prochainDate:'', prochainKm:'', notes:'' };
   const [form, setForm] = React.useState(EMPTY);
@@ -8804,9 +8854,10 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
   const [show, setShow] = React.useState(false);
   const [filt, setFilt] = React.useState(null);        // véhicule filtré (nom) ou null = tous
   const [showVeh, setShowVeh] = React.useState(false);  // panneau gestion véhicules
-  const V_EMPTY_VEH = { type:'🚗', nom:'', km:'', immatriculation:'', marque:'', modele:'', annee:'', huile:'', vin:'', miseEnCirculation:'', controleTechnique:'', assureur:'', assuranceContrat:'', assuranceCout:'', assuranceEcheance:'', notes:'', infos:[] };
+  const V_EMPTY_VEH = { type:'🚗', nom:'', km:'', immatriculation:'', marque:'', modele:'', annee:'', huile:'', vin:'', miseEnCirculation:'', controleTechnique:'', assureur:'', assuranceContrat:'', assuranceCout:'', assuranceEcheance:'', notes:'', infos:[], photos:[] };
   const [vForm, setVForm] = React.useState(V_EMPTY_VEH);
   const [vFormOpen, setVFormOpen] = React.useState(false); // formulaire complet « nouveau véhicule »
+  const [photoUploading, setPhotoUploading] = React.useState(false);
   const [vExpand, setVExpand] = React.useState(null);   // id du véhicule dont la fiche est dépliée
   const [showCosts, setShowCosts] = React.useState(false); // panneau synthèse des coûts
   const inp = { background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'8px 12px', fontSize:13, width:'100%', boxSizing:'border-box' };
@@ -8934,6 +8985,25 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
     upd: (iid, patch) => setVForm(p => ({ ...p, infos: (p.infos || []).map(x => x.id === iid ? { ...x, ...patch } : x) })),
     del: iid => setVForm(p => ({ ...p, infos: (p.infos || []).filter(x => x.id !== iid) }))
   };
+  // Documents (photos) — upload compressé vers Supabase (bucket album-photos) ou base64 en démo.
+  const doUpload = async (file, append) => {
+    setPhotoUploading(true);
+    try { const src = await uploadVehiclePhoto(file); append({ id: Date.now().toString(), src, name: file.name || 'document' }); }
+    catch (e) { alert('Impossible d\'ajouter ce document : ' + ((e && e.message) || 'erreur réseau')); }
+    finally { setPhotoUploading(false); }
+  };
+  const draftPhotosApi = {
+    list: vForm.photos,
+    uploading: photoUploading,
+    add: file => doUpload(file, ph => setVForm(p => ({ ...p, photos: [...(p.photos || []), ph] }))),
+    del: id => setVForm(p => ({ ...p, photos: (p.photos || []).filter(x => x.id !== id) }))
+  };
+  const editPhotosApi = v => ({
+    list: v.photos,
+    uploading: photoUploading,
+    add: file => doUpload(file, ph => updateVehicule(v.id, { photos: [...(v.photos || []), ph] })),
+    del: id => { if (confirm('Supprimer ce document ?')) updateVehicule(v.id, { photos: (v.photos || []).filter(x => x.id !== id) }); }
+  });
   const delVeh = v => { if (confirm('Supprimer le véhicule « ' + v.nom + ' » ? (les entretiens liés sont conservés)')) deleteVehicule(v.id); };
   // Infos libres par véhicule (« etc. » : pression pneus, réf filtre, ampoule…)
   const addInfo = v => updateVehicule(v.id, { infos: [...(v.infos || []), { id: Date.now().toString(), label:'', valeur:'' }] });
@@ -8983,7 +9053,7 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
 
   // Corps de formulaire véhicule partagé (ajout brouillon + édition fiche) — sections guidées.
   // val = objet véhicule ; patch = applique un changement partiel ; infosApi = { list, add, upd, del }.
-  const vehForm = (val, patch, infosApi, opts) => {
+  const vehForm = (val, patch, infosApi, photosApi, opts) => {
     const ctd = daysUntil(val.controleTechnique);
     const asd = daysUntil(val.assuranceEcheance);
     const dateLabel = (txt, cur, key, presetMonths, presetTxt, d) => React.createElement('div', { style:{ display:'flex', gap:8, alignItems:'flex-end', marginBottom:10, flexWrap:'wrap' } },
@@ -9025,7 +9095,18 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
         React.createElement('input', { placeholder:'Valeur (ex : 2.4 bar)', value:info.valeur || '', onChange:e=>infosApi.upd(info.id, { valeur:e.target.value }), style:{ ...inp, flex:1 } }),
         React.createElement('button', { onClick:()=>infosApi.del(info.id), style:{ background:'none', border:'none', color:'var(--danger)', cursor:'pointer', fontSize:18 } }, '×')
       )),
-      React.createElement('button', { key:'addinfo', onClick:infosApi.add, style:{ padding:'5px 12px', borderRadius:10, border:'1px dashed var(--border)', background:'transparent', color:'var(--text2)', cursor:'pointer', fontSize:12, fontWeight:600 } }, '+ Info')
+      React.createElement('button', { key:'addinfo', onClick:infosApi.add, style:{ padding:'5px 12px', borderRadius:10, border:'1px dashed var(--border)', background:'transparent', color:'var(--text2)', cursor:'pointer', fontSize:12, fontWeight:600 } }, '+ Info'),
+      sectionH('📎 Documents (carte grise, assurance, factures…)'),
+      React.createElement('div', { key:'docs', style:{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center', marginBottom:4 } },
+        ...(photosApi.list || []).map(ph => React.createElement('div', { key:ph.id, style:{ position:'relative', width:72 } },
+          React.createElement('img', { src:ph.src, alt:ph.name || 'document', title:ph.name || 'document', onClick:()=>window.open(ph.src, '_blank'), style:{ width:72, height:72, objectFit:'cover', borderRadius:8, border:'1px solid var(--border)', cursor:'pointer', display:'block' } }),
+          React.createElement('button', { onClick:()=>photosApi.del(ph.id), title:'Supprimer', style:{ position:'absolute', top:-6, right:-6, width:20, height:20, borderRadius:'50%', border:'none', background:'var(--danger)', color:'#fff', cursor:'pointer', fontSize:12, lineHeight:'18px', padding:0 } }, '×')
+        )),
+        React.createElement('label', { key:'upl', style:{ display:'inline-flex', alignItems:'center', justifyContent:'center', width:72, height:72, borderRadius:8, border:'1px dashed var(--border)', color:'var(--text3)', cursor: photosApi.uploading ? 'wait' : 'pointer', fontSize:11, textAlign:'center', padding:4, boxSizing:'border-box' } },
+          photosApi.uploading ? 'Envoi…' : '📎 Ajouter',
+          React.createElement('input', { type:'file', accept:'image/*', disabled:photosApi.uploading, style:{ display:'none' }, onChange:e=>{ const f = e.target.files && e.target.files[0]; if (f) photosApi.add(f); e.target.value=''; } })
+        )
+      )
     ];
   };
 
@@ -9046,6 +9127,7 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
         v.huile && chip('🛢 ' + v.huile, 'var(--text2)'),
         ctD !== null && chip('🛡 CT ' + ctLabel(ctD), ctColor(ctD)),
         asD !== null && chip('📄 Assur. ' + ctLabel(asD), ctColor(asD)),
+        (v.photos && v.photos.length > 0) && chip('📎 ' + v.photos.length, 'var(--text2)'),
         React.createElement('div', { style:{ display:'flex', gap:6, alignItems:'center', marginLeft:'auto' } },
           React.createElement('input', { type:'number', inputMode:'numeric', value: v.km == null ? '' : v.km, placeholder:'Km', title:'Kilométrage actuel', onChange:e=>updateVehicule(v.id, { km:e.target.value }), style:{ ...inp, maxWidth:110 } }),
           React.createElement('span', { style:{ fontSize:12, color:'var(--text3)' } }, 'km'),
@@ -9055,7 +9137,7 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
       ),
       // Fiche détaillée (édition) — même formulaire guidé que l'ajout
       open && React.createElement('div', { style:{ marginTop:12, paddingTop:12, borderTop:'1px solid var(--border)' } },
-        ...vehForm(v, p => updateVehicule(v.id, p), { list: v.infos, add: () => addInfo(v), upd: (iid, patch) => updInfo(v, iid, patch), del: iid => delInfo(v, iid) })
+        ...vehForm(v, p => updateVehicule(v.id, p), { list: v.infos, add: () => addInfo(v), upd: (iid, patch) => updInfo(v, iid, patch), del: iid => delInfo(v, iid) }, editPhotosApi(v))
       )
     );
   };
@@ -9080,7 +9162,7 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
       !vFormOpen && React.createElement('button', { onClick:()=>{ setVForm(V_EMPTY_VEH); setVFormOpen(true); }, style:{ marginTop:8, padding:'9px 16px', borderRadius:12, border:'1px dashed '+ACCENT, background:'transparent', color:ACCENT, cursor:'pointer', fontWeight:700, fontSize:13 } }, '+ Nouveau véhicule'),
       vFormOpen && React.createElement('div', { style:{ marginTop:12, paddingTop:12, borderTop:'1px solid var(--border)' } },
         React.createElement('div', { style:{ fontWeight:700, color:'var(--text)', fontSize:14, marginBottom:12 } }, '🚗 Nouveau véhicule'),
-        ...vehForm(vForm, p => setVForm(prev => ({ ...prev, ...p })), draftInfosApi, { showKm: true }),
+        ...vehForm(vForm, p => setVForm(prev => ({ ...prev, ...p })), draftInfosApi, draftPhotosApi, { showKm: true }),
         React.createElement('div', { style:{ display:'flex', gap:8, marginTop:12, flexWrap:'wrap' } },
           React.createElement('button', { onClick:saveVeh, disabled: !vForm.nom.trim(), style:{ padding:'9px 20px', borderRadius:12, border:'none', background: vForm.nom.trim() ? ACCENT : 'var(--border)', color:'#fff', cursor: vForm.nom.trim() ? 'pointer' : 'not-allowed', fontWeight:700 } }, 'Enregistrer le véhicule'),
           React.createElement('button', { onClick:()=>{ setVFormOpen(false); setVForm(V_EMPTY_VEH); }, style:{ padding:'9px 16px', borderRadius:12, border:'1px solid var(--border)', background:'transparent', color:'var(--text2)', cursor:'pointer', fontWeight:700 } }, 'Annuler')
@@ -12149,6 +12231,21 @@ const ch=sb.channel('ld-realtime')
         background: 'linear-gradient(90deg,var(--gold-border),transparent)'
       }
     })), (() => {
+      const mAlerts = mecaAlerts(data.dja);
+      if (!mAlerts.length) return null;
+      const top = mAlerts[0];
+      const col = top.sev < 0 ? '#ef4444' : (top.sev <= 14 ? '#f59e0b' : '#10b981');
+      return React.createElement('div', { onClick: () => setView('entretien'), title: 'Ouvrir l\'entretien mécanique', style: { cursor: 'pointer', background: top.sev < 0 ? 'rgba(239,68,68,.10)' : 'linear-gradient(135deg,var(--bg3),var(--bg4))', border: '1px solid ' + (top.sev < 0 ? 'rgba(239,68,68,.4)' : 'var(--gold-border)'), borderRadius: 'var(--radius)', padding: '16px 20px', marginBottom: 24, boxShadow: 'var(--shadow)' } },
+        React.createElement('div', { className: 'eyebrow', style: { marginBottom: 8 } }, '🔧 Entretien véhicule'),
+        React.createElement('div', { style: { display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' } },
+          React.createElement('span', { style: { fontSize: 16 } }, top.emoji),
+          React.createElement('span', { style: { fontWeight: 700, color: 'var(--text)', fontSize: 15 } }, top.veh + ' · ' + top.label),
+          React.createElement('span', { style: { fontWeight: 700, fontSize: 13, color: col } }, top.text)
+        ),
+        mAlerts.length > 1 && React.createElement('div', { style: { fontSize: 12, color: 'var(--text3)', marginTop: 6 } }, '+ ' + (mAlerts.length - 1) + ' autre' + (mAlerts.length - 1 > 1 ? 's' : '') + ' à surveiller'),
+        React.createElement('div', { style: { fontSize: 11, color: 'var(--gold)', marginTop: 8, fontFamily: "'Space Mono',monospace", letterSpacing: '.04em' } }, 'Ouvrir l\'entretien méca →')
+      );
+    })(), (() => {
       const ideeJour = (data.couple || {}).ideeJour || {
         liste: [],
         custom: []
