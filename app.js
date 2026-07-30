@@ -9001,8 +9001,10 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
   const editPhotosApi = v => ({
     list: v.photos,
     uploading: photoUploading,
-    add: file => doUpload(file, ph => updateVehicule(v.id, { photos: [...(v.photos || []), ph] })),
-    del: id => { if (confirm('Supprimer ce document ?')) updateVehicule(v.id, { photos: (v.photos || []).filter(x => x.id !== id) }); }
+    // patch fonctionnel : lit les photos courantes à l'application (pas le snapshot du rendu)
+    // → une suppression concurrente pendant un upload n'est pas écrasée.
+    add: file => doUpload(file, ph => updateVehicule(v.id, cur => ({ photos: [...(cur.photos || []), ph] }))),
+    del: id => { if (confirm('Supprimer ce document ?')) updateVehicule(v.id, cur => ({ photos: (cur.photos || []).filter(x => x.id !== id) })); }
   });
   const delVeh = v => { if (confirm('Supprimer le véhicule « ' + v.nom + ' » ? (les entretiens liés sont conservés)')) deleteVehicule(v.id); };
   // Infos libres par véhicule (« etc. » : pression pneus, réf filtre, ampoule…)
@@ -11609,7 +11611,9 @@ const ch=sb.channel('ld-realtime')
   const updateVehicule = useCallback((id, patch) => {
     setData(prev => {
       const next = clone(prev);
-      next.dja.vehicules = (next.dja.vehicules || []).map(x => x.id === id ? { ...x, ...patch } : x);
+      // patch peut être un objet ou une fonction (véhicule courant) => partiel — le second
+      // évite les races sur les tableaux (photos…) quand deux màj concurrentes s'appliquent.
+      next.dja.vehicules = (next.dja.vehicules || []).map(x => x.id === id ? { ...x, ...(typeof patch === 'function' ? patch(x) : patch) } : x);
       return next;
     });
   }, []);
