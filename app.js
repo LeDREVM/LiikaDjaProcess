@@ -8983,7 +8983,7 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
 
   // Corps de formulaire véhicule partagé (ajout brouillon + édition fiche) — sections guidées.
   // val = objet véhicule ; patch = applique un changement partiel ; infosApi = { list, add, upd, del }.
-  const vehForm = (val, patch, infosApi) => {
+  const vehForm = (val, patch, infosApi, opts) => {
     const ctd = daysUntil(val.controleTechnique);
     const asd = daysUntil(val.assuranceEcheance);
     const dateLabel = (txt, cur, key, presetMonths, presetTxt, d) => React.createElement('div', { style:{ display:'flex', gap:8, alignItems:'flex-end', marginBottom:10, flexWrap:'wrap' } },
@@ -9006,7 +9006,8 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
         field('Huile', val.huile, x=>patch({ huile:x }), { ph:'5W30' }),
         field('N° de série (VIN)', val.vin, x=>patch({ vin:x }), { ph:'VF3...' }),
         field('Mise en circulation', val.miseEnCirculation, x=>patch({ miseEnCirculation:x }), { type:'date' }),
-        field('Km actuel', val.km, x=>patch({ km:x }), { ph:'86000', inputMode:'numeric' })
+        // Km seulement à l'ajout : en édition, l'input km est déjà sur la ligne principale.
+        (opts && opts.showKm) && field('Km actuel', val.km, x=>patch({ km:x }), { ph:'86000', inputMode:'numeric' })
       ),
       sectionH('🛡 Contrôle technique'),
       dateLabel('Prochaine échéance', val.controleTechnique, 'controleTechnique', 24, '+2 ans', ctd),
@@ -9079,7 +9080,7 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
       !vFormOpen && React.createElement('button', { onClick:()=>{ setVForm(V_EMPTY_VEH); setVFormOpen(true); }, style:{ marginTop:8, padding:'9px 16px', borderRadius:12, border:'1px dashed '+ACCENT, background:'transparent', color:ACCENT, cursor:'pointer', fontWeight:700, fontSize:13 } }, '+ Nouveau véhicule'),
       vFormOpen && React.createElement('div', { style:{ marginTop:12, paddingTop:12, borderTop:'1px solid var(--border)' } },
         React.createElement('div', { style:{ fontWeight:700, color:'var(--text)', fontSize:14, marginBottom:12 } }, '🚗 Nouveau véhicule'),
-        ...vehForm(vForm, p => setVForm(prev => ({ ...prev, ...p })), draftInfosApi),
+        ...vehForm(vForm, p => setVForm(prev => ({ ...prev, ...p })), draftInfosApi, { showKm: true }),
         React.createElement('div', { style:{ display:'flex', gap:8, marginTop:12, flexWrap:'wrap' } },
           React.createElement('button', { onClick:saveVeh, disabled: !vForm.nom.trim(), style:{ padding:'9px 20px', borderRadius:12, border:'none', background: vForm.nom.trim() ? ACCENT : 'var(--border)', color:'#fff', cursor: vForm.nom.trim() ? 'pointer' : 'not-allowed', fontWeight:700 } }, 'Enregistrer le véhicule'),
           React.createElement('button', { onClick:()=>{ setVFormOpen(false); setVForm(V_EMPTY_VEH); }, style:{ padding:'9px 16px', borderRadius:12, border:'1px solid var(--border)', background:'transparent', color:'var(--text2)', cursor:'pointer', fontWeight:700 } }, 'Annuler')
