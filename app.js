@@ -1091,6 +1091,19 @@ function normalize(d) {
   if (Array.isArray(d.album)) base.album = d.album;
   if (!Array.isArray(base.dja.entretien)) base.dja.entretien = [];
   if (!Array.isArray(base.dja.vehicules)) base.dja.vehicules = [];
+  // Amorçage unique des véhicules : les utilisateurs ayant déjà une liste vide
+  // enregistrée (vehicules:[]) ne recevaient jamais la graine par défaut (le spread
+  // de d.dja écrase base.dja.vehicules). On injecte donc les véhicules par défaut une
+  // seule fois ; le drapeau évite de les réinjecter si l'utilisateur les supprime.
+  if (!base.dja.vehiculesSeeded && base.dja.vehicules.length === 0 &&
+      Array.isArray(defaultData.dja.vehicules) && defaultData.dja.vehicules.length > 0) {
+    base.dja.vehicules = clone(defaultData.dja.vehicules);
+    // Amorce aussi le carnet d'entretien s'il est vide (même mécanique d'écrasement).
+    if (base.dja.entretien.length === 0 && Array.isArray(defaultData.dja.entretien)) {
+      base.dja.entretien = clone(defaultData.dja.entretien);
+    }
+  }
+  base.dja.vehiculesSeeded = true;
   if (!Array.isArray(base.couple.motivations)) base.couple.motivations = [];
   if (!Array.isArray(base.couple.medical)) base.couple.medical = [];
   if (!Array.isArray(base.couple.soirees)) base.couple.soirees = [];
