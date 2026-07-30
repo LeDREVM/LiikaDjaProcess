@@ -8924,7 +8924,7 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
   };
 
   // ── Actions véhicules ──
-  const saveVeh = () => { if (!vForm.nom.trim()) return; addVehicule({ id: Date.now().toString(), nom: vForm.nom.trim(), type: vForm.type, km: vForm.km }); setVForm({ nom:'', type:'🚗', km:'' }); };
+  const saveVeh = () => { if (!vForm.nom.trim()) return; const id = Date.now().toString(); addVehicule({ id, nom: vForm.nom.trim(), type: vForm.type, km: vForm.km }); setVForm({ nom:'', type:'🚗', km:'' }); setVExpand(id); };
   const delVeh = v => { if (confirm('Supprimer le véhicule « ' + v.nom + ' » ? (les entretiens liés sont conservés)')) deleteVehicule(v.id); };
   // Infos libres par véhicule (« etc. » : pression pneus, réf filtre, ampoule…)
   const addInfo = v => updateVehicule(v.id, { infos: [...(v.infos || []), { id: Date.now().toString(), label:'', valeur:'' }] });
@@ -8997,14 +8997,17 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
       ),
       // Fiche détaillée
       open && React.createElement('div', { style:{ marginTop:12, paddingTop:12, borderTop:'1px solid var(--border)' } },
-        React.createElement('div', { style:{ display:'flex', gap:4, marginBottom:10 } }, TYPES.map(t => React.createElement('button', { key:t, onClick:()=>updateVehicule(v.id, { type:t }), style:{ fontSize:16, padding:'4px 6px', borderRadius:8, border:'1px solid ' + ((v.type||'🚗')===t?ACCENT:'var(--border)'), background: (v.type||'🚗')===t?ACCENT+'22':'transparent', cursor:'pointer' } }, t))),
+        React.createElement('div', { style:{ fontSize:10, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:6 } }, 'Identité & technique'),
+        React.createElement('div', { style:{ display:'flex', gap:4, marginBottom:10, flexWrap:'wrap' } }, TYPES.map(t => React.createElement('button', { key:t, onClick:()=>updateVehicule(v.id, { type:t }), style:{ fontSize:16, padding:'4px 6px', borderRadius:8, border:'1px solid ' + ((v.type||'🚗')===t?ACCENT:'var(--border)'), background: (v.type||'🚗')===t?ACCENT+'22':'transparent', cursor:'pointer' } }, t))),
         React.createElement('div', { style:{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))', gap:8, marginBottom:10 } },
           field('Nom', v.nom, val=>updateVehicule(v.id, { nom:val }), { ph:'Voiture' }),
           field('Immatriculation', v.immatriculation, val=>updateVehicule(v.id, { immatriculation:val }), { ph:'AB-123-CD' }),
           field('Marque', v.marque, val=>updateVehicule(v.id, { marque:val }), { ph:'Peugeot' }),
           field('Modèle', v.modele, val=>updateVehicule(v.id, { modele:val }), { ph:'208' }),
           field('Année', v.annee, val=>updateVehicule(v.id, { annee:val }), { ph:'2019', inputMode:'numeric' }),
-          field('Huile', v.huile, val=>updateVehicule(v.id, { huile:val }), { ph:'5W30' })
+          field('Huile', v.huile, val=>updateVehicule(v.id, { huile:val }), { ph:'5W30' }),
+          field('N° de série (VIN)', v.vin, val=>updateVehicule(v.id, { vin:val }), { ph:'VF3...' }),
+          field('Mise en circulation', v.miseEnCirculation, val=>updateVehicule(v.id, { miseEnCirculation:val }), { type:'date' })
         ),
         // Contrôle technique (échéance légale)
         React.createElement('div', { style:{ display:'flex', gap:8, alignItems:'flex-end', marginBottom:10, flexWrap:'wrap' } },
@@ -9065,7 +9068,8 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
         React.createElement('input', { placeholder:'Nom (ex : Voiture)', value:vForm.nom, onChange:e=>setVForm(p=>({...p,nom:e.target.value})), style:{ ...inp, maxWidth:180 } }),
         React.createElement('input', { type:'number', inputMode:'numeric', placeholder:'Km', value:vForm.km, onChange:e=>setVForm(p=>({...p,km:e.target.value})), style:{ ...inp, maxWidth:110 } }),
         React.createElement('button', { onClick:saveVeh, style:{ padding:'8px 16px', borderRadius:12, border:'none', background:ACCENT, color:'#fff', cursor:'pointer', fontWeight:700 } }, '+ Ajouter')
-      )
+      ),
+      React.createElement('div', { style:{ fontSize:11, color:'var(--text3)', marginTop:8 } }, 'Astuce : à l\'ajout, la fiche complète s\'ouvre pour renseigner immatriculation, huile, contrôle technique, assurance…')
     ),
 
     // Synthèse des coûts par véhicule
