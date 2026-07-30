@@ -8844,7 +8844,7 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
   const ensureCost = nom => { const k = nom || 'Sans véhicule'; if (!costMap[k]) costMap[k] = { nom: k, entretien: 0, assurance: 0 }; return costMap[k]; };
   (entretien || []).forEach(e => { const c = numOr(e.cout); if (c !== null) ensureCost(e.vehicule).entretien += c; });
   (vehicules || []).forEach(v => { const a = numOr(v.assuranceCout); if (a !== null) ensureCost(v.nom).assurance += a; });
-  const costRows = Object.values(costMap).sort((a,b) => (b.entretien + b.assurance) - (a.entretien + a.assurance));
+  const costRows = Object.values(costMap).sort((a,b) => (b.entretien - a.entretien) || (b.assurance - a.assurance));
   const costTotalEntretien = costRows.reduce((s,r) => s + r.entretien, 0);
   const costTotalAssurance = costRows.reduce((s,r) => s + r.assurance, 0);
   const costMax = Math.max(1, ...costRows.map(r => r.entretien));
