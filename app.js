@@ -8804,7 +8804,9 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
   const [show, setShow] = React.useState(false);
   const [filt, setFilt] = React.useState(null);        // véhicule filtré (nom) ou null = tous
   const [showVeh, setShowVeh] = React.useState(false);  // panneau gestion véhicules
-  const [vForm, setVForm] = React.useState({ nom:'', type:'🚗', km:'' });
+  const V_EMPTY_VEH = { type:'🚗', nom:'', km:'', immatriculation:'', marque:'', modele:'', annee:'', huile:'', vin:'', miseEnCirculation:'', controleTechnique:'', assureur:'', assuranceContrat:'', assuranceCout:'', assuranceEcheance:'', notes:'', infos:[] };
+  const [vForm, setVForm] = React.useState(V_EMPTY_VEH);
+  const [vFormOpen, setVFormOpen] = React.useState(false); // formulaire complet « nouveau véhicule »
   const [vExpand, setVExpand] = React.useState(null);   // id du véhicule dont la fiche est dépliée
   const [showCosts, setShowCosts] = React.useState(false); // panneau synthèse des coûts
   const inp = { background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'8px 12px', fontSize:13, width:'100%', boxSizing:'border-box' };
@@ -8924,7 +8926,14 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
   };
 
   // ── Actions véhicules ──
-  const saveVeh = () => { if (!vForm.nom.trim()) return; const id = Date.now().toString(); addVehicule({ id, nom: vForm.nom.trim(), type: vForm.type, km: vForm.km }); setVForm({ nom:'', type:'🚗', km:'' }); setVExpand(id); };
+  const saveVeh = () => { if (!vForm.nom.trim()) return; addVehicule({ ...vForm, id: Date.now().toString(), nom: vForm.nom.trim() }); setVForm(V_EMPTY_VEH); setVFormOpen(false); };
+  // API infos pour le brouillon (nouveau véhicule, pas encore d'id) — miroir de addInfo/updInfo/delInfo
+  const draftInfosApi = {
+    list: vForm.infos,
+    add: () => setVForm(p => ({ ...p, infos: [...(p.infos || []), { id: Date.now().toString(), label:'', valeur:'' }] })),
+    upd: (iid, patch) => setVForm(p => ({ ...p, infos: (p.infos || []).map(x => x.id === iid ? { ...x, ...patch } : x) })),
+    del: iid => setVForm(p => ({ ...p, infos: (p.infos || []).filter(x => x.id !== iid) }))
+  };
   const delVeh = v => { if (confirm('Supprimer le véhicule « ' + v.nom + ' » ? (les entretiens liés sont conservés)')) deleteVehicule(v.id); };
   // Infos libres par véhicule (« etc. » : pression pneus, réf filtre, ampoule…)
   const addInfo = v => updateVehicule(v.id, { infos: [...(v.infos || []), { id: Date.now().toString(), label:'', valeur:'' }] });
@@ -8970,6 +8979,54 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
     label,
     React.createElement('input', { value: val == null ? '' : val, onChange:e=>onCh(e.target.value), placeholder:(opts && opts.ph) || '', type:(opts && opts.type) || 'text', inputMode:(opts && opts.inputMode) || undefined, style:{ ...inp, fontWeight:400, textTransform:'none', letterSpacing:'normal', color:'var(--text)' } })
   );
+  const sectionH = txt => React.createElement('div', { style:{ fontSize:10, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:6 } }, txt);
+
+  // Corps de formulaire véhicule partagé (ajout brouillon + édition fiche) — sections guidées.
+  // val = objet véhicule ; patch = applique un changement partiel ; infosApi = { list, add, upd, del }.
+  const vehForm = (val, patch, infosApi) => {
+    const ctd = daysUntil(val.controleTechnique);
+    const asd = daysUntil(val.assuranceEcheance);
+    const dateLabel = (txt, cur, key, presetMonths, presetTxt, d) => React.createElement('div', { style:{ display:'flex', gap:8, alignItems:'flex-end', marginBottom:10, flexWrap:'wrap' } },
+      React.createElement('label', { style:{ display:'flex', flexDirection:'column', gap:3, fontSize:10, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.03em' } },
+        txt,
+        React.createElement('input', { type:'date', value: cur || '', onChange:e=>patch({ [key]: e.target.value }), style:{ ...inp, textTransform:'none', letterSpacing:'normal', color:'var(--text)' } })
+      ),
+      React.createElement('button', { onClick:()=>patch({ [key]: addMonthsIso(cur || todayIso(), presetMonths) }), title:'Reporter', style:{ padding:'8px 12px', borderRadius:10, border:'1px solid var(--border)', background:'transparent', color:'var(--text2)', cursor:'pointer', fontSize:12, fontWeight:700 } }, presetTxt),
+      d !== null && React.createElement('span', { style:{ fontSize:12, fontWeight:700, color:ctColor(d), paddingBottom:8 } }, ctLabel(d))
+    );
+    return [
+      sectionH('Identité & technique'),
+      React.createElement('div', { key:'types', style:{ display:'flex', gap:4, marginBottom:10, flexWrap:'wrap' } }, TYPES.map(t => React.createElement('button', { key:t, onClick:()=>patch({ type:t }), style:{ fontSize:16, padding:'4px 6px', borderRadius:8, border:'1px solid ' + ((val.type||'🚗')===t?ACCENT:'var(--border)'), background:(val.type||'🚗')===t?ACCENT+'22':'transparent', cursor:'pointer' } }, t))),
+      React.createElement('div', { key:'g1', style:{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))', gap:8, marginBottom:10 } },
+        field('Nom', val.nom, x=>patch({ nom:x }), { ph:'Voiture' }),
+        field('Immatriculation', val.immatriculation, x=>patch({ immatriculation:x }), { ph:'AB-123-CD' }),
+        field('Marque', val.marque, x=>patch({ marque:x }), { ph:'Peugeot' }),
+        field('Modèle', val.modele, x=>patch({ modele:x }), { ph:'208' }),
+        field('Année', val.annee, x=>patch({ annee:x }), { ph:'2019', inputMode:'numeric' }),
+        field('Huile', val.huile, x=>patch({ huile:x }), { ph:'5W30' }),
+        field('N° de série (VIN)', val.vin, x=>patch({ vin:x }), { ph:'VF3...' }),
+        field('Mise en circulation', val.miseEnCirculation, x=>patch({ miseEnCirculation:x }), { type:'date' }),
+        field('Km actuel', val.km, x=>patch({ km:x }), { ph:'86000', inputMode:'numeric' })
+      ),
+      sectionH('🛡 Contrôle technique'),
+      dateLabel('Prochaine échéance', val.controleTechnique, 'controleTechnique', 24, '+2 ans', ctd),
+      sectionH('📄 Assurance'),
+      React.createElement('div', { key:'g2', style:{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))', gap:8, marginBottom:8 } },
+        field('Assureur', val.assureur, x=>patch({ assureur:x }), { ph:'Ex : MAIF' }),
+        field('N° contrat', val.assuranceContrat, x=>patch({ assuranceContrat:x }), { ph:'123456789' }),
+        field('Cotisation (€/an)', val.assuranceCout, x=>patch({ assuranceCout:x }), { ph:'450', inputMode:'numeric' })
+      ),
+      dateLabel('Échéance / renouvellement', val.assuranceEcheance, 'assuranceEcheance', 12, '+1 an', asd),
+      React.createElement('textarea', { key:'notes', placeholder:'Notes (garage habituel, carte grise…)', value: val.notes || '', onChange:e=>patch({ notes:e.target.value }), style:{ ...inp, minHeight:48, marginBottom:10, resize:'vertical' } }),
+      sectionH('Autres infos'),
+      ...(infosApi.list || []).map(info => React.createElement('div', { key:info.id, style:{ display:'flex', gap:6, alignItems:'center', marginBottom:6 } },
+        React.createElement('input', { placeholder:'Libellé (ex : Pression pneus)', value:info.label || '', onChange:e=>infosApi.upd(info.id, { label:e.target.value }), style:{ ...inp, flex:1 } }),
+        React.createElement('input', { placeholder:'Valeur (ex : 2.4 bar)', value:info.valeur || '', onChange:e=>infosApi.upd(info.id, { valeur:e.target.value }), style:{ ...inp, flex:1 } }),
+        React.createElement('button', { onClick:()=>infosApi.del(info.id), style:{ background:'none', border:'none', color:'var(--danger)', cursor:'pointer', fontSize:18 } }, '×')
+      )),
+      React.createElement('button', { key:'addinfo', onClick:infosApi.add, style:{ padding:'5px 12px', borderRadius:10, border:'1px dashed var(--border)', background:'transparent', color:'var(--text2)', cursor:'pointer', fontSize:12, fontWeight:600 } }, '+ Info')
+    ];
+  };
 
   const renderVehCard = v => {
     const open = vExpand === v.id;
@@ -8995,53 +9052,9 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
           React.createElement('button', { onClick:()=>delVeh(v), style:{ background:'none', border:'none', color:'var(--danger)', cursor:'pointer', fontSize:18 } }, '×')
         )
       ),
-      // Fiche détaillée
+      // Fiche détaillée (édition) — même formulaire guidé que l'ajout
       open && React.createElement('div', { style:{ marginTop:12, paddingTop:12, borderTop:'1px solid var(--border)' } },
-        React.createElement('div', { style:{ fontSize:10, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:6 } }, 'Identité & technique'),
-        React.createElement('div', { style:{ display:'flex', gap:4, marginBottom:10, flexWrap:'wrap' } }, TYPES.map(t => React.createElement('button', { key:t, onClick:()=>updateVehicule(v.id, { type:t }), style:{ fontSize:16, padding:'4px 6px', borderRadius:8, border:'1px solid ' + ((v.type||'🚗')===t?ACCENT:'var(--border)'), background: (v.type||'🚗')===t?ACCENT+'22':'transparent', cursor:'pointer' } }, t))),
-        React.createElement('div', { style:{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))', gap:8, marginBottom:10 } },
-          field('Nom', v.nom, val=>updateVehicule(v.id, { nom:val }), { ph:'Voiture' }),
-          field('Immatriculation', v.immatriculation, val=>updateVehicule(v.id, { immatriculation:val }), { ph:'AB-123-CD' }),
-          field('Marque', v.marque, val=>updateVehicule(v.id, { marque:val }), { ph:'Peugeot' }),
-          field('Modèle', v.modele, val=>updateVehicule(v.id, { modele:val }), { ph:'208' }),
-          field('Année', v.annee, val=>updateVehicule(v.id, { annee:val }), { ph:'2019', inputMode:'numeric' }),
-          field('Huile', v.huile, val=>updateVehicule(v.id, { huile:val }), { ph:'5W30' }),
-          field('N° de série (VIN)', v.vin, val=>updateVehicule(v.id, { vin:val }), { ph:'VF3...' }),
-          field('Mise en circulation', v.miseEnCirculation, val=>updateVehicule(v.id, { miseEnCirculation:val }), { type:'date' })
-        ),
-        // Contrôle technique (échéance légale)
-        React.createElement('div', { style:{ display:'flex', gap:8, alignItems:'flex-end', marginBottom:10, flexWrap:'wrap' } },
-          React.createElement('label', { style:{ display:'flex', flexDirection:'column', gap:3, fontSize:10, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.03em' } },
-            '🛡 Contrôle technique (prochaine échéance)',
-            React.createElement('input', { type:'date', value: v.controleTechnique || '', onChange:e=>updateVehicule(v.id, { controleTechnique:e.target.value }), style:{ ...inp, textTransform:'none', letterSpacing:'normal', color:'var(--text)' } })
-          ),
-          React.createElement('button', { onClick:()=>updateVehicule(v.id, { controleTechnique: addMonthsIso(v.controleTechnique || todayIso(), 24) }), title:'Reporter de 2 ans (rythme légal)', style:{ padding:'8px 12px', borderRadius:10, border:'1px solid var(--border)', background:'transparent', color:'var(--text2)', cursor:'pointer', fontSize:12, fontWeight:700 } }, '+2 ans'),
-          ctD !== null && React.createElement('span', { style:{ fontSize:12, fontWeight:700, color:ctColor(ctD), paddingBottom:8 } }, ctLabel(ctD))
-        ),
-        // Assurance
-        React.createElement('div', { style:{ fontSize:10, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:6 } }, '📄 Assurance'),
-        React.createElement('div', { style:{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))', gap:8, marginBottom:8 } },
-          field('Assureur', v.assureur, val=>updateVehicule(v.id, { assureur:val }), { ph:'Ex : MAIF' }),
-          field('N° contrat', v.assuranceContrat, val=>updateVehicule(v.id, { assuranceContrat:val }), { ph:'123456789' }),
-          field('Cotisation (€/an)', v.assuranceCout, val=>updateVehicule(v.id, { assuranceCout:val }), { ph:'450', inputMode:'numeric' })
-        ),
-        React.createElement('div', { style:{ display:'flex', gap:8, alignItems:'flex-end', marginBottom:10, flexWrap:'wrap' } },
-          React.createElement('label', { style:{ display:'flex', flexDirection:'column', gap:3, fontSize:10, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.03em' } },
-            'Échéance / renouvellement',
-            React.createElement('input', { type:'date', value: v.assuranceEcheance || '', onChange:e=>updateVehicule(v.id, { assuranceEcheance:e.target.value }), style:{ ...inp, textTransform:'none', letterSpacing:'normal', color:'var(--text)' } })
-          ),
-          React.createElement('button', { onClick:()=>updateVehicule(v.id, { assuranceEcheance: addMonthsIso(v.assuranceEcheance || todayIso(), 12) }), title:'Reporter d\'un an', style:{ padding:'8px 12px', borderRadius:10, border:'1px solid var(--border)', background:'transparent', color:'var(--text2)', cursor:'pointer', fontSize:12, fontWeight:700 } }, '+1 an'),
-          asD !== null && React.createElement('span', { style:{ fontSize:12, fontWeight:700, color:ctColor(asD), paddingBottom:8 } }, ctLabel(asD))
-        ),
-        React.createElement('textarea', { placeholder:'Notes (garage habituel, carte grise, n° série…)', value: v.notes || '', onChange:e=>updateVehicule(v.id, { notes:e.target.value }), style:{ ...inp, minHeight:48, marginBottom:10, resize:'vertical' } }),
-        // Autres infos (libres)
-        React.createElement('div', { style:{ fontSize:10, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:6 } }, 'Autres infos'),
-        (v.infos || []).map(info => React.createElement('div', { key:info.id, style:{ display:'flex', gap:6, alignItems:'center', marginBottom:6 } },
-          React.createElement('input', { placeholder:'Libellé (ex : Pression pneus)', value:info.label || '', onChange:e=>updInfo(v, info.id, { label:e.target.value }), style:{ ...inp, flex:1 } }),
-          React.createElement('input', { placeholder:'Valeur (ex : 2.4 bar)', value:info.valeur || '', onChange:e=>updInfo(v, info.id, { valeur:e.target.value }), style:{ ...inp, flex:1 } }),
-          React.createElement('button', { onClick:()=>delInfo(v, info.id), style:{ background:'none', border:'none', color:'var(--danger)', cursor:'pointer', fontSize:18 } }, '×')
-        )),
-        React.createElement('button', { onClick:()=>addInfo(v), style:{ padding:'5px 12px', borderRadius:10, border:'1px dashed var(--border)', background:'transparent', color:'var(--text2)', cursor:'pointer', fontSize:12, fontWeight:600 } }, '+ Info')
+        ...vehForm(v, p => updateVehicule(v.id, p), { list: v.infos, add: () => addInfo(v), upd: (iid, patch) => updInfo(v, iid, patch), del: iid => delInfo(v, iid) })
       )
     );
   };
@@ -9061,15 +9074,18 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
     // Gestion des véhicules
     showVeh && React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid rgba(167,139,250,.35)', borderRadius:'var(--radius)', padding:16, marginBottom:16 } },
       React.createElement('div', { style:{ fontSize:11, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:10 } }, 'Mes véhicules'),
-      (vehicules || []).length === 0 && React.createElement('div', { style:{ fontSize:12, color:'var(--text3)', marginBottom:10 } }, 'Aucun véhicule — ajoute-en un pour suivre le kilométrage, l\'huile, la plaque, etc. (déplie la fiche avec ▾).'),
+      (vehicules || []).length === 0 && !vFormOpen && React.createElement('div', { style:{ fontSize:12, color:'var(--text3)', marginBottom:10 } }, 'Aucun véhicule — clique « + Nouveau véhicule » pour renseigner toute sa fiche d\'un coup.'),
       (vehicules || []).map(renderVehCard),
-      React.createElement('div', { style:{ display:'flex', gap:6, alignItems:'center', marginTop:12, flexWrap:'wrap' } },
-        React.createElement('div', { style:{ display:'flex', gap:4 } }, TYPES.map(t => React.createElement('button', { key:t, onClick:()=>setVForm(p=>({...p,type:t})), style:{ fontSize:16, padding:'4px 6px', borderRadius:8, border:'1px solid ' + (vForm.type===t?ACCENT:'var(--border)'), background: vForm.type===t?ACCENT+'22':'transparent', cursor:'pointer' } }, t))),
-        React.createElement('input', { placeholder:'Nom (ex : Voiture)', value:vForm.nom, onChange:e=>setVForm(p=>({...p,nom:e.target.value})), style:{ ...inp, maxWidth:180 } }),
-        React.createElement('input', { type:'number', inputMode:'numeric', placeholder:'Km', value:vForm.km, onChange:e=>setVForm(p=>({...p,km:e.target.value})), style:{ ...inp, maxWidth:110 } }),
-        React.createElement('button', { onClick:saveVeh, style:{ padding:'8px 16px', borderRadius:12, border:'none', background:ACCENT, color:'#fff', cursor:'pointer', fontWeight:700 } }, '+ Ajouter')
-      ),
-      React.createElement('div', { style:{ fontSize:11, color:'var(--text3)', marginTop:8 } }, 'Astuce : à l\'ajout, la fiche complète s\'ouvre pour renseigner immatriculation, huile, contrôle technique, assurance…')
+      !vFormOpen && React.createElement('button', { onClick:()=>{ setVForm(V_EMPTY_VEH); setVFormOpen(true); }, style:{ marginTop:8, padding:'9px 16px', borderRadius:12, border:'1px dashed '+ACCENT, background:'transparent', color:ACCENT, cursor:'pointer', fontWeight:700, fontSize:13 } }, '+ Nouveau véhicule'),
+      vFormOpen && React.createElement('div', { style:{ marginTop:12, paddingTop:12, borderTop:'1px solid var(--border)' } },
+        React.createElement('div', { style:{ fontWeight:700, color:'var(--text)', fontSize:14, marginBottom:12 } }, '🚗 Nouveau véhicule'),
+        ...vehForm(vForm, p => setVForm(prev => ({ ...prev, ...p })), draftInfosApi),
+        React.createElement('div', { style:{ display:'flex', gap:8, marginTop:12, flexWrap:'wrap' } },
+          React.createElement('button', { onClick:saveVeh, disabled: !vForm.nom.trim(), style:{ padding:'9px 20px', borderRadius:12, border:'none', background: vForm.nom.trim() ? ACCENT : 'var(--border)', color:'#fff', cursor: vForm.nom.trim() ? 'pointer' : 'not-allowed', fontWeight:700 } }, 'Enregistrer le véhicule'),
+          React.createElement('button', { onClick:()=>{ setVFormOpen(false); setVForm(V_EMPTY_VEH); }, style:{ padding:'9px 16px', borderRadius:12, border:'1px solid var(--border)', background:'transparent', color:'var(--text2)', cursor:'pointer', fontWeight:700 } }, 'Annuler')
+        ),
+        !vForm.nom.trim() && React.createElement('div', { style:{ fontSize:11, color:'var(--text3)', marginTop:6 } }, 'Le nom est requis pour enregistrer.')
+      )
     ),
 
     // Synthèse des coûts par véhicule
