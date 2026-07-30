@@ -400,6 +400,7 @@ const realDefaultData = {
       intensite: 'Légère',
       fait: false
     }],
+    vehicules: [],
     entretien: [{
       id: 'de1',
       titre: 'Vidange + filtre à huile',
@@ -407,6 +408,8 @@ const realDefaultData = {
       date: '',
       km: '',
       cout: '',
+      intervalMois: '12',
+      intervalKm: '10000',
       prochainDate: '',
       prochainKm: '',
       notes: ''
@@ -822,10 +825,15 @@ const demoData = {
       { id: 'ds3', jour: 'Vendredi', activite: 'Renforcement', duree: 45, intensite: 'Intense', fait: false },
       { id: 'ds4', jour: 'Dimanche', activite: 'Marche', duree: 60, intensite: 'Légère', fait: false }
     ],
+    vehicules: [
+      { id: 'v1', nom: 'Voiture', type: '🚗', km: '86000' },
+      { id: 'v2', nom: 'Moto', type: '🏍', km: '21000' }
+    ],
     entretien: [
-      { id: 'de1', titre: 'Vidange + filtre à huile', vehicule: 'Voiture', date: '2026-04-12', km: '82000', cout: '95', prochainDate: '2026-10-12', prochainKm: '92000', notes: 'Huile 5W30 · garage du centre' },
-      { id: 'de2', titre: 'Contrôle technique', vehicule: 'Voiture', date: '', km: '', cout: '', prochainDate: '2026-09-01', prochainKm: '', notes: '' },
-      { id: 'de3', titre: 'Pneus avant', vehicule: 'Voiture', date: '2026-01-20', km: '78000', cout: '210', prochainDate: '', prochainKm: '118000', notes: 'Surveiller l\'usure' }
+      { id: 'de1', titre: 'Vidange + filtre à huile', vehicule: 'Voiture', date: '2026-04-12', km: '82000', cout: '95', intervalMois: '12', intervalKm: '10000', prochainDate: '2026-10-12', prochainKm: '92000', notes: 'Huile 5W30 · garage du centre' },
+      { id: 'de2', titre: 'Contrôle technique', vehicule: 'Voiture', date: '', km: '', cout: '', intervalMois: '24', intervalKm: '', prochainDate: '2026-09-01', prochainKm: '', notes: '' },
+      { id: 'de3', titre: 'Pneus avant', vehicule: 'Voiture', date: '2026-01-20', km: '78000', cout: '210', intervalMois: '', intervalKm: '40000', prochainDate: '', prochainKm: '118000', notes: 'Surveiller l\'usure' },
+      { id: 'de4', titre: 'Chaîne + plaquettes', vehicule: 'Moto', date: '2026-05-02', km: '19500', cout: '140', intervalMois: '', intervalKm: '15000', prochainDate: '', prochainKm: '34500', notes: '' }
     ],
     youngBoudha: ybEmpty()
   },
@@ -1007,6 +1015,7 @@ function normalize(d) {
   if (Array.isArray(d.media)) base.media = d.media;
   if (Array.isArray(d.album)) base.album = d.album;
   if (!Array.isArray(base.dja.entretien)) base.dja.entretien = [];
+  if (!Array.isArray(base.dja.vehicules)) base.dja.vehicules = [];
   if (!Array.isArray(base.couple.motivations)) base.couple.motivations = [];
   if (!Array.isArray(base.couple.medical)) base.couple.medical = [];
   if (!Array.isArray(base.couple.soirees)) base.couple.soirees = [];
@@ -8682,14 +8691,26 @@ function entretienToIcsEvent(e) {
     description: [e.prochainKm ? 'À ' + e.prochainKm + ' km' : '', e.notes].filter(Boolean).join(' — ')
   };
 }
-function EntretienView({ entretien, addEntretien, updateEntretien, deleteEntretien }) {
-  const EMPTY = { titre:'', vehicule:'', date:'', km:'', cout:'', prochainDate:'', prochainKm:'', notes:'' };
+function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, deleteEntretien, addVehicule, updateVehicule, deleteVehicule }) {
+  const EMPTY = { titre:'', vehicule:'', date:'', km:'', cout:'', intervalMois:'', intervalKm:'', prochainDate:'', prochainKm:'', notes:'' };
   const [form, setForm] = React.useState(EMPTY);
   const [editId, setEditId] = React.useState(null);
   const [show, setShow] = React.useState(false);
+  const [filt, setFilt] = React.useState(null);        // véhicule filtré (nom) ou null = tous
+  const [showVeh, setShowVeh] = React.useState(false);  // panneau gestion véhicules
+  const [vForm, setVForm] = React.useState({ nom:'', type:'🚗', km:'' });
   const inp = { background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'8px 12px', fontSize:13, width:'100%', boxSizing:'border-box' };
   const ACCENT = 'var(--accent-dja)';
+  const TYPES = ['🚗','🏍','🚐','🚙','🚲','🔧'];
 
+  // ── Helpers date / km ──
+  const todayIso = () => { const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
+  const addMonthsIso = (iso, months) => {
+    const base = iso ? new Date(String(iso).slice(0,10)+'T00:00:00') : new Date();
+    if (isNaN(base.getTime())) return '';
+    base.setMonth(base.getMonth() + months);
+    return base.getFullYear()+'-'+String(base.getMonth()+1).padStart(2,'0')+'-'+String(base.getDate()).padStart(2,'0');
+  };
   const daysUntil = iso => {
     if (!iso) return null;
     const d = new Date(String(iso).slice(0,10) + 'T00:00:00');
@@ -8697,84 +8718,176 @@ function EntretienView({ entretien, addEntretien, updateEntretien, deleteEntreti
     const t = new Date(); t.setHours(0,0,0,0);
     return Math.round((d.getTime() - t.getTime()) / 86400000);
   };
-  const fmtFr = iso => {
-    const d = new Date(String(iso).slice(0,10) + 'T00:00:00');
-    return isNaN(d.getTime()) ? iso : d.toLocaleDateString('fr-FR', { weekday:'short', day:'2-digit', month:'short', year:'numeric' });
-  };
+  const fmtFr = iso => { const d = new Date(String(iso).slice(0,10) + 'T00:00:00'); return isNaN(d.getTime()) ? iso : d.toLocaleDateString('fr-FR', { weekday:'short', day:'2-digit', month:'short', year:'numeric' }); };
   const countdownLabel = n => n === null ? '' : n === 0 ? "Aujourd'hui" : n === 1 ? 'Demain' : n > 1 ? 'Dans ' + n + ' j' : n === -1 ? 'Hier' : 'Il y a ' + (-n) + ' j';
-  const fmtKm = km => { const n = Number(km); return (km === '' || km === null || isNaN(n)) ? null : n.toLocaleString('fr-FR') + ' km'; };
-  const fmtCout = c => { const n = Number(c); return (c === '' || c === null || isNaN(n)) ? null : n.toLocaleString('fr-FR') + ' €'; };
+  const numOr = v => (v === '' || v === null || v === undefined || isNaN(Number(v))) ? null : Number(v);
+  const fmtKm = km => { const n = numOr(km); return n === null ? null : n.toLocaleString('fr-FR') + ' km'; };
+  const fmtCout = c => { const n = numOr(c); return n === null ? null : n.toLocaleString('fr-FR') + ' €'; };
+  const kmLabel = k => k === null ? '' : k < 0 ? 'Dépassé de ' + (-k).toLocaleString('fr-FR') + ' km' : 'Dans ' + k.toLocaleString('fr-FR') + ' km';
+  const vehByName = nom => (vehicules || []).find(v => v.nom === nom) || null;
 
-  const openAdd = () => { setForm(EMPTY); setEditId(null); setShow(true); };
-  const openEdit = e => { setForm({ ...EMPTY, ...e }); setEditId(e.id); setShow(true); };
+  // Liste des noms de véhicules (déclarés + mentionnés dans les entretiens)
+  const vehNames = [];
+  (vehicules || []).forEach(v => { if (v.nom && vehNames.indexOf(v.nom) < 0) vehNames.push(v.nom); });
+  (entretien || []).forEach(e => { if (e.vehicule && vehNames.indexOf(e.vehicule) < 0) vehNames.push(e.vehicule); });
+
+  // Filtrage par véhicule
+  const list = filt ? (entretien || []).filter(e => e.vehicule === filt) : (entretien || []);
+
+  // Méta par entretien : compte à rebours en jours ET en km, urgence
+  const meta = list.map(e => {
+    const veh = vehByName(e.vehicule);
+    const d = daysUntil(e.prochainDate);
+    const vkm = veh ? numOr(veh.km) : null;
+    const pkm = numOr(e.prochainKm);
+    const kmLeft = (pkm !== null && vkm !== null) ? pkm - vkm : null;
+    const overdue = (d !== null && d < 0) || (kmLeft !== null && kmLeft < 0);
+    const planned = !!(e.prochainDate || e.prochainKm);
+    return { e, veh, d, kmLeft, overdue, planned };
+  });
+  const enRetard = meta.filter(m => m.overdue).sort((a,b) => (a.d === null ? 0 : a.d) - (b.d === null ? 0 : b.d));
+  const aVenir = meta.filter(m => !m.overdue).sort((a,b) => {
+    const ad = a.d === null ? Infinity : a.d, bd = b.d === null ? Infinity : b.d;
+    if (ad !== bd) return ad - bd;
+    return (a.kmLeft === null ? Infinity : a.kmLeft) - (b.kmLeft === null ? Infinity : b.kmLeft);
+  });
+  const hero = enRetard[0] || aVenir.find(m => m.planned) || null;
+  const totalCout = (entretien || []).reduce((s,e) => s + (numOr(e.cout) || 0), 0);
+
+  // ── Actions entretien ──
+  const openAdd = () => { setForm({ ...EMPTY, vehicule: filt || '' }); setEditId(null); setShow(true); setShowVeh(false); };
+  const openEdit = e => { setForm({ ...EMPTY, ...e }); setEditId(e.id); setShow(true); setShowVeh(false); };
   const save = () => {
     if (!form.titre.trim()) return;
-    if (editId) updateEntretien(editId, form);
-    else addEntretien({ id:Date.now().toString(), ...form });
+    const f = { ...form };
+    const baseDate = f.date || todayIso();
+    if (!f.prochainDate && numOr(f.intervalMois) !== null) f.prochainDate = addMonthsIso(baseDate, numOr(f.intervalMois));
+    if (!f.prochainKm && numOr(f.intervalKm) !== null && numOr(f.km) !== null) f.prochainKm = String(numOr(f.km) + numOr(f.intervalKm));
+    if (editId) updateEntretien(editId, f);
+    else addEntretien({ id: Date.now().toString(), ...f });
     setForm(EMPTY); setEditId(null); setShow(false);
+  };
+  // Rappel intelligent : marque « fait aujourd'hui » et régénère la prochaine échéance.
+  const markFait = m => {
+    const e = m.e, veh = m.veh, today = todayIso();
+    const km = (veh && numOr(veh.km) !== null) ? String(numOr(veh.km)) : (e.km || '');
+    const patch = { date: today, km };
+    if (numOr(e.intervalMois) !== null) patch.prochainDate = addMonthsIso(today, numOr(e.intervalMois));
+    if (numOr(e.intervalKm) !== null && numOr(km) !== null) patch.prochainKm = String(numOr(km) + numOr(e.intervalKm));
+    const nextTxt = [patch.prochainDate && fmtFr(patch.prochainDate), fmtKm(patch.prochainKm)].filter(Boolean).join(' · ');
+    if (!confirm('Marquer « ' + (e.titre || 'cet entretien') + ' » fait aujourd\'hui' + (numOr(km) !== null ? ' à ' + fmtKm(km) : '') + ' ?' + (nextTxt ? '\n\nProchaine échéance régénérée : ' + nextTxt : ''))) return;
+    updateEntretien(e.id, patch);
   };
   const exportOne = e => { const ev = entretienToIcsEvent(e); if (!ev) { alert("Ajoute une date de prochain entretien pour l'exporter au calendrier."); return; } downloadIcs([ev], 'entretien-' + (e.titre||'meca').toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,30) + '.ics'); };
   const exportAll = () => { const evs = (entretien || []).map(entretienToIcsEvent).filter(Boolean); if (!evs.length) { alert('Aucun entretien planifié à exporter.'); return; } downloadIcs(evs, 'entretien-mecanique.ics'); };
 
-  // Tri : échéances à venir (compte à rebours >= 0, plus proche d'abord) + non planifiés,
-  // puis échéances passées (à faire, plus en retard d'abord).
-  const withMeta = (entretien || []).map(e => ({ e, d: daysUntil(e.prochainDate) }));
-  const aVenir = withMeta.filter(x => x.d === null || x.d >= 0)
-    .sort((a,b) => (a.d === null ? Infinity : a.d) - (b.d === null ? Infinity : b.d));
-  const enRetard = withMeta.filter(x => x.d !== null && x.d < 0).sort((a,b) => a.d - b.d);
-  const prochain = aVenir.find(x => x.d !== null) || enRetard[0] || null;
+  // ── Actions véhicules ──
+  const saveVeh = () => { if (!vForm.nom.trim()) return; addVehicule({ id: Date.now().toString(), nom: vForm.nom.trim(), type: vForm.type, km: vForm.km }); setVForm({ nom:'', type:'🚗', km:'' }); };
+  const delVeh = v => { if (confirm('Supprimer le véhicule « ' + v.nom + ' » ? (les entretiens liés sont conservés)')) deleteVehicule(v.id); };
 
-  const totalCout = (entretien || []).reduce((s,e) => { const n = Number(e.cout); return s + (isNaN(n) ? 0 : n); }, 0);
+  // ── Rendus ──
+  const chip = (txt, color, bg) => React.createElement('span', { style:{ fontSize:10, fontWeight:700, color:color, background: bg || 'var(--bg2)', borderRadius:10, padding:'2px 7px', whiteSpace:'nowrap' } }, txt);
+  const preset = (label, onClick, active) => React.createElement('button', { onClick, style:{ padding:'3px 9px', borderRadius:12, border:'1px solid ' + (active ? ACCENT : 'var(--border)'), background: active ? ACCENT+'22' : 'transparent', color: active ? ACCENT : 'var(--text3)', cursor:'pointer', fontSize:11, fontWeight:600 } }, label);
 
-  const renderCard = (e, d) => {
-    const past = d !== null && d < 0;
+  const renderCard = m => {
+    const e = m.e, past = m.overdue;
+    const vehEmoji = m.veh ? (m.veh.type || '🚗') + ' ' : '';
     const details = [fmtFr(e.date) && ('Fait : ' + fmtFr(e.date)), fmtKm(e.km), fmtCout(e.cout)].filter(Boolean).join(' · ');
-    const prochainTxt = [e.prochainDate && ('Prochain : ' + fmtFr(e.prochainDate)), fmtKm(e.prochainKm)].filter(Boolean).join(' · ');
-    return React.createElement('div', { key:e.id, style:{ background:'var(--glass)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'12px 16px', marginBottom:10, display:'flex', gap:12, alignItems:'flex-start' } },
+    const interval = [numOr(e.intervalMois) !== null && ('tous les ' + numOr(e.intervalMois) + ' mois'), numOr(e.intervalKm) !== null && ('tous les ' + fmtKm(e.intervalKm))].filter(Boolean).join(' · ');
+    const prochainTxt = [e.prochainDate && ('Prochain : ' + fmtFr(e.prochainDate)), e.prochainKm && ('à ' + fmtKm(e.prochainKm))].filter(Boolean).join(' · ');
+    return React.createElement('div', { key:e.id, style:{ background:'var(--glass)', border:'1px solid ' + (past ? 'rgba(239,68,68,.4)' : 'var(--border)'), borderRadius:'var(--radius)', padding:'11px 14px', marginBottom:9, display:'flex', gap:10, alignItems:'flex-start' } },
       React.createElement('div', { style:{ flex:1, minWidth:0 } },
-        React.createElement('div', { style:{ display:'flex', alignItems:'center', gap:8, marginBottom:4, flexWrap:'wrap' } },
-          e.vehicule && React.createElement('span', { style:{ fontSize:10, fontWeight:700, color:ACCENT, background:'var(--bg2)', borderRadius:10, padding:'2px 7px' } }, e.vehicule),
+        React.createElement('div', { style:{ display:'flex', alignItems:'center', gap:6, marginBottom:3, flexWrap:'wrap' } },
+          e.vehicule && chip(vehEmoji + e.vehicule, ACCENT),
           React.createElement('span', { style:{ fontWeight:700, color:'var(--text)', fontSize:14 } }, e.titre),
-          d !== null && React.createElement('span', { style:{ fontSize:10, fontWeight:700, color: past ? '#ef4444' : (d<=14 ? '#f59e0b' : '#10b981'), background:'var(--bg2)', borderRadius:10, padding:'2px 7px' } }, (past ? '⚠ ' : '') + countdownLabel(d))
+          m.d !== null && chip((m.d < 0 ? '⚠ ' : '') + countdownLabel(m.d), m.d < 0 ? '#ef4444' : (m.d <= 14 ? '#f59e0b' : '#10b981')),
+          m.kmLeft !== null && chip((m.kmLeft < 0 ? '⚠ ' : '') + kmLabel(m.kmLeft), m.kmLeft < 0 ? '#ef4444' : (m.kmLeft <= 1000 ? '#f59e0b' : '#10b981'))
         ),
-        details && React.createElement('div', { style:{ fontSize:12, color:'var(--text3)', marginBottom:3 } }, details),
-        prochainTxt && React.createElement('div', { style:{ fontSize:12, color: past ? '#ef4444' : 'var(--text2)', marginBottom:3 } }, prochainTxt),
-        e.notes && React.createElement('div', { style:{ fontSize:12, color:'var(--text3)', fontStyle:'italic' } }, e.notes)
+        details && React.createElement('div', { style:{ fontSize:12, color:'var(--text3)', marginBottom:2 } }, details),
+        prochainTxt && React.createElement('div', { style:{ fontSize:12, color: past ? '#ef4444' : 'var(--text2)', marginBottom:2 } }, prochainTxt),
+        interval && React.createElement('div', { style:{ fontSize:11, color:'var(--text3)' } }, '🔁 ' + interval),
+        e.notes && React.createElement('div', { style:{ fontSize:12, color:'var(--text3)', fontStyle:'italic', marginTop:2 } }, e.notes)
       ),
       React.createElement('div', { style:{ display:'flex', flexDirection:'column', gap:6, alignItems:'center' } },
+        React.createElement('button', { onClick:()=>markFait(m), title:'Marquer fait aujourd\'hui (régénère l\'échéance)', style:{ background:'rgba(16,185,129,.15)', border:'1px solid rgba(16,185,129,.4)', borderRadius:8, color:'#10b981', cursor:'pointer', fontSize:13, padding:'2px 8px', fontWeight:700 } }, '✓'),
         React.createElement('button', { onClick:()=>openEdit(e), title:'Modifier', style:{ background:'none', border:'1px solid var(--border)', borderRadius:8, color:'var(--text2)', cursor:'pointer', fontSize:13, padding:'2px 8px' } }, '✎'),
-        e.prochainDate && React.createElement('button', { onClick:()=>exportOne(e), title:'Ajouter au calendrier (.ics)', style:{ background:'none', border:'1px solid var(--border)', borderRadius:8, color:'var(--text2)', cursor:'pointer', fontSize:14, padding:'2px 8px' } }, '📅'),
+        e.prochainDate && React.createElement('button', { onClick:()=>exportOne(e), title:'Ajouter au calendrier (.ics)', style:{ background:'none', border:'1px solid var(--border)', borderRadius:8, color:'var(--text2)', cursor:'pointer', fontSize:13, padding:'2px 8px' } }, '📅'),
         React.createElement('button', { onClick:()=>{ if (confirm('Supprimer « '+(e.titre||'cet entretien')+' » ?')) deleteEntretien(e.id); }, style:{ background:'none', border:'none', color:'var(--danger)', cursor:'pointer', fontSize:18 } }, '×')
       )
     );
   };
 
   return React.createElement('div', null,
-    React.createElement('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20, gap:8, flexWrap:'wrap' } },
+    // En-tête
+    React.createElement('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14, gap:8, flexWrap:'wrap' } },
       React.createElement('h2', { style:{ margin:0, fontSize:20 } }, '🔧 Entretien mécanique'),
-      React.createElement('div', { style:{ display:'flex', gap:8 } },
-        (entretien||[]).some(e => e.prochainDate) && React.createElement('button', { onClick:exportAll, title:'Exporter les échéances au format .ics', style:{ padding:'8px 14px', borderRadius:20, border:'1px solid var(--border)', background:'transparent', color:'var(--text2)', cursor:'pointer', fontWeight:700, fontSize:13 } }, '📅 Exporter'),
+      React.createElement('div', { style:{ display:'flex', gap:8, flexWrap:'wrap' } },
+        React.createElement('button', { onClick:()=>{ setShowVeh(!showVeh); setShow(false); }, title:'Gérer les véhicules', style:{ padding:'8px 14px', borderRadius:20, border:'1px solid var(--border)', background: showVeh ? ACCENT+'22' : 'transparent', color: showVeh ? ACCENT : 'var(--text2)', cursor:'pointer', fontWeight:700, fontSize:13 } }, '🚗 Véhicules'),
+        (entretien||[]).some(e => e.prochainDate) && React.createElement('button', { onClick:exportAll, title:'Exporter les échéances (.ics)', style:{ padding:'8px 14px', borderRadius:20, border:'1px solid var(--border)', background:'transparent', color:'var(--text2)', cursor:'pointer', fontWeight:700, fontSize:13 } }, '📅'),
         React.createElement('button', { onClick:()=> show ? (setShow(false), setEditId(null)) : openAdd(), style:{ padding:'8px 18px', borderRadius:20, border:'none', background:ACCENT, color:'#fff', cursor:'pointer', fontWeight:700 } }, show ? '✕' : '+ Entretien')
       )
     ),
-    prochain && !show && React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid ' + (prochain.d !== null && prochain.d < 0 ? 'rgba(239,68,68,.4)' : 'rgba(167,139,250,.35)'), borderRadius:'var(--radius)', padding:'12px 16px', marginBottom:16, display:'flex', alignItems:'center', gap:12 } },
-      React.createElement('span', { style:{ fontSize:24 } }, prochain.d !== null && prochain.d < 0 ? '⚠️' : '🛠'),
-      React.createElement('div', null,
-        React.createElement('div', { style:{ fontSize:11, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em' } }, prochain.d !== null && prochain.d < 0 ? 'Entretien en retard' : 'Prochain entretien'),
-        React.createElement('div', { style:{ fontWeight:700, color:'var(--text)', fontSize:15 } }, (prochain.d !== null ? countdownLabel(prochain.d) + ' · ' : '') + prochain.e.titre),
-        React.createElement('div', { style:{ fontSize:12, color:'var(--text3)' } }, [prochain.e.vehicule, fmtFr(prochain.e.prochainDate), fmtKm(prochain.e.prochainKm)].filter(Boolean).join(' · '))
+
+    // Gestion des véhicules
+    showVeh && React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid rgba(167,139,250,.35)', borderRadius:'var(--radius)', padding:16, marginBottom:16 } },
+      React.createElement('div', { style:{ fontSize:11, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:10 } }, 'Mes véhicules'),
+      (vehicules || []).length === 0 && React.createElement('div', { style:{ fontSize:12, color:'var(--text3)', marginBottom:10 } }, 'Aucun véhicule — ajoute-en un pour suivre le kilométrage courant (compte à rebours en km).'),
+      (vehicules || []).map(v => React.createElement('div', { key:v.id, style:{ display:'flex', gap:8, alignItems:'center', marginBottom:8, flexWrap:'wrap' } },
+        React.createElement('span', { style:{ fontSize:20 } }, v.type || '🚗'),
+        React.createElement('span', { style:{ fontWeight:700, color:'var(--text)', fontSize:13, minWidth:80 } }, v.nom),
+        React.createElement('input', { type:'number', inputMode:'numeric', value: v.km == null ? '' : v.km, placeholder:'Km actuel', onChange:e=>updateVehicule(v.id, { km:e.target.value }), style:{ ...inp, maxWidth:140 } }),
+        React.createElement('span', { style:{ fontSize:12, color:'var(--text3)' } }, 'km'),
+        React.createElement('button', { onClick:()=>delVeh(v), style:{ marginLeft:'auto', background:'none', border:'none', color:'var(--danger)', cursor:'pointer', fontSize:18 } }, '×')
+      )),
+      React.createElement('div', { style:{ display:'flex', gap:6, alignItems:'center', marginTop:12, flexWrap:'wrap' } },
+        React.createElement('div', { style:{ display:'flex', gap:4 } }, TYPES.map(t => React.createElement('button', { key:t, onClick:()=>setVForm(p=>({...p,type:t})), style:{ fontSize:16, padding:'4px 6px', borderRadius:8, border:'1px solid ' + (vForm.type===t?ACCENT:'var(--border)'), background: vForm.type===t?ACCENT+'22':'transparent', cursor:'pointer' } }, t))),
+        React.createElement('input', { placeholder:'Nom (ex : Voiture)', value:vForm.nom, onChange:e=>setVForm(p=>({...p,nom:e.target.value})), style:{ ...inp, maxWidth:180 } }),
+        React.createElement('input', { type:'number', inputMode:'numeric', placeholder:'Km', value:vForm.km, onChange:e=>setVForm(p=>({...p,km:e.target.value})), style:{ ...inp, maxWidth:110 } }),
+        React.createElement('button', { onClick:saveVeh, style:{ padding:'8px 16px', borderRadius:12, border:'none', background:ACCENT, color:'#fff', cursor:'pointer', fontWeight:700 } }, '+ Ajouter')
       )
     ),
+
+    // Filtres par véhicule
+    vehNames.length > 1 && !show && React.createElement('div', { style:{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:14 } },
+      preset('Tous', ()=>setFilt(null), filt === null),
+      vehNames.map(nom => { const v = vehByName(nom); const kmTxt = v && numOr(v.km) !== null ? ' · ' + fmtKm(v.km) : ''; return React.createElement(React.Fragment, { key:nom }, preset((v ? (v.type||'🚗')+' ' : '') + nom + kmTxt, ()=>setFilt(nom), filt === nom)); })
+    ),
+
+    // Hero : prochain / à faire
+    hero && !show && !showVeh && React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid ' + (hero.overdue ? 'rgba(239,68,68,.4)' : 'rgba(167,139,250,.35)'), borderRadius:'var(--radius)', padding:'12px 16px', marginBottom:16, display:'flex', alignItems:'center', gap:12 } },
+      React.createElement('span', { style:{ fontSize:24 } }, hero.overdue ? '⚠️' : '🛠'),
+      React.createElement('div', null,
+        React.createElement('div', { style:{ fontSize:11, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em' } }, hero.overdue ? 'Entretien à faire' : 'Prochain entretien'),
+        React.createElement('div', { style:{ fontWeight:700, color:'var(--text)', fontSize:15 } }, [hero.d !== null ? countdownLabel(hero.d) : null, hero.kmLeft !== null ? kmLabel(hero.kmLeft) : null, hero.e.titre].filter(Boolean).join(' · ')),
+        React.createElement('div', { style:{ fontSize:12, color:'var(--text3)' } }, [hero.e.vehicule, fmtFr(hero.e.prochainDate), hero.e.prochainKm && ('à ' + fmtKm(hero.e.prochainKm))].filter(Boolean).join(' · '))
+      )
+    ),
+
+    // Formulaire
     show && React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid rgba(167,139,250,.35)', borderRadius:'var(--radius)', padding:16, marginBottom:16 } },
       React.createElement('input', { placeholder:'Intervention (ex : Vidange, Pneus, Freins…) *', value:form.titre, onChange:e=>setForm(p=>({...p,titre:e.target.value})), style:{ ...inp, marginBottom:8 } }),
-      React.createElement('input', { placeholder:'Véhicule (ex : Voiture, Moto…)', value:form.vehicule, onChange:e=>setForm(p=>({...p,vehicule:e.target.value})), style:{ ...inp, marginBottom:8 } }),
+      React.createElement('input', { list:'entretien-veh-list', placeholder:'Véhicule (ex : Voiture, Moto…)', value:form.vehicule, onChange:e=>setForm(p=>({...p,vehicule:e.target.value})), style:{ ...inp, marginBottom:8 } }),
+      React.createElement('datalist', { id:'entretien-veh-list' }, vehNames.map(n => React.createElement('option', { key:n, value:n }))),
       React.createElement('div', { style:{ fontSize:11, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em', margin:'4px 0 6px' } }, 'Réalisé'),
       React.createElement('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8, marginBottom:8 } },
         React.createElement('input', { type:'date', value:form.date, onChange:e=>setForm(p=>({...p,date:e.target.value})), style:inp }),
         React.createElement('input', { type:'number', inputMode:'numeric', placeholder:'Km', value:form.km, onChange:e=>setForm(p=>({...p,km:e.target.value})), style:inp }),
         React.createElement('input', { type:'number', inputMode:'numeric', placeholder:'Coût €', value:form.cout, onChange:e=>setForm(p=>({...p,cout:e.target.value})), style:inp })
       ),
-      React.createElement('div', { style:{ fontSize:11, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em', margin:'4px 0 6px' } }, 'Prochaine échéance'),
+      React.createElement('div', { style:{ fontSize:11, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em', margin:'4px 0 6px' } }, 'Récurrence (rappel auto)'),
+      React.createElement('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:6 } },
+        React.createElement('input', { type:'number', inputMode:'numeric', placeholder:'Tous les … mois', value:form.intervalMois, onChange:e=>setForm(p=>({...p,intervalMois:e.target.value})), style:inp }),
+        React.createElement('input', { type:'number', inputMode:'numeric', placeholder:'Tous les … km', value:form.intervalKm, onChange:e=>setForm(p=>({...p,intervalKm:e.target.value})), style:inp })
+      ),
+      React.createElement('div', { style:{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:10 } },
+        preset('6 mois', ()=>setForm(p=>({...p,intervalMois:'6'})), form.intervalMois==='6'),
+        preset('12 mois', ()=>setForm(p=>({...p,intervalMois:'12'})), form.intervalMois==='12'),
+        preset('24 mois', ()=>setForm(p=>({...p,intervalMois:'24'})), form.intervalMois==='24'),
+        preset('5 000 km', ()=>setForm(p=>({...p,intervalKm:'5000'})), form.intervalKm==='5000'),
+        preset('10 000 km', ()=>setForm(p=>({...p,intervalKm:'10000'})), form.intervalKm==='10000'),
+        preset('15 000 km', ()=>setForm(p=>({...p,intervalKm:'15000'})), form.intervalKm==='15000')
+      ),
+      React.createElement('div', { style:{ fontSize:11, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em', margin:'4px 0 6px' } }, 'Prochaine échéance (auto si récurrence)'),
       React.createElement('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 } },
         React.createElement('input', { type:'date', value:form.prochainDate, onChange:e=>setForm(p=>({...p,prochainDate:e.target.value})), style:inp }),
         React.createElement('input', { type:'number', inputMode:'numeric', placeholder:'À … km', value:form.prochainKm, onChange:e=>setForm(p=>({...p,prochainKm:e.target.value})), style:inp })
@@ -8782,12 +8895,15 @@ function EntretienView({ entretien, addEntretien, updateEntretien, deleteEntreti
       React.createElement('textarea', { placeholder:'Notes (garage, référence pièce, huile utilisée…)', value:form.notes, onChange:e=>setForm(p=>({...p,notes:e.target.value})), style:{ ...inp, minHeight:60, marginBottom:10, resize:'vertical' } }),
       React.createElement('button', { onClick:save, style:{ padding:'8px 20px', borderRadius:12, border:'none', background:ACCENT, color:'#fff', cursor:'pointer', fontWeight:700 } }, editId ? 'Mettre à jour' : 'Enregistrer')
     ),
-    (entretien||[]).length === 0 && !show && React.createElement('div', { style:{ textAlign:'center', padding:'50px 0', color:'var(--text3)' } }, '🔧 Aucun entretien — ajoutez vos interventions et échéances'),
-    totalCout > 0 && React.createElement('div', { style:{ fontSize:12, color:'var(--text3)', marginBottom:12 } }, 'Total dépensé : ', React.createElement('span', { style:{ fontWeight:700, color:'var(--text2)' } }, totalCout.toLocaleString('fr-FR') + ' €')),
+
+    // Listes
+    (entretien||[]).length === 0 && !show && !showVeh && React.createElement('div', { style:{ textAlign:'center', padding:'50px 0', color:'var(--text3)' } }, '🔧 Aucun entretien — ajoutez vos interventions et échéances'),
+    list.length === 0 && (entretien||[]).length > 0 && !show && React.createElement('div', { style:{ textAlign:'center', padding:'30px 0', color:'var(--text3)' } }, 'Aucun entretien pour ce véhicule.'),
+    totalCout > 0 && !show && React.createElement('div', { style:{ fontSize:12, color:'var(--text3)', marginBottom:12 } }, 'Total dépensé : ', React.createElement('span', { style:{ fontWeight:700, color:'var(--text2)' } }, totalCout.toLocaleString('fr-FR') + ' €')),
     enRetard.length > 0 && React.createElement('div', { style:{ fontSize:11, fontWeight:700, color:'#ef4444', textTransform:'uppercase', letterSpacing:'.05em', margin:'4px 0 8px' } }, 'À faire / en retard'),
-    enRetard.map(x => renderCard(x.e, x.d)),
+    enRetard.map(renderCard),
     aVenir.length > 0 && React.createElement('div', { style:{ fontSize:11, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em', margin: enRetard.length ? '16px 0 8px' : '4px 0 8px' } }, 'À venir / historique'),
-    aVenir.map(x => renderCard(x.e, x.d))
+    aVenir.map(renderCard)
   );
 }
 
@@ -11128,6 +11244,27 @@ const ch=sb.channel('ld-realtime')
       return next;
     });
   }, []);
+  const addVehicule = useCallback(v => {
+    setData(prev => {
+      const next = clone(prev);
+      next.dja.vehicules = [...(next.dja.vehicules || []), v];
+      return next;
+    });
+  }, []);
+  const updateVehicule = useCallback((id, patch) => {
+    setData(prev => {
+      const next = clone(prev);
+      next.dja.vehicules = (next.dja.vehicules || []).map(x => x.id === id ? { ...x, ...patch } : x);
+      return next;
+    });
+  }, []);
+  const deleteVehicule = useCallback(id => {
+    setData(prev => {
+      const next = clone(prev);
+      next.dja.vehicules = (next.dja.vehicules || []).filter(x => x.id !== id);
+      return next;
+    });
+  }, []);
   const addSoiree = useCallback(s => {
     setData(prev => {
       const next = clone(prev);
@@ -12656,7 +12793,7 @@ const ch=sb.channel('ld-realtime')
     view === 'potager' && React.createElement(PotagerView,{plantes:(data.couple||{}).potager||[],addPlante,updatePlante,deletePlante,semansye:(data.couple||{}).semansye||[],addLot,updateLot,deleteLot}),
     view === 'voyages' && React.createElement(VoyagesView,null),
     view === 'artiste' && React.createElement(ArtView,null),
-    view === 'entretien' && React.createElement(EntretienView,{entretien:(data.dja||{}).entretien||[],addEntretien,updateEntretien,deleteEntretien})
+    view === 'entretien' && React.createElement(EntretienView,{entretien:(data.dja||{}).entretien||[],vehicules:(data.dja||{}).vehicules||[],addEntretien,updateEntretien,deleteEntretien,addVehicule,updateVehicule,deleteVehicule})
   ), /*#__PURE__*/React.createElement(AddModal, {
     show: !!modal,
     onClose: () => setModal(null),
