@@ -404,13 +404,17 @@ const realDefaultData = {
       id: 'v1',
       nom: 'Corsa',
       type: '🚗',
-      km: '',
-      immatriculation: '',
+      km: '86000',
+      immatriculation: 'AB-123-CD',
       marque: 'Opel',
       modele: 'Corsa 1.2',
       annee: '2013',
       huile: '5W30',
-      controleTechnique: '',
+      controleTechnique: '2026-08-15',
+      assureur: 'MAIF',
+      assuranceContrat: 'A-2013-0456',
+      assuranceCout: '520',
+      assuranceEcheance: '2026-11-01',
       notes: 'Norme huile : GM Dexos2 / ACEA C3',
       infos: [
         { id: 'i1', label: 'Capacité huile', valeur: '≈ 3,5 L' },
@@ -421,13 +425,17 @@ const realDefaultData = {
       id: 'v2',
       nom: 'YBR 125',
       type: '🏍',
-      km: '',
-      immatriculation: '',
+      km: '21000',
+      immatriculation: 'EF-456-GH',
       marque: 'Yamaha',
       modele: 'YBR 125',
       annee: '2009',
       huile: '10W40',
-      controleTechnique: '',
+      controleTechnique: '2027-03-10',
+      assureur: 'Mutuelle des Motards',
+      assuranceContrat: 'M-778812',
+      assuranceCout: '180',
+      assuranceEcheance: '2026-08-20',
       notes: 'Semi-synthèse · monocylindre 124 cm³ · CT moto obligatoire (2024)',
       infos: [
         { id: 'i1', label: 'Capacité huile', valeur: '≈ 1,0 L (vidange)' },
@@ -440,13 +448,17 @@ const realDefaultData = {
       id: 'v3',
       nom: 'Soul',
       type: '🚗',
-      km: '',
-      immatriculation: '',
+      km: '142000',
+      immatriculation: 'IJ-789-KL',
       marque: 'Kia',
       modele: 'Soul 1.6 CRDi',
       annee: '2011',
       huile: '5W30',
-      controleTechnique: '',
+      controleTechnique: '2026-10-05',
+      assureur: 'Direct Assurance',
+      assuranceContrat: 'D-334455',
+      assuranceCout: '480',
+      assuranceEcheance: '2026-12-15',
       notes: 'Diesel 128 ch (1.6 CRDi)',
       infos: [
         { id: 'i1', label: 'Capacité huile', valeur: '≈ 5,3 L' },
@@ -1079,6 +1091,19 @@ function normalize(d) {
   if (Array.isArray(d.album)) base.album = d.album;
   if (!Array.isArray(base.dja.entretien)) base.dja.entretien = [];
   if (!Array.isArray(base.dja.vehicules)) base.dja.vehicules = [];
+  // Amorçage unique des véhicules : les utilisateurs ayant déjà une liste vide
+  // enregistrée (vehicules:[]) ne recevaient jamais la graine par défaut (le spread
+  // de d.dja écrase base.dja.vehicules). On injecte donc les véhicules par défaut une
+  // seule fois ; le drapeau évite de les réinjecter si l'utilisateur les supprime.
+  if (!base.dja.vehiculesSeeded && base.dja.vehicules.length === 0 &&
+      Array.isArray(defaultData.dja.vehicules) && defaultData.dja.vehicules.length > 0) {
+    base.dja.vehicules = clone(defaultData.dja.vehicules);
+    // Amorce aussi le carnet d'entretien s'il est vide (même mécanique d'écrasement).
+    if (base.dja.entretien.length === 0 && Array.isArray(defaultData.dja.entretien)) {
+      base.dja.entretien = clone(defaultData.dja.entretien);
+    }
+  }
+  base.dja.vehiculesSeeded = true;
   if (!Array.isArray(base.couple.motivations)) base.couple.motivations = [];
   if (!Array.isArray(base.couple.medical)) base.couple.medical = [];
   if (!Array.isArray(base.couple.soirees)) base.couple.soirees = [];
@@ -8844,7 +8869,7 @@ function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, de
   const ensureCost = nom => { const k = nom || 'Sans véhicule'; if (!costMap[k]) costMap[k] = { nom: k, entretien: 0, assurance: 0 }; return costMap[k]; };
   (entretien || []).forEach(e => { const c = numOr(e.cout); if (c !== null) ensureCost(e.vehicule).entretien += c; });
   (vehicules || []).forEach(v => { const a = numOr(v.assuranceCout); if (a !== null) ensureCost(v.nom).assurance += a; });
-  const costRows = Object.values(costMap).sort((a,b) => (b.entretien + b.assurance) - (a.entretien + a.assurance));
+  const costRows = Object.values(costMap).sort((a,b) => (b.entretien - a.entretien) || (b.assurance - a.assurance));
   const costTotalEntretien = costRows.reduce((s,r) => s + r.entretien, 0);
   const costTotalAssurance = costRows.reduce((s,r) => s + r.assurance, 0);
   const costMax = Math.max(1, ...costRows.map(r => r.entretien));
