@@ -443,7 +443,13 @@ const realDefaultData = {
       { id: 'de3', titre: 'Tension + graissage chaîne', vehicule: 'YBR 125', date: '', km: '', cout: '', intervalMois: '', intervalKm: '1000', prochainDate: '', prochainKm: '', notes: 'Vérifier la tension et lubrifier' },
       { id: 'de4', titre: 'Bougie', vehicule: 'YBR 125', date: '', km: '', cout: '', intervalMois: '', intervalKm: '10000', prochainDate: '', prochainKm: '', notes: 'Réf selon millésime (à confirmer)' },
       { id: 'de5', titre: 'Jeu aux soupapes (contrôle)', vehicule: 'YBR 125', date: '', km: '', cout: '', intervalMois: '', intervalKm: '12000', prochainDate: '', prochainKm: '', notes: 'Contrôle / réglage' },
-      { id: 'de6', titre: 'Filtre à air', vehicule: 'YBR 125', date: '', km: '', cout: '', intervalMois: '', intervalKm: '12000', prochainDate: '', prochainKm: '', notes: 'Nettoyage ou remplacement' }
+      { id: 'de6', titre: 'Filtre à air', vehicule: 'YBR 125', date: '', km: '', cout: '', intervalMois: '', intervalKm: '12000', prochainDate: '', prochainKm: '', notes: 'Nettoyage ou remplacement' },
+      { id: 'de7', titre: 'Filtre habitacle (pollen)', vehicule: 'Corsa', date: '', km: '', cout: '', intervalMois: '12', intervalKm: '15000', prochainDate: '', prochainKm: '', notes: '' },
+      { id: 'de8', titre: 'Filtre à air', vehicule: 'Corsa', date: '', km: '', cout: '', intervalMois: '', intervalKm: '60000', prochainDate: '', prochainKm: '', notes: '~ tous les 4 ans' },
+      { id: 'de9', titre: 'Bougies', vehicule: 'Corsa', date: '', km: '', cout: '', intervalMois: '', intervalKm: '60000', prochainDate: '', prochainKm: '', notes: 'Essence · réf à confirmer' },
+      { id: 'de10', titre: 'Liquide de frein (purge)', vehicule: 'Corsa', date: '', km: '', cout: '', intervalMois: '24', intervalKm: '', prochainDate: '', prochainKm: '', notes: 'Tous les 2 ans' },
+      { id: 'de11', titre: 'Contrôle freins (plaquettes/disques)', vehicule: 'Corsa', date: '', km: '', cout: '', intervalMois: '', intervalKm: '20000', prochainDate: '', prochainKm: '', notes: 'Contrôle usure' },
+      { id: 'de12', titre: 'Distribution', vehicule: 'Corsa', date: '', km: '', cout: '', intervalMois: '', intervalKm: '', prochainDate: '', prochainKm: '', notes: 'À VÉRIFIER selon moteur : Z12XEP = chaîne (pas d\'échéance) · A12XER = courroie (~90 000 km / 10 ans)' }
     ],
     youngBoudha: ybEmpty()
   },
