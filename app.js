@@ -8489,6 +8489,7 @@ const CATEGORIES = [
       { id:'courses',  label:'Courses',       icon:'🛒' },
       { id:'medical',  label:'Suivi médical', icon:'🩺' },
       { id:'drevmcook',label:'DrevmCook',     icon:'🌿' },
+      { id:'konsevasyon', label:'Konsèvasyon', icon:'🧺' },
       { id:'potager',  label:'Potager GWA',   icon:'🌱' },
       { id:'voyages',  label:'Voyages',       icon:'✈️' },
       { id:'charts',   label:'Stats',         icon:'▤'  },
@@ -8555,6 +8556,7 @@ var MT_VIEW_ICON = {
   culture:'ph-light ph-mask-happy', vision:'ph-light ph-sparkle', sport:'ph-light ph-barbell',
   budget:'ph-light ph-wallet', repas:'ph-light ph-fork-knife', courses:'ph-light ph-shopping-cart',
   medical:'ph-light ph-first-aid-kit', drevmcook:'ph-light ph-plant', potager:'ph-light ph-leaf',
+  konsevasyon:'ph-light ph-basket',
   voyages:'ph-light ph-airplane-tilt', charts:'ph-light ph-chart-line-up', planning:'ph-light ph-calendar-blank',
   objmensuel:'ph-light ph-target', coderousseau:'ph-light ph-graduation-cap', route:'ph-light ph-truck',
   survie:'ph-light ph-compass', calendar:'ph-light ph-calendar-dots', liika:'ph-light ph-diamond',
@@ -10493,6 +10495,521 @@ function PotagerView({ plantes, addPlante, updatePlante, deletePlante, semansye,
       );
     })(),
     tab === 'almanach' && h(KalandriyeLalin, { semansye, addLot, updateLot, deleteLot })
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// KONSÈVASYON — Où ranger, comment emballer, combien de temps ça tient.
+// Durées de base calibrées pour un climat tempéré (20 °C) ; le « mode péyi »
+// les recalcule pour 28 °C / 80 % d'humidité (Guadeloupe).
+// Rézèv stockée en local (LS) uniquement — pas de synchro Supabase.
+// ─────────────────────────────────────────────────────────────────────────────
+const KV_GOLD = '#d9a765';
+const KV_GREEN = '#4ade80';
+const KV_MINT = '#5fe39a';
+const KV_AMBER = '#f59e0b';
+const KV_ROSE = '#fb7185';
+const KV_STORE_KEY = 'lanmou-konsevasyon';
+
+const kvMono = "'Space Mono', monospace";
+const kvSerif = "'Playfair Display', Georgia, serif";
+const kvBox = { background: 'rgba(255,255,255,0.03)', border: '1px solid #1a3028', borderRadius: 16 };
+
+// ─── lieux de rangement ───
+const KV_LIEUX = {
+  kontwa: {
+    label: 'Kontwa', sub: "à l'air libre, hors soleil", icon: '🏠', color: KV_GOLD, fac: 0.5,
+    adj: "À 28 °C la maturation double de vitesse — compte moitié moins de temps qu'en zone tempérée."
+  },
+  bac: {
+    label: 'Bak a legim', sub: 'tiroir du frigo', icon: '🥬', color: KV_MINT, fac: 1,
+    adj: "Le tiroir garde l'humidité : c'est le bon endroit par défaut sous nos latitudes."
+  },
+  etaj: {
+    label: 'Etajè frijidè', sub: 'étagère du frigo', icon: '❄️', color: '#7fd0a0', fac: 1,
+    adj: 'Zone la plus froide et la plus sèche — pour ce qui pourrit vite.'
+  },
+  gadman: {
+    label: 'Gadmanjé', sub: 'sombre, sec, ventilé', icon: '🧺', color: '#c9a24a', fac: 0.6,
+    adj: "Sans ventilation à 80 % d'humidité : germination et moisissure en deux semaines. Ouvre, surélève, fais circuler l'air."
+  },
+  kongel: {
+    label: 'Kongélatè', sub: 'congélateur', icon: '🧊', color: '#8ecae6', fac: 1,
+    adj: "La seule vraie sécurité pendant l'hivernage."
+  }
+};
+
+// ─── catégories ───
+const KV_CATS = {
+  fwi: { label: 'Fwi', icon: '🍋' },
+  legim: { label: 'Legim', icon: '🥕' },
+  peyi: { label: 'Péyi', icon: '🌴' },
+  zeb: { label: 'Zèb', icon: '🌿' },
+  baz: { label: 'Baz & rézèv', icon: '🫙' }
+};
+
+// ─── catalogue ───
+// l = lieu · p = emballage · j = jours (base tempérée) · k = nom créole
+// et = 'E' émetteur d'éthylène · 'S' sensible à l'éthylène · rec = pistes DrevmCook
+const KV_ITEMS = [
+  /* --- FWI --- */
+  { n: 'Pomme', e: '🍎', c: 'fwi', l: 'bac', p: 'non emballée', j: 21, et: 'E' },
+  { n: 'Avocat (mûr)', k: 'zaboka', e: '🥑', c: 'fwi', l: 'etaj', p: 'non emballé', j: 4, et: 'E',
+    note: "Encore ferme ? Laisse-le sur le kontwa jusqu'à ce qu'il cède sous le pouce, puis frigo." },
+  { n: 'Avocat entamé', k: 'zaboka koupé', e: '🥑', c: 'fwi', l: 'etaj', p: 'filmé au contact + citron', j: 1, et: 'E' },
+  { n: 'Banane', e: '🍌', c: 'fwi', l: 'kontwa', p: 'non emballée, isolée', j: 3, et: 'E',
+    note: "Grosse émettrice d'éthylène : jamais dans le panier commun." },
+  { n: 'Banane entamée', e: '🍌', c: 'fwi', l: 'etaj', p: 'peau gardée, filmée', j: 1, et: 'E' },
+  { n: 'Fruits rouges', e: '🍓', c: 'fwi', l: 'etaj', p: 'contenant aéré, non lavés', j: 4,
+    note: "Lave au moment de manger — l'eau accélère la moisissure." },
+  { n: 'Agrumes', k: 'sitwon, chadèk', e: '🍊', c: 'fwi', l: 'bac', p: 'non emballés', j: 14 },
+  { n: 'Agrume entamé', e: '🍋', c: 'fwi', l: 'etaj', p: 'filmé face coupée', j: 2 },
+  { n: 'Raisin', e: '🍇', c: 'fwi', l: 'bac', p: 'sac perforé', j: 5 },
+  { n: 'Melon entier', e: '🍈', c: 'fwi', l: 'kontwa', p: 'non emballé', j: 5, et: 'E' },
+  { n: 'Melon entamé', e: '🍈', c: 'fwi', l: 'etaj', p: 'filmé', j: 8 },
+  { n: 'Pêche / prune', e: '🍑', c: 'fwi', l: 'kontwa', p: 'non emballée', j: 4, et: 'E',
+    note: "Mûrit au kontwa, se garde au frigo. Jamais l'inverse." },
+  { n: 'Poire', e: '🍐', c: 'fwi', l: 'kontwa', p: 'non emballée', j: 4, et: 'E' },
+  { n: 'Tomate', e: '🍅', c: 'fwi', l: 'kontwa', p: 'contenant aéré', j: 5, et: 'E',
+    note: 'Le froid tue le goût et rend la chair farineuse. Kontwa, toujours.', rec: ['Sòs kréyòl', 'Chutney tomate'] },
+
+  /* --- LEGIM --- */
+  { n: 'Asperge', e: '🌾', c: 'legim', l: 'etaj', p: "pieds dans l'eau, tête filmée", j: 4 },
+  { n: 'Betterave', e: '🥬', c: 'legim', l: 'bac', p: 'sac plastique, fanes coupées', j: 14 },
+  { n: 'Poivron', e: '🫑', c: 'legim', l: 'bac', p: 'sac plastique', j: 14, et: 'S' },
+  { n: 'Brocoli', e: '🥦', c: 'legim', l: 'etaj', p: 'filmé', j: 5, et: 'S' },
+  { n: 'Chou', e: '🥬', c: 'legim', l: 'bac', p: 'non emballé', j: 14, et: 'S', rec: ['Pikliz', 'Kraut lakay'] },
+  { n: 'Carotte', e: '🥕', c: 'legim', l: 'bac', p: 'sac plastique, fanes coupées', j: 14, et: 'S' },
+  { n: 'Chou-fleur', e: '🥬', c: 'legim', l: 'bac', p: 'filmé', j: 5, et: 'S' },
+  { n: 'Céleri', e: '🥬', c: 'legim', l: 'bac', p: "enroulé dans l'alu", j: 14,
+    note: "L'alu laisse respirer l'éthylène tout en gardant l'eau — le plastique le fait ramollir." },
+  { n: 'Concombre', e: '🥒', c: 'legim', l: 'bac', p: 'filmé', j: 7, et: 'S' },
+  { n: 'Feuilles vert foncé', k: 'épinard, kale', e: '🥬', c: 'legim', l: 'bac', p: 'sac + essuie-tout sec', j: 7, et: 'S' },
+  { n: 'Ail', e: '🧄', c: 'legim', l: 'gadman', p: 'non emballé, tête entière', j: 60 },
+  { n: 'Gingembre', e: '🫚', c: 'legim', l: 'bac', p: 'non emballé', j: 30, rec: ['Ji gingembre'] },
+  { n: 'Gingembre entamé', e: '🫚', c: 'legim', l: 'bac', p: 'sac + essuie-tout', j: 2 },
+  { n: 'Haricot vert', e: '🫛', c: 'legim', l: 'bac', p: 'sac + essuie-tout', j: 7, et: 'S' },
+  { n: 'Laitue', e: '🥗', c: 'legim', l: 'bac', p: 'sac + essuie-tout sec', j: 7, et: 'S' },
+  { n: 'Champignons', e: '🍄', c: 'legim', l: 'etaj', p: 'sac papier uniquement', j: 5,
+    note: 'Le plastique les fait suer et noircir. Papier, toujours.' },
+  { n: 'Oignon', e: '🧅', c: 'legim', l: 'gadman', p: 'non emballé, loin des pommes de terre', j: 45 },
+  { n: 'Oignon entamé', e: '🧅', c: 'legim', l: 'etaj', p: 'boîte hermétique', j: 5 },
+  { n: 'Panais', e: '🥕', c: 'legim', l: 'bac', p: 'sac plastique', j: 14 },
+  { n: 'Pomme de terre', e: '🥔', c: 'legim', l: 'gadman', p: "sac papier, à l'obscurité", j: 45,
+    note: 'Loin des oignons : ensemble, ils se font germer mutuellement.' },
+  { n: 'Radis', e: '🌶️', c: 'legim', l: 'bac', p: 'sac + essuie-tout, fanes coupées', j: 7 },
+  { n: 'Salade en sachet', e: '🥗', c: 'legim', l: 'etaj', p: "sachet d'origine + essuie-tout", j: 10, et: 'S' },
+  { n: 'Courgette', e: '🥒', c: 'legim', l: 'bac', p: 'sac plastique', j: 5 },
+  { n: 'Patate douce', e: '🍠', c: 'legim', l: 'gadman', p: 'sac papier', j: 21, et: 'S', rec: ['Pat dous rôti', 'Purée pat dous'] },
+
+  /* --- PÉYI --- */
+  { n: 'Fruit à pain', k: 'fwitapen', e: '🌳', c: 'peyi', l: 'kontwa', p: 'entier, non emballé', j: 1, et: 'E',
+    note: 'Ne se conserve pas. Cuis-le le jour même, ou tranche et congèle immédiatement.',
+    rec: ['Migan fwitapen', 'Fwitapen grillé'] },
+  { n: 'Igname', e: '🍠', c: 'peyi', l: 'gadman', p: 'non emballée, surélevée', j: 21,
+    note: 'Jamais au frigo : le froid la fait noircir et durcir.' },
+  { n: 'Madè / dachine', e: '🥔', c: 'peyi', l: 'gadman', p: 'non emballée, ventilée', j: 14,
+    note: 'Jamais au frigo.', rec: ['Dombré é madè'] },
+  { n: 'Christophine', k: 'chouchou', e: '🥒', c: 'peyi', l: 'bac', p: 'non emballée', j: 21, et: 'S',
+    rec: ['Gratin christophine', 'Christophine sauté'] },
+  { n: 'Giraumon entier', e: '🎃', c: 'peyi', l: 'gadman', p: 'non emballé, sur cageot', j: 45,
+    rec: ['Migan giraumon', 'Soup jónmou'] },
+  { n: 'Giraumon entamé', e: '🎃', c: 'peyi', l: 'etaj', p: 'face coupée filmée', j: 5,
+    rec: ['Migan giraumon', 'Purée giraumon-coco'] },
+  { n: 'Banane plantain', e: '🍌', c: 'peyi', l: 'kontwa', p: 'non emballée, isolée', j: 7, et: 'E',
+    note: 'Émettrice puissante : isole-la de tout le reste.', rec: ['Plantain frit', 'Aloko'] },
+  { n: 'Ti-nain', k: 'banane verte', e: '🍌', c: 'peyi', l: 'kontwa', p: 'non emballé', j: 5, et: 'E',
+    rec: ['Ti-nain lanmori végétal'] },
+  { n: 'Kalalou', k: 'gombo', e: '🫛', c: 'peyi', l: 'bac', p: 'sac papier, non lavé', j: 4, et: 'S',
+    note: "L'humidité le rend visqueux avant cuisson. Papier, sec.", rec: ['Kalalou é diri'] },
+  { n: 'Manioc frais', e: '🥔', c: 'peyi', l: 'gadman', p: 'non emballé', j: 4,
+    note: 'Une des racines les plus fragiles : 3–4 jours, pas plus. Sinon râpe et congèle.' },
+  { n: 'Mangue', e: '🥭', c: 'peyi', l: 'kontwa', p: 'non emballée', j: 4, et: 'E',
+    note: 'Mûre, elle passe au frigo pour 3 jours de plus.', rec: ['Chutney mangue', 'Ji mango'] },
+  { n: 'Papaye verte', e: '🫒', c: 'peyi', l: 'bac', p: 'non emballée', j: 7, rec: ['Salade papaye verte'] },
+  { n: 'Papaye mûre', e: '🍈', c: 'peyi', l: 'etaj', p: 'entière ou filmée', j: 3, et: 'E' },
+  { n: 'Maracudja', k: 'fruit de la passion', e: '🍇', c: 'peyi', l: 'bac', p: 'non emballé', j: 14,
+    note: 'Peau fripée = pulpe à maturité, pas fruit gâté.' },
+  { n: 'Corossol', e: '🍈', c: 'peyi', l: 'kontwa', p: 'non emballé', j: 2, et: 'E',
+    note: 'Une fois souple : mange, congèle la pulpe, ou perds-le.', rec: ['Ji korosòl'] },
+  { n: 'Karambole', e: '⭐', c: 'peyi', l: 'bac', p: 'non emballée', j: 7 },
+  { n: 'Groseille péyi', e: '🌺', c: 'peyi', l: 'bac', p: 'sac papier', j: 7, rec: ['Ji groseille', 'Confiture groseille'] },
+  { n: 'Piment végétarien', e: '🌶️', c: 'peyi', l: 'bac', p: 'sac papier', j: 14, rec: ['Sòs chien'] },
+  { n: 'Cive', k: 'cébette', e: '🌿', c: 'peyi', l: 'bac', p: "pieds dans un verre d'eau", j: 7 },
+  { n: "Bwa d'Inde séché", e: '🍃', c: 'peyi', l: 'gadman', p: "bocal hermétique, à l'obscurité", j: 180 },
+  { n: 'Atoumo frais', e: '🌿', c: 'peyi', l: 'bac', p: 'torchon humide', j: 5, rec: ['Tizann atoumo'] },
+
+  /* --- ZÈB --- */
+  { n: 'Basilic', e: '🌿', c: 'zeb', l: 'kontwa', p: "tiges dans l'eau, sac lâche", j: 7, et: 'S',
+    note: 'Le seul qui déteste le frigo : le froid le fait noircir en une nuit.' },
+  { n: 'Ciboulette', e: '🌿', c: 'zeb', l: 'etaj', p: 'torchon humide', j: 5 },
+  { n: 'Coriandre', e: '🌿', c: 'zeb', l: 'etaj', p: "tiges dans l'eau, sac lâche", j: 7, et: 'S' },
+  { n: 'Persil', e: '🌿', c: 'zeb', l: 'etaj', p: "tiges dans l'eau, sac lâche", j: 7, et: 'S' },
+  { n: 'Romarin / thym', e: '🌿', c: 'zeb', l: 'etaj', p: 'enroulé dans un torchon humide', j: 14 },
+
+  /* --- BAZ & RÉZÈV --- */
+  { n: 'Pain', e: '🍞', c: 'baz', l: 'kontwa', p: 'sac hermétique, face coupée en bas', j: 3,
+    note: "Au-delà de 3 jours : tranche et congèle. Le frigo le rassit plus vite que l'air libre." },
+  { n: 'Pain congelé', e: '🍞', c: 'baz', l: 'kongel', p: 'tranché, sac hermétique', j: 90 },
+  { n: 'Tofu entamé', e: '🧊', c: 'baz', l: 'etaj', p: 'immergé, eau changée chaque jour', j: 4,
+    rec: ['Tofu fimé', 'Brochettes tofu'] },
+  { n: 'Lait végétal maison', e: '🥛', c: 'baz', l: 'etaj', p: 'bouteille fermée', j: 3,
+    note: 'Sans conservateur : 3 jours réels, agiter avant chaque usage.' },
+  { n: 'Légumineuses cuites', k: 'pwa', e: '🫘', c: 'baz', l: 'etaj', p: 'boîte hermétique, sans jus', j: 4,
+    note: 'Congèle en portions de 200 g dès la cuisson — 3 mois.' },
+  { n: 'Farines sans gluten', k: 'riz, manioc', e: '🌾', c: 'baz', l: 'gadman', p: 'bocal hermétique', j: 180,
+    note: "Farines de riz et d'amande rancissent : sous nos températures, mets-les au frigo." },
+  { n: 'Noix & graines', e: '🥜', c: 'baz', l: 'etaj', p: 'bocal hermétique', j: 180,
+    note: 'À 28 °C elles rancissent en quelques semaines au placard. Frigo obligatoire ici.' },
+  { n: 'Levure maltée', e: '🟡', c: 'baz', l: 'gadman', p: 'bocal opaque hermétique', j: 365 },
+  { n: 'Fermentés maison', k: 'pikliz, kraut', e: '🫙', c: 'baz', l: 'etaj', p: 'bocal, légumes sous saumure', j: 90,
+    note: 'Les légumes doivent rester immergés — ce qui dépasse moisit.', rec: ['Pikliz', 'Kraut lakay'] }
+];
+
+// ─── helpers ───
+const kvIdOf = it => it.n.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+const kvJours = (it, peyi) => peyi ? Math.max(1, Math.round(it.j * KV_LIEUX[it.l].fac)) : it.j;
+function kvFmtJ(j) {
+  if (j >= 300) return '1 an';
+  if (j >= 30) return Math.round(j / 30) + ' mois';
+  if (j >= 14) return Math.round(j / 7) + ' semaines';
+  if (j === 1) return '1 jour';
+  return j + ' jours';
+}
+function kvTodayISO() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function kvParseISO(s) { const p = String(s || '').split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); }
+function kvDaysBetween(a, b) { return Math.round((b - a) / 864e5); }
+function kvLoad() { try { const raw = LS.getItem(KV_STORE_KEY); return raw ? JSON.parse(raw) : []; } catch (e) { return []; } }
+function kvSave(v) { try { LS.setItem(KV_STORE_KEY, JSON.stringify(v)); } catch (e) { /* silencieux */ } }
+
+function KvLigne({ label, val, col }) {
+  const h = React.createElement;
+  return h('div', { style: { display: 'flex', gap: 10, marginBottom: 6, alignItems: 'baseline' } },
+    h('span', { style: { fontFamily: kvMono, fontSize: 10, color: '#4b7a5c', minWidth: 84, flexShrink: 0, letterSpacing: .5 } }, label),
+    h('span', { style: { fontSize: 12.5, color: col || '#cfe3d4', lineHeight: 1.5 } }, val)
+  );
+}
+
+function KvBloc({ titre, col, icon, items, pied }) {
+  const h = React.createElement;
+  return h('div', { style: { ...kvBox, padding: 16, marginBottom: 14, borderLeft: '3px solid ' + col } },
+    h('div', { style: { fontSize: 15, fontWeight: 700, color: '#f2faef', marginBottom: 11 } },
+      h('span', { style: { marginRight: 8 } }, icon), titre),
+    h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 6 } },
+      items.map((it, i) => h('span', {
+        key: i,
+        style: { fontFamily: kvMono, fontSize: 11, padding: '3px 10px', borderRadius: 20,
+          background: col + '16', color: col, border: '1px solid ' + col + '3a' }
+      }, it.e + ' ' + it.n))),
+    h('p', { style: { margin: '12px 0 0', fontSize: 12, color: '#8bb89a', lineHeight: 1.55, fontStyle: 'italic' } }, pied)
+  );
+}
+
+function KonsevasyonView() {
+  const h = React.createElement;
+  const [tab, setTab] = useState('katalog');
+  const [q, setQ] = useState('');
+  const [cat, setCat] = useState('all');
+  const [peyi, setPeyi] = useState(true);
+  const [open, setOpen] = useState(null);
+  const [rezev, setRezev] = useState(kvLoad);
+
+  useEffect(() => { kvSave(rezev); }, [rezev]);
+
+  const filtered = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    return KV_ITEMS.filter(it => {
+      if (cat !== 'all' && it.c !== cat) return false;
+      if (!s) return true;
+      return (it.n + ' ' + (it.k || '') + ' ' + KV_LIEUX[it.l].label).toLowerCase().includes(s);
+    });
+  }, [q, cat]);
+
+  const addRezev = it => {
+    const id = kvIdOf(it);
+    setRezev(p => [...p.filter(r => r.id !== id), { id, n: it.n, e: it.e, d: kvTodayISO() }]);
+    setTab('rezev');
+  };
+  const delRezev = id => setRezev(p => p.filter(r => r.id !== id));
+  const bumpRezev = id => setRezev(p => p.map(r => r.id === id ? { ...r, d: kvTodayISO() } : r));
+
+  const rezevCalc = useMemo(() => {
+    const now = kvParseISO(kvTodayISO());
+    return rezev.map(r => {
+      const it = KV_ITEMS.find(x => kvIdOf(x) === r.id);
+      if (!it) return null;
+      const total = kvJours(it, peyi);
+      const passe = kvDaysBetween(kvParseISO(r.d), now);
+      const reste = total - passe;
+      return { ...r, it, total, passe, reste, pct: Math.max(0, Math.min(100, reste / total * 100)) };
+    }).filter(Boolean).sort((a, b) => a.reste - b.reste);
+  }, [rezev, peyi]);
+
+  const urgents = rezevCalc.filter(r => r.reste <= 2);
+
+  const etat = r => {
+    if (r.reste < 0) return { c: KV_ROSE, t: 'Périmé' };
+    if (r.reste === 0) return { c: KV_ROSE, t: "Aujourd'hui" };
+    if (r.reste <= 2) return { c: KV_AMBER, t: r.reste + ' j restants' };
+    return { c: KV_MINT, t: r.reste + ' j restants' };
+  };
+
+  return h('div', {
+    style: { fontFamily: kvSerif, color: '#e8f5e0', minHeight: '100vh',
+      background: 'linear-gradient(135deg,#0a0f0d 0%,#0d1a12 50%,#0a0e10 100%)' }
+  },
+    // Les polices Playfair Display / Space Mono sont déjà chargées par index.html.
+    h('style', null, `
+      .kv-scroll::-webkit-scrollbar{height:0;width:0}
+      .kv-btn{transition:all .2s ease;cursor:pointer}
+      .kv-btn:hover{transform:translateY(-2px)}
+      .kv-card{transition:all .2s ease;cursor:pointer}
+      .kv-card:hover{border-color:#2d5a3d}
+      .kv-in::placeholder{color:#3f6650}
+      .kv-in:focus{outline:none;border-color:${KV_GOLD}}
+      @keyframes kvfade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+      .kv-fade{animation:kvfade .35s ease}
+      @media (prefers-reduced-motion: reduce){.kv-btn,.kv-card,.kv-fade{transition:none;animation:none}}
+    `),
+
+    // ─── HEADER ───
+    h('div', {
+      style: { padding: '26px 20px 16px', borderBottom: '1px solid #1e3a2a',
+        background: 'linear-gradient(180deg,#0a150e 0%,transparent 100%)' }
+    },
+      h('div', { style: { fontFamily: kvMono, fontSize: 10, color: KV_GOLD, letterSpacing: 4, textTransform: 'uppercase', marginBottom: 6 } },
+        'Lanmou Divan · Péyi 🌴'),
+      h('h1', { style: { margin: 0, fontSize: 30, fontWeight: 700, color: '#f0faf0', lineHeight: 1 } },
+        'Konsè', h('span', { style: { fontStyle: 'italic', fontWeight: 400, color: KV_GOLD } }, 'vasyon')),
+      h('p', { style: { margin: '10px 0 0', fontSize: 12.5, color: '#6b9e7a', fontStyle: 'italic', maxWidth: '44ch', lineHeight: 1.5 } },
+        "Où ranger, comment emballer, combien de temps ça tient — recalculé pour 28 °C et 80 % d'humidité."),
+
+      h('div', { className: 'kv-scroll', style: { display: 'flex', gap: 8, marginTop: 18, overflowX: 'auto' } },
+        [
+          { id: 'katalog', l: '🔍 Katalòg' },
+          { id: 'rezev', l: '🧺 Rézèv-mwen' + (urgents.length ? ' · ' + urgents.length : '') },
+          { id: 'etilen', l: '💨 Etilèn' }
+        ].map(t => h('button', {
+          key: t.id, className: 'kv-btn', onClick: () => setTab(t.id),
+          style: { padding: '8px 16px', borderRadius: 20, fontSize: 12, fontFamily: kvMono, whiteSpace: 'nowrap',
+            border: tab === t.id ? 'none' : '1px solid #1e3a2a',
+            background: tab === t.id ? KV_GOLD : 'rgba(255,255,255,0.05)',
+            color: tab === t.id ? '#0a0f0d' : '#8bb89a',
+            fontWeight: tab === t.id ? 700 : 400 }
+        }, t.l)))
+    ),
+
+    // ─── KATALÒG ───
+    tab === 'katalog' && h('div', { className: 'kv-fade' },
+      h('div', { style: { padding: '18px 20px 0' } },
+        h('input', {
+          className: 'kv-in', value: q, onChange: e => setQ(e.target.value),
+          placeholder: 'Chercher un ingrédient…',
+          style: { width: '100%', boxSizing: 'border-box', padding: '12px 16px', borderRadius: 14,
+            background: 'rgba(255,255,255,0.04)', border: '1px solid #1a3028', color: '#e8f5e0',
+            fontFamily: kvMono, fontSize: 13 }
+        })),
+
+      // mode péyi
+      h('div', { style: { padding: '12px 20px 0' } },
+        h('button', {
+          className: 'kv-btn', onClick: () => setPeyi(p => !p),
+          style: { width: '100%', textAlign: 'left', padding: '12px 15px', borderRadius: 14,
+            border: '1px solid ' + (peyi ? KV_GOLD + '55' : '#1a3028'),
+            background: peyi ? 'linear-gradient(135deg,rgba(217,167,101,.1),rgba(74,222,128,.03))' : 'rgba(255,255,255,0.03)',
+            color: '#e8f5e0', display: 'flex', alignItems: 'center', gap: 12 }
+        },
+          h('span', {
+            style: { width: 34, height: 20, borderRadius: 12, flexShrink: 0, position: 'relative',
+              background: peyi ? KV_GOLD : '#2a3a30', transition: 'background .2s' }
+          }, h('span', {
+            style: { position: 'absolute', top: 3, left: peyi ? 17 : 3, width: 14, height: 14,
+              borderRadius: '50%', background: peyi ? '#0a0f0d' : '#6b9e7a', transition: 'left .2s' }
+          })),
+          h('span', { style: { flex: 1 } },
+            h('span', { style: { fontFamily: kvMono, fontSize: 11, fontWeight: 700, color: peyi ? KV_GOLD : '#6b9e7a' } },
+              'MODE PÉYI ' + (peyi ? 'ACTIF' : 'COUPÉ')),
+            h('span', { style: { display: 'block', fontSize: 11.5, color: '#6b9e7a', fontStyle: 'italic', marginTop: 3, lineHeight: 1.45 } },
+              peyi
+                ? 'Durées ajustées au climat tropical : kontwa ÷ 2, gadmanjé ÷ 1,6.'
+                : "Durées d'origine, calibrées pour un climat tempéré à 20 °C.")))
+      ),
+
+      // catégories
+      h('div', { className: 'kv-scroll', style: { padding: '14px 20px 4px', display: 'flex', gap: 7, overflowX: 'auto' } },
+        [['all', { label: 'Tout', icon: '◆' }], ...Object.entries(KV_CATS)].map(([k, v]) => h('button', {
+          key: k, className: 'kv-btn', onClick: () => setCat(k),
+          style: { padding: '7px 13px', borderRadius: 20, fontFamily: kvMono, fontSize: 11, whiteSpace: 'nowrap',
+            border: cat === k ? 'none' : '1px solid #1e3a2a',
+            background: cat === k ? 'rgba(217,167,101,.9)' : 'rgba(255,255,255,0.04)',
+            color: cat === k ? '#0a0f0d' : '#6b9e7a', fontWeight: cat === k ? 700 : 400 }
+        }, v.icon + ' ' + v.label))),
+
+      // liste
+      h('div', { style: { padding: '12px 20px 40px' } },
+        h('div', { style: { fontFamily: kvMono, fontSize: 10, color: '#4b7a5c', letterSpacing: 1, marginBottom: 12 } },
+          filtered.length + ' ENTRÉE' + (filtered.length > 1 ? 'S' : '')),
+
+        filtered.length === 0 && h('div', { style: { ...kvBox, padding: 22, textAlign: 'center' } },
+          h('div', { style: { fontSize: 24, marginBottom: 8 } }, '🫙'),
+          h('div', { style: { fontSize: 13.5, color: '#8bb89a' } }, 'Aucun ingrédient ne correspond.'),
+          h('div', { style: { fontSize: 12, color: '#4b7a5c', fontStyle: 'italic', marginTop: 5 } },
+            'Essaie le nom créole, ou change de catégorie.')),
+
+        filtered.map(it => {
+          const L = KV_LIEUX[it.l];
+          const id = kvIdOf(it);
+          const j = kvJours(it, peyi);
+          const opened = open === id;
+          const inRezev = rezev.some(r => r.id === id);
+          return h('div', {
+            key: id, className: 'kv-card', onClick: () => setOpen(opened ? null : id),
+            style: { ...kvBox, padding: '13px 15px', marginBottom: 9,
+              borderLeft: '3px solid ' + L.color,
+              background: opened ? 'rgba(217,167,101,.05)' : kvBox.background }
+          },
+            h('div', { style: { display: 'flex', alignItems: 'center', gap: 12 } },
+              h('span', { style: { fontSize: 21, width: 26, textAlign: 'center', flexShrink: 0 } }, it.e),
+              h('div', { style: { flex: 1, minWidth: 0 } },
+                h('div', { style: { fontSize: 14.5, fontWeight: 700, color: '#eef7ec', lineHeight: 1.25 } },
+                  it.n,
+                  it.k && h('span', { style: { fontStyle: 'italic', fontWeight: 400, color: '#6b9e7a', fontSize: 12.5 } }, ' · ' + it.k)),
+                h('div', { style: { fontFamily: kvMono, fontSize: 10.5, color: L.color, marginTop: 3 } },
+                  L.icon + ' ' + L.label)),
+              h('div', { style: { textAlign: 'right', flexShrink: 0 } },
+                h('div', { style: { fontFamily: kvMono, fontSize: 13, fontWeight: 700, color: KV_GOLD } }, kvFmtJ(j)),
+                peyi && j !== it.j && h('div', {
+                  style: { fontFamily: kvMono, fontSize: 9.5, color: '#4b7a5c', textDecoration: 'line-through' }
+                }, kvFmtJ(it.j)))),
+
+            opened && h('div', { className: 'kv-fade', style: { marginTop: 13, paddingTop: 13, borderTop: '1px dashed #1e3a2a' } },
+              h(KvLigne, { label: 'Emballage', val: it.p }),
+              h(KvLigne, { label: 'Emplacement', val: L.label + ' — ' + L.sub }),
+              it.et && h(KvLigne, {
+                label: 'Éthylène',
+                val: it.et === 'E' ? 'Émetteur — à isoler des légumes' : 'Sensible — à éloigner des fruits mûrs',
+                col: it.et === 'E' ? KV_AMBER : KV_MINT
+              }),
+              it.note && h('p', { style: { margin: '10px 0 0', fontSize: 12.5, color: '#b4cebc', lineHeight: 1.55, fontStyle: 'italic' } }, it.note),
+              peyi && h('p', { style: { margin: '8px 0 0', fontSize: 11.5, color: '#6b9e7a', lineHeight: 1.5 } }, '🌴 ' + L.adj),
+              it.rec && it.rec.length > 0 && h('div', { style: { marginTop: 11, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' } },
+                h('span', { style: { fontFamily: kvMono, fontSize: 9.5, color: '#4b7a5c', letterSpacing: 1 } }, 'DREVMCOOK →'),
+                it.rec.map((r, i) => h('span', {
+                  key: i,
+                  style: { fontFamily: kvMono, fontSize: 10.5, padding: '3px 9px', borderRadius: 8,
+                    background: 'rgba(74,222,128,.1)', color: KV_GREEN, border: '1px solid rgba(74,222,128,.25)' }
+                }, r))),
+              h('button', {
+                className: 'kv-btn', onClick: e => { e.stopPropagation(); addRezev(it); },
+                style: { marginTop: 13, width: '100%', padding: '10px 0', borderRadius: 11, border: 'none',
+                  fontFamily: kvMono, fontSize: 11.5, fontWeight: 700,
+                  background: inRezev ? 'rgba(74,222,128,.14)' : KV_GOLD,
+                  color: inRezev ? KV_GREEN : '#0a0f0d' }
+              }, inRezev ? "↻ Remettre à aujourd'hui" : '+ Ajouter à la rézèv'))
+          );
+        }))
+    ),
+
+    // ─── RÉZÈV ───
+    tab === 'rezev' && h('div', { className: 'kv-fade', style: { padding: '20px 20px 40px' } },
+      rezevCalc.length === 0
+        ? h('div', { style: { ...kvBox, padding: 26, textAlign: 'center' } },
+            h('div', { style: { fontSize: 28, marginBottom: 10 } }, '🧺'),
+            h('div', { style: { fontSize: 15, fontWeight: 700, color: '#eef7ec', marginBottom: 6 } }, 'Rézèv vide'),
+            h('div', { style: { fontSize: 12.5, color: '#6b9e7a', lineHeight: 1.6, fontStyle: 'italic' } },
+              'Ouvre un ingrédient dans le katalòg et ajoute-le ici le jour où tu le ramènes du marché. Le compte à rebours démarre tout seul.'),
+            h('button', {
+              className: 'kv-btn', onClick: () => setTab('katalog'),
+              style: { marginTop: 16, padding: '10px 22px', borderRadius: 11, border: 'none',
+                fontFamily: kvMono, fontSize: 11.5, fontWeight: 700, background: KV_GOLD, color: '#0a0f0d' }
+            }, 'Ouvrir le katalòg'))
+        : h(React.Fragment, null,
+            urgents.length > 0 && h('div', {
+              style: { ...kvBox, padding: '13px 15px', marginBottom: 16, borderLeft: '3px solid ' + KV_AMBER,
+                background: 'linear-gradient(135deg,rgba(245,158,11,.08),rgba(255,255,255,.015))' }
+            },
+              h('div', { style: { fontFamily: kvMono, fontSize: 10, color: KV_AMBER, letterSpacing: 2, marginBottom: 6 } },
+                'À CUISINER EN PRIORITÉ'),
+              h('div', { style: { fontSize: 13, color: '#dbe9dd', lineHeight: 1.5 } },
+                urgents.map(r => r.it.n).join(' · ')),
+              urgents.some(r => r.it.rec) && h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 } },
+                [...new Set(urgents.flatMap(r => r.it.rec || []))].map((r, i) => h('span', {
+                  key: i,
+                  style: { fontFamily: kvMono, fontSize: 10.5, padding: '3px 9px', borderRadius: 8,
+                    background: 'rgba(74,222,128,.1)', color: KV_GREEN, border: '1px solid rgba(74,222,128,.25)' }
+                }, r)))),
+
+            rezevCalc.map(r => {
+              const st = etat(r);
+              return h('div', { key: r.id, style: { ...kvBox, padding: '13px 15px', marginBottom: 9, borderLeft: '3px solid ' + st.c } },
+                h('div', { style: { display: 'flex', alignItems: 'center', gap: 12 } },
+                  h('span', { style: { fontSize: 20, width: 24, textAlign: 'center' } }, r.e),
+                  h('div', { style: { flex: 1, minWidth: 0 } },
+                    h('div', { style: { fontSize: 14, fontWeight: 700, color: '#eef7ec' } }, r.n),
+                    h('div', { style: { fontFamily: kvMono, fontSize: 10, color: '#4b7a5c', marginTop: 2 } },
+                      'rentré le ' + kvParseISO(r.d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) + ' · ' + KV_LIEUX[r.it.l].label)),
+                  h('span', {
+                    style: { fontFamily: kvMono, fontSize: 10.5, fontWeight: 700, padding: '3px 10px',
+                      borderRadius: 20, background: st.c + '1f', color: st.c, flexShrink: 0 }
+                  }, st.t)),
+                h('div', { style: { height: 5, background: '#152520', borderRadius: 4, overflow: 'hidden', margin: '11px 0 9px' } },
+                  h('div', { style: { height: '100%', width: r.pct + '%', background: st.c, borderRadius: 4, transition: 'width .4s ease' } })),
+                h('div', { style: { display: 'flex', gap: 8 } },
+                  h('button', {
+                    className: 'kv-btn', onClick: () => bumpRezev(r.id),
+                    style: { flex: 1, padding: '7px 0', borderRadius: 9, border: '1px solid #1e3a2a',
+                      background: 'rgba(255,255,255,0.03)', color: '#8bb89a', fontFamily: kvMono, fontSize: 10.5 }
+                  }, '↻ Racheté aujourd\'hui'),
+                  h('button', {
+                    className: 'kv-btn', onClick: () => delRezev(r.id),
+                    style: { padding: '7px 14px', borderRadius: 9, border: '1px solid #3a1a24',
+                      background: 'rgba(251,113,133,.07)', color: KV_ROSE, fontFamily: kvMono, fontSize: 10.5 }
+                  }, 'Consommé')));
+            }),
+
+            h('p', { style: { fontSize: 11, color: '#4b7a5c', fontStyle: 'italic', lineHeight: 1.6, marginTop: 18 } },
+              "Les durées sont des repères, pas des dates de péremption. L'odeur, le toucher et l'aspect priment toujours. Rézèv gardée en local sur cet appareil."))
+    ),
+
+    // ─── ETILÈN ───
+    tab === 'etilen' && h('div', { className: 'kv-fade', style: { padding: '20px 20px 40px' } },
+      h('div', {
+        style: { ...kvBox, padding: 18, marginBottom: 18,
+          background: 'linear-gradient(140deg,rgba(217,167,101,.07),rgba(255,255,255,.015))' }
+      },
+        h('div', { style: { fontSize: 17, fontWeight: 700, color: '#f4faf1', marginBottom: 8 } }, 'Le gaz qui vide ton panier'),
+        h('p', { style: { margin: 0, fontSize: 13, color: '#b4cebc', lineHeight: 1.6 } },
+          "Certains fruits dégagent de l'éthylène en mûrissant. À 28 °C, ce gaz agit deux fois plus vite qu'en Europe : un plantain posé sur un panier de légumes peut leur coûter la moitié de leur durée de vie. La règle tient en une phrase — ",
+          h('b', { style: { color: KV_GOLD } }, 'les émetteurs vivent seuls'), '.')),
+
+      h(KvBloc, {
+        titre: 'Émetteurs — à isoler', col: KV_AMBER, icon: '💨',
+        items: KV_ITEMS.filter(i => i.et === 'E'),
+        pied: "Un panier à part, à l'air libre, loin de tout le reste. Le plantain, la banane et l'avocat sont les plus puissants."
+      }),
+      h(KvBloc, {
+        titre: 'Sensibles — à protéger', col: KV_MINT, icon: '🥬',
+        items: KV_ITEMS.filter(i => i.et === 'S'),
+        pied: 'Bac à légumes fermé, à l\'écart des fruits mûrs. Ce sont eux qui jaunissent, ramollissent et germent en premier.'
+      }),
+
+      h('div', { style: { ...kvBox, padding: 16, marginTop: 6 } },
+        h('div', { style: { fontFamily: kvMono, fontSize: 10, color: KV_GOLD, letterSpacing: 2, marginBottom: 11 } },
+          '🌴 TROIS RÉFLEXES LAKAY'),
+        [
+          ['Trois zones, pas une', 'Un panier émetteurs sur le kontwa, le bac du frigo pour les sensibles, un gadmanjé ventilé pour les racines. Tant que tout dort au même endroit, tu perds des légumes.'],
+          ['Sec avant froid', "Ne lave jamais avant de ranger. L'eau résiduelle à 80 % d'humidité, c'est de la moisissure garantie en deux jours."],
+          ['Papier pour ce qui respire', 'Champignons, kalalou, piments : sac papier. Le plastique les fait suer et pourrir de l\'intérieur.']
+        ].map((row, i) => h('div', { key: i, style: { display: 'flex', gap: 12, marginBottom: i < 2 ? 14 : 0 } },
+          h('span', { style: { fontFamily: kvMono, fontSize: 11, color: KV_GOLD, opacity: .6, flexShrink: 0, paddingTop: 2 } },
+            String(i + 1).padStart(2, '0')),
+          h('div', null,
+            h('div', { style: { fontSize: 14, fontWeight: 700, color: '#eef7ec', marginBottom: 3 } }, row[0]),
+            h('div', { style: { fontSize: 12.5, color: '#b4cebc', lineHeight: 1.55 } }, row[1])))))
+    )
   );
 }
 
@@ -13469,6 +13986,7 @@ const ch=sb.channel('ld-realtime')
     view === 'vision' && React.createElement(VisionView,{data,updateVision}),
     view === 'planning' && React.createElement(PlanningView,{planning:(data.couple||{}).planning||{},togglePlanningCheck,addPlanningCustomItem,deletePlanningCustomItem,soirees:(data.couple||{}).soirees||[],addSoiree,deleteSoiree}),
     view === 'drevmcook' && React.createElement(DrevmCookView,{ferments:data.ferments||[],upsertFerment,deleteFerment,recipes:data.recipes||[],upsertRecipe,deleteRecipe,importRecipes}),
+    view === 'konsevasyon' && React.createElement(KonsevasyonView,null),
     view === 'culture' && React.createElement(CultureGwadView,null),
     view === 'coderousseau' && React.createElement(CodeRousseauView,{codeRousseau:(data.liika||{}).codeRousseau,updateCodeRousseau}),
     view === 'objmensuel' && renderObjMensuel(),
