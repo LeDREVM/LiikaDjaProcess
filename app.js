@@ -114,8 +114,8 @@ async function sbLoad(token) {
 }
 async function sbSave(d, token) {
   if (DEMO) return; // démo : jamais d'écriture Supabase
-  // recipes, ferments, courses & media vivent dans leurs tables dédiées → hors du blob app_state
-  const { recipes, ferments, courses, media, ...rest } = d || {};
+  // recipes, ferments, rezev, courses & media vivent dans leurs tables dédiées → hors du blob app_state
+  const { recipes, ferments, rezev, courses, media, ...rest } = d || {};
   if (token) {
     const { error } = await sb.rpc('ld_save_app_state', { p_token: token, p_data: rest, p_device_id: DEVICE_ID });
     if (error) throw error;
@@ -170,6 +170,23 @@ async function sbUpsertFerment(f) {
   });
 }
 async function sbDeleteFerment(id) { return sb.from('ferments').delete().eq('id', id); }
+
+// ─── Konsèvasyon : rézèv (table dédiée) ───
+// Forme app {id, n:nom, e:emoji, d:date d'entrée} ↔ forme SQL (colonnes lisibles).
+async function sbLoadRezev() {
+  const { data, error } = await sb.from('rezev').select('*');
+  if (error) throw error;
+  return (data || []).map(r => ({
+    id: r.id, n: r.nom || '', e: r.emoji || '', d: r.date_entree || ''
+  }));
+}
+async function sbUpsertRezev(r) {
+  return sb.from('rezev').upsert({
+    id: r.id, nom: r.n || '', emoji: r.e || '', date_entree: r.d || null,
+    updated_at: new Date().toISOString(), device_id: DEVICE_ID
+  });
+}
+async function sbDeleteRezev(id) { return sb.from('rezev').delete().eq('id', id); }
 
 // ─── Courses : table dédiée ───
 async function sbLoadCourses() {
@@ -826,6 +843,7 @@ const realDefaultData = {
   },
   recipes: [],
   ferments: [],
+  rezev: [],
   courses: [],
   media: [{
     id: 'pl-seed',
@@ -1046,6 +1064,7 @@ const demoData = {
   },
   recipes: [],
   ferments: [],
+  rezev: [],
   courses: [],
   media: [{
     id: 'pl-seed', kind: 'playlist',
@@ -1086,6 +1105,9 @@ function normalize(d) {
     };
   }
   if (Array.isArray(d.ferments)) base.ferments = d.ferments;
+  // Konsèvasyon : entrées {id,n,e,d}. Filtrées ici car une entrée sans id ferait
+  // planter le rendu de la rézèv (kvIdOf/find sur undefined).
+  if (Array.isArray(d.rezev)) base.rezev = d.rezev.filter(r => r && typeof r === 'object' && r.id);
   if (Array.isArray(d.courses)) base.courses = d.courses;
   if (Array.isArray(d.media)) base.media = d.media;
   if (Array.isArray(d.album)) base.album = d.album;
@@ -10502,7 +10524,8 @@ function PotagerView({ plantes, addPlante, updatePlante, deletePlante, semansye,
 // KONSÈVASYON — Où ranger, comment emballer, combien de temps ça tient.
 // Durées de base calibrées pour un climat tempéré (20 °C) ; le « mode péyi »
 // les recalcule pour 28 °C / 80 % d'humidité (Guadeloupe).
-// Rézèv stockée en local (LS) uniquement — pas de synchro Supabase.
+// La rézèv vit dans sa propre table Supabase (voir supabase/konsevasyon.sql),
+// comme recipes/ferments : hors du blob app_state, forme garantie par normalize().
 // ─────────────────────────────────────────────────────────────────────────────
 const KV_GOLD = '#d9a765';
 const KV_GREEN = '#4ade80';
@@ -10682,8 +10705,15 @@ function kvTodayISO() {
 }
 function kvParseISO(s) { const p = String(s || '').split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); }
 function kvDaysBetween(a, b) { return Math.round((b - a) / 864e5); }
-function kvLoad() { try { const raw = LS.getItem(KV_STORE_KEY); return raw ? JSON.parse(raw) : []; } catch (e) { return []; } }
-function kvSave(v) { try { LS.setItem(KV_STORE_KEY, JSON.stringify(v)); } catch (e) { /* silencieux */ } }
+// Lecture de l'ancienne rézèv locale (version pré-table Supabase) — sert uniquement
+// à la migration one-shot au premier chargement, puis la clé est supprimée.
+function kvLoadLegacy() {
+  try {
+    const raw = LS.getItem(KV_STORE_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list.filter(r => r && r.id) : [];
+  } catch (e) { return []; }
+}
 
 function KvLigne({ label, val, col }) {
   const h = React.createElement;
@@ -10708,16 +10738,14 @@ function KvBloc({ titre, col, icon, items, pied }) {
   );
 }
 
-function KonsevasyonView() {
+function KonsevasyonView({ rezev, upsertRezev, deleteRezev }) {
   const h = React.createElement;
   const [tab, setTab] = useState('katalog');
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('all');
   const [peyi, setPeyi] = useState(true);
   const [open, setOpen] = useState(null);
-  const [rezev, setRezev] = useState(kvLoad);
-
-  useEffect(() => { kvSave(rezev); }, [rezev]);
+  rezev = Array.isArray(rezev) ? rezev : [];
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -10729,12 +10757,14 @@ function KonsevasyonView() {
   }, [q, cat]);
 
   const addRezev = it => {
-    const id = kvIdOf(it);
-    setRezev(p => [...p.filter(r => r.id !== id), { id, n: it.n, e: it.e, d: kvTodayISO() }]);
+    upsertRezev({ id: kvIdOf(it), n: it.n, e: it.e, d: kvTodayISO() });
     setTab('rezev');
   };
-  const delRezev = id => setRezev(p => p.filter(r => r.id !== id));
-  const bumpRezev = id => setRezev(p => p.map(r => r.id === id ? { ...r, d: kvTodayISO() } : r));
+  const delRezev = id => deleteRezev(id);
+  const bumpRezev = id => {
+    const cur = rezev.find(r => r.id === id);
+    if (cur) upsertRezev({ ...cur, d: kvTodayISO() });
+  };
 
   const rezevCalc = useMemo(() => {
     const now = kvParseISO(kvTodayISO());
@@ -10971,7 +11001,7 @@ function KonsevasyonView() {
             }),
 
             h('p', { style: { fontSize: 11, color: '#4b7a5c', fontStyle: 'italic', lineHeight: 1.6, marginTop: 18 } },
-              "Les durées sont des repères, pas des dates de péremption. L'odeur, le toucher et l'aspect priment toujours. Rézèv gardée en local sur cet appareil."))
+              "Les durées sont des repères, pas des dates de péremption. L'odeur, le toucher et l'aspect priment toujours. Rézèv synchronisée entre vos appareils."))
     ),
 
     // ─── ETILÈN ───
@@ -11959,7 +11989,7 @@ let alive=true;
   // ── DrevmCook : charge les tables dédiées (+ migration depuis le blob si vides) ──
   // Fait ICI car remoteData (ancien blob) contient encore recipes/ferments avant strip.
   try{
-    let [recs,ferms,crs,meds]=await Promise.all([sbLoadRecipes(),sbLoadFerments(),sbLoadCourses().catch(()=>[]),sbLoadMedia().catch(()=>[])]);
+    let [recs,ferms,crs,meds,rzv]=await Promise.all([sbLoadRecipes(),sbLoadFerments(),sbLoadCourses().catch(()=>[]),sbLoadMedia().catch(()=>[]),sbLoadRezev().catch(()=>[])]);
     const srcRecs=(Array.isArray(remoteData.recipes)&&remoteData.recipes.length)?remoteData.recipes:(Array.isArray(data.recipes)?data.recipes:[]);
     const srcFerms=(Array.isArray(remoteData.ferments)&&remoteData.ferments.length)?remoteData.ferments:(Array.isArray(data.ferments)?data.ferments:[]);
     // Migration média : si la table est vide, on y verse le blob/seed (dont la playlist Mix Vibz par défaut).
@@ -11967,7 +11997,12 @@ let alive=true;
     if(recs.length===0&&srcRecs.length>0){ await Promise.all(srcRecs.map(r=>sbUpsertRecipe(r).catch(()=>{}))); recs=srcRecs; }
     if(ferms.length===0&&srcFerms.length>0){ await Promise.all(srcFerms.map(f=>sbUpsertFerment(f).catch(()=>{}))); ferms=srcFerms; }
     if(meds.length===0&&srcMeds.length>0){ await Promise.all(srcMeds.map(m=>sbUpsertMedia(m).catch(()=>{}))); meds=srcMeds; }
-    if(alive){ remoteApplyRef.current=true; setDataRaw(prev=>({...prev,recipes:recs,ferments:ferms,courses:crs,media:meds})); }
+    // Rézèv : migration depuis l'ancienne clé localStorage locale (version pré-table),
+    // sinon depuis le blob. La clé locale est retirée une fois la table amorcée.
+    const srcRzv=(Array.isArray(remoteData.rezev)&&remoteData.rezev.length)?remoteData.rezev:kvLoadLegacy();
+    if(rzv.length===0&&srcRzv.length>0){ await Promise.all(srcRzv.map(r=>sbUpsertRezev(r).catch(()=>{}))); rzv=srcRzv; }
+    if(srcRzv.length>0){ try{ LS.removeItem(KV_STORE_KEY); }catch(_){} }
+    if(alive){ remoteApplyRef.current=true; setDataRaw(prev=>({...prev,recipes:recs,ferments:ferms,courses:crs,media:meds,rezev:rzv})); }
   }catch(_){}
 
   setSyncStatus('ok');
@@ -12047,6 +12082,8 @@ const ch=sb.channel('ld-realtime')
         async () => { try { const crs = await sbLoadCourses(); remoteApplyRef.current = true; setDataRaw(prev => ({ ...prev, courses: crs })); } catch (_) {} })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'media' },
         async () => { try { const meds = await sbLoadMedia(); remoteApplyRef.current = true; setDataRaw(prev => ({ ...prev, media: meds })); } catch (_) {} })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'rezev' },
+        async () => { try { const rzv = await sbLoadRezev(); remoteApplyRef.current = true; setDataRaw(prev => ({ ...prev, rezev: rzv })); } catch (_) {} })
       .subscribe();
     return () => { sb.removeChannel(ch); };
   }, []);
@@ -12219,6 +12256,26 @@ const ch=sb.channel('ld-realtime')
       return next;
     });
     (list || []).forEach(r => sbUpsertRecipe(r).catch(() => {}));
+  }, []);
+  // Konsèvasyon : un ingrédient = une seule entrée de rézèv (le racheter met à
+  // jour sa date d'entrée au lieu d'ajouter une ligne).
+  const upsertRezev = useCallback(entry => {
+    setDataRaw(prev => {
+      const next = clone(prev);
+      if (!Array.isArray(next.rezev)) next.rezev = [];
+      const idx = next.rezev.findIndex(r => r.id === entry.id);
+      if (idx >= 0) next.rezev[idx] = entry;else next.rezev.push(entry);
+      return next;
+    });
+    sbUpsertRezev(entry).catch(() => {});
+  }, []);
+  const deleteRezev = useCallback(id => {
+    setDataRaw(prev => {
+      const next = clone(prev);
+      next.rezev = (next.rezev || []).filter(r => r.id !== id);
+      return next;
+    });
+    sbDeleteRezev(id).catch(() => {});
   }, []);
   const upsertFerment = useCallback(ferment => {
     setDataRaw(prev => {
@@ -13986,7 +14043,7 @@ const ch=sb.channel('ld-realtime')
     view === 'vision' && React.createElement(VisionView,{data,updateVision}),
     view === 'planning' && React.createElement(PlanningView,{planning:(data.couple||{}).planning||{},togglePlanningCheck,addPlanningCustomItem,deletePlanningCustomItem,soirees:(data.couple||{}).soirees||[],addSoiree,deleteSoiree}),
     view === 'drevmcook' && React.createElement(DrevmCookView,{ferments:data.ferments||[],upsertFerment,deleteFerment,recipes:data.recipes||[],upsertRecipe,deleteRecipe,importRecipes}),
-    view === 'konsevasyon' && React.createElement(KonsevasyonView,null),
+    view === 'konsevasyon' && React.createElement(KonsevasyonView,{rezev:data.rezev||[],upsertRezev,deleteRezev}),
     view === 'culture' && React.createElement(CultureGwadView,null),
     view === 'coderousseau' && React.createElement(CodeRousseauView,{codeRousseau:(data.liika||{}).codeRousseau,updateCodeRousseau}),
     view === 'objmensuel' && renderObjMensuel(),
