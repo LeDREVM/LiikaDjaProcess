@@ -2202,6 +2202,326 @@ const DEFAULT_RECIPES = [{
   preparation: 'Répertoire des plantes traditionnelles antillaises utilisées en cuisine et médecine populaire DrevmCook. Toujours commencer à petite dose. Ces plantes ne remplacent pas un avis médical. Leaf of Life : contient des glycosides cardiaques — éviter grossesse, problèmes cardiaques, enfants.',
   apports: 'Patrimoine botanique caribéen : antioxydants, huiles essentielles, flavonoïdes, minéraux, polyphénols.',
   budget: 'Gratuit (cueillette) à ≈ 1-2 € (marché local)'
+}, {
+  // ─── Desserts sans cuisson ───
+  id: 'r17',
+  nom: 'Charlotte aux Fruits Rouges',
+  categorie: 'Desserts',
+  tags: ['sans-cuisson', 'végétarien', 'fruits'],
+  ingredients: ['2 couches de biscuits à la cuillère', '2 tasses de crème entière battue', '1 tasse de fruits rouges mélangés', '2 c. à soupe de coulis de framboise', 'Quelques fruits rouges pour décorer'],
+  preparation: '1. Monter la crème entière bien froide en chantilly ferme. 2. Tapisser le fond du moule d\'une couche de biscuits à la cuillère. 3. Étaler la moitié de la crème, puis les fruits rouges et le coulis. 4. Recouvrir d\'une seconde couche de biscuits, puis du reste de crème. 5. Décorer de fruits rouges frais. 6. Réfrigérer 4 heures avant de servir.',
+  apports: 'Fruits rouges : vitamine C, anthocyanes, fibres. Crème : lipides, calcium, vitamine A. Biscuits : glucides, énergie rapide.',
+  budget: '≈ 8 à 12 €'
+}, {
+  id: 'r18',
+  nom: 'Cheesecake Vanille sans Cuisson',
+  categorie: 'Desserts',
+  tags: ['sans-cuisson', 'végétarien'],
+  ingredients: ['1 couche de biscuits sablés écrasés', '2 tasses de fromage frais ou mascarpone', '½ tasse de crème entière battue', '1 c. à soupe d\'extrait de vanille', 'Miettes de biscuits pour décorer'],
+  preparation: '1. Écraser les biscuits sablés et les tasser au fond du moule. 2. Fouetter le fromage frais avec la vanille. 3. Incorporer délicatement la crème montée. 4. Verser sur la base biscuitée et lisser. 5. Parsemer de miettes de biscuits. 6. Réfrigérer 4 heures.',
+  apports: 'Fromage frais / mascarpone : protéines, calcium. Crème : bons lipides, vitamine A. Vanille : arômes naturels, antioxydants.',
+  budget: '≈ 7 à 11 €'
+}, {
+  id: 'r19',
+  nom: 'Délice Chocolat-Café',
+  categorie: 'Desserts',
+  tags: ['sans-cuisson', 'végétarien', 'chocolat'],
+  ingredients: ['1 couche de biscuits au cacao écrasés', '2 tasses de crème entière ou mascarpone', '2 c. à soupe de café fort refroidi', '2 c. à soupe de cacao en poudre', 'Copeaux de chocolat'],
+  preparation: '1. Écraser les biscuits au cacao et les tasser au fond du plat. 2. Fouetter la crème (ou le mascarpone) avec le cacao en poudre. 3. Ajouter le café froid et mélanger sans casser la texture. 4. Verser sur la base et lisser. 5. Parsemer de copeaux de chocolat. 6. Réfrigérer 4 heures.',
+  apports: 'Cacao : magnésium, flavonoïdes, fer. Café : caféine, polyphénols. Crème : lipides, calcium.',
+  budget: '≈ 7 à 10 €'
+}, {
+  id: 'r20',
+  nom: 'Verrine Coco-Framboise',
+  categorie: 'Desserts',
+  tags: ['sans-cuisson', 'végétarien', 'fruits'],
+  ingredients: ['1 ou 2 couches de biscuits sablés', '2 tasses de crème coco ou mascarpone', '½ tasse de coulis de framboise', '2 c. à soupe de noix de coco râpée', 'Framboises fraîches pour décorer'],
+  preparation: '1. Émietter les biscuits au fond des verrines. 2. Fouetter la crème de coco bien froide. 3. Alterner couches de crème et de coulis de framboise. 4. Parsemer de noix de coco râpée. 5. Décorer de framboises fraîches. 6. Réfrigérer 4 heures.',
+  apports: 'Framboise : vitamine C, fibres, antioxydants. Coco : bons lipides (TCM), manganèse. Biscuits : glucides, énergie.',
+  budget: '≈ 8 à 12 €'
+}, {
+  id: 'r21',
+  nom: 'Gâteau Froid Praliné',
+  categorie: 'Desserts',
+  tags: ['sans-cuisson', 'végétarien'],
+  ingredients: ['1 couche de biscuits type petits-beurre', '2 tasses de crème entière ou mascarpone', '½ tasse de pâte pralinée', '2 c. à soupe de noisettes concassées', 'Éclats de praliné'],
+  preparation: '1. Tapisser le moule de biscuits petits-beurre. 2. Fouetter la crème puis incorporer la pâte pralinée. 3. Étaler sur les biscuits (alterner une seconde couche si le moule est haut). 4. Parsemer de noisettes concassées et d\'éclats de praliné. 5. Réfrigérer 4 heures.',
+  apports: 'Noisette : vitamine E, magnésium, bons lipides. Praliné : glucides, énergie. Crème : calcium, vitamine A.',
+  budget: '≈ 9 à 14 €'
+}, {
+  // ─── Trempettes maison ───
+  id: 'r22',
+  nom: 'Houmous à la Betterave',
+  categorie: 'Tartinades',
+  tags: ['vegan', 'sans-gluten', 'apéro'],
+  ingredients: ['250 g de pois chiches', '1 betterave cuite', '2 c. à soupe de tahini', 'Jus d\'½ citron', '1 gousse d\'ail', 'Sel, poivre'],
+  preparation: 'Mixer tous les ingrédients jusqu\'à obtenir une texture lisse et crémeuse. Ajuster le citron et le sel selon le goût. Servir avec des crudités, du pain pita ou des crackers.',
+  apports: 'Pois chiche : protéines, fibres, fer. Betterave : nitrates, folates, soutien de la circulation. Tahini : calcium, bons lipides.',
+  budget: '≈ 3 à 5 €'
+}, {
+  id: 'r23',
+  nom: 'Tzatziki',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'apéro', 'rapide'],
+  ingredients: ['1 yaourt grec', '½ concombre râpé', '1 gousse d\'ail', '1 c. à soupe d\'huile d\'olive', 'Aneth', 'Sel, poivre'],
+  preparation: 'Râper le concombre et le presser pour retirer l\'eau. Mélanger avec le yaourt grec, l\'ail écrasé, l\'huile d\'olive et l\'aneth ciselé. Saler, poivrer. Laisser reposer 1 h au frais avant de servir.',
+  apports: 'Yaourt grec : protéines, probiotiques, calcium. Concombre : hydratation, potassium. Ail : allicine, immunité.',
+  budget: '≈ 2 à 4 €'
+}, {
+  id: 'r24',
+  nom: 'Guacamole',
+  categorie: 'Tartinades',
+  tags: ['vegan', 'sans-gluten', 'cru', 'apéro'],
+  ingredients: ['2 avocats', '1 tomate', 'Jus d\'½ citron vert', '¼ d\'oignon rouge', 'Coriandre', 'Sel, poivre'],
+  preparation: 'Écraser les avocats à la fourchette. Ajouter la tomate en petits dés, l\'oignon rouge finement haché, le jus de citron vert et la coriandre ciselée. Saler, poivrer et servir aussitôt pour garder la couleur.',
+  apports: 'Avocat : bons lipides, potassium, vitamine E. Tomate : lycopène, vitamine C. Citron vert : vitamine C, anti-oxydation naturelle.',
+  budget: '≈ 3 à 6 €'
+}, {
+  id: 'r25',
+  nom: 'Dip Feta & Poivrons Rôtis',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'apéro'],
+  ingredients: ['200 g de feta', '1 poivron rouge rôti', '3 c. à soupe de yaourt', '1 c. à soupe d\'huile d\'olive', 'Origan', 'Sel, poivre'],
+  preparation: 'Rôtir le poivron puis le peler. Mixer avec la feta émiettée, le yaourt et l\'huile d\'olive jusqu\'à texture onctueuse. Assaisonner d\'origan, sel et poivre. Servir tiède ou frais avec du pain grillé.',
+  apports: 'Feta : protéines, calcium (attention au sodium). Poivron rôti : vitamine C, bêta-carotène. Yaourt : probiotiques, protéines.',
+  budget: '≈ 4 à 6 €'
+}, {
+  id: 'r26',
+  nom: 'Rillettes de Saumon',
+  categorie: 'Tartinades',
+  tags: ['sans-gluten', 'protéiné', 'apéro'],
+  ingredients: ['200 g de saumon fumé', '100 g de fromage frais', '1 c. à soupe de citron', 'Ciboulette', 'Sel, poivre'],
+  preparation: 'Hacher le saumon fumé au couteau. Mélanger avec le fromage frais, le jus de citron et la ciboulette ciselée. Poivrer (saler peu, le saumon l\'est déjà). Réserver 1 h au frais et servir sur des toasts.',
+  apports: 'Saumon : oméga-3, protéines, vitamine D. Fromage frais : calcium, protéines. Citron : vitamine C.',
+  budget: '≈ 7 à 10 €'
+}, {
+  id: 'r27',
+  nom: 'Dip Avocat & Fromage Frais',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'rapide'],
+  ingredients: ['1 avocat', '100 g de fromage frais', 'Jus d\'½ citron', 'Ciboulette', 'Sel, poivre'],
+  preparation: 'Mixer l\'avocat avec le fromage frais et le jus de citron jusqu\'à texture lisse. Ajouter la ciboulette ciselée, saler et poivrer. Servir frais avec des bâtonnets de légumes.',
+  apports: 'Avocat : bons lipides, potassium, fibres. Fromage frais : protéines, calcium. Citron : vitamine C.',
+  budget: '≈ 3 à 5 €'
+}, {
+  // ─── Houmous sains ───
+  id: 'r28',
+  nom: 'Houmous Betterave-Basilic',
+  categorie: 'Tartinades',
+  tags: ['vegan', 'sans-gluten', 'houmous'],
+  ingredients: ['250 g de pois chiches', '200 g de betterave cuite', 'Basilic', 'Jus de 1 citron', '2 c. à soupe d\'huile d\'olive', 'Sel et poivre au goût', 'Topping : 1 c. à café de graines'],
+  preparation: 'Mixer les pois chiches avec la betterave, le basilic, le jus de citron et l\'huile d\'olive jusqu\'à texture crémeuse. Rectifier sel et poivre. Servir avec un filet d\'huile et une cuillère de graines.',
+  apports: 'Pois chiche : protéines, fibres, fer. Betterave : nitrates, folates. Basilic : antioxydants, huiles essentielles. Graines : zinc, magnésium.',
+  budget: '≈ 3 à 5 €'
+}, {
+  id: 'r29',
+  nom: 'Houmous de Lentilles',
+  categorie: 'Tartinades',
+  tags: ['vegan', 'sans-gluten', 'houmous'],
+  ingredients: ['250 g de lentilles cuites', 'Coriandre fraîche', 'Jus de 1 citron', '2 c. à soupe d\'huile d\'olive', 'Sel et poivre au goût'],
+  preparation: 'Mixer les lentilles cuites et égouttées avec la coriandre, le jus de citron et l\'huile d\'olive. Ajouter un peu d\'eau si la texture est trop épaisse. Rectifier l\'assaisonnement.',
+  apports: 'Lentille : protéines végétales, fer, fibres, index glycémique bas. Coriandre : antioxydants. Citron : vitamine C (aide l\'absorption du fer).',
+  budget: '≈ 2 à 4 €'
+}, {
+  id: 'r30',
+  nom: 'Houmous Paprika Fumé',
+  categorie: 'Tartinades',
+  tags: ['vegan', 'sans-gluten', 'houmous'],
+  ingredients: ['250 g de pois chiches', '1 c. à café de paprika fumé', 'Jus de 1 citron', '2 c. à soupe d\'huile d\'olive', 'Sel et poivre', 'Topping : betterave rouge', 'Estragon'],
+  preparation: 'Mixer les pois chiches avec le paprika fumé, le jus de citron et l\'huile d\'olive. Assaisonner. Garnir de dés de betterave rouge et de feuilles d\'estragon avant de servir.',
+  apports: 'Pois chiche : protéines, fibres, fer. Paprika fumé : caroténoïdes, antioxydants. Huile d\'olive : oméga-9, vitamine E.',
+  budget: '≈ 3 à 5 €'
+}, {
+  id: 'r31',
+  nom: 'Houmous Poivron Jaune Rôti',
+  categorie: 'Tartinades',
+  tags: ['vegan', 'sans-gluten', 'houmous'],
+  ingredients: ['250 g de pois chiches', '1 poivron jaune rôti', '2 c. à soupe d\'huile de colza', 'Piment d\'Espelette', 'Feuilles d\'épinard', 'Jus de 1 citron', 'Sel et poivre au goût'],
+  preparation: 'Rôtir le poivron jaune puis le peler. Mixer avec les pois chiches, l\'huile de colza, le jus de citron et quelques feuilles d\'épinard. Saupoudrer de piment d\'Espelette avant de servir.',
+  apports: 'Poivron jaune : vitamine C, caroténoïdes. Huile de colza : oméga-3 végétaux. Épinard : fer, folates, chlorophylle.',
+  budget: '≈ 3 à 5 €'
+}, {
+  id: 'r32',
+  nom: 'Houmous Courgette-Piment',
+  categorie: 'Tartinades',
+  tags: ['vegan', 'sans-gluten', 'houmous'],
+  ingredients: ['250 g de pois chiches', '1 courgette râpée', '1 c. à café de piment en poudre', 'Jus de citron', '2 c. à soupe d\'huile d\'olive', 'Sel et poivre au goût'],
+  preparation: 'Râper la courgette (crue ou légèrement revenue) et l\'égoutter. Mixer avec les pois chiches, le piment, le jus de citron et l\'huile d\'olive jusqu\'à texture lisse et verte. Rectifier l\'assaisonnement.',
+  apports: 'Courgette : eau, potassium, fibres douces. Pois chiche : protéines, fer. Piment : capsaïcine, circulation.',
+  budget: '≈ 3 à 4 €'
+}, {
+  id: 'r33',
+  nom: 'Houmous Aubergine Grillée',
+  categorie: 'Tartinades',
+  tags: ['vegan', 'sans-gluten', 'houmous'],
+  ingredients: ['250 g de pois chiches', '1 aubergine grillée, pelée', 'Jus de 1 citron', '2 c. à soupe d\'huile d\'olive', 'Sel et poivre', 'Jeunes oignons', 'Persil plat'],
+  preparation: 'Griller l\'aubergine jusqu\'à ce que la chair soit fondante, la peler. Mixer avec les pois chiches, le jus de citron et l\'huile d\'olive. Garnir de jeunes oignons émincés et de persil plat.',
+  apports: 'Aubergine : fibres, antioxydants (nasunine), potassium. Pois chiche : protéines, fer. Persil : vitamine K, vitamine C.',
+  budget: '≈ 3 à 5 €'
+}, {
+  // ─── 12 tartinades maison ───
+  id: 'r34',
+  nom: 'Tartinade Lentilles & Tomates Séchées',
+  categorie: 'Tartinades',
+  tags: ['vegan', 'sans-gluten'],
+  ingredients: ['150 g de lentilles rouges cuites', '50 g de tomates séchées', '1 c. à soupe d\'huile d\'olive', '1 c. à café de jus de citron', 'Sel, poivre'],
+  preparation: 'Mixer les lentilles rouges cuites avec les tomates séchées, l\'huile d\'olive et le jus de citron. Saler, poivrer. Ajouter un peu d\'eau pour ajuster la texture.',
+  apports: 'Lentille rouge : protéines, fer, fibres. Tomate séchée : lycopène, potassium. Huile d\'olive : oméga-9.',
+  budget: '≈ 2 à 4 €'
+}, {
+  id: 'r35',
+  nom: 'Tartinade Chèvre & Herbes',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'rapide'],
+  ingredients: ['200 g de fromage de chèvre frais', '1 c. à soupe de ciboulette', '1 c. à soupe de persil', 'Sel, poivre'],
+  preparation: 'Travailler le fromage de chèvre à la fourchette pour l\'assouplir. Incorporer la ciboulette et le persil finement ciselés. Saler, poivrer. Réserver au frais 30 min.',
+  apports: 'Chèvre frais : protéines, calcium, plus digeste que le lait de vache. Herbes fraîches : antioxydants, vitamine K.',
+  budget: '≈ 3 à 5 €'
+}, {
+  id: 'r36',
+  nom: 'Tartinade Pois Chiches & Ail',
+  categorie: 'Tartinades',
+  tags: ['vegan', 'sans-gluten'],
+  ingredients: ['200 g de pois chiches cuits', '1 gousse d\'ail', '1 c. à soupe de tahini', '1 c. à soupe de jus de citron', '1 à 2 c. à soupe d\'eau'],
+  preparation: 'Mixer les pois chiches avec l\'ail, le tahini et le jus de citron. Ajouter l\'eau cuillère par cuillère jusqu\'à obtenir une texture souple et tartinable.',
+  apports: 'Pois chiche : protéines, fibres, fer. Tahini : calcium, magnésium, bons lipides. Ail : allicine, immunité.',
+  budget: '≈ 2 à 4 €'
+}, {
+  id: 'r37',
+  nom: 'Tartinade Fromage Frais & Concombre',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'rapide'],
+  ingredients: ['2 concombres râpés', '100 g de fromage frais', '1 c. à soupe d\'aneth', 'Sel, poivre'],
+  preparation: 'Râper les concombres et bien les presser pour retirer l\'eau. Mélanger avec le fromage frais et l\'aneth ciselé. Saler, poivrer. Servir bien frais.',
+  apports: 'Concombre : hydratation, potassium, très peu calorique. Fromage frais : protéines, calcium. Aneth : digestion.',
+  budget: '≈ 2 à 4 €'
+}, {
+  id: 'r38',
+  nom: 'Tartinade Fraîche à la Cacahuète',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'rapide'],
+  ingredients: ['2 c. à soupe de beurre de cacahuète', '1 c. à café de miel', '1 c. à soupe de jus de citron', 'Pincée de sel'],
+  preparation: 'Mélanger le beurre de cacahuète avec le miel et le jus de citron jusqu\'à texture homogène. Ajouter une pincée de sel. Détendre avec un peu d\'eau tiède si nécessaire.',
+  apports: 'Cacahuète : protéines, magnésium, bons lipides. Miel : glucides, énergie rapide. Citron : vitamine C.',
+  budget: '≈ 1 à 3 €'
+}, {
+  id: 'r39',
+  nom: 'Crème de Thon',
+  categorie: 'Tartinades',
+  tags: ['sans-gluten', 'protéiné'],
+  ingredients: ['1 boîte de thon', '1 c. à soupe de yaourt nature', '100 g de fromage frais type Skyr', '1 c. à soupe de jus de citron', 'Poivre'],
+  preparation: 'Égoutter le thon et l\'émietter. Mélanger avec le yaourt, le Skyr et le jus de citron jusqu\'à obtenir une crème lisse. Poivrer. Réserver au frais avant de servir.',
+  apports: 'Thon : protéines complètes, oméga-3, sélénium. Skyr : protéines, calcium, peu de lipides. Citron : vitamine C.',
+  budget: '≈ 3 à 5 €'
+}, {
+  id: 'r40',
+  nom: 'Tartinade Protéinée à l\'Avocat',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'protéiné'],
+  ingredients: ['1 avocat mûr', '100 g de fromage frais type Skyr', '1 c. à soupe de jus de citron', 'Sel, poivre'],
+  preparation: 'Écraser l\'avocat mûr et le mixer avec le Skyr et le jus de citron. Saler, poivrer. Consommer rapidement pour éviter l\'oxydation.',
+  apports: 'Avocat : bons lipides, potassium, fibres. Skyr : protéines élevées, peu de matières grasses. Citron : vitamine C.',
+  budget: '≈ 3 à 5 €'
+}, {
+  id: 'r41',
+  nom: 'Tartinade Yaourt & Feta',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'rapide'],
+  ingredients: ['100 g de feta', '100 g de yaourt grec', '1 c. à soupe d\'huile d\'olive', 'Poivre'],
+  preparation: 'Écraser la feta à la fourchette puis la mixer avec le yaourt grec et l\'huile d\'olive. Poivrer généreusement (le sel de la feta suffit). Servir frais.',
+  apports: 'Feta : protéines, calcium. Yaourt grec : probiotiques, protéines. Huile d\'olive : oméga-9, vitamine E.',
+  budget: '≈ 3 à 5 €'
+}, {
+  id: 'r42',
+  nom: 'Tartinade de Poulet',
+  categorie: 'Tartinades',
+  tags: ['sans-gluten', 'protéiné'],
+  ingredients: ['150 g de poulet cuit', '100 g de fromage frais', '1 c. à soupe d\'aneth', 'Sel, poivre'],
+  preparation: 'Effilocher ou hacher finement le poulet cuit. Mélanger avec le fromage frais et l\'aneth ciselé. Saler, poivrer. Idéal pour recycler un reste de volaille.',
+  apports: 'Poulet : protéines maigres, vitamines B, phosphore. Fromage frais : calcium, protéines. Aneth : digestion.',
+  budget: '≈ 4 à 6 €'
+}, {
+  id: 'r43',
+  nom: 'Tartinade de Haricots Blancs',
+  categorie: 'Tartinades',
+  tags: ['vegan', 'sans-gluten'],
+  ingredients: ['200 g de haricots blancs cuits', '1 c. à soupe d\'huile d\'olive', '1 c. à soupe de jus de citron', 'Ail', 'Sel'],
+  preparation: 'Mixer les haricots blancs cuits et égouttés avec l\'huile d\'olive, le jus de citron et l\'ail. Saler. Ajouter un peu d\'eau de cuisson pour une texture bien crémeuse.',
+  apports: 'Haricot blanc : protéines végétales, fibres solubles, fer, potassium. Huile d\'olive : oméga-9. Ail : allicine.',
+  budget: '≈ 2 à 4 €'
+}, {
+  id: 'r44',
+  nom: 'Tartinade Poivrons & Skyr',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'protéiné'],
+  ingredients: ['150 g de Skyr', '1 poivron rouge', '1 c. à café de paprika', 'Sel, poivre'],
+  preparation: 'Rôtir le poivron rouge, le peler et l\'épépiner. Le mixer avec le Skyr et le paprika. Saler, poivrer. Réserver 1 h au frais pour que les saveurs se développent.',
+  apports: 'Poivron rouge : vitamine C (très riche), bêta-carotène. Skyr : protéines, calcium. Paprika : antioxydants.',
+  budget: '≈ 3 à 5 €'
+}, {
+  id: 'r45',
+  nom: 'Tartinade Curry aux Noix de Cajou',
+  categorie: 'Tartinades',
+  tags: ['vegan', 'sans-gluten'],
+  ingredients: ['100 g de noix de cajou (trempées)', '50 ml d\'eau', '1 c. à café de curry', '1 c. à soupe de jus de citron', 'Sel'],
+  preparation: 'Faire tremper les noix de cajou 4 h minimum, puis les rincer. Mixer avec l\'eau, le curry et le jus de citron jusqu\'à texture bien lisse. Saler. Se conserve 3-4 jours au frais.',
+  apports: 'Noix de cajou : magnésium, fer, protéines végétales, bons lipides. Curry (curcuma) : curcumine, anti-inflammatoire. Citron : vitamine C.',
+  budget: '≈ 3 à 6 €'
+}, {
+  // ─── 6 beurres maison ───
+  id: 'r46',
+  nom: 'Beurre Ail-Persil (Escargot)',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'beurre'],
+  ingredients: ['100 g de beurre mou', '2 gousses d\'ail', '1 cuillère à soupe de persil', 'Sel', 'Poivre'],
+  preparation: 'Travailler le beurre mou à la fourchette. Incorporer l\'ail écrasé et le persil finement ciselé. Saler, poivrer. Rouler en boudin dans du film alimentaire et réfrigérer 2 h avant de trancher.',
+  apports: 'Beurre : vitamines A et D, lipides. Ail : allicine, immunité. Persil : vitamine K, vitamine C, fer.',
+  budget: '≈ 2 à 3 €'
+}, {
+  id: 'r47',
+  nom: 'Beurre Café de Paris',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'beurre'],
+  ingredients: ['100 g de beurre mou', '1 cuillère à café de moutarde', '1 cuillère à café de curry', '1 cuillère à café de paprika', '1 cuillère à café de jus de citron', 'Sel', 'Poivre'],
+  preparation: 'Assouplir le beurre à la fourchette. Incorporer la moutarde, le curry, le paprika et le jus de citron. Saler, poivrer. Rouler en boudin, réfrigérer 2 h. Parfait sur une viande grillée.',
+  apports: 'Beurre : vitamines A et D. Curry (curcuma) : curcumine, anti-inflammatoire. Paprika : caroténoïdes. Moutarde : sélénium.',
+  budget: '≈ 2 à 4 €'
+}, {
+  id: 'r48',
+  nom: 'Beurre Citron-Aneth',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'beurre'],
+  ingredients: ['100 g de beurre mou', '1 cuillère à soupe de jus de citron', '1 cuillère à soupe d\'aneth', 'Sel', 'Poivre'],
+  preparation: 'Travailler le beurre mou, incorporer le jus de citron petit à petit puis l\'aneth ciselé. Saler, poivrer. Rouler en boudin dans du film et réfrigérer 2 h. Idéal sur poisson et légumes vapeur.',
+  apports: 'Beurre : vitamines A et D. Citron : vitamine C. Aneth : huiles essentielles, digestion.',
+  budget: '≈ 2 à 3 €'
+}, {
+  id: 'r49',
+  nom: 'Beurre à l\'Échalote',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'beurre'],
+  ingredients: ['100 g de beurre mou', '1 échalote', '1 cuillère à café de vinaigre', 'Sel', 'Poivre'],
+  preparation: 'Ciseler très finement l\'échalote et la faire dégorger quelques minutes dans le vinaigre. Incorporer au beurre mou, saler et poivrer. Rouler en boudin et réfrigérer 2 h.',
+  apports: 'Beurre : vitamines A et D. Échalote : quercétine, prébiotiques, antioxydants. Vinaigre : soutien digestif.',
+  budget: '≈ 2 à 3 €'
+}, {
+  id: 'r50',
+  nom: 'Beurre aux Herbes Fraîches',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'beurre'],
+  ingredients: ['100 g de beurre mou', '1 cuillère à soupe de persil', '1 cuillère à soupe de ciboulette', '1 cuillère à soupe de basilic', 'Sel', 'Poivre'],
+  preparation: 'Ciseler finement les herbes. Les incorporer au beurre mou travaillé à la fourchette. Saler, poivrer. Rouler en boudin dans du film alimentaire et réfrigérer 2 h.',
+  apports: 'Beurre : vitamines A et D. Persil : vitamine K et C. Ciboulette : antioxydants. Basilic : huiles essentielles.',
+  budget: '≈ 2 à 3 €'
+}, {
+  id: 'r51',
+  nom: 'Beurre au Piment d\'Espelette',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'beurre'],
+  ingredients: ['100 g de beurre mou', '1 cuillère à café de piment d\'Espelette', 'Sel'],
+  preparation: 'Travailler le beurre mou à la fourchette, incorporer le piment d\'Espelette et le sel. Mélanger jusqu\'à répartition homogène. Rouler en boudin et réfrigérer 2 h.',
+  apports: 'Beurre : vitamines A et D. Piment d\'Espelette : capsaïcine (douce), caroténoïdes, circulation.',
+  budget: '≈ 2 à 3 €'
 }];
 
 // ─── Tab Views (proper React components to allow local useState) ───
@@ -6812,7 +7132,7 @@ function DrevmCookView({
     budget: ''
   });
 
-  const cats = ['Tout', 'Salés', 'Boulangerie', 'Fermentés', 'Desserts', 'Boissons', 'Référence'];
+  const cats = ['Tout', 'Salés', 'Tartinades', 'Boulangerie', 'Fermentés', 'Desserts', 'Boissons', 'Référence'];
   const fermentStatusFilters = ['Tous', 'En cours', 'Prêts', 'Terminés'];
   const fermentTypes = ['Légumes', 'Sauce', 'Boisson', 'Levain', 'Autre'];
   const filtered = useMemo(() => filterCat === 'Tout' ? allRecipes : allRecipes.filter(r => r.categorie === filterCat), [allRecipes, filterCat]);
