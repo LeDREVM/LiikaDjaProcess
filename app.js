@@ -114,8 +114,8 @@ async function sbLoad(token) {
 }
 async function sbSave(d, token) {
   if (DEMO) return; // démo : jamais d'écriture Supabase
-  // recipes, ferments, courses & media vivent dans leurs tables dédiées → hors du blob app_state
-  const { recipes, ferments, courses, media, ...rest } = d || {};
+  // recipes, ferments, rezev, courses & media vivent dans leurs tables dédiées → hors du blob app_state
+  const { recipes, ferments, rezev, courses, media, ...rest } = d || {};
   if (token) {
     const { error } = await sb.rpc('ld_save_app_state', { p_token: token, p_data: rest, p_device_id: DEVICE_ID });
     if (error) throw error;
@@ -170,6 +170,23 @@ async function sbUpsertFerment(f) {
   });
 }
 async function sbDeleteFerment(id) { return sb.from('ferments').delete().eq('id', id); }
+
+// ─── Konsèvasyon : rézèv (table dédiée) ───
+// Forme app {id, n:nom, e:emoji, d:date d'entrée} ↔ forme SQL (colonnes lisibles).
+async function sbLoadRezev() {
+  const { data, error } = await sb.from('rezev').select('*');
+  if (error) throw error;
+  return (data || []).map(r => ({
+    id: r.id, n: r.nom || '', e: r.emoji || '', d: r.date_entree || ''
+  }));
+}
+async function sbUpsertRezev(r) {
+  return sb.from('rezev').upsert({
+    id: r.id, nom: r.n || '', emoji: r.e || '', date_entree: r.d || null,
+    updated_at: new Date().toISOString(), device_id: DEVICE_ID
+  });
+}
+async function sbDeleteRezev(id) { return sb.from('rezev').delete().eq('id', id); }
 
 // ─── Courses : table dédiée ───
 async function sbLoadCourses() {
@@ -826,6 +843,7 @@ const realDefaultData = {
   },
   recipes: [],
   ferments: [],
+  rezev: [],
   courses: [],
   media: [{
     id: 'pl-seed',
@@ -1046,6 +1064,7 @@ const demoData = {
   },
   recipes: [],
   ferments: [],
+  rezev: [],
   courses: [],
   media: [{
     id: 'pl-seed', kind: 'playlist',
@@ -1086,6 +1105,9 @@ function normalize(d) {
     };
   }
   if (Array.isArray(d.ferments)) base.ferments = d.ferments;
+  // Konsèvasyon : entrées {id,n,e,d}. Filtrées ici car une entrée sans id ferait
+  // planter le rendu de la rézèv (kvIdOf/find sur undefined).
+  if (Array.isArray(d.rezev)) base.rezev = d.rezev.filter(r => r && typeof r === 'object' && r.id);
   if (Array.isArray(d.courses)) base.courses = d.courses;
   if (Array.isArray(d.media)) base.media = d.media;
   if (Array.isArray(d.album)) base.album = d.album;
@@ -2202,6 +2224,326 @@ const DEFAULT_RECIPES = [{
   preparation: 'Répertoire des plantes traditionnelles antillaises utilisées en cuisine et médecine populaire DrevmCook. Toujours commencer à petite dose. Ces plantes ne remplacent pas un avis médical. Leaf of Life : contient des glycosides cardiaques — éviter grossesse, problèmes cardiaques, enfants.',
   apports: 'Patrimoine botanique caribéen : antioxydants, huiles essentielles, flavonoïdes, minéraux, polyphénols.',
   budget: 'Gratuit (cueillette) à ≈ 1-2 € (marché local)'
+}, {
+  // ─── Desserts sans cuisson ───
+  id: 'r17',
+  nom: 'Charlotte aux Fruits Rouges',
+  categorie: 'Desserts',
+  tags: ['sans-cuisson', 'végétarien', 'fruits'],
+  ingredients: ['2 couches de biscuits à la cuillère', '2 tasses de crème entière battue', '1 tasse de fruits rouges mélangés', '2 c. à soupe de coulis de framboise', 'Quelques fruits rouges pour décorer'],
+  preparation: '1. Monter la crème entière bien froide en chantilly ferme. 2. Tapisser le fond du moule d\'une couche de biscuits à la cuillère. 3. Étaler la moitié de la crème, puis les fruits rouges et le coulis. 4. Recouvrir d\'une seconde couche de biscuits, puis du reste de crème. 5. Décorer de fruits rouges frais. 6. Réfrigérer 4 heures avant de servir.',
+  apports: 'Fruits rouges : vitamine C, anthocyanes, fibres. Crème : lipides, calcium, vitamine A. Biscuits : glucides, énergie rapide.',
+  budget: '≈ 8 à 12 €'
+}, {
+  id: 'r18',
+  nom: 'Cheesecake Vanille sans Cuisson',
+  categorie: 'Desserts',
+  tags: ['sans-cuisson', 'végétarien'],
+  ingredients: ['1 couche de biscuits sablés écrasés', '2 tasses de fromage frais ou mascarpone', '½ tasse de crème entière battue', '1 c. à soupe d\'extrait de vanille', 'Miettes de biscuits pour décorer'],
+  preparation: '1. Écraser les biscuits sablés et les tasser au fond du moule. 2. Fouetter le fromage frais avec la vanille. 3. Incorporer délicatement la crème montée. 4. Verser sur la base biscuitée et lisser. 5. Parsemer de miettes de biscuits. 6. Réfrigérer 4 heures.',
+  apports: 'Fromage frais / mascarpone : protéines, calcium. Crème : bons lipides, vitamine A. Vanille : arômes naturels, antioxydants.',
+  budget: '≈ 7 à 11 €'
+}, {
+  id: 'r19',
+  nom: 'Délice Chocolat-Café',
+  categorie: 'Desserts',
+  tags: ['sans-cuisson', 'végétarien', 'chocolat'],
+  ingredients: ['1 couche de biscuits au cacao écrasés', '2 tasses de crème entière ou mascarpone', '2 c. à soupe de café fort refroidi', '2 c. à soupe de cacao en poudre', 'Copeaux de chocolat'],
+  preparation: '1. Écraser les biscuits au cacao et les tasser au fond du plat. 2. Fouetter la crème (ou le mascarpone) avec le cacao en poudre. 3. Ajouter le café froid et mélanger sans casser la texture. 4. Verser sur la base et lisser. 5. Parsemer de copeaux de chocolat. 6. Réfrigérer 4 heures.',
+  apports: 'Cacao : magnésium, flavonoïdes, fer. Café : caféine, polyphénols. Crème : lipides, calcium.',
+  budget: '≈ 7 à 10 €'
+}, {
+  id: 'r20',
+  nom: 'Verrine Coco-Framboise',
+  categorie: 'Desserts',
+  tags: ['sans-cuisson', 'végétarien', 'fruits'],
+  ingredients: ['1 ou 2 couches de biscuits sablés', '2 tasses de crème coco ou mascarpone', '½ tasse de coulis de framboise', '2 c. à soupe de noix de coco râpée', 'Framboises fraîches pour décorer'],
+  preparation: '1. Émietter les biscuits au fond des verrines. 2. Fouetter la crème de coco bien froide. 3. Alterner couches de crème et de coulis de framboise. 4. Parsemer de noix de coco râpée. 5. Décorer de framboises fraîches. 6. Réfrigérer 4 heures.',
+  apports: 'Framboise : vitamine C, fibres, antioxydants. Coco : bons lipides (TCM), manganèse. Biscuits : glucides, énergie.',
+  budget: '≈ 8 à 12 €'
+}, {
+  id: 'r21',
+  nom: 'Gâteau Froid Praliné',
+  categorie: 'Desserts',
+  tags: ['sans-cuisson', 'végétarien'],
+  ingredients: ['1 couche de biscuits type petits-beurre', '2 tasses de crème entière ou mascarpone', '½ tasse de pâte pralinée', '2 c. à soupe de noisettes concassées', 'Éclats de praliné'],
+  preparation: '1. Tapisser le moule de biscuits petits-beurre. 2. Fouetter la crème puis incorporer la pâte pralinée. 3. Étaler sur les biscuits (alterner une seconde couche si le moule est haut). 4. Parsemer de noisettes concassées et d\'éclats de praliné. 5. Réfrigérer 4 heures.',
+  apports: 'Noisette : vitamine E, magnésium, bons lipides. Praliné : glucides, énergie. Crème : calcium, vitamine A.',
+  budget: '≈ 9 à 14 €'
+}, {
+  // ─── Trempettes maison ───
+  id: 'r22',
+  nom: 'Houmous à la Betterave',
+  categorie: 'Tartinades',
+  tags: ['vegan', 'sans-gluten', 'apéro'],
+  ingredients: ['250 g de pois chiches', '1 betterave cuite', '2 c. à soupe de tahini', 'Jus d\'½ citron', '1 gousse d\'ail', 'Sel, poivre'],
+  preparation: 'Mixer tous les ingrédients jusqu\'à obtenir une texture lisse et crémeuse. Ajuster le citron et le sel selon le goût. Servir avec des crudités, du pain pita ou des crackers.',
+  apports: 'Pois chiche : protéines, fibres, fer. Betterave : nitrates, folates, soutien de la circulation. Tahini : calcium, bons lipides.',
+  budget: '≈ 3 à 5 €'
+}, {
+  id: 'r23',
+  nom: 'Tzatziki',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'apéro', 'rapide'],
+  ingredients: ['1 yaourt grec', '½ concombre râpé', '1 gousse d\'ail', '1 c. à soupe d\'huile d\'olive', 'Aneth', 'Sel, poivre'],
+  preparation: 'Râper le concombre et le presser pour retirer l\'eau. Mélanger avec le yaourt grec, l\'ail écrasé, l\'huile d\'olive et l\'aneth ciselé. Saler, poivrer. Laisser reposer 1 h au frais avant de servir.',
+  apports: 'Yaourt grec : protéines, probiotiques, calcium. Concombre : hydratation, potassium. Ail : allicine, immunité.',
+  budget: '≈ 2 à 4 €'
+}, {
+  id: 'r24',
+  nom: 'Guacamole',
+  categorie: 'Tartinades',
+  tags: ['vegan', 'sans-gluten', 'cru', 'apéro'],
+  ingredients: ['2 avocats', '1 tomate', 'Jus d\'½ citron vert', '¼ d\'oignon rouge', 'Coriandre', 'Sel, poivre'],
+  preparation: 'Écraser les avocats à la fourchette. Ajouter la tomate en petits dés, l\'oignon rouge finement haché, le jus de citron vert et la coriandre ciselée. Saler, poivrer et servir aussitôt pour garder la couleur.',
+  apports: 'Avocat : bons lipides, potassium, vitamine E. Tomate : lycopène, vitamine C. Citron vert : vitamine C, anti-oxydation naturelle.',
+  budget: '≈ 3 à 6 €'
+}, {
+  id: 'r25',
+  nom: 'Dip Feta & Poivrons Rôtis',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'apéro'],
+  ingredients: ['200 g de feta', '1 poivron rouge rôti', '3 c. à soupe de yaourt', '1 c. à soupe d\'huile d\'olive', 'Origan', 'Sel, poivre'],
+  preparation: 'Rôtir le poivron puis le peler. Mixer avec la feta émiettée, le yaourt et l\'huile d\'olive jusqu\'à texture onctueuse. Assaisonner d\'origan, sel et poivre. Servir tiède ou frais avec du pain grillé.',
+  apports: 'Feta : protéines, calcium (attention au sodium). Poivron rôti : vitamine C, bêta-carotène. Yaourt : probiotiques, protéines.',
+  budget: '≈ 4 à 6 €'
+}, {
+  id: 'r26',
+  nom: 'Rillettes de Saumon',
+  categorie: 'Tartinades',
+  tags: ['sans-gluten', 'protéiné', 'apéro'],
+  ingredients: ['200 g de saumon fumé', '100 g de fromage frais', '1 c. à soupe de citron', 'Ciboulette', 'Sel, poivre'],
+  preparation: 'Hacher le saumon fumé au couteau. Mélanger avec le fromage frais, le jus de citron et la ciboulette ciselée. Poivrer (saler peu, le saumon l\'est déjà). Réserver 1 h au frais et servir sur des toasts.',
+  apports: 'Saumon : oméga-3, protéines, vitamine D. Fromage frais : calcium, protéines. Citron : vitamine C.',
+  budget: '≈ 7 à 10 €'
+}, {
+  id: 'r27',
+  nom: 'Dip Avocat & Fromage Frais',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'rapide'],
+  ingredients: ['1 avocat', '100 g de fromage frais', 'Jus d\'½ citron', 'Ciboulette', 'Sel, poivre'],
+  preparation: 'Mixer l\'avocat avec le fromage frais et le jus de citron jusqu\'à texture lisse. Ajouter la ciboulette ciselée, saler et poivrer. Servir frais avec des bâtonnets de légumes.',
+  apports: 'Avocat : bons lipides, potassium, fibres. Fromage frais : protéines, calcium. Citron : vitamine C.',
+  budget: '≈ 3 à 5 €'
+}, {
+  // ─── Houmous sains ───
+  id: 'r28',
+  nom: 'Houmous Betterave-Basilic',
+  categorie: 'Tartinades',
+  tags: ['vegan', 'sans-gluten', 'houmous'],
+  ingredients: ['250 g de pois chiches', '200 g de betterave cuite', 'Basilic', 'Jus de 1 citron', '2 c. à soupe d\'huile d\'olive', 'Sel et poivre au goût', 'Topping : 1 c. à café de graines'],
+  preparation: 'Mixer les pois chiches avec la betterave, le basilic, le jus de citron et l\'huile d\'olive jusqu\'à texture crémeuse. Rectifier sel et poivre. Servir avec un filet d\'huile et une cuillère de graines.',
+  apports: 'Pois chiche : protéines, fibres, fer. Betterave : nitrates, folates. Basilic : antioxydants, huiles essentielles. Graines : zinc, magnésium.',
+  budget: '≈ 3 à 5 €'
+}, {
+  id: 'r29',
+  nom: 'Houmous de Lentilles',
+  categorie: 'Tartinades',
+  tags: ['vegan', 'sans-gluten', 'houmous'],
+  ingredients: ['250 g de lentilles cuites', 'Coriandre fraîche', 'Jus de 1 citron', '2 c. à soupe d\'huile d\'olive', 'Sel et poivre au goût'],
+  preparation: 'Mixer les lentilles cuites et égouttées avec la coriandre, le jus de citron et l\'huile d\'olive. Ajouter un peu d\'eau si la texture est trop épaisse. Rectifier l\'assaisonnement.',
+  apports: 'Lentille : protéines végétales, fer, fibres, index glycémique bas. Coriandre : antioxydants. Citron : vitamine C (aide l\'absorption du fer).',
+  budget: '≈ 2 à 4 €'
+}, {
+  id: 'r30',
+  nom: 'Houmous Paprika Fumé',
+  categorie: 'Tartinades',
+  tags: ['vegan', 'sans-gluten', 'houmous'],
+  ingredients: ['250 g de pois chiches', '1 c. à café de paprika fumé', 'Jus de 1 citron', '2 c. à soupe d\'huile d\'olive', 'Sel et poivre', 'Topping : betterave rouge', 'Estragon'],
+  preparation: 'Mixer les pois chiches avec le paprika fumé, le jus de citron et l\'huile d\'olive. Assaisonner. Garnir de dés de betterave rouge et de feuilles d\'estragon avant de servir.',
+  apports: 'Pois chiche : protéines, fibres, fer. Paprika fumé : caroténoïdes, antioxydants. Huile d\'olive : oméga-9, vitamine E.',
+  budget: '≈ 3 à 5 €'
+}, {
+  id: 'r31',
+  nom: 'Houmous Poivron Jaune Rôti',
+  categorie: 'Tartinades',
+  tags: ['vegan', 'sans-gluten', 'houmous'],
+  ingredients: ['250 g de pois chiches', '1 poivron jaune rôti', '2 c. à soupe d\'huile de colza', 'Piment d\'Espelette', 'Feuilles d\'épinard', 'Jus de 1 citron', 'Sel et poivre au goût'],
+  preparation: 'Rôtir le poivron jaune puis le peler. Mixer avec les pois chiches, l\'huile de colza, le jus de citron et quelques feuilles d\'épinard. Saupoudrer de piment d\'Espelette avant de servir.',
+  apports: 'Poivron jaune : vitamine C, caroténoïdes. Huile de colza : oméga-3 végétaux. Épinard : fer, folates, chlorophylle.',
+  budget: '≈ 3 à 5 €'
+}, {
+  id: 'r32',
+  nom: 'Houmous Courgette-Piment',
+  categorie: 'Tartinades',
+  tags: ['vegan', 'sans-gluten', 'houmous'],
+  ingredients: ['250 g de pois chiches', '1 courgette râpée', '1 c. à café de piment en poudre', 'Jus de citron', '2 c. à soupe d\'huile d\'olive', 'Sel et poivre au goût'],
+  preparation: 'Râper la courgette (crue ou légèrement revenue) et l\'égoutter. Mixer avec les pois chiches, le piment, le jus de citron et l\'huile d\'olive jusqu\'à texture lisse et verte. Rectifier l\'assaisonnement.',
+  apports: 'Courgette : eau, potassium, fibres douces. Pois chiche : protéines, fer. Piment : capsaïcine, circulation.',
+  budget: '≈ 3 à 4 €'
+}, {
+  id: 'r33',
+  nom: 'Houmous Aubergine Grillée',
+  categorie: 'Tartinades',
+  tags: ['vegan', 'sans-gluten', 'houmous'],
+  ingredients: ['250 g de pois chiches', '1 aubergine grillée, pelée', 'Jus de 1 citron', '2 c. à soupe d\'huile d\'olive', 'Sel et poivre', 'Jeunes oignons', 'Persil plat'],
+  preparation: 'Griller l\'aubergine jusqu\'à ce que la chair soit fondante, la peler. Mixer avec les pois chiches, le jus de citron et l\'huile d\'olive. Garnir de jeunes oignons émincés et de persil plat.',
+  apports: 'Aubergine : fibres, antioxydants (nasunine), potassium. Pois chiche : protéines, fer. Persil : vitamine K, vitamine C.',
+  budget: '≈ 3 à 5 €'
+}, {
+  // ─── 12 tartinades maison ───
+  id: 'r34',
+  nom: 'Tartinade Lentilles & Tomates Séchées',
+  categorie: 'Tartinades',
+  tags: ['vegan', 'sans-gluten'],
+  ingredients: ['150 g de lentilles rouges cuites', '50 g de tomates séchées', '1 c. à soupe d\'huile d\'olive', '1 c. à café de jus de citron', 'Sel, poivre'],
+  preparation: 'Mixer les lentilles rouges cuites avec les tomates séchées, l\'huile d\'olive et le jus de citron. Saler, poivrer. Ajouter un peu d\'eau pour ajuster la texture.',
+  apports: 'Lentille rouge : protéines, fer, fibres. Tomate séchée : lycopène, potassium. Huile d\'olive : oméga-9.',
+  budget: '≈ 2 à 4 €'
+}, {
+  id: 'r35',
+  nom: 'Tartinade Chèvre & Herbes',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'rapide'],
+  ingredients: ['200 g de fromage de chèvre frais', '1 c. à soupe de ciboulette', '1 c. à soupe de persil', 'Sel, poivre'],
+  preparation: 'Travailler le fromage de chèvre à la fourchette pour l\'assouplir. Incorporer la ciboulette et le persil finement ciselés. Saler, poivrer. Réserver au frais 30 min.',
+  apports: 'Chèvre frais : protéines, calcium, plus digeste que le lait de vache. Herbes fraîches : antioxydants, vitamine K.',
+  budget: '≈ 3 à 5 €'
+}, {
+  id: 'r36',
+  nom: 'Tartinade Pois Chiches & Ail',
+  categorie: 'Tartinades',
+  tags: ['vegan', 'sans-gluten'],
+  ingredients: ['200 g de pois chiches cuits', '1 gousse d\'ail', '1 c. à soupe de tahini', '1 c. à soupe de jus de citron', '1 à 2 c. à soupe d\'eau'],
+  preparation: 'Mixer les pois chiches avec l\'ail, le tahini et le jus de citron. Ajouter l\'eau cuillère par cuillère jusqu\'à obtenir une texture souple et tartinable.',
+  apports: 'Pois chiche : protéines, fibres, fer. Tahini : calcium, magnésium, bons lipides. Ail : allicine, immunité.',
+  budget: '≈ 2 à 4 €'
+}, {
+  id: 'r37',
+  nom: 'Tartinade Fromage Frais & Concombre',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'rapide'],
+  ingredients: ['2 concombres râpés', '100 g de fromage frais', '1 c. à soupe d\'aneth', 'Sel, poivre'],
+  preparation: 'Râper les concombres et bien les presser pour retirer l\'eau. Mélanger avec le fromage frais et l\'aneth ciselé. Saler, poivrer. Servir bien frais.',
+  apports: 'Concombre : hydratation, potassium, très peu calorique. Fromage frais : protéines, calcium. Aneth : digestion.',
+  budget: '≈ 2 à 4 €'
+}, {
+  id: 'r38',
+  nom: 'Tartinade Fraîche à la Cacahuète',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'rapide'],
+  ingredients: ['2 c. à soupe de beurre de cacahuète', '1 c. à café de miel', '1 c. à soupe de jus de citron', 'Pincée de sel'],
+  preparation: 'Mélanger le beurre de cacahuète avec le miel et le jus de citron jusqu\'à texture homogène. Ajouter une pincée de sel. Détendre avec un peu d\'eau tiède si nécessaire.',
+  apports: 'Cacahuète : protéines, magnésium, bons lipides. Miel : glucides, énergie rapide. Citron : vitamine C.',
+  budget: '≈ 1 à 3 €'
+}, {
+  id: 'r39',
+  nom: 'Crème de Thon',
+  categorie: 'Tartinades',
+  tags: ['sans-gluten', 'protéiné'],
+  ingredients: ['1 boîte de thon', '1 c. à soupe de yaourt nature', '100 g de fromage frais type Skyr', '1 c. à soupe de jus de citron', 'Poivre'],
+  preparation: 'Égoutter le thon et l\'émietter. Mélanger avec le yaourt, le Skyr et le jus de citron jusqu\'à obtenir une crème lisse. Poivrer. Réserver au frais avant de servir.',
+  apports: 'Thon : protéines complètes, oméga-3, sélénium. Skyr : protéines, calcium, peu de lipides. Citron : vitamine C.',
+  budget: '≈ 3 à 5 €'
+}, {
+  id: 'r40',
+  nom: 'Tartinade Protéinée à l\'Avocat',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'protéiné'],
+  ingredients: ['1 avocat mûr', '100 g de fromage frais type Skyr', '1 c. à soupe de jus de citron', 'Sel, poivre'],
+  preparation: 'Écraser l\'avocat mûr et le mixer avec le Skyr et le jus de citron. Saler, poivrer. Consommer rapidement pour éviter l\'oxydation.',
+  apports: 'Avocat : bons lipides, potassium, fibres. Skyr : protéines élevées, peu de matières grasses. Citron : vitamine C.',
+  budget: '≈ 3 à 5 €'
+}, {
+  id: 'r41',
+  nom: 'Tartinade Yaourt & Feta',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'rapide'],
+  ingredients: ['100 g de feta', '100 g de yaourt grec', '1 c. à soupe d\'huile d\'olive', 'Poivre'],
+  preparation: 'Écraser la feta à la fourchette puis la mixer avec le yaourt grec et l\'huile d\'olive. Poivrer généreusement (le sel de la feta suffit). Servir frais.',
+  apports: 'Feta : protéines, calcium. Yaourt grec : probiotiques, protéines. Huile d\'olive : oméga-9, vitamine E.',
+  budget: '≈ 3 à 5 €'
+}, {
+  id: 'r42',
+  nom: 'Tartinade de Poulet',
+  categorie: 'Tartinades',
+  tags: ['sans-gluten', 'protéiné'],
+  ingredients: ['150 g de poulet cuit', '100 g de fromage frais', '1 c. à soupe d\'aneth', 'Sel, poivre'],
+  preparation: 'Effilocher ou hacher finement le poulet cuit. Mélanger avec le fromage frais et l\'aneth ciselé. Saler, poivrer. Idéal pour recycler un reste de volaille.',
+  apports: 'Poulet : protéines maigres, vitamines B, phosphore. Fromage frais : calcium, protéines. Aneth : digestion.',
+  budget: '≈ 4 à 6 €'
+}, {
+  id: 'r43',
+  nom: 'Tartinade de Haricots Blancs',
+  categorie: 'Tartinades',
+  tags: ['vegan', 'sans-gluten'],
+  ingredients: ['200 g de haricots blancs cuits', '1 c. à soupe d\'huile d\'olive', '1 c. à soupe de jus de citron', 'Ail', 'Sel'],
+  preparation: 'Mixer les haricots blancs cuits et égouttés avec l\'huile d\'olive, le jus de citron et l\'ail. Saler. Ajouter un peu d\'eau de cuisson pour une texture bien crémeuse.',
+  apports: 'Haricot blanc : protéines végétales, fibres solubles, fer, potassium. Huile d\'olive : oméga-9. Ail : allicine.',
+  budget: '≈ 2 à 4 €'
+}, {
+  id: 'r44',
+  nom: 'Tartinade Poivrons & Skyr',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'protéiné'],
+  ingredients: ['150 g de Skyr', '1 poivron rouge', '1 c. à café de paprika', 'Sel, poivre'],
+  preparation: 'Rôtir le poivron rouge, le peler et l\'épépiner. Le mixer avec le Skyr et le paprika. Saler, poivrer. Réserver 1 h au frais pour que les saveurs se développent.',
+  apports: 'Poivron rouge : vitamine C (très riche), bêta-carotène. Skyr : protéines, calcium. Paprika : antioxydants.',
+  budget: '≈ 3 à 5 €'
+}, {
+  id: 'r45',
+  nom: 'Tartinade Curry aux Noix de Cajou',
+  categorie: 'Tartinades',
+  tags: ['vegan', 'sans-gluten'],
+  ingredients: ['100 g de noix de cajou (trempées)', '50 ml d\'eau', '1 c. à café de curry', '1 c. à soupe de jus de citron', 'Sel'],
+  preparation: 'Faire tremper les noix de cajou 4 h minimum, puis les rincer. Mixer avec l\'eau, le curry et le jus de citron jusqu\'à texture bien lisse. Saler. Se conserve 3-4 jours au frais.',
+  apports: 'Noix de cajou : magnésium, fer, protéines végétales, bons lipides. Curry (curcuma) : curcumine, anti-inflammatoire. Citron : vitamine C.',
+  budget: '≈ 3 à 6 €'
+}, {
+  // ─── 6 beurres maison ───
+  id: 'r46',
+  nom: 'Beurre Ail-Persil (Escargot)',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'beurre'],
+  ingredients: ['100 g de beurre mou', '2 gousses d\'ail', '1 cuillère à soupe de persil', 'Sel', 'Poivre'],
+  preparation: 'Travailler le beurre mou à la fourchette. Incorporer l\'ail écrasé et le persil finement ciselé. Saler, poivrer. Rouler en boudin dans du film alimentaire et réfrigérer 2 h avant de trancher.',
+  apports: 'Beurre : vitamines A et D, lipides. Ail : allicine, immunité. Persil : vitamine K, vitamine C, fer.',
+  budget: '≈ 2 à 3 €'
+}, {
+  id: 'r47',
+  nom: 'Beurre Café de Paris',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'beurre'],
+  ingredients: ['100 g de beurre mou', '1 cuillère à café de moutarde', '1 cuillère à café de curry', '1 cuillère à café de paprika', '1 cuillère à café de jus de citron', 'Sel', 'Poivre'],
+  preparation: 'Assouplir le beurre à la fourchette. Incorporer la moutarde, le curry, le paprika et le jus de citron. Saler, poivrer. Rouler en boudin, réfrigérer 2 h. Parfait sur une viande grillée.',
+  apports: 'Beurre : vitamines A et D. Curry (curcuma) : curcumine, anti-inflammatoire. Paprika : caroténoïdes. Moutarde : sélénium.',
+  budget: '≈ 2 à 4 €'
+}, {
+  id: 'r48',
+  nom: 'Beurre Citron-Aneth',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'beurre'],
+  ingredients: ['100 g de beurre mou', '1 cuillère à soupe de jus de citron', '1 cuillère à soupe d\'aneth', 'Sel', 'Poivre'],
+  preparation: 'Travailler le beurre mou, incorporer le jus de citron petit à petit puis l\'aneth ciselé. Saler, poivrer. Rouler en boudin dans du film et réfrigérer 2 h. Idéal sur poisson et légumes vapeur.',
+  apports: 'Beurre : vitamines A et D. Citron : vitamine C. Aneth : huiles essentielles, digestion.',
+  budget: '≈ 2 à 3 €'
+}, {
+  id: 'r49',
+  nom: 'Beurre à l\'Échalote',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'beurre'],
+  ingredients: ['100 g de beurre mou', '1 échalote', '1 cuillère à café de vinaigre', 'Sel', 'Poivre'],
+  preparation: 'Ciseler très finement l\'échalote et la faire dégorger quelques minutes dans le vinaigre. Incorporer au beurre mou, saler et poivrer. Rouler en boudin et réfrigérer 2 h.',
+  apports: 'Beurre : vitamines A et D. Échalote : quercétine, prébiotiques, antioxydants. Vinaigre : soutien digestif.',
+  budget: '≈ 2 à 3 €'
+}, {
+  id: 'r50',
+  nom: 'Beurre aux Herbes Fraîches',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'beurre'],
+  ingredients: ['100 g de beurre mou', '1 cuillère à soupe de persil', '1 cuillère à soupe de ciboulette', '1 cuillère à soupe de basilic', 'Sel', 'Poivre'],
+  preparation: 'Ciseler finement les herbes. Les incorporer au beurre mou travaillé à la fourchette. Saler, poivrer. Rouler en boudin dans du film alimentaire et réfrigérer 2 h.',
+  apports: 'Beurre : vitamines A et D. Persil : vitamine K et C. Ciboulette : antioxydants. Basilic : huiles essentielles.',
+  budget: '≈ 2 à 3 €'
+}, {
+  id: 'r51',
+  nom: 'Beurre au Piment d\'Espelette',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'beurre'],
+  ingredients: ['100 g de beurre mou', '1 cuillère à café de piment d\'Espelette', 'Sel'],
+  preparation: 'Travailler le beurre mou à la fourchette, incorporer le piment d\'Espelette et le sel. Mélanger jusqu\'à répartition homogène. Rouler en boudin et réfrigérer 2 h.',
+  apports: 'Beurre : vitamines A et D. Piment d\'Espelette : capsaïcine (douce), caroténoïdes, circulation.',
+  budget: '≈ 2 à 3 €'
 }];
 
 // ─── Tab Views (proper React components to allow local useState) ───
@@ -6812,7 +7154,7 @@ function DrevmCookView({
     budget: ''
   });
 
-  const cats = ['Tout', 'Salés', 'Boulangerie', 'Fermentés', 'Desserts', 'Boissons', 'Référence'];
+  const cats = ['Tout', 'Salés', 'Tartinades', 'Boulangerie', 'Fermentés', 'Desserts', 'Boissons', 'Référence'];
   const fermentStatusFilters = ['Tous', 'En cours', 'Prêts', 'Terminés'];
   const fermentTypes = ['Légumes', 'Sauce', 'Boisson', 'Levain', 'Autre'];
   const filtered = useMemo(() => filterCat === 'Tout' ? allRecipes : allRecipes.filter(r => r.categorie === filterCat), [allRecipes, filterCat]);
@@ -8169,6 +8511,7 @@ const CATEGORIES = [
       { id:'courses',  label:'Courses',       icon:'🛒' },
       { id:'medical',  label:'Suivi médical', icon:'🩺' },
       { id:'drevmcook',label:'DrevmCook',     icon:'🌿' },
+      { id:'konsevasyon', label:'Konsèvasyon', icon:'🧺' },
       { id:'potager',  label:'Potager GWA',   icon:'🌱' },
       { id:'voyages',  label:'Voyages',       icon:'✈️' },
       { id:'charts',   label:'Stats',         icon:'▤'  },
@@ -8235,6 +8578,7 @@ var MT_VIEW_ICON = {
   culture:'ph-light ph-mask-happy', vision:'ph-light ph-sparkle', sport:'ph-light ph-barbell',
   budget:'ph-light ph-wallet', repas:'ph-light ph-fork-knife', courses:'ph-light ph-shopping-cart',
   medical:'ph-light ph-first-aid-kit', drevmcook:'ph-light ph-plant', potager:'ph-light ph-leaf',
+  konsevasyon:'ph-light ph-basket',
   voyages:'ph-light ph-airplane-tilt', charts:'ph-light ph-chart-line-up', planning:'ph-light ph-calendar-blank',
   objmensuel:'ph-light ph-target', coderousseau:'ph-light ph-graduation-cap', route:'ph-light ph-truck',
   survie:'ph-light ph-compass', calendar:'ph-light ph-calendar-dots', liika:'ph-light ph-diamond',
@@ -10176,6 +10520,529 @@ function PotagerView({ plantes, addPlante, updatePlante, deletePlante, semansye,
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// KONSÈVASYON — Où ranger, comment emballer, combien de temps ça tient.
+// Durées de base calibrées pour un climat tempéré (20 °C) ; le « mode péyi »
+// les recalcule pour 28 °C / 80 % d'humidité (Guadeloupe).
+// La rézèv vit dans sa propre table Supabase (voir supabase/konsevasyon.sql),
+// comme recipes/ferments : hors du blob app_state, forme garantie par normalize().
+// ─────────────────────────────────────────────────────────────────────────────
+const KV_GOLD = '#d9a765';
+const KV_GREEN = '#4ade80';
+const KV_MINT = '#5fe39a';
+const KV_AMBER = '#f59e0b';
+const KV_ROSE = '#fb7185';
+const KV_STORE_KEY = 'lanmou-konsevasyon';
+
+const kvMono = "'Space Mono', monospace";
+const kvSerif = "'Playfair Display', Georgia, serif";
+const kvBox = { background: 'rgba(255,255,255,0.03)', border: '1px solid #1a3028', borderRadius: 16 };
+
+// ─── lieux de rangement ───
+const KV_LIEUX = {
+  kontwa: {
+    label: 'Kontwa', sub: "à l'air libre, hors soleil", icon: '🏠', color: KV_GOLD, fac: 0.5,
+    adj: "À 28 °C la maturation double de vitesse — compte moitié moins de temps qu'en zone tempérée."
+  },
+  bac: {
+    label: 'Bak a legim', sub: 'tiroir du frigo', icon: '🥬', color: KV_MINT, fac: 1,
+    adj: "Le tiroir garde l'humidité : c'est le bon endroit par défaut sous nos latitudes."
+  },
+  etaj: {
+    label: 'Etajè frijidè', sub: 'étagère du frigo', icon: '❄️', color: '#7fd0a0', fac: 1,
+    adj: 'Zone la plus froide et la plus sèche — pour ce qui pourrit vite.'
+  },
+  gadman: {
+    label: 'Gadmanjé', sub: 'sombre, sec, ventilé', icon: '🧺', color: '#c9a24a', fac: 0.6,
+    adj: "Sans ventilation à 80 % d'humidité : germination et moisissure en deux semaines. Ouvre, surélève, fais circuler l'air."
+  },
+  kongel: {
+    label: 'Kongélatè', sub: 'congélateur', icon: '🧊', color: '#8ecae6', fac: 1,
+    adj: "La seule vraie sécurité pendant l'hivernage."
+  }
+};
+
+// ─── catégories ───
+const KV_CATS = {
+  fwi: { label: 'Fwi', icon: '🍋' },
+  legim: { label: 'Legim', icon: '🥕' },
+  peyi: { label: 'Péyi', icon: '🌴' },
+  zeb: { label: 'Zèb', icon: '🌿' },
+  baz: { label: 'Baz & rézèv', icon: '🫙' }
+};
+
+// ─── catalogue ───
+// l = lieu · p = emballage · j = jours (base tempérée) · k = nom créole
+// et = 'E' émetteur d'éthylène · 'S' sensible à l'éthylène · rec = pistes DrevmCook
+const KV_ITEMS = [
+  /* --- FWI --- */
+  { n: 'Pomme', e: '🍎', c: 'fwi', l: 'bac', p: 'non emballée', j: 21, et: 'E' },
+  { n: 'Avocat (mûr)', k: 'zaboka', e: '🥑', c: 'fwi', l: 'etaj', p: 'non emballé', j: 4, et: 'E',
+    note: "Encore ferme ? Laisse-le sur le kontwa jusqu'à ce qu'il cède sous le pouce, puis frigo." },
+  { n: 'Avocat entamé', k: 'zaboka koupé', e: '🥑', c: 'fwi', l: 'etaj', p: 'filmé au contact + citron', j: 1, et: 'E' },
+  { n: 'Banane', e: '🍌', c: 'fwi', l: 'kontwa', p: 'non emballée, isolée', j: 3, et: 'E',
+    note: "Grosse émettrice d'éthylène : jamais dans le panier commun." },
+  { n: 'Banane entamée', e: '🍌', c: 'fwi', l: 'etaj', p: 'peau gardée, filmée', j: 1, et: 'E' },
+  { n: 'Fruits rouges', e: '🍓', c: 'fwi', l: 'etaj', p: 'contenant aéré, non lavés', j: 4,
+    note: "Lave au moment de manger — l'eau accélère la moisissure." },
+  { n: 'Agrumes', k: 'sitwon, chadèk', e: '🍊', c: 'fwi', l: 'bac', p: 'non emballés', j: 14 },
+  { n: 'Agrume entamé', e: '🍋', c: 'fwi', l: 'etaj', p: 'filmé face coupée', j: 2 },
+  { n: 'Raisin', e: '🍇', c: 'fwi', l: 'bac', p: 'sac perforé', j: 5 },
+  { n: 'Melon entier', e: '🍈', c: 'fwi', l: 'kontwa', p: 'non emballé', j: 5, et: 'E' },
+  { n: 'Melon entamé', e: '🍈', c: 'fwi', l: 'etaj', p: 'filmé', j: 8 },
+  { n: 'Pêche / prune', e: '🍑', c: 'fwi', l: 'kontwa', p: 'non emballée', j: 4, et: 'E',
+    note: "Mûrit au kontwa, se garde au frigo. Jamais l'inverse." },
+  { n: 'Poire', e: '🍐', c: 'fwi', l: 'kontwa', p: 'non emballée', j: 4, et: 'E' },
+  { n: 'Tomate', e: '🍅', c: 'fwi', l: 'kontwa', p: 'contenant aéré', j: 5, et: 'E',
+    note: 'Le froid tue le goût et rend la chair farineuse. Kontwa, toujours.', rec: ['Sòs kréyòl', 'Chutney tomate'] },
+
+  /* --- LEGIM --- */
+  { n: 'Asperge', e: '🌾', c: 'legim', l: 'etaj', p: "pieds dans l'eau, tête filmée", j: 4 },
+  { n: 'Betterave', e: '🥬', c: 'legim', l: 'bac', p: 'sac plastique, fanes coupées', j: 14 },
+  { n: 'Poivron', e: '🫑', c: 'legim', l: 'bac', p: 'sac plastique', j: 14, et: 'S' },
+  { n: 'Brocoli', e: '🥦', c: 'legim', l: 'etaj', p: 'filmé', j: 5, et: 'S' },
+  { n: 'Chou', e: '🥬', c: 'legim', l: 'bac', p: 'non emballé', j: 14, et: 'S', rec: ['Pikliz', 'Kraut lakay'] },
+  { n: 'Carotte', e: '🥕', c: 'legim', l: 'bac', p: 'sac plastique, fanes coupées', j: 14, et: 'S' },
+  { n: 'Chou-fleur', e: '🥬', c: 'legim', l: 'bac', p: 'filmé', j: 5, et: 'S' },
+  { n: 'Céleri', e: '🥬', c: 'legim', l: 'bac', p: "enroulé dans l'alu", j: 14,
+    note: "L'alu laisse respirer l'éthylène tout en gardant l'eau — le plastique le fait ramollir." },
+  { n: 'Concombre', e: '🥒', c: 'legim', l: 'bac', p: 'filmé', j: 7, et: 'S' },
+  { n: 'Feuilles vert foncé', k: 'épinard, kale', e: '🥬', c: 'legim', l: 'bac', p: 'sac + essuie-tout sec', j: 7, et: 'S' },
+  { n: 'Ail', e: '🧄', c: 'legim', l: 'gadman', p: 'non emballé, tête entière', j: 60 },
+  { n: 'Gingembre', e: '🫚', c: 'legim', l: 'bac', p: 'non emballé', j: 30, rec: ['Ji gingembre'] },
+  { n: 'Gingembre entamé', e: '🫚', c: 'legim', l: 'bac', p: 'sac + essuie-tout', j: 2 },
+  { n: 'Haricot vert', e: '🫛', c: 'legim', l: 'bac', p: 'sac + essuie-tout', j: 7, et: 'S' },
+  { n: 'Laitue', e: '🥗', c: 'legim', l: 'bac', p: 'sac + essuie-tout sec', j: 7, et: 'S' },
+  { n: 'Champignons', e: '🍄', c: 'legim', l: 'etaj', p: 'sac papier uniquement', j: 5,
+    note: 'Le plastique les fait suer et noircir. Papier, toujours.' },
+  { n: 'Oignon', e: '🧅', c: 'legim', l: 'gadman', p: 'non emballé, loin des pommes de terre', j: 45 },
+  { n: 'Oignon entamé', e: '🧅', c: 'legim', l: 'etaj', p: 'boîte hermétique', j: 5 },
+  { n: 'Panais', e: '🥕', c: 'legim', l: 'bac', p: 'sac plastique', j: 14 },
+  { n: 'Pomme de terre', e: '🥔', c: 'legim', l: 'gadman', p: "sac papier, à l'obscurité", j: 45,
+    note: 'Loin des oignons : ensemble, ils se font germer mutuellement.' },
+  { n: 'Radis', e: '🌶️', c: 'legim', l: 'bac', p: 'sac + essuie-tout, fanes coupées', j: 7 },
+  { n: 'Salade en sachet', e: '🥗', c: 'legim', l: 'etaj', p: "sachet d'origine + essuie-tout", j: 10, et: 'S' },
+  { n: 'Courgette', e: '🥒', c: 'legim', l: 'bac', p: 'sac plastique', j: 5 },
+  { n: 'Patate douce', e: '🍠', c: 'legim', l: 'gadman', p: 'sac papier', j: 21, et: 'S', rec: ['Pat dous rôti', 'Purée pat dous'] },
+
+  /* --- PÉYI --- */
+  { n: 'Fruit à pain', k: 'fwitapen', e: '🌳', c: 'peyi', l: 'kontwa', p: 'entier, non emballé', j: 1, et: 'E',
+    note: 'Ne se conserve pas. Cuis-le le jour même, ou tranche et congèle immédiatement.',
+    rec: ['Migan fwitapen', 'Fwitapen grillé'] },
+  { n: 'Igname', e: '🍠', c: 'peyi', l: 'gadman', p: 'non emballée, surélevée', j: 21,
+    note: 'Jamais au frigo : le froid la fait noircir et durcir.' },
+  { n: 'Madè / dachine', e: '🥔', c: 'peyi', l: 'gadman', p: 'non emballée, ventilée', j: 14,
+    note: 'Jamais au frigo.', rec: ['Dombré é madè'] },
+  { n: 'Christophine', k: 'chouchou', e: '🥒', c: 'peyi', l: 'bac', p: 'non emballée', j: 21, et: 'S',
+    rec: ['Gratin christophine', 'Christophine sauté'] },
+  { n: 'Giraumon entier', e: '🎃', c: 'peyi', l: 'gadman', p: 'non emballé, sur cageot', j: 45,
+    rec: ['Migan giraumon', 'Soup jónmou'] },
+  { n: 'Giraumon entamé', e: '🎃', c: 'peyi', l: 'etaj', p: 'face coupée filmée', j: 5,
+    rec: ['Migan giraumon', 'Purée giraumon-coco'] },
+  { n: 'Banane plantain', e: '🍌', c: 'peyi', l: 'kontwa', p: 'non emballée, isolée', j: 7, et: 'E',
+    note: 'Émettrice puissante : isole-la de tout le reste.', rec: ['Plantain frit', 'Aloko'] },
+  { n: 'Ti-nain', k: 'banane verte', e: '🍌', c: 'peyi', l: 'kontwa', p: 'non emballé', j: 5, et: 'E',
+    rec: ['Ti-nain lanmori végétal'] },
+  { n: 'Kalalou', k: 'gombo', e: '🫛', c: 'peyi', l: 'bac', p: 'sac papier, non lavé', j: 4, et: 'S',
+    note: "L'humidité le rend visqueux avant cuisson. Papier, sec.", rec: ['Kalalou é diri'] },
+  { n: 'Manioc frais', e: '🥔', c: 'peyi', l: 'gadman', p: 'non emballé', j: 4,
+    note: 'Une des racines les plus fragiles : 3–4 jours, pas plus. Sinon râpe et congèle.' },
+  { n: 'Mangue', e: '🥭', c: 'peyi', l: 'kontwa', p: 'non emballée', j: 4, et: 'E',
+    note: 'Mûre, elle passe au frigo pour 3 jours de plus.', rec: ['Chutney mangue', 'Ji mango'] },
+  { n: 'Papaye verte', e: '🫒', c: 'peyi', l: 'bac', p: 'non emballée', j: 7, rec: ['Salade papaye verte'] },
+  { n: 'Papaye mûre', e: '🍈', c: 'peyi', l: 'etaj', p: 'entière ou filmée', j: 3, et: 'E' },
+  { n: 'Maracudja', k: 'fruit de la passion', e: '🍇', c: 'peyi', l: 'bac', p: 'non emballé', j: 14,
+    note: 'Peau fripée = pulpe à maturité, pas fruit gâté.' },
+  { n: 'Corossol', e: '🍈', c: 'peyi', l: 'kontwa', p: 'non emballé', j: 2, et: 'E',
+    note: 'Une fois souple : mange, congèle la pulpe, ou perds-le.', rec: ['Ji korosòl'] },
+  { n: 'Karambole', e: '⭐', c: 'peyi', l: 'bac', p: 'non emballée', j: 7 },
+  { n: 'Groseille péyi', e: '🌺', c: 'peyi', l: 'bac', p: 'sac papier', j: 7, rec: ['Ji groseille', 'Confiture groseille'] },
+  { n: 'Piment végétarien', e: '🌶️', c: 'peyi', l: 'bac', p: 'sac papier', j: 14, rec: ['Sòs chien'] },
+  { n: 'Cive', k: 'cébette', e: '🌿', c: 'peyi', l: 'bac', p: "pieds dans un verre d'eau", j: 7 },
+  { n: "Bwa d'Inde séché", e: '🍃', c: 'peyi', l: 'gadman', p: "bocal hermétique, à l'obscurité", j: 180 },
+  { n: 'Atoumo frais', e: '🌿', c: 'peyi', l: 'bac', p: 'torchon humide', j: 5, rec: ['Tizann atoumo'] },
+
+  /* --- ZÈB --- */
+  { n: 'Basilic', e: '🌿', c: 'zeb', l: 'kontwa', p: "tiges dans l'eau, sac lâche", j: 7, et: 'S',
+    note: 'Le seul qui déteste le frigo : le froid le fait noircir en une nuit.' },
+  { n: 'Ciboulette', e: '🌿', c: 'zeb', l: 'etaj', p: 'torchon humide', j: 5 },
+  { n: 'Coriandre', e: '🌿', c: 'zeb', l: 'etaj', p: "tiges dans l'eau, sac lâche", j: 7, et: 'S' },
+  { n: 'Persil', e: '🌿', c: 'zeb', l: 'etaj', p: "tiges dans l'eau, sac lâche", j: 7, et: 'S' },
+  { n: 'Romarin / thym', e: '🌿', c: 'zeb', l: 'etaj', p: 'enroulé dans un torchon humide', j: 14 },
+
+  /* --- BAZ & RÉZÈV --- */
+  { n: 'Pain', e: '🍞', c: 'baz', l: 'kontwa', p: 'sac hermétique, face coupée en bas', j: 3,
+    note: "Au-delà de 3 jours : tranche et congèle. Le frigo le rassit plus vite que l'air libre." },
+  { n: 'Pain congelé', e: '🍞', c: 'baz', l: 'kongel', p: 'tranché, sac hermétique', j: 90 },
+  { n: 'Tofu entamé', e: '🧊', c: 'baz', l: 'etaj', p: 'immergé, eau changée chaque jour', j: 4,
+    rec: ['Tofu fimé', 'Brochettes tofu'] },
+  { n: 'Lait végétal maison', e: '🥛', c: 'baz', l: 'etaj', p: 'bouteille fermée', j: 3,
+    note: 'Sans conservateur : 3 jours réels, agiter avant chaque usage.' },
+  { n: 'Légumineuses cuites', k: 'pwa', e: '🫘', c: 'baz', l: 'etaj', p: 'boîte hermétique, sans jus', j: 4,
+    note: 'Congèle en portions de 200 g dès la cuisson — 3 mois.' },
+  { n: 'Farines sans gluten', k: 'riz, manioc', e: '🌾', c: 'baz', l: 'gadman', p: 'bocal hermétique', j: 180,
+    note: "Farines de riz et d'amande rancissent : sous nos températures, mets-les au frigo." },
+  { n: 'Noix & graines', e: '🥜', c: 'baz', l: 'etaj', p: 'bocal hermétique', j: 180,
+    note: 'À 28 °C elles rancissent en quelques semaines au placard. Frigo obligatoire ici.' },
+  { n: 'Levure maltée', e: '🟡', c: 'baz', l: 'gadman', p: 'bocal opaque hermétique', j: 365 },
+  { n: 'Fermentés maison', k: 'pikliz, kraut', e: '🫙', c: 'baz', l: 'etaj', p: 'bocal, légumes sous saumure', j: 90,
+    note: 'Les légumes doivent rester immergés — ce qui dépasse moisit.', rec: ['Pikliz', 'Kraut lakay'] }
+];
+
+// ─── helpers ───
+const kvIdOf = it => it.n.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+const kvJours = (it, peyi) => peyi ? Math.max(1, Math.round(it.j * KV_LIEUX[it.l].fac)) : it.j;
+function kvFmtJ(j) {
+  if (j >= 300) return '1 an';
+  if (j >= 30) return Math.round(j / 30) + ' mois';
+  if (j >= 14) return Math.round(j / 7) + ' semaines';
+  if (j === 1) return '1 jour';
+  return j + ' jours';
+}
+function kvTodayISO() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function kvParseISO(s) { const p = String(s || '').split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); }
+function kvDaysBetween(a, b) { return Math.round((b - a) / 864e5); }
+// Lecture de l'ancienne rézèv locale (version pré-table Supabase) — sert uniquement
+// à la migration one-shot au premier chargement, puis la clé est supprimée.
+function kvLoadLegacy() {
+  try {
+    const raw = LS.getItem(KV_STORE_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list.filter(r => r && r.id) : [];
+  } catch (e) { return []; }
+}
+
+function KvLigne({ label, val, col }) {
+  const h = React.createElement;
+  return h('div', { style: { display: 'flex', gap: 10, marginBottom: 6, alignItems: 'baseline' } },
+    h('span', { style: { fontFamily: kvMono, fontSize: 10, color: '#4b7a5c', minWidth: 84, flexShrink: 0, letterSpacing: .5 } }, label),
+    h('span', { style: { fontSize: 12.5, color: col || '#cfe3d4', lineHeight: 1.5 } }, val)
+  );
+}
+
+function KvBloc({ titre, col, icon, items, pied }) {
+  const h = React.createElement;
+  return h('div', { style: { ...kvBox, padding: 16, marginBottom: 14, borderLeft: '3px solid ' + col } },
+    h('div', { style: { fontSize: 15, fontWeight: 700, color: '#f2faef', marginBottom: 11 } },
+      h('span', { style: { marginRight: 8 } }, icon), titre),
+    h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 6 } },
+      items.map((it, i) => h('span', {
+        key: i,
+        style: { fontFamily: kvMono, fontSize: 11, padding: '3px 10px', borderRadius: 20,
+          background: col + '16', color: col, border: '1px solid ' + col + '3a' }
+      }, it.e + ' ' + it.n))),
+    h('p', { style: { margin: '12px 0 0', fontSize: 12, color: '#8bb89a', lineHeight: 1.55, fontStyle: 'italic' } }, pied)
+  );
+}
+
+function KonsevasyonView({ rezev, upsertRezev, deleteRezev }) {
+  const h = React.createElement;
+  const [tab, setTab] = useState('katalog');
+  const [q, setQ] = useState('');
+  const [cat, setCat] = useState('all');
+  const [peyi, setPeyi] = useState(true);
+  const [open, setOpen] = useState(null);
+  rezev = Array.isArray(rezev) ? rezev : [];
+
+  const filtered = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    return KV_ITEMS.filter(it => {
+      if (cat !== 'all' && it.c !== cat) return false;
+      if (!s) return true;
+      return (it.n + ' ' + (it.k || '') + ' ' + KV_LIEUX[it.l].label).toLowerCase().includes(s);
+    });
+  }, [q, cat]);
+
+  const addRezev = it => {
+    upsertRezev({ id: kvIdOf(it), n: it.n, e: it.e, d: kvTodayISO() });
+    setTab('rezev');
+  };
+  const delRezev = id => deleteRezev(id);
+  const bumpRezev = id => {
+    const cur = rezev.find(r => r.id === id);
+    if (cur) upsertRezev({ ...cur, d: kvTodayISO() });
+  };
+
+  const rezevCalc = useMemo(() => {
+    const now = kvParseISO(kvTodayISO());
+    return rezev.map(r => {
+      const it = KV_ITEMS.find(x => kvIdOf(x) === r.id);
+      if (!it) return null;
+      const total = kvJours(it, peyi);
+      const passe = kvDaysBetween(kvParseISO(r.d), now);
+      const reste = total - passe;
+      return { ...r, it, total, passe, reste, pct: Math.max(0, Math.min(100, reste / total * 100)) };
+    }).filter(Boolean).sort((a, b) => a.reste - b.reste);
+  }, [rezev, peyi]);
+
+  const urgents = rezevCalc.filter(r => r.reste <= 2);
+
+  const etat = r => {
+    if (r.reste < 0) return { c: KV_ROSE, t: 'Périmé' };
+    if (r.reste === 0) return { c: KV_ROSE, t: "Aujourd'hui" };
+    if (r.reste <= 2) return { c: KV_AMBER, t: r.reste + ' j restants' };
+    return { c: KV_MINT, t: r.reste + ' j restants' };
+  };
+
+  return h('div', {
+    style: { fontFamily: kvSerif, color: '#e8f5e0', minHeight: '100vh',
+      background: 'linear-gradient(135deg,#0a0f0d 0%,#0d1a12 50%,#0a0e10 100%)' }
+  },
+    // Les polices Playfair Display / Space Mono sont déjà chargées par index.html.
+    h('style', null, `
+      .kv-scroll::-webkit-scrollbar{height:0;width:0}
+      .kv-btn{transition:all .2s ease;cursor:pointer}
+      .kv-btn:hover{transform:translateY(-2px)}
+      .kv-card{transition:all .2s ease;cursor:pointer}
+      .kv-card:hover{border-color:#2d5a3d}
+      .kv-in::placeholder{color:#3f6650}
+      .kv-in:focus{outline:none;border-color:${KV_GOLD}}
+      @keyframes kvfade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+      .kv-fade{animation:kvfade .35s ease}
+      @media (prefers-reduced-motion: reduce){.kv-btn,.kv-card,.kv-fade{transition:none;animation:none}}
+    `),
+
+    // ─── HEADER ───
+    h('div', {
+      style: { padding: '26px 20px 16px', borderBottom: '1px solid #1e3a2a',
+        background: 'linear-gradient(180deg,#0a150e 0%,transparent 100%)' }
+    },
+      h('div', { style: { fontFamily: kvMono, fontSize: 10, color: KV_GOLD, letterSpacing: 4, textTransform: 'uppercase', marginBottom: 6 } },
+        'Lanmou Divan · Péyi 🌴'),
+      h('h1', { style: { margin: 0, fontSize: 30, fontWeight: 700, color: '#f0faf0', lineHeight: 1 } },
+        'Konsè', h('span', { style: { fontStyle: 'italic', fontWeight: 400, color: KV_GOLD } }, 'vasyon')),
+      h('p', { style: { margin: '10px 0 0', fontSize: 12.5, color: '#6b9e7a', fontStyle: 'italic', maxWidth: '44ch', lineHeight: 1.5 } },
+        "Où ranger, comment emballer, combien de temps ça tient — recalculé pour 28 °C et 80 % d'humidité."),
+
+      h('div', { className: 'kv-scroll', style: { display: 'flex', gap: 8, marginTop: 18, overflowX: 'auto' } },
+        [
+          { id: 'katalog', l: '🔍 Katalòg' },
+          { id: 'rezev', l: '🧺 Rézèv-mwen' + (urgents.length ? ' · ' + urgents.length : '') },
+          { id: 'etilen', l: '💨 Etilèn' }
+        ].map(t => h('button', {
+          key: t.id, className: 'kv-btn', onClick: () => setTab(t.id),
+          style: { padding: '8px 16px', borderRadius: 20, fontSize: 12, fontFamily: kvMono, whiteSpace: 'nowrap',
+            border: tab === t.id ? 'none' : '1px solid #1e3a2a',
+            background: tab === t.id ? KV_GOLD : 'rgba(255,255,255,0.05)',
+            color: tab === t.id ? '#0a0f0d' : '#8bb89a',
+            fontWeight: tab === t.id ? 700 : 400 }
+        }, t.l)))
+    ),
+
+    // ─── KATALÒG ───
+    tab === 'katalog' && h('div', { className: 'kv-fade' },
+      h('div', { style: { padding: '18px 20px 0' } },
+        h('input', {
+          className: 'kv-in', value: q, onChange: e => setQ(e.target.value),
+          placeholder: 'Chercher un ingrédient…',
+          style: { width: '100%', boxSizing: 'border-box', padding: '12px 16px', borderRadius: 14,
+            background: 'rgba(255,255,255,0.04)', border: '1px solid #1a3028', color: '#e8f5e0',
+            fontFamily: kvMono, fontSize: 13 }
+        })),
+
+      // mode péyi
+      h('div', { style: { padding: '12px 20px 0' } },
+        h('button', {
+          className: 'kv-btn', onClick: () => setPeyi(p => !p),
+          style: { width: '100%', textAlign: 'left', padding: '12px 15px', borderRadius: 14,
+            border: '1px solid ' + (peyi ? KV_GOLD + '55' : '#1a3028'),
+            background: peyi ? 'linear-gradient(135deg,rgba(217,167,101,.1),rgba(74,222,128,.03))' : 'rgba(255,255,255,0.03)',
+            color: '#e8f5e0', display: 'flex', alignItems: 'center', gap: 12 }
+        },
+          h('span', {
+            style: { width: 34, height: 20, borderRadius: 12, flexShrink: 0, position: 'relative',
+              background: peyi ? KV_GOLD : '#2a3a30', transition: 'background .2s' }
+          }, h('span', {
+            style: { position: 'absolute', top: 3, left: peyi ? 17 : 3, width: 14, height: 14,
+              borderRadius: '50%', background: peyi ? '#0a0f0d' : '#6b9e7a', transition: 'left .2s' }
+          })),
+          h('span', { style: { flex: 1 } },
+            h('span', { style: { fontFamily: kvMono, fontSize: 11, fontWeight: 700, color: peyi ? KV_GOLD : '#6b9e7a' } },
+              'MODE PÉYI ' + (peyi ? 'ACTIF' : 'COUPÉ')),
+            h('span', { style: { display: 'block', fontSize: 11.5, color: '#6b9e7a', fontStyle: 'italic', marginTop: 3, lineHeight: 1.45 } },
+              peyi
+                ? 'Durées ajustées au climat tropical : kontwa ÷ 2, gadmanjé ÷ 1,6.'
+                : "Durées d'origine, calibrées pour un climat tempéré à 20 °C.")))
+      ),
+
+      // catégories
+      h('div', { className: 'kv-scroll', style: { padding: '14px 20px 4px', display: 'flex', gap: 7, overflowX: 'auto' } },
+        [['all', { label: 'Tout', icon: '◆' }], ...Object.entries(KV_CATS)].map(([k, v]) => h('button', {
+          key: k, className: 'kv-btn', onClick: () => setCat(k),
+          style: { padding: '7px 13px', borderRadius: 20, fontFamily: kvMono, fontSize: 11, whiteSpace: 'nowrap',
+            border: cat === k ? 'none' : '1px solid #1e3a2a',
+            background: cat === k ? 'rgba(217,167,101,.9)' : 'rgba(255,255,255,0.04)',
+            color: cat === k ? '#0a0f0d' : '#6b9e7a', fontWeight: cat === k ? 700 : 400 }
+        }, v.icon + ' ' + v.label))),
+
+      // liste
+      h('div', { style: { padding: '12px 20px 40px' } },
+        h('div', { style: { fontFamily: kvMono, fontSize: 10, color: '#4b7a5c', letterSpacing: 1, marginBottom: 12 } },
+          filtered.length + ' ENTRÉE' + (filtered.length > 1 ? 'S' : '')),
+
+        filtered.length === 0 && h('div', { style: { ...kvBox, padding: 22, textAlign: 'center' } },
+          h('div', { style: { fontSize: 24, marginBottom: 8 } }, '🫙'),
+          h('div', { style: { fontSize: 13.5, color: '#8bb89a' } }, 'Aucun ingrédient ne correspond.'),
+          h('div', { style: { fontSize: 12, color: '#4b7a5c', fontStyle: 'italic', marginTop: 5 } },
+            'Essaie le nom créole, ou change de catégorie.')),
+
+        filtered.map(it => {
+          const L = KV_LIEUX[it.l];
+          const id = kvIdOf(it);
+          const j = kvJours(it, peyi);
+          const opened = open === id;
+          const inRezev = rezev.some(r => r.id === id);
+          return h('div', {
+            key: id, className: 'kv-card', onClick: () => setOpen(opened ? null : id),
+            style: { ...kvBox, padding: '13px 15px', marginBottom: 9,
+              borderLeft: '3px solid ' + L.color,
+              background: opened ? 'rgba(217,167,101,.05)' : kvBox.background }
+          },
+            h('div', { style: { display: 'flex', alignItems: 'center', gap: 12 } },
+              h('span', { style: { fontSize: 21, width: 26, textAlign: 'center', flexShrink: 0 } }, it.e),
+              h('div', { style: { flex: 1, minWidth: 0 } },
+                h('div', { style: { fontSize: 14.5, fontWeight: 700, color: '#eef7ec', lineHeight: 1.25 } },
+                  it.n,
+                  it.k && h('span', { style: { fontStyle: 'italic', fontWeight: 400, color: '#6b9e7a', fontSize: 12.5 } }, ' · ' + it.k)),
+                h('div', { style: { fontFamily: kvMono, fontSize: 10.5, color: L.color, marginTop: 3 } },
+                  L.icon + ' ' + L.label)),
+              h('div', { style: { textAlign: 'right', flexShrink: 0 } },
+                h('div', { style: { fontFamily: kvMono, fontSize: 13, fontWeight: 700, color: KV_GOLD } }, kvFmtJ(j)),
+                peyi && j !== it.j && h('div', {
+                  style: { fontFamily: kvMono, fontSize: 9.5, color: '#4b7a5c', textDecoration: 'line-through' }
+                }, kvFmtJ(it.j)))),
+
+            opened && h('div', { className: 'kv-fade', style: { marginTop: 13, paddingTop: 13, borderTop: '1px dashed #1e3a2a' } },
+              h(KvLigne, { label: 'Emballage', val: it.p }),
+              h(KvLigne, { label: 'Emplacement', val: L.label + ' — ' + L.sub }),
+              it.et && h(KvLigne, {
+                label: 'Éthylène',
+                val: it.et === 'E' ? 'Émetteur — à isoler des légumes' : 'Sensible — à éloigner des fruits mûrs',
+                col: it.et === 'E' ? KV_AMBER : KV_MINT
+              }),
+              it.note && h('p', { style: { margin: '10px 0 0', fontSize: 12.5, color: '#b4cebc', lineHeight: 1.55, fontStyle: 'italic' } }, it.note),
+              peyi && h('p', { style: { margin: '8px 0 0', fontSize: 11.5, color: '#6b9e7a', lineHeight: 1.5 } }, '🌴 ' + L.adj),
+              it.rec && it.rec.length > 0 && h('div', { style: { marginTop: 11, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' } },
+                h('span', { style: { fontFamily: kvMono, fontSize: 9.5, color: '#4b7a5c', letterSpacing: 1 } }, 'DREVMCOOK →'),
+                it.rec.map((r, i) => h('span', {
+                  key: i,
+                  style: { fontFamily: kvMono, fontSize: 10.5, padding: '3px 9px', borderRadius: 8,
+                    background: 'rgba(74,222,128,.1)', color: KV_GREEN, border: '1px solid rgba(74,222,128,.25)' }
+                }, r))),
+              h('button', {
+                className: 'kv-btn', onClick: e => { e.stopPropagation(); addRezev(it); },
+                style: { marginTop: 13, width: '100%', padding: '10px 0', borderRadius: 11, border: 'none',
+                  fontFamily: kvMono, fontSize: 11.5, fontWeight: 700,
+                  background: inRezev ? 'rgba(74,222,128,.14)' : KV_GOLD,
+                  color: inRezev ? KV_GREEN : '#0a0f0d' }
+              }, inRezev ? "↻ Remettre à aujourd'hui" : '+ Ajouter à la rézèv'))
+          );
+        }))
+    ),
+
+    // ─── RÉZÈV ───
+    tab === 'rezev' && h('div', { className: 'kv-fade', style: { padding: '20px 20px 40px' } },
+      rezevCalc.length === 0
+        ? h('div', { style: { ...kvBox, padding: 26, textAlign: 'center' } },
+            h('div', { style: { fontSize: 28, marginBottom: 10 } }, '🧺'),
+            h('div', { style: { fontSize: 15, fontWeight: 700, color: '#eef7ec', marginBottom: 6 } }, 'Rézèv vide'),
+            h('div', { style: { fontSize: 12.5, color: '#6b9e7a', lineHeight: 1.6, fontStyle: 'italic' } },
+              'Ouvre un ingrédient dans le katalòg et ajoute-le ici le jour où tu le ramènes du marché. Le compte à rebours démarre tout seul.'),
+            h('button', {
+              className: 'kv-btn', onClick: () => setTab('katalog'),
+              style: { marginTop: 16, padding: '10px 22px', borderRadius: 11, border: 'none',
+                fontFamily: kvMono, fontSize: 11.5, fontWeight: 700, background: KV_GOLD, color: '#0a0f0d' }
+            }, 'Ouvrir le katalòg'))
+        : h(React.Fragment, null,
+            urgents.length > 0 && h('div', {
+              style: { ...kvBox, padding: '13px 15px', marginBottom: 16, borderLeft: '3px solid ' + KV_AMBER,
+                background: 'linear-gradient(135deg,rgba(245,158,11,.08),rgba(255,255,255,.015))' }
+            },
+              h('div', { style: { fontFamily: kvMono, fontSize: 10, color: KV_AMBER, letterSpacing: 2, marginBottom: 6 } },
+                'À CUISINER EN PRIORITÉ'),
+              h('div', { style: { fontSize: 13, color: '#dbe9dd', lineHeight: 1.5 } },
+                urgents.map(r => r.it.n).join(' · ')),
+              urgents.some(r => r.it.rec) && h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 } },
+                [...new Set(urgents.flatMap(r => r.it.rec || []))].map((r, i) => h('span', {
+                  key: i,
+                  style: { fontFamily: kvMono, fontSize: 10.5, padding: '3px 9px', borderRadius: 8,
+                    background: 'rgba(74,222,128,.1)', color: KV_GREEN, border: '1px solid rgba(74,222,128,.25)' }
+                }, r)))),
+
+            rezevCalc.map(r => {
+              const st = etat(r);
+              return h('div', { key: r.id, style: { ...kvBox, padding: '13px 15px', marginBottom: 9, borderLeft: '3px solid ' + st.c } },
+                h('div', { style: { display: 'flex', alignItems: 'center', gap: 12 } },
+                  h('span', { style: { fontSize: 20, width: 24, textAlign: 'center' } }, r.e),
+                  h('div', { style: { flex: 1, minWidth: 0 } },
+                    h('div', { style: { fontSize: 14, fontWeight: 700, color: '#eef7ec' } }, r.n),
+                    h('div', { style: { fontFamily: kvMono, fontSize: 10, color: '#4b7a5c', marginTop: 2 } },
+                      'rentré le ' + kvParseISO(r.d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) + ' · ' + KV_LIEUX[r.it.l].label)),
+                  h('span', {
+                    style: { fontFamily: kvMono, fontSize: 10.5, fontWeight: 700, padding: '3px 10px',
+                      borderRadius: 20, background: st.c + '1f', color: st.c, flexShrink: 0 }
+                  }, st.t)),
+                h('div', { style: { height: 5, background: '#152520', borderRadius: 4, overflow: 'hidden', margin: '11px 0 9px' } },
+                  h('div', { style: { height: '100%', width: r.pct + '%', background: st.c, borderRadius: 4, transition: 'width .4s ease' } })),
+                h('div', { style: { display: 'flex', gap: 8 } },
+                  h('button', {
+                    className: 'kv-btn', onClick: () => bumpRezev(r.id),
+                    style: { flex: 1, padding: '7px 0', borderRadius: 9, border: '1px solid #1e3a2a',
+                      background: 'rgba(255,255,255,0.03)', color: '#8bb89a', fontFamily: kvMono, fontSize: 10.5 }
+                  }, '↻ Racheté aujourd\'hui'),
+                  h('button', {
+                    className: 'kv-btn', onClick: () => delRezev(r.id),
+                    style: { padding: '7px 14px', borderRadius: 9, border: '1px solid #3a1a24',
+                      background: 'rgba(251,113,133,.07)', color: KV_ROSE, fontFamily: kvMono, fontSize: 10.5 }
+                  }, 'Consommé')));
+            }),
+
+            h('p', { style: { fontSize: 11, color: '#4b7a5c', fontStyle: 'italic', lineHeight: 1.6, marginTop: 18 } },
+              "Les durées sont des repères, pas des dates de péremption. L'odeur, le toucher et l'aspect priment toujours. Rézèv synchronisée entre vos appareils."))
+    ),
+
+    // ─── ETILÈN ───
+    tab === 'etilen' && h('div', { className: 'kv-fade', style: { padding: '20px 20px 40px' } },
+      h('div', {
+        style: { ...kvBox, padding: 18, marginBottom: 18,
+          background: 'linear-gradient(140deg,rgba(217,167,101,.07),rgba(255,255,255,.015))' }
+      },
+        h('div', { style: { fontSize: 17, fontWeight: 700, color: '#f4faf1', marginBottom: 8 } }, 'Le gaz qui vide ton panier'),
+        h('p', { style: { margin: 0, fontSize: 13, color: '#b4cebc', lineHeight: 1.6 } },
+          "Certains fruits dégagent de l'éthylène en mûrissant. À 28 °C, ce gaz agit deux fois plus vite qu'en Europe : un plantain posé sur un panier de légumes peut leur coûter la moitié de leur durée de vie. La règle tient en une phrase — ",
+          h('b', { style: { color: KV_GOLD } }, 'les émetteurs vivent seuls'), '.')),
+
+      h(KvBloc, {
+        titre: 'Émetteurs — à isoler', col: KV_AMBER, icon: '💨',
+        items: KV_ITEMS.filter(i => i.et === 'E'),
+        pied: "Un panier à part, à l'air libre, loin de tout le reste. Le plantain, la banane et l'avocat sont les plus puissants."
+      }),
+      h(KvBloc, {
+        titre: 'Sensibles — à protéger', col: KV_MINT, icon: '🥬',
+        items: KV_ITEMS.filter(i => i.et === 'S'),
+        pied: 'Bac à légumes fermé, à l\'écart des fruits mûrs. Ce sont eux qui jaunissent, ramollissent et germent en premier.'
+      }),
+
+      h('div', { style: { ...kvBox, padding: 16, marginTop: 6 } },
+        h('div', { style: { fontFamily: kvMono, fontSize: 10, color: KV_GOLD, letterSpacing: 2, marginBottom: 11 } },
+          '🌴 TROIS RÉFLEXES LAKAY'),
+        [
+          ['Trois zones, pas une', 'Un panier émetteurs sur le kontwa, le bac du frigo pour les sensibles, un gadmanjé ventilé pour les racines. Tant que tout dort au même endroit, tu perds des légumes.'],
+          ['Sec avant froid', "Ne lave jamais avant de ranger. L'eau résiduelle à 80 % d'humidité, c'est de la moisissure garantie en deux jours."],
+          ['Papier pour ce qui respire', 'Champignons, kalalou, piments : sac papier. Le plastique les fait suer et pourrir de l\'intérieur.']
+        ].map((row, i) => h('div', { key: i, style: { display: 'flex', gap: 12, marginBottom: i < 2 ? 14 : 0 } },
+          h('span', { style: { fontFamily: kvMono, fontSize: 11, color: KV_GOLD, opacity: .6, flexShrink: 0, paddingTop: 2 } },
+            String(i + 1).padStart(2, '0')),
+          h('div', null,
+            h('div', { style: { fontSize: 14, fontWeight: 700, color: '#eef7ec', marginBottom: 3 } }, row[0]),
+            h('div', { style: { fontSize: 12.5, color: '#b4cebc', lineHeight: 1.55 } }, row[1])))))
+    )
+  );
+}
+
 function VoyagesView() {
   const [voyages, setVoyages] = React.useState(() => { try { return JSON.parse(LS.getItem('ld-voyages')||'[]'); } catch { return []; } });
   const [form, setForm] = React.useState({ dest:'', periode:'', budget:'', notes:'', statut:'Rêve' });
@@ -11122,7 +11989,7 @@ let alive=true;
   // ── DrevmCook : charge les tables dédiées (+ migration depuis le blob si vides) ──
   // Fait ICI car remoteData (ancien blob) contient encore recipes/ferments avant strip.
   try{
-    let [recs,ferms,crs,meds]=await Promise.all([sbLoadRecipes(),sbLoadFerments(),sbLoadCourses().catch(()=>[]),sbLoadMedia().catch(()=>[])]);
+    let [recs,ferms,crs,meds,rzv]=await Promise.all([sbLoadRecipes(),sbLoadFerments(),sbLoadCourses().catch(()=>[]),sbLoadMedia().catch(()=>[]),sbLoadRezev().catch(()=>[])]);
     const srcRecs=(Array.isArray(remoteData.recipes)&&remoteData.recipes.length)?remoteData.recipes:(Array.isArray(data.recipes)?data.recipes:[]);
     const srcFerms=(Array.isArray(remoteData.ferments)&&remoteData.ferments.length)?remoteData.ferments:(Array.isArray(data.ferments)?data.ferments:[]);
     // Migration média : si la table est vide, on y verse le blob/seed (dont la playlist Mix Vibz par défaut).
@@ -11130,7 +11997,12 @@ let alive=true;
     if(recs.length===0&&srcRecs.length>0){ await Promise.all(srcRecs.map(r=>sbUpsertRecipe(r).catch(()=>{}))); recs=srcRecs; }
     if(ferms.length===0&&srcFerms.length>0){ await Promise.all(srcFerms.map(f=>sbUpsertFerment(f).catch(()=>{}))); ferms=srcFerms; }
     if(meds.length===0&&srcMeds.length>0){ await Promise.all(srcMeds.map(m=>sbUpsertMedia(m).catch(()=>{}))); meds=srcMeds; }
-    if(alive){ remoteApplyRef.current=true; setDataRaw(prev=>({...prev,recipes:recs,ferments:ferms,courses:crs,media:meds})); }
+    // Rézèv : migration depuis l'ancienne clé localStorage locale (version pré-table),
+    // sinon depuis le blob. La clé locale est retirée une fois la table amorcée.
+    const srcRzv=(Array.isArray(remoteData.rezev)&&remoteData.rezev.length)?remoteData.rezev:kvLoadLegacy();
+    if(rzv.length===0&&srcRzv.length>0){ await Promise.all(srcRzv.map(r=>sbUpsertRezev(r).catch(()=>{}))); rzv=srcRzv; }
+    if(srcRzv.length>0){ try{ LS.removeItem(KV_STORE_KEY); }catch(_){} }
+    if(alive){ remoteApplyRef.current=true; setDataRaw(prev=>({...prev,recipes:recs,ferments:ferms,courses:crs,media:meds,rezev:rzv})); }
   }catch(_){}
 
   setSyncStatus('ok');
@@ -11210,6 +12082,8 @@ const ch=sb.channel('ld-realtime')
         async () => { try { const crs = await sbLoadCourses(); remoteApplyRef.current = true; setDataRaw(prev => ({ ...prev, courses: crs })); } catch (_) {} })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'media' },
         async () => { try { const meds = await sbLoadMedia(); remoteApplyRef.current = true; setDataRaw(prev => ({ ...prev, media: meds })); } catch (_) {} })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'rezev' },
+        async () => { try { const rzv = await sbLoadRezev(); remoteApplyRef.current = true; setDataRaw(prev => ({ ...prev, rezev: rzv })); } catch (_) {} })
       .subscribe();
     return () => { sb.removeChannel(ch); };
   }, []);
@@ -11382,6 +12256,26 @@ const ch=sb.channel('ld-realtime')
       return next;
     });
     (list || []).forEach(r => sbUpsertRecipe(r).catch(() => {}));
+  }, []);
+  // Konsèvasyon : un ingrédient = une seule entrée de rézèv (le racheter met à
+  // jour sa date d'entrée au lieu d'ajouter une ligne).
+  const upsertRezev = useCallback(entry => {
+    setDataRaw(prev => {
+      const next = clone(prev);
+      if (!Array.isArray(next.rezev)) next.rezev = [];
+      const idx = next.rezev.findIndex(r => r.id === entry.id);
+      if (idx >= 0) next.rezev[idx] = entry;else next.rezev.push(entry);
+      return next;
+    });
+    sbUpsertRezev(entry).catch(() => {});
+  }, []);
+  const deleteRezev = useCallback(id => {
+    setDataRaw(prev => {
+      const next = clone(prev);
+      next.rezev = (next.rezev || []).filter(r => r.id !== id);
+      return next;
+    });
+    sbDeleteRezev(id).catch(() => {});
   }, []);
   const upsertFerment = useCallback(ferment => {
     setDataRaw(prev => {
@@ -13149,6 +14043,7 @@ const ch=sb.channel('ld-realtime')
     view === 'vision' && React.createElement(VisionView,{data,updateVision}),
     view === 'planning' && React.createElement(PlanningView,{planning:(data.couple||{}).planning||{},togglePlanningCheck,addPlanningCustomItem,deletePlanningCustomItem,soirees:(data.couple||{}).soirees||[],addSoiree,deleteSoiree}),
     view === 'drevmcook' && React.createElement(DrevmCookView,{ferments:data.ferments||[],upsertFerment,deleteFerment,recipes:data.recipes||[],upsertRecipe,deleteRecipe,importRecipes}),
+    view === 'konsevasyon' && React.createElement(KonsevasyonView,{rezev:data.rezev||[],upsertRezev,deleteRezev}),
     view === 'culture' && React.createElement(CultureGwadView,null),
     view === 'coderousseau' && React.createElement(CodeRousseauView,{codeRousseau:(data.liika||{}).codeRousseau,updateCodeRousseau}),
     view === 'objmensuel' && renderObjMensuel(),
