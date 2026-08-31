@@ -503,7 +503,8 @@ const realDefaultData = {
       { id: 'de17', titre: 'Liquide de frein (purge)', vehicule: 'Soul', date: '', km: '', cout: '', intervalMois: '24', intervalKm: '', prochainDate: '', prochainKm: '', notes: 'Tous les 2 ans' },
       { id: 'de18', titre: 'Distribution', vehicule: 'Soul', date: '', km: '', cout: '', intervalMois: '', intervalKm: '', prochainDate: '', prochainKm: '', notes: 'À VÉRIFIER (courroie ou chaîne selon série) — faire contrôler l\'état' }
     ],
-    youngBoudha: ybEmpty()
+    youngBoudha: ybEmpty(),
+    programme: { done: {} }
   },
   liika: {
     name: "Liika",
@@ -928,7 +929,8 @@ const demoData = {
       { id: 'de5', titre: 'Vidange moteur', vehicule: 'YBR 125', date: '2026-06-10', km: '20400', cout: '25', intervalMois: '12', intervalKm: '3000', prochainDate: '2027-06-10', prochainKm: '23400', notes: 'Huile 10W40 semi-synthèse · ≈ 1 L' },
       { id: 'de6', titre: 'Vidange + filtre à huile', vehicule: 'Soul', date: '2026-03-18', km: '138000', cout: '110', intervalMois: '12', intervalKm: '15000', prochainDate: '2027-03-18', prochainKm: '153000', notes: 'Huile 5W30 · ≈ 5,3 L' }
     ],
-    youngBoudha: ybEmpty()
+    youngBoudha: ybEmpty(),
+    programme: { done: {} }
   },
   liika: {
     name: "Sam",
@@ -1157,6 +1159,16 @@ function normalize(d) {
       }),
       integration: typeof yd.integration === 'string' ? yd.integration : ''
     };
+  }
+  // Program Dja : carte {clé exercice → booléen}. Même raison que Young Boudha —
+  // le spread de dja a pu remplacer programme par une version partielle. On ne
+  // garde que les valeurs booléennes pour que le rendu des cases reste sain.
+  {
+    const pd = (base.dja.programme && typeof base.dja.programme === 'object') ? base.dja.programme : {};
+    const din = (pd.done && typeof pd.done === 'object' && !Array.isArray(pd.done)) ? pd.done : {};
+    const dout = {};
+    for (const k of Object.keys(din)) if (din[k] === true) dout[k] = true;
+    base.dja.programme = { done: dout };
   }
   // Survie : garantir la forme (le spread couple ci-dessus a pu remplacer survie par une version partielle)
   {
@@ -8506,6 +8518,7 @@ const CATEGORIES = [
     desc:'Sport · Budget · Repas · Médical · Voyages',
     views:[
       { id:'sport',    label:'Sport',         icon:'💪' },
+      { id:'programdja', label:'Program ' + NAME_DJA, icon:'🐆' },
       { id:'budget',   label:'Budget',        icon:'💰' },
       { id:'repas',    label:'Repas',         icon:'🍽'  },
       { id:'courses',  label:'Courses',       icon:'🛒' },
@@ -8578,7 +8591,7 @@ var MT_VIEW_ICON = {
   culture:'ph-light ph-mask-happy', vision:'ph-light ph-sparkle', sport:'ph-light ph-barbell',
   budget:'ph-light ph-wallet', repas:'ph-light ph-fork-knife', courses:'ph-light ph-shopping-cart',
   medical:'ph-light ph-first-aid-kit', drevmcook:'ph-light ph-plant', potager:'ph-light ph-leaf',
-  konsevasyon:'ph-light ph-basket',
+  konsevasyon:'ph-light ph-basket', programdja:'ph-light ph-person-simple-run',
   voyages:'ph-light ph-airplane-tilt', charts:'ph-light ph-chart-line-up', planning:'ph-light ph-calendar-blank',
   objmensuel:'ph-light ph-target', coderousseau:'ph-light ph-graduation-cap', route:'ph-light ph-truck',
   survie:'ph-light ph-compass', calendar:'ph-light ph-calendar-dots', liika:'ph-light ph-diamond',
@@ -11043,6 +11056,443 @@ function KonsevasyonView({ rezev, upsertRezev, deleteRezev }) {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PROGRAM DJA — Prise de masse sèche 4 jours (Wakanda Fit)
+// Séances, circuits, guide technique et nutrition 100 % végétale sans gluten.
+// Le programme lui-même est statique ; seul l'état des cases cochées est
+// persisté, dans data.dja.programme (section « dja » → déjà synchronisée par
+// mergeStates, forme garantie par normalize()). Pas de table dédiée : c'est une
+// simple carte de booléens, pas une liste d'enregistrements.
+// ─────────────────────────────────────────────────────────────────────────────
+const SD_GOLD = '#d9a765';
+const SD_GREEN = '#4ade80';
+const SD_AMBER = '#f59e0b';
+
+const sdMono = "'Space Mono', monospace";
+const sdSerif = "'Playfair Display', Georgia, serif";
+const sdBox = { background: 'rgba(255,255,255,0.03)', border: '1px solid #1a3028', borderRadius: 16 };
+
+const SD_SEANCES = [
+  {
+    id: 'lun', jour: 'Lundi', titre: 'Pectoraux · épaules · triceps', couleur: '#fb7185', emoji: '🔥',
+    ex: [
+      { n: 'Développé couché barre', s: '4 × 6–10', r: '2–3 min' },
+      { n: 'Développé incliné haltères', s: '3 × 8–12', r: '90–120 s' },
+      { n: 'Élévations latérales', s: '3 × 12–15', r: '60–90 s' },
+      { n: 'Développé militaire', s: '3 × 8–10', r: '2 min' },
+      { n: 'Écartés à la poulie', s: '3 × 12–15', r: '60–90 s' },
+      { n: 'Extension triceps à la poulie', s: '3 × 10–15', r: '60–90 s' }
+    ]
+  },
+  {
+    id: 'mar', jour: 'Mardi', titre: 'Dos · biceps', couleur: '#60a5fa', emoji: '🪢',
+    ex: [
+      { n: 'Tractions pronation', s: '4 × 6–10', r: '2–3 min' },
+      { n: 'Rowing barre', s: '4 × 8–10', r: '2 min' },
+      { n: 'Tirage vertical', s: '3 × 10–12', r: '90 s' },
+      { n: 'Rowing poulie basse', s: '3 × 10–12', r: '90 s' },
+      { n: 'Curl haltères', s: '3 × 10–12', r: '60–90 s' },
+      { n: 'Curl marteau', s: '3 × 10–12', r: '60–90 s' }
+    ]
+  },
+  {
+    id: 'jeu', jour: 'Jeudi', titre: 'Jambes · abdominaux', couleur: SD_GREEN, emoji: '🦵',
+    ex: [
+      { n: 'Squat', s: '4 × 6–10', r: '2–3 min' },
+      { n: 'Presse à cuisses', s: '3 × 10–12', r: '2 min' },
+      { n: 'Soulevé de terre jambes tendues', s: '3 × 8–12', r: '2 min' },
+      { n: 'Leg curl', s: '3 × 10–15', r: '90 s' },
+      { n: 'Leg extension', s: '3 × 10–15', r: '90 s' },
+      { n: 'Mollets debout', s: '4 × 12–20', r: '60–90 s' },
+      { n: 'Crunch à la poulie', s: '3 × 12–15', r: '60 s' },
+      { n: 'Gainage', s: '3 × 30–60 s', r: '60 s' }
+    ]
+  },
+  {
+    id: 'ven', jour: 'Vendredi', titre: 'Full body', couleur: SD_GOLD, emoji: '⚡',
+    ex: [
+      { n: 'Soulevé de terre', s: '3 × 5–8', r: '2–3 min' },
+      { n: 'Développé incliné', s: '3 × 8–10', r: '2 min' },
+      { n: 'Tirage horizontal', s: '3 × 8–12', r: '90–120 s' },
+      { n: 'Fentes marchées', s: '3 × 10 / jambe', r: '90 s' },
+      { n: 'Élévations latérales', s: '3 × 12–15', r: '60 s' },
+      { n: 'Curl biceps', s: '2 × 10–12', r: '60 s' },
+      { n: 'Extension triceps poulie', s: '2 × 10–15', r: '60 s' },
+      { n: 'Relevés de jambes', s: '3 × 10–15', r: '60 s' }
+    ]
+  }
+];
+
+const SD_CIRCUITS = [
+  {
+    nom: 'Circuit jambes', emoji: '🦿', couleur: SD_GREEN, tours: '3 à 4 tours',
+    repos: '30–45 s entre exercices · 2 min entre les tours',
+    conseil: 'Contrôle la descente sur 2–3 secondes et pousse fort à la remontée.',
+    ex: [['Squat', '12'], ['Presse à cuisses', '15'], ['Fentes marchées', '10 / jambe'],
+      ['Leg extension', '15'], ['Leg curl', '15'], ['Mollets debout', '20']]
+  },
+  {
+    nom: 'Circuit pectoraux', emoji: '🏋️', couleur: '#fb7185', tours: '3 à 4 tours',
+    repos: '45 s entre exercices · 2 min entre les tours',
+    conseil: "Sur le dernier tour tu peux aller proche de l'échec, sans sacrifier la technique.",
+    ex: [['Développé couché', '10'], ['Développé incliné haltères', '10–12'], ['Écartés à la poulie', '12–15'],
+      ['Pompes', '15–20'], ['Dips', '8–12'], ['Pompes prise serrée', '10–15']]
+  }
+];
+
+const SD_GUIDE = [
+  {
+    groupe: 'Pectoraux · épaules · triceps', couleur: '#fb7185',
+    items: [
+      ['Développé couché barre', "Allongé, pieds au sol. Descends la barre au milieu de la poitrine en contrôlant, puis pousse jusqu'à presque tendre les bras. Omoplates serrées, pas de rebond."],
+      ['Développé incliné haltères', "Banc incliné, un haltère par main. Descends de chaque côté de la poitrine puis pousse vers le haut. L'inclinaison cible le haut des pectoraux."],
+      ['Élévations latérales', "Debout, monte les bras sur les côtés jusqu'à hauteur d'épaules, redescends lentement. Le contrôle prime sur la charge."],
+      ['Développé militaire', 'Assis ou debout, pousse depuis les épaules jusqu\'au-dessus de la tête. Abdominaux gainés pour ne pas cambrer.'],
+      ['Écartés à la poulie', "Bras légèrement fléchis, ramène les poignées devant la poitrine en arc. Retour lent, sans laisser les poids tirer l'épaule."],
+      ['Extension triceps à la poulie', "Coudes près du corps, pousse vers le bas jusqu'à tendre les bras. Remonte sans décoller les coudes."]
+    ]
+  },
+  {
+    groupe: 'Dos · biceps', couleur: '#60a5fa',
+    items: [
+      ['Tractions pronation', "Mains un peu plus larges que les épaules, paumes vers l'extérieur. Amène la poitrine vers la barre puis redescends avec contrôle."],
+      ['Rowing barre', "Buste incliné, dos neutre, genoux fléchis. Tire vers le bas du ventre en rapprochant les omoplates. N'arrondis pas le dos."],
+      ['Tirage vertical', 'Tire la barre vers le haut de la poitrine, buste stable. Remonte lentement pour étirer le dos.'],
+      ['Rowing poulie basse', 'Tire la poignée vers le ventre, coudes derrière le corps. Dos droit, retour contrôlé.'],
+      ['Curl haltères', 'Bras le long du corps, fléchis les coudes vers les épaules. Ne balance pas le buste.'],
+      ['Curl marteau', 'Même mouvement, paumes face à face. Travaille biceps et avant-bras.']
+    ]
+  },
+  {
+    groupe: 'Jambes', couleur: SD_GREEN,
+    items: [
+      ['Squat', "Barre sur le haut du dos, pieds largeur d'épaules. Descends hanches et genoux, pousse dans le sol. Dos stable, genoux dans l'axe des pieds."],
+      ['Presse à cuisses', 'Dos contre le dossier. Descends en contrôlant, pousse sans verrouiller brutalement. Ne descends pas jusqu\'à décoller le bassin.'],
+      ['Soulevé de terre jambes tendues', "Hanches en arrière, jambes peu fléchies, dos neutre. Descends la charge le long des jambes jusqu'à l'étirement des ischios, puis pousse les hanches vers l'avant."],
+      ['Leg curl', 'Fléchis les genoux pour rapprocher les talons des fessiers. Retour lent.'],
+      ['Leg extension', "Tends les jambes jusqu'à presque l'extension complète, redescends lentement. Cible les quadriceps."],
+      ['Mollets debout', "Monte sur la pointe des pieds, pause courte en haut, descends assez bas pour l'étirement."],
+      ['Fentes marchées', "Grand pas vers l'avant, descends jusqu'aux deux genoux fléchis, pousse sur la jambe avant. Alterne."]
+    ]
+  },
+  {
+    groupe: 'Abdominaux', couleur: SD_AMBER,
+    items: [
+      ['Crunch à la poulie', 'À genoux face à la poulie haute, corde près de la tête, enroule le haut du corps vers le bas. Le mouvement vient du tronc, pas des bras.'],
+      ['Gainage', 'Appui avant-bras et pieds, corps aligné. Abdos et fessiers contractés, hanches qui ne tombent pas.'],
+      ['Relevés de jambes', "Suspendu ou sur support, relève les jambes en contrôlant. Pas d'élan."]
+    ]
+  }
+];
+
+// Nutrition 100 % végétale et sans gluten, base péyi
+const SD_REPAS = [
+  { j: 'Lundi',
+    pd: '80 g flocons de sorgho + 300 ml lait de soja + 1 figue-pomme + 30 g purée de cacahuète + 2 c. à s. graines de chia',
+    dej: "150 g riz + 150 g lentilles + légumes péyi sautés + 1 c. à s. huile d'olive + avocat",
+    col: 'Smoothie : 300 ml lait de soja + banane + 40 g sorgho + 20 g purée de cacahuète',
+    din: ' 120 g pâtes de riz + 150 g tofu + sauce tomate + légumes + levure maltée'.trim() },
+  { j: 'Mardi',
+    pd: 'Tofu brouillé (200 g) + 3 tranches pain de sorgho + avocat + 1 fruit + yaourt coco',
+    dej: "150 g quinoa + 150 g pois chiches + légumes + tofu lacto-fermenté + huile d'olive",
+    col: 'Yaourt coco + 40 g granola sans gluten + fruits + 20 g noix',
+    din: '150 g riz + 150 g tofu fumé + légumes sautés + sauce soja sans gluten (tamari)' },
+  { j: 'Mercredi',
+    pd: 'Pancakes : 80 g farine de riz + chia + banane + yaourt végétal + purée de cacahuète',
+    dej: '150 g pâtes de sarrasin + 150 g PVT + sauce tomate + salade + levure maltée',
+    col: "Smoothie lait de soja + banane + sorgho + purée d'amande",
+    din: '300 g patate douce + 150 g haricots rouges + légumes + avocat' },
+  { j: 'Jeudi',
+    pd: '80 g muesli sans gluten + 300 ml lait végétal + banane + 30 g noix + 2 c. à s. chia',
+    dej: '150 g riz basmati + 150 g haricots rouges + maïs + avocat + légumes',
+    col: '2 tartines de sorgho + purée de cacahuète + 1 banane + yaourt végétal',
+    din: "150 g quinoa + 180 g tofu + légumes + huile d'olive" },
+  { j: 'Vendredi',
+    pd: 'Omelette de pois chiches (100 g farine) + 3 tranches pain de sorgho + fruit + yaourt végétal',
+    dej: "150 g fonio ou millet + 150 g pois chiches + légumes + huile d'olive",
+    col: 'Yaourt de soja + 40 g muesli sans gluten + banane + 25 g amandes',
+    din: '150 g pâtes de riz + 150 g lentilles + sauce tomate + légumes + levure maltée' },
+  { j: 'Samedi',
+    pd: 'Porridge 100 g sorgho + lait végétal + banane + sirop de canne + 30 g purée de cacahuète',
+    dej: 'Bowl : 150 g riz + 180 g tofu + avocat + légumes + graines de sésame',
+    col: 'Smoothie : lait de soja + banane + sorgho + purée de cacahuète + cacao',
+    din: "300 g igname ou madère + 150 g pois d'Angole + haricots verts + avocat" },
+  { j: 'Dimanche',
+    pd: 'Tofu brouillé + 3 tranches pain de sorgho + avocat + fruit péyi',
+    dej: "150 g riz + 180 g seitan de sorgho ou tofu + légumes + huile d'olive",
+    col: 'Yaourt de soja + banane + granola sans gluten + 25 g noix',
+    din: 'Dahl : 180 g lentilles + riz + lait de coco + légumes + colombo' }
+];
+
+const SD_RECETTES = [
+  {
+    nom: 'Bowl riz, tofu & avocat', emoji: '🥑',
+    ing: ['120–150 g riz cru', '180 g tofu', '½ à 1 avocat', '100 g pois chiches', 'poivron + courgette + carotte', "1 c. à s. huile d'olive", 'tamari', 'graines de sésame'],
+    prep: "Cuire le riz. Faire revenir le tofu en cubes avec les légumes et le tamari. Ajouter les pois chiches, servir avec l'avocat et le sésame.",
+    astuce: '1 c. à s. de purée de cacahuète dans le tamari → sauce cacahuète ultra gourmande.'
+  },
+  {
+    nom: 'Pâtes crémeuses aux lentilles', emoji: '🍝',
+    ing: ['120–150 g pâtes de riz ou sarrasin', '150 g lentilles cuites', '150 ml crème végétale', '100 g champignons', '½ oignon', "1 c. à s. huile d'olive", 'levure maltée', 'ail, poivre, paprika'],
+    prep: 'Faire revenir oignon et champignons. Ajouter lentilles et crème végétale, assaisonner, mélanger aux pâtes.',
+    astuce: '20–30 g de noix de cajou ou graines de courge pour booster les calories.'
+  },
+  {
+    nom: 'Wraps protéinés', emoji: '🌯',
+    ing: ['2 galettes de riz ou maïs souples', '150 g haricots rouges', '100 g maïs', '150 g tofu', '½ avocat', 'tomate, salade', 'sauce : yaourt végétal + citron + paprika'],
+    prep: 'Faire revenir le tofu au paprika. Écraser légèrement les haricots. Garnir les galettes puis rouler.',
+    astuce: 'Version prise de masse : houmous + une poignée de noix de cajou.'
+  },
+  {
+    nom: 'Colombo coco pois chiches', emoji: '🍛',
+    ing: ['120–150 g riz cru', '200 g pois chiches cuits', '200 ml lait de coco', '1 carotte', '1 poivron', '½ oignon', '1 c. à s. poudre à colombo', '1 c. à s. huile', 'persil ou coriandre'],
+    prep: 'Faire revenir oignon et légumes. Ajouter le colombo, les pois chiches et le lait de coco. Mijoter 10–15 min. Servir généreusement avec le riz.',
+    astuce: '100–150 g de tofu dans le colombo pour plus de protéines.'
+  },
+  {
+    nom: 'Smoothie prise de masse', emoji: '🥤',
+    ing: ['1 banane', '300 ml lait de soja', '50 g flocons de sorgho', '30 g purée de cacahuète', '1 c. à c. cacao', 'glaçons'],
+    prep: "Mixer 30 secondes. Idéal en collation après l'entraînement.",
+    astuce: 'Ajouter 1 c. à s. de graines de chia trempées pour les oméga-3.'
+  }
+];
+
+function SportDjaView({ programme, updateProgramme }) {
+  const h = React.createElement;
+  const [tab, setTab] = useState('seances');
+  const [jour, setJour] = useState(0);
+  const [openEx, setOpenEx] = useState(null);
+  const done = (programme && typeof programme.done === 'object' && programme.done) ? programme.done : {};
+
+  const toggle = k => updateProgramme(p => { p.done[k] = !p.done[k]; });
+  const resetAll = () => updateProgramme(p => { p.done = {}; });
+
+  const s = SD_SEANCES[jour];
+  const faits = s.ex.filter((_, i) => done[`${s.id}-${i}`]).length;
+  const pct = Math.round(faits / s.ex.length * 100);
+
+  const totalSemaine = useMemo(() => {
+    const t = SD_SEANCES.reduce((a, se) => a + se.ex.length, 0);
+    const f = SD_SEANCES.reduce((a, se) => a + se.ex.filter((_, i) => done[`${se.id}-${i}`]).length, 0);
+    return { t, f, pct: t ? Math.round(f / t * 100) : 0 };
+  }, [done]);
+
+  return h('div', {
+    style: { fontFamily: sdSerif, color: '#e8f5e0', minHeight: '100vh',
+      background: 'linear-gradient(135deg,#0a0f0d 0%,#0d1a12 50%,#0a0e10 100%)' }
+  },
+    // Polices déjà chargées par index.html — pas d'@import ici.
+    h('style', null, `
+      .sd-scroll::-webkit-scrollbar{height:0}
+      .sd-btn{transition:all .2s ease;cursor:pointer}
+      .sd-btn:hover{transform:translateY(-2px)}
+      .sd-row{transition:all .18s ease;cursor:pointer}
+      .sd-row:hover{transform:translateX(3px)}
+      @keyframes sdfade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+      .sd-fade{animation:sdfade .3s ease}
+      @media (prefers-reduced-motion: reduce){.sd-btn,.sd-row,.sd-fade{transition:none;animation:none}}
+    `),
+
+    // ─── HEADER ───
+    h('div', {
+      style: { padding: '26px 20px 16px', borderBottom: '1px solid #1e3a2a',
+        background: 'linear-gradient(180deg,#12100a 0%,transparent 100%)' }
+    },
+      h('div', { style: { fontFamily: sdMono, fontSize: 10, color: SD_GOLD, letterSpacing: 4, textTransform: 'uppercase', marginBottom: 6 } },
+        'Lanmou Divan · Wakanda Fit 🐆'),
+      h('h1', { style: { margin: 0, fontSize: 30, fontWeight: 700, color: '#f0faf0', lineHeight: 1 } },
+        'Program ', h('span', { style: { fontStyle: 'italic', fontWeight: 400, color: SD_GOLD } }, NAME_DJA)),
+      h('p', { style: { margin: '10px 0 0', fontSize: 12.5, color: '#6b9e7a', fontStyle: 'italic', maxWidth: '44ch', lineHeight: 1.5 } },
+        'Prise de masse sèche sur 4 jours — nutrition 100 % végétale et sans gluten 💪'),
+
+      h('div', { className: 'sd-scroll', style: { display: 'flex', gap: 8, marginTop: 18, overflowX: 'auto', paddingBottom: 4 } },
+        [
+          { id: 'seances', l: '🏋️ Séances' },
+          { id: 'circuits', l: '🔁 Circuits' },
+          { id: 'guide', l: '📖 Technique' },
+          { id: 'nutri', l: '🌿 Nutrition' }
+        ].map(t => h('button', {
+          key: t.id, className: 'sd-btn', onClick: () => setTab(t.id),
+          style: { padding: '8px 16px', borderRadius: 20, fontSize: 12, fontFamily: sdMono, whiteSpace: 'nowrap',
+            background: tab === t.id ? SD_GOLD : 'rgba(255,255,255,0.05)',
+            color: tab === t.id ? '#0a0f0d' : '#8bb89a',
+            fontWeight: tab === t.id ? 700 : 400,
+            border: tab === t.id ? 'none' : '1px solid #1e3a2a', outline: 'none' }
+        }, t.l)))
+    ),
+
+    // ─── SÉANCES ───
+    tab === 'seances' && h('div', { className: 'sd-fade' },
+      h('div', { className: 'sd-scroll', style: { padding: '16px 20px 12px', display: 'flex', gap: 8, overflowX: 'auto' } },
+        SD_SEANCES.map((se, i) => h('button', {
+          key: se.id, className: 'sd-btn', onClick: () => setJour(i),
+          style: { minWidth: 74, padding: '10px 8px', borderRadius: 12, border: 'none',
+            background: jour === i ? se.couleur : 'rgba(255,255,255,0.04)',
+            color: jour === i ? '#0a0f0d' : '#6b9e7a', fontFamily: sdMono, fontSize: 11, fontWeight: 700,
+            boxShadow: jour === i ? `0 4px 16px ${se.couleur}4d` : 'none', outline: 'none' }
+        },
+          h('div', { style: { fontSize: 14 } }, se.emoji),
+          h('div', { style: { marginTop: 3 } }, se.jour)))),
+
+      h('div', { style: { padding: '0 20px 24px' } },
+        h('div', { style: { ...sdBox, padding: 20 } },
+          h('div', { style: { paddingBottom: 14, borderBottom: '1px solid #1e3a2a', marginBottom: 14 } },
+            h('div', { style: { fontSize: 24, fontWeight: 700, color: '#f4faf1', lineHeight: 1.1 } }, s.jour),
+            h('div', { style: { fontSize: 13, color: s.couleur, marginTop: 5, fontStyle: 'italic' } }, s.titre)),
+
+          s.ex.map((e, i) => {
+            const k = `${s.id}-${i}`;
+            const ok = !!done[k];
+            return h('div', {
+              key: i, className: 'sd-row', onClick: () => toggle(k),
+              style: { display: 'flex', alignItems: 'center', gap: 12, padding: '11px 12px', marginBottom: 8,
+                borderRadius: 12, background: ok ? s.couleur + '12' : 'rgba(255,255,255,0.02)',
+                border: `1px solid ${ok ? s.couleur + '44' : '#182a22'}`,
+                borderLeft: `3px solid ${s.couleur}`, opacity: ok ? 0.65 : 1 }
+            },
+              h('div', {
+                style: { width: 16, height: 16, borderRadius: 5, flexShrink: 0,
+                  border: `2px solid ${s.couleur}`, background: ok ? s.couleur : 'transparent',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 10, color: '#0a0f0d', fontWeight: 700 }
+              }, ok ? '✓' : ''),
+              h('div', { style: { flex: 1, minWidth: 0 } },
+                h('div', {
+                  style: { fontSize: 13.5, fontWeight: 700, color: ok ? '#4b7a5c' : '#dff0e4',
+                    textDecoration: ok ? 'line-through' : 'none' }
+                }, e.n),
+                h('div', { style: { fontFamily: sdMono, fontSize: 10.5, color: '#5c8a6e', marginTop: 2 } },
+                  'repos ' + e.r)),
+              h('span', {
+                style: { fontFamily: sdMono, fontSize: 11.5, fontWeight: 700, color: s.couleur,
+                  background: s.couleur + '1c', padding: '4px 10px', borderRadius: 9, flexShrink: 0 }
+              }, e.s));
+          }),
+
+          h('div', {
+            style: { marginTop: 16, padding: 15, borderRadius: 14, border: '1px solid #1e3a2a',
+              background: 'linear-gradient(135deg,rgba(217,167,101,.06),rgba(74,222,128,.03))' }
+          },
+            h('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 8 } },
+              h('span', { style: { fontSize: 12, color: '#6b9e7a' } }, faits + '/' + s.ex.length + ' exercices'),
+              h('span', { style: { fontFamily: sdMono, fontSize: 14, color: s.couleur, fontWeight: 700 } }, pct + '%')),
+            h('div', { style: { height: 6, background: '#1a3028', borderRadius: 4, overflow: 'hidden' } },
+              h('div', {
+                style: { height: '100%', width: pct + '%', background: s.couleur,
+                  borderRadius: 4, transition: 'width .4s ease', boxShadow: `0 0 12px ${s.couleur}80` }
+              })))),
+
+        h('div', { style: { ...sdBox, padding: 15, marginTop: 12, display: 'flex', gap: 12, alignItems: 'flex-start' } },
+          h('span', { style: { fontSize: 18 } }, '🔥'),
+          h('div', null,
+            h('div', { style: { fontSize: 14, fontWeight: 700, color: '#f2faef', marginBottom: 3 } }, 'Échauffement'),
+            h('div', { style: { fontSize: 12.5, color: '#b4cebc', lineHeight: 1.55 } },
+              '5–10 min de cardio léger + mobilité des articulations concernées, puis 2–3 séries progressives sur le premier exercice lourd.'))),
+
+        h('div', { style: { ...sdBox, padding: 15, marginTop: 10 } },
+          h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 } },
+            h('span', { style: { fontFamily: sdMono, fontSize: 10.5, color: SD_GOLD, letterSpacing: 2 } }, 'SEMAINE'),
+            h('button', {
+              className: 'sd-btn',
+              onClick: () => { if (confirm('Remettre à zéro toutes les cases de la semaine ?')) resetAll(); },
+              style: { fontFamily: sdMono, fontSize: 10, padding: '4px 12px', borderRadius: 20,
+                background: 'transparent', border: '1px solid #2d5a3d', color: '#6b9e7a', outline: 'none' }
+            }, 'Remettre à zéro')),
+          h('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 8 } },
+            h('span', { style: { fontSize: 12, color: '#6b9e7a' } }, totalSemaine.f + '/' + totalSemaine.t + ' exercices'),
+            h('span', { style: { fontFamily: sdMono, fontSize: 14, color: SD_GOLD, fontWeight: 700 } }, totalSemaine.pct + '%')),
+          h('div', { style: { height: 6, background: '#1a3028', borderRadius: 4, overflow: 'hidden' } },
+            h('div', {
+              style: { height: '100%', width: totalSemaine.pct + '%',
+                background: `linear-gradient(90deg,${SD_GOLD},#c9a24a)`, borderRadius: 4, transition: 'width .4s ease' }
+            }))))
+    ),
+
+    // ─── CIRCUITS ───
+    tab === 'circuits' && h('div', { className: 'sd-fade', style: { padding: '18px 20px 30px' } },
+      SD_CIRCUITS.map((c, i) => h('div', { key: i, style: { ...sdBox, padding: 18, marginBottom: 14 } },
+        h('div', { style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 } },
+          h('span', { style: { fontSize: 20 } }, c.emoji),
+          h('span', { style: { fontSize: 18, fontWeight: 700, color: '#f4faf1' } }, c.nom)),
+        h('div', { style: { fontFamily: sdMono, fontSize: 10.5, color: c.couleur, marginBottom: 14 } }, c.tours),
+
+        c.ex.map((row, j) => h('div', {
+          key: j,
+          style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            padding: '9px 0', borderBottom: j < c.ex.length - 1 ? '1px dashed #1a3028' : 'none' }
+        },
+          h('span', { style: { fontSize: 13, color: '#dff0e4' } }, row[0]),
+          h('span', { style: { fontFamily: sdMono, fontSize: 12, fontWeight: 700, color: c.couleur } }, row[1]))),
+
+        h('div', { style: { marginTop: 14, fontSize: 12, color: '#6b9e7a', fontFamily: sdMono } }, 'Repos · ' + c.repos),
+        h('div', {
+          style: { marginTop: 10, padding: 12, borderRadius: 12,
+            background: c.couleur + '0f', border: `1px solid ${c.couleur}33`,
+            fontSize: 12.5, color: '#b4cebc', lineHeight: 1.5, fontStyle: 'italic' }
+        }, c.conseil)))
+    ),
+
+    // ─── GUIDE TECHNIQUE ───
+    tab === 'guide' && h('div', { className: 'sd-fade', style: { padding: '18px 20px 30px' } },
+      SD_GUIDE.map((g, i) => h('div', { key: i, style: { marginBottom: 20 } },
+        h('div', { style: { fontFamily: sdMono, fontSize: 11, color: g.couleur, letterSpacing: 2, marginBottom: 10 } }, g.groupe),
+        g.items.map((row, j) => {
+          const k = `${i}-${j}`;
+          const open = openEx === k;
+          return h('div', {
+            key: j, className: 'sd-row', onClick: () => setOpenEx(open ? null : k),
+            style: { ...sdBox, padding: '12px 14px', marginBottom: 8, borderLeft: `3px solid ${g.couleur}` }
+          },
+            h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 } },
+              h('span', { style: { fontSize: 13.5, fontWeight: 700, color: '#dff0e4' } }, row[0]),
+              h('span', { style: { color: g.couleur, fontSize: 13, flexShrink: 0 } }, open ? '−' : '+')),
+            open && h('p', { style: { margin: '9px 0 0', fontSize: 12.5, color: '#b4cebc', lineHeight: 1.6 } }, row[1]));
+        })))
+    ),
+
+    // ─── NUTRITION ───
+    tab === 'nutri' && h('div', { className: 'sd-fade', style: { padding: '18px 20px 30px' } },
+      h('div', {
+        style: { ...sdBox, padding: 15, marginBottom: 16,
+          background: 'linear-gradient(135deg,rgba(74,222,128,.07),rgba(217,167,101,.04))' }
+      },
+        h('div', { style: { fontSize: 14, fontWeight: 700, color: '#f2faef', marginBottom: 5 } }, '🌱 Version végétale sans gluten'),
+        h('div', { style: { fontSize: 12.5, color: '#b4cebc', lineHeight: 1.6 } },
+          "Œufs → tofu brouillé ou 1 c. à s. de chia moulu + 3 c. à s. d'eau. Laitages → soja, coco, amande. Blé → sorgho, riz, sarrasin, fonio, millet. Parmesan → levure maltée. Sauce soja → tamari.")),
+
+      SD_REPAS.map((r, i) => h('div', { key: i, style: { ...sdBox, padding: 16, marginBottom: 12 } },
+        h('div', { style: { fontSize: 17, fontWeight: 700, color: SD_GOLD, marginBottom: 12 } }, r.j),
+        [['Petit-déjeuner', r.pd], ['Déjeuner', r.dej], ['Collation', r.col], ['Dîner', r.din]].map((row, j) =>
+          h('div', { key: j, style: { marginBottom: j < 3 ? 11 : 0 } },
+            h('div', { style: { fontFamily: sdMono, fontSize: 9.5, color: '#5c8a6e', letterSpacing: 1.5, marginBottom: 3 } }, row[0]),
+            h('div', { style: { fontSize: 12.5, color: '#cfe3d4', lineHeight: 1.55 } }, row[1]))))),
+
+      h('div', { style: { fontFamily: sdMono, fontSize: 11, color: SD_GOLD, letterSpacing: 2, margin: '26px 0 12px' } },
+        '🍽 RECETTES PRISE DE MASSE'),
+
+      SD_RECETTES.map((rc, i) => h('div', { key: i, style: { ...sdBox, padding: 16, marginBottom: 12 } },
+        h('div', { style: { display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10 } },
+          h('span', { style: { fontSize: 19 } }, rc.emoji),
+          h('span', { style: { fontSize: 16, fontWeight: 700, color: '#f4faf1' } }, rc.nom)),
+        h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 11 } },
+          rc.ing.map((x, j) => h('span', {
+            key: j,
+            style: { fontFamily: sdMono, fontSize: 10.5, padding: '3px 10px', borderRadius: 20,
+              background: 'rgba(74,222,128,.09)', color: '#8fd6a5', border: '1px solid #2d5a3d' }
+          }, x))),
+        h('p', { style: { margin: 0, fontSize: 12.5, color: '#cfe3d4', lineHeight: 1.6 } }, rc.prep),
+        h('div', {
+          style: { marginTop: 10, padding: 11, borderRadius: 11,
+            background: 'rgba(217,167,101,.08)', border: '1px solid rgba(217,167,101,.25)',
+            fontSize: 12, color: '#e0c79a', lineHeight: 1.5, fontStyle: 'italic' }
+        }, '💪 ' + rc.astuce))),
+
+      h('p', { style: { fontSize: 11, color: '#4b7a5c', fontStyle: 'italic', lineHeight: 1.6, marginTop: 18 } },
+        'En végétal, pense B12 en complément, et associe céréales et légumineuses dans la journée pour couvrir tous les acides aminés. Les quantités sont un point de départ : ajuste selon ton poids et ta faim.')
+    )
+  );
+}
+
 function VoyagesView() {
   const [voyages, setVoyages] = React.useState(() => { try { return JSON.parse(LS.getItem('ld-voyages')||'[]'); } catch { return []; } });
   const [form, setForm] = React.useState({ dest:'', periode:'', budget:'', notes:'', statut:'Rêve' });
@@ -12601,6 +13051,16 @@ const ch=sb.channel('ld-realtime')
       return next;
     });
   }, []);
+  // Program Dja : coche/décoche un exercice, ou remet la semaine à zéro.
+  const updateProgramme = useCallback(fn => {
+    setData(prev => {
+      const next = clone(prev);
+      if (!next.dja.programme || typeof next.dja.programme !== 'object') next.dja.programme = { done: {} };
+      if (!next.dja.programme.done || typeof next.dja.programme.done !== 'object') next.dja.programme.done = {};
+      fn(next.dja.programme);
+      return next;
+    });
+  }, []);
   const togglePlanningCheck = useCallback((day, itemId) => {
     setData(prev => {
       const next = clone(prev);
@@ -14044,6 +14504,7 @@ const ch=sb.channel('ld-realtime')
     view === 'planning' && React.createElement(PlanningView,{planning:(data.couple||{}).planning||{},togglePlanningCheck,addPlanningCustomItem,deletePlanningCustomItem,soirees:(data.couple||{}).soirees||[],addSoiree,deleteSoiree}),
     view === 'drevmcook' && React.createElement(DrevmCookView,{ferments:data.ferments||[],upsertFerment,deleteFerment,recipes:data.recipes||[],upsertRecipe,deleteRecipe,importRecipes}),
     view === 'konsevasyon' && React.createElement(KonsevasyonView,{rezev:data.rezev||[],upsertRezev,deleteRezev}),
+    view === 'programdja' && React.createElement(SportDjaView,{programme:(data.dja||{}).programme,updateProgramme}),
     view === 'culture' && React.createElement(CultureGwadView,null),
     view === 'coderousseau' && React.createElement(CodeRousseauView,{codeRousseau:(data.liika||{}).codeRousseau,updateCodeRousseau}),
     view === 'objmensuel' && renderObjMensuel(),
