@@ -30,6 +30,8 @@ CREATE TABLE IF NOT EXISTS rezev (
   device_id   TEXT        NOT NULL DEFAULT ''
 );
 
+COMMENT ON TABLE rezev IS 'Inventaire Konsèvasyon : une ligne par ingrédient suivi, avec sa date d''entrée. Le compte à rebours est recalculé côté app depuis KV_ITEMS.';
+
 ALTER TABLE rezev ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "allow_all" ON rezev;
 CREATE POLICY "allow_all" ON rezev FOR ALL USING (true) WITH CHECK (true);
