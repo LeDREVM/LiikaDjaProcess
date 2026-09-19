@@ -792,6 +792,7 @@ const realDefaultData = {
     medical: [],
     soirees: [],
     voyages: [],
+    paris: [],
     maison: {
       checked: {},
       custom: [],
@@ -1021,6 +1022,7 @@ const demoData = {
     medical: [],
     soirees: [],
     voyages: [],
+    paris: [],
     maison: { checked: {}, custom: [], lastReset: '' },
     objMensuels: [],
     survie: {
@@ -1144,6 +1146,17 @@ function normalize(d) {
       for (const k of Object.keys(src)) if (src[k] === true) checked[k] = true;
       return { ...v, id: String(v.id), checked, dateDepart: voyIsoValide(v.dateDepart), dateRetour: voyIsoValide(v.dateRetour) };
     });
+  // Agenda Paris : entrées datées. La date est assainie comme celles des voyages,
+  // et le statut ramené à une valeur connue — le rendu s'appuie dessus pour la
+  // couleur du badge et planterait sur une valeur inattendue.
+  base.couple.paris = (Array.isArray(base.couple.paris) ? base.couple.paris : [])
+    .filter(e => e && typeof e === 'object' && e.id)
+    .map(e => ({
+      ...e, id: String(e.id),
+      date: voyIsoValide(e.date),
+      type: PARIS_TYPES.indexOf(e.type) >= 0 ? e.type : 'Autre',
+      statut: PARIS_STATUTS.indexOf(e.statut) >= 0 ? e.statut : 'Envie'
+    }));
   if (!Array.isArray(base.couple.potager)) base.couple.potager = [];
   if (!Array.isArray(base.couple.semansye)) base.couple.semansye = [];
   if (!base.liika.codeRousseau || typeof base.liika.codeRousseau !== 'object') base.liika.codeRousseau = clone(defaultData.liika.codeRousseau);
@@ -8635,6 +8648,7 @@ const CATEGORIES = [
       { id:'maison',  label:'Maison',      icon:'🏠' },
       { id:'couple',  label:'Nous deux',   icon:'♡'  },
       { id:'culture', label:'Culture GWA', icon:'🎭' },
+      { id:'paris',   label:'Agenda Paris', icon:'🗼' },
       { id:'vision',  label:'Vision',      icon:'✦'  },
     ],
   },
@@ -8719,6 +8733,7 @@ var MT_VIEW_ICON = {
   budget:'ph-light ph-wallet', repas:'ph-light ph-fork-knife', courses:'ph-light ph-shopping-cart',
   medical:'ph-light ph-first-aid-kit', drevmcook:'ph-light ph-plant', potager:'ph-light ph-leaf',
   konsevasyon:'ph-light ph-basket', programdja:'ph-light ph-person-simple-run',
+  paris:'ph-light ph-eiffel-tower',
   voyages:'ph-light ph-airplane-tilt', charts:'ph-light ph-chart-line-up', planning:'ph-light ph-calendar-blank',
   objmensuel:'ph-light ph-target', coderousseau:'ph-light ph-graduation-cap', route:'ph-light ph-truck',
   survie:'ph-light ph-compass', calendar:'ph-light ph-calendar-dots', liika:'ph-light ph-diamond',
@@ -12111,6 +12126,168 @@ function VoyagesView({ voyages, addVoyage, updateVoyage, deleteVoyage, toggleVoy
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// AGENDA PARIS — culture & sorties
+// Entrées datées (expo, concert, resto…) rangées sous couple.paris : la section
+// « couple » est déjà couverte par le merge par section, donc l'agenda se
+// synchronise entre appareils sans table dédiée. Les helpers de date des voyages
+// (voyIsoValide / voyJoursAvant / voyFmtDate) sont réutilisés tels quels.
+// ─────────────────────────────────────────────────────────────────────────────
+const PARIS_TYPES = ['Expo', 'Musée', 'Concert', 'Théâtre', 'Ciné', 'Resto', 'Balade', 'Marché', 'Autre'];
+const PARIS_TYPE_ICON = { Expo:'🖼', 'Musée':'🏛', Concert:'🎵', 'Théâtre':'🎭', 'Ciné':'🎬', Resto:'🍽', Balade:'🚶', 'Marché':'🧺', Autre:'✨' };
+const PARIS_STATUTS = ['Envie', 'Réservé', 'Fait'];
+const PARIS_STATUT_C = { 'Envie':'var(--accent-dja)', 'Réservé':'var(--gold)', 'Fait':'var(--success)' };
+
+// Repères pratiques, affichés en permanence : sans eux un agenda vide
+// n'apprendrait rien (cf. lessons.md L01). Les règles bougent — d'où les
+// formulations prudentes, à vérifier avant de se déplacer.
+const PARIS_BONS_PLANS = [
+  { id: 'bp1', titre: 'Gratuités régulières', icon: '🎟', couleur: 'var(--success)', items: [
+    'Beaucoup de musées nationaux sont gratuits le 1er dimanche du mois — la règle varie selon le musée et la saison, vérifie sur leur site.',
+    'Moins de 26 ans résidant dans l\'Union européenne : entrée gratuite en permanence dans les musées nationaux.',
+    'Musées de la Ville de Paris (Petit Palais, Carnavalet, Maison de Victor Hugo…) : collections permanentes gratuites toute l\'année.'
+  ]},
+  { id: 'bp2', titre: 'Les grands rendez-vous', icon: '📅', couleur: 'var(--gold)', items: [
+    'Journées du Patrimoine en septembre : des lieux habituellement fermés ouvrent gratuitement.',
+    'Nuit Blanche en octobre : parcours d\'art contemporain nocturne, gratuit.',
+    'Fête de la Musique le 21 juin : concerts partout, dans la rue comme dans les institutions.',
+    'Cinéma en plein air au Parc de la Villette l\'été.'
+  ]},
+  { id: 'bp3', titre: 'Payer moins cher', icon: '💶', couleur: 'var(--accent-liika)', items: [
+    'Kiosques Théâtre (Madeleine, Montparnasse) : places du jour à tarif réduit.',
+    'Beaucoup de cinémas pratiquent un tarif réduit avant midi — selon les salles.',
+    'Les expositions temporaires se réservent en ligne : moins cher et surtout sans la file.',
+    'Nombre de concerts en église sont à prix libre ou très accessibles.'
+  ]},
+  { id: 'bp4', titre: 'Se déplacer', icon: '🚇', couleur: '#60a5fa', items: [
+    'Navigo Jour pour une journée dense, Navigo Liberté+ pour un usage ponctuel au trajet.',
+    'Paris se traverse à pied en deux heures environ : souvent plus rapide et plus agréable que deux correspondances.',
+    'Vérifie les travaux et fermetures de ligne le week-end avant de partir.'
+  ]}
+];
+
+function ParisView({ paris, addParis, updateParis, deleteParis }) {
+  const h = React.createElement;
+  const list = Array.isArray(paris) ? paris : [];
+  const [form, setForm] = React.useState({ titre:'', type:'Expo', date:'', lieu:'', prix:'', lien:'', notes:'', statut:'Envie' });
+  const [show, setShow] = React.useState(false);
+  const [filtre, setFiltre] = React.useState('avenir');
+  const [plansOuverts, setPlansOuverts] = React.useState(false);
+
+  const inp = { background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'8px 12px', fontSize:13, width:'100%', boxSizing:'border-box' };
+  const add = () => {
+    if (!form.titre.trim()) return;
+    addParis({ id: Date.now().toString(), ...form, titre: form.titre.trim(), date: voyIsoValide(form.date) });
+    setForm({ titre:'', type:'Expo', date:'', lieu:'', prix:'', lien:'', notes:'', statut:'Envie' });
+    setShow(false);
+  };
+
+  // Les entrées datées à venir d'abord (du plus proche au plus lointain),
+  // puis les sans-date, puis les passées de la plus récente à la plus ancienne.
+  const passe = e => { const j = voyJoursAvant(e.date); return j !== null && j < 0; };
+  const filtrees = list.filter(e => filtre === 'toutes' ? true : filtre === 'passees' ? passe(e) : !passe(e));
+  const triees = filtrees.slice().sort((a, b) => {
+    const da = voyIsoValide(a.date), db = voyIsoValide(b.date);
+    if (da && db) return filtre === 'passees' ? db.localeCompare(da) : da.localeCompare(db);
+    if (da) return -1;
+    if (db) return 1;
+    return 0;
+  });
+  const nbAvenir = list.filter(e => !passe(e)).length;
+
+  return h('div', null,
+    h('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6, gap:10, flexWrap:'wrap' } },
+      h('h2', { style:{ margin:0, fontSize:20 } }, '🗼 Agenda Paris'),
+      h('button', { onClick:()=>setShow(!show), style:{ padding:'8px 18px', borderRadius:20, border:'none', background:'#e91e8c', color:'#fff', cursor:'pointer', fontWeight:700 } }, show ? '✕' : '+ Sortie')
+    ),
+    h('p', { style:{ margin:'0 0 16px', fontSize:12.5, color:'var(--text3)', fontStyle:'italic' } },
+      nbAvenir > 0 ? `${nbAvenir} sortie${nbAvenir > 1 ? 's' : ''} à venir.` : 'Expos, concerts, tables, balades — note ce que tu veux voir avant que ça ferme.'),
+
+    show && h('div', { style:{ background:'var(--glass)', border:'1px solid rgba(233,30,140,.35)', borderRadius:'var(--radius)', padding:16, marginBottom:16 } },
+      h('input', { placeholder:'Quoi ? (ex : expo Basquiat à la Philharmonie) *', value:form.titre, onChange:e=>setForm(p=>({...p,titre:e.target.value})), style:{ ...inp, marginBottom:8 } }),
+      h('div', { style:{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:8 } },
+        PARIS_TYPES.map(t => h('button', { key:t, onClick:()=>setForm(p=>({...p,type:t})), style:{ padding:'4px 10px', borderRadius:14, border:`1px solid ${form.type===t?'#e91e8c':'var(--border)'}`, background:'transparent', color:form.type===t?'#e91e8c':'var(--text3)', cursor:'pointer', fontSize:11.5, fontWeight:form.type===t?700:400 } }, (PARIS_TYPE_ICON[t]||'') + ' ' + t))
+      ),
+      h('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 } },
+        h('label', { style:{ fontSize:10, color:'var(--text3)' } }, 'Date',
+          h('input', { type:'date', value:form.date, onChange:e=>setForm(p=>({...p,date:e.target.value})), style:{ ...inp, marginTop:3 } })),
+        h('input', { placeholder:'Lieu / arrondissement', value:form.lieu, onChange:e=>setForm(p=>({...p,lieu:e.target.value})), style:{ ...inp, alignSelf:'flex-end' } })
+      ),
+      h('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 } },
+        h('input', { placeholder:'Prix', value:form.prix, onChange:e=>setForm(p=>({...p,prix:e.target.value})), style:inp }),
+        h('input', { placeholder:'Lien de réservation', value:form.lien, onChange:e=>setForm(p=>({...p,lien:e.target.value})), style:inp })
+      ),
+      h('textarea', { placeholder:'Notes…', value:form.notes, onChange:e=>setForm(p=>({...p,notes:e.target.value})), style:{ ...inp, minHeight:55, marginBottom:10, resize:'vertical' } }),
+      h('button', { onClick:add, style:{ padding:'8px 20px', borderRadius:12, border:'none', background:'#e91e8c', color:'#fff', cursor:'pointer', fontWeight:700 } }, 'Enregistrer')
+    ),
+
+    h('div', { className:'scroll-x', style:{ display:'flex', gap:6, marginBottom:14 } },
+      [['avenir','À venir'],['passees','Passées'],['toutes','Toutes']].map(([k,l]) =>
+        h('button', { key:k, onClick:()=>setFiltre(k), style:{ padding:'4px 12px', borderRadius:14, cursor:'pointer', fontSize:11.5, whiteSpace:'nowrap',
+          border:`1px solid ${filtre===k?'#e91e8c':'var(--border)'}`, background: filtre===k?'rgba(233,30,140,.12)':'transparent',
+          color: filtre===k?'#e91e8c':'var(--text3)', fontWeight: filtre===k?700:400 } }, l))
+    ),
+
+    triees.length === 0 && h('div', { style:{ textAlign:'center', padding:'24px 0', color:'var(--text3)', fontSize:13 } },
+      filtre === 'passees' ? 'Aucune sortie passée.' : list.length ? 'Rien dans ce filtre.' : '🥐 Rien de prévu — commence par noter une envie.'),
+
+    h('div', { style:{ display:'grid', gap:10, marginBottom:20 } },
+      triees.map(e => {
+        const j = voyJoursAvant(e.date);
+        const estPasse = j !== null && j < 0;
+        const sc = PARIS_STATUT_C[e.statut] || 'var(--text3)';
+        return h('div', { key:e.id, style:{ background:'var(--glass)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'12px 16px', opacity: estPasse ? .62 : 1 } },
+          h('div', { style:{ display:'flex', gap:12, alignItems:'flex-start' } },
+            h('div', { style:{ flex:1, minWidth:0 } },
+              h('div', { style:{ display:'flex', alignItems:'center', gap:8, marginBottom:5, flexWrap:'wrap' } },
+                h('span', { style:{ fontSize:18 } }, PARIS_TYPE_ICON[e.type] || '✨'),
+                h('span', { style:{ fontWeight:700, color:'var(--text)', fontSize:14.5 } }, e.titre),
+                h('span', { style:{ fontSize:10, color:'var(--text3)', border:'1px solid var(--border)', borderRadius:999, padding:'1px 8px' } }, e.type),
+                j !== null && h('span', { style:{ fontSize:10, fontWeight:700, borderRadius:999, padding:'2px 8px',
+                  color: estPasse ? 'var(--text3)' : (j <= 3 ? 'var(--warn)' : 'var(--gold)'),
+                  background: (estPasse ? 'var(--text3)' : (j <= 3 ? 'var(--warn)' : 'var(--gold)')) + '1f' } },
+                  j === 0 ? "Aujourd'hui" : j === 1 ? 'Demain' : j > 0 ? `Dans ${j} j` : `Il y a ${-j} j`)
+              ),
+              h('div', { style:{ fontSize:12, color:'var(--text3)', marginBottom:4 } },
+                [voyIsoValide(e.date) && '📅 ' + voyFmtDate(e.date), e.lieu && '📍 ' + e.lieu, e.prix && '💶 ' + e.prix].filter(Boolean).join(' · ') || 'Sans date'),
+              e.notes && h('div', { style:{ fontSize:12, color:'var(--text3)', fontStyle:'italic', marginBottom:6 } }, e.notes),
+              e.lien && h('a', { href:e.lien, target:'_blank', rel:'noopener noreferrer', style:{ fontSize:11.5, color:'#e91e8c', textDecoration:'none', display:'inline-block', marginBottom:6 } }, '↗ Réserver'),
+              h('div', { style:{ display:'flex', gap:4, flexWrap:'wrap' } },
+                PARIS_STATUTS.map(s => h('button', { key:s, onClick:()=>updateParis(e.id, { statut:s }), style:{ padding:'3px 10px', borderRadius:12, cursor:'pointer', fontSize:11,
+                  border:`1px solid ${e.statut===s?PARIS_STATUT_C[s]:'var(--border)'}`,
+                  background: e.statut===s?PARIS_STATUT_C[s]+'22':'transparent',
+                  color: e.statut===s?PARIS_STATUT_C[s]:'var(--text3)', fontWeight: e.statut===s?700:400 } }, s))
+              )
+            ),
+            h('button', { onClick:()=>confirm('Supprimer cette sortie ?') && deleteParis(e.id), style:{ background:'none', border:'none', color:'var(--danger)', cursor:'pointer', fontSize:18 } }, '×')
+          )
+        );
+      })
+    ),
+
+    // ── Bons plans : toujours accessibles, agenda vide ou non ──
+    h('div', { style:{ borderTop:'1px solid var(--border)', paddingTop:14 } },
+      h('button', { onClick:()=>setPlansOuverts(!plansOuverts), style:{ padding:'5px 14px', borderRadius:12, cursor:'pointer', fontSize:11.5, fontWeight:700,
+        border:'1px solid var(--gold)', background:'var(--gold-bg)', color:'var(--gold)' } },
+        (plansOuverts ? '▾ ' : '▸ ') + '💡 Bons plans parisiens'),
+      plansOuverts && h('div', { style:{ display:'grid', gap:12, marginTop:12 } },
+        PARIS_BONS_PLANS.map(sec => h('div', { key:sec.id, style:{ borderLeft:`3px solid ${sec.couleur}`, paddingLeft:10 } },
+          h('div', { style:{ display:'flex', alignItems:'center', gap:8, marginBottom:6 } },
+            h('span', { style:{ fontSize:13 } }, sec.icon),
+            h('span', { style:{ fontSize:12.5, fontWeight:700, color:sec.couleur } }, sec.titre)
+          ),
+          h('div', { style:{ display:'grid', gap:5 } },
+            sec.items.map((t, i) => h('div', { key:i, style:{ display:'flex', gap:8, alignItems:'flex-start' } },
+              h('span', { style:{ color:sec.couleur, flexShrink:0, fontSize:11, lineHeight:'18px' } }, '•'),
+              h('span', { style:{ fontSize:12, color:'var(--text2)', lineHeight:1.5 } }, t)
+            ))
+          )
+        ))
+      )
+    )
+  );
+}
+
 function ArtView() {
   const [projets, setProjets] = React.useState(() => { try { return JSON.parse(LS.getItem('ld-artiste')||'[]'); } catch { return []; } });
   const [form, setForm] = React.useState({ titre:'', type:'Musique', statut:'En cours', desc:'' });
@@ -13538,6 +13715,28 @@ const ch=sb.channel('ld-realtime')
         if (checked[itemId]) delete checked[itemId];else checked[itemId] = true;
         return { ...v, checked };
       });
+      return next;
+    });
+  }, []);
+  // Agenda Paris : section couple → synchro auto, pas de table dédiée.
+  const addParis = useCallback(e => {
+    setData(prev => {
+      const next = clone(prev);
+      next.couple.paris = [e, ...(next.couple.paris || [])];
+      return next;
+    });
+  }, []);
+  const updateParis = useCallback((id, patch) => {
+    setData(prev => {
+      const next = clone(prev);
+      next.couple.paris = (next.couple.paris || []).map(e => e.id === id ? { ...e, ...patch } : e);
+      return next;
+    });
+  }, []);
+  const deleteParis = useCallback(id => {
+    setData(prev => {
+      const next = clone(prev);
+      next.couple.paris = (next.couple.paris || []).filter(e => e.id !== id);
       return next;
     });
   }, []);
@@ -15133,6 +15332,7 @@ const ch=sb.channel('ld-realtime')
     view === 'konsevasyon' && React.createElement(KonsevasyonView,{rezev:data.rezev||[],upsertRezev,deleteRezev}),
     view === 'programdja' && React.createElement(SportDjaView,{programme:(data.dja||{}).programme,updateProgramme}),
     view === 'culture' && React.createElement(CultureGwadView,null),
+    view === 'paris' && React.createElement(ParisView,{paris:(data.couple||{}).paris||[],addParis,updateParis,deleteParis}),
     view === 'coderousseau' && React.createElement(CodeRousseauView,{codeRousseau:(data.liika||{}).codeRousseau,updateCodeRousseau}),
     view === 'objmensuel' && renderObjMensuel(),
     view === 'calendar' && React.createElement(CalendarView,{data}),
