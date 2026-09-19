@@ -6448,7 +6448,7 @@ function buildIcsEvents(data, opts) {
       if (isNaN(start.getTime())) return;
       const dur = Math.max(1, Number(f.durationDays) || 1);
       const targetIso = new Date(start.getTime() + dur * dayMs).toISOString().slice(0, 10);
-      ev.push({ uid: 'ferment-' + f.id + '@lanmou-douvan', startIso: targetIso, summary: '🫙 ' + (f.nom || 'Ferment') + ' prêt', description: (f.type ? f.type + '. ' : '') + (f.notes || '') });
+      ev.push({ uid: 'ferment-' + f.id + '@lanmou-douvan', startIso: targetIso, summary: (germIsType(f.type) ? '🌱 ' : '🫙 ') + (f.nom || 'Ferment') + ' prêt', description: (f.type ? f.type + '. ' : '') + (f.notes || '') });
     });
   }
   if (o.objMensuels) {
@@ -7104,6 +7104,59 @@ function SurvieView({ survie, updateSurvie, ferments, addCourse }) {
   );
 }
 
+// ─── Graines germées (lentilles, pois chiches…) ───
+// Réutilise la mécanique des ferments (date de départ + durée + statut « Prêt »).
+// Le seul ajout est le suivi des rinçages : sans 2 rinçages par jour, les graines
+// moisissent au lieu de germer. Les rinçages sont stockés dans le champ `journal`
+// (JSONB déjà existant) sous la forme {id, k:'rincage', date, moment} — aucune
+// modification du schéma Supabase n'est donc nécessaire. Les relevés classiques
+// (pH/odeur/couleur) n'ont pas de `k` et cohabitent sans conflit.
+const GERM_TYPE = 'Graines germées';
+const GERM_SLOTS = ['matin', 'soir'];
+const GERM_MAX_JOURS = 10; // garde-fou d'affichage : une germination dépasse rarement 7 jours
+const GERM_CONSEIL = 'Tremper 8 à 12 h, puis égoutter. Rincer matin et soir à l\'eau claire, bocal incliné pour que l\'eau s\'écoule. Prêtes quand le germe fait 1 à 2 cm. Ensuite au frigo, à manger sous 3 à 5 jours.';
+
+const germIsType = t => t === GERM_TYPE;
+function germIsoPlus(iso, n) {
+  const d = new Date(`${String(iso || '').slice(0, 10)}T00:00:00`);
+  if (isNaN(d.getTime())) return '';
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+// Avant 14 h on considère qu'on est sur le rinçage du matin, ensuite sur celui du soir.
+function germSlotNow() { return new Date().getHours() < 14 ? 'matin' : 'soir'; }
+function germRincages(item) {
+  const j = Array.isArray(item && item.journal) ? item.journal : [];
+  return j.filter(e => e && e.k === 'rincage' && e.date && GERM_SLOTS.indexOf(e.moment) >= 0);
+}
+// Les relevés pH/odeur/couleur sont les entrées SANS marqueur `k` — on les sépare
+// des rinçages pour que chaque liste n'affiche que ce qui la concerne.
+function germReleves(item) {
+  const j = Array.isArray(item && item.journal) ? item.journal : [];
+  return j.filter(e => e && typeof e === 'object' && e.k !== 'rincage');
+}
+function germFait(item, date, moment) {
+  return germRincages(item).some(r => r.date === date && r.moment === moment);
+}
+// Coche ou décoche un rinçage et renvoie le nouveau journal (immuable).
+function germToggleJournal(item, date, moment) {
+  const j = Array.isArray(item && item.journal) ? item.journal : [];
+  const match = e => e && e.k === 'rincage' && e.date === date && e.moment === moment;
+  if (j.some(match)) return j.filter(e => !match(e));
+  return [{ id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, k: 'rincage', date, moment }, ...j];
+}
+// Grille jour par jour depuis la date de départ, pour cocher les rinçages passés.
+function germGrille(item) {
+  const dur = Math.max(1, Math.min(GERM_MAX_JOURS, Number(item && item.durationDays) || 1));
+  const out = [];
+  for (let i = 0; i < dur; i++) {
+    const date = germIsoPlus(item && item.startDate, i);
+    if (!date) break;
+    out.push({ jour: i + 1, date, slots: GERM_SLOTS.map(m => ({ moment: m, fait: germFait(item, date, m) })) });
+  }
+  return out;
+}
+
 function DrevmCookView({
   ferments,
   upsertFerment,
@@ -7168,7 +7221,7 @@ function DrevmCookView({
 
   const cats = ['Tout', 'Salés', 'Tartinades', 'Boulangerie', 'Fermentés', 'Desserts', 'Boissons', 'Référence'];
   const fermentStatusFilters = ['Tous', 'En cours', 'Prêts', 'Terminés'];
-  const fermentTypes = ['Légumes', 'Sauce', 'Boisson', 'Levain', 'Autre'];
+  const fermentTypes = ['Légumes', 'Sauce', 'Boisson', 'Levain', GERM_TYPE, 'Autre'];
   const filtered = useMemo(() => filterCat === 'Tout' ? allRecipes : allRecipes.filter(r => r.categorie === filterCat), [allRecipes, filterCat]);
   const fermentList = useMemo(() => (ferments || []).slice().sort((a, b) => String(b.startDate || '').localeCompare(String(a.startDate || ''))), [ferments]);
 
@@ -7339,7 +7392,16 @@ function DrevmCookView({
     ),
     showAddFerment && h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 8, marginBottom: 10 } },
       h('input', { value: fermentForm.nom, onChange: e => setFermentForm(p => ({ ...p, nom: e.target.value })), placeholder: 'Nom du bocal', style: { padding: '7px 9px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)' } }),
-      h('select', { value: fermentForm.type, onChange: e => setFermentForm(p => ({ ...p, type: e.target.value })), style: { padding: '7px 9px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)' } }, fermentTypes.map(t => h('option', { key: t }, t))),
+      h('select', { value: fermentForm.type, onChange: e => setFermentForm(p => {
+        // Bascule la durée par défaut (14 j pour un ferment, 3 j pour une germination)
+        // sans écraser une durée que l'utilisateur a saisie lui-même.
+        const t = e.target.value;
+        const cur = Number(p.durationDays);
+        let dur = p.durationDays;
+        if (germIsType(t) && cur === 14) dur = 3;
+        else if (!germIsType(t) && cur === 3) dur = 14;
+        return { ...p, type: t, durationDays: dur };
+      }), style: { padding: '7px 9px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)' } }, fermentTypes.map(t => h('option', { key: t }, t))),
       h('input', { type: 'date', value: fermentForm.startDate, onChange: e => setFermentForm(p => ({ ...p, startDate: e.target.value })), style: { padding: '7px 9px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)' } }),
       h('input', { type: 'number', min: 1, max: 120, value: fermentForm.durationDays, onChange: e => setFermentForm(p => ({ ...p, durationDays: e.target.value })), placeholder: 'Jours', style: { padding: '7px 9px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)' } }),
       h('input', { value: fermentForm.notes, onChange: e => setFermentForm(p => ({ ...p, notes: e.target.value })), placeholder: 'Notes', style: { gridColumn: '1/-1', padding: '7px 9px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)' } }),
@@ -7368,7 +7430,10 @@ function DrevmCookView({
     filteredFerments.length === 0 ? h('p', { style: { color: 'var(--text3)', fontStyle: 'italic', fontSize: 12 } }, fermentList.length ? 'Aucun bocal pour ce filtre.' : 'Aucun bocal suivi pour l’instant.') : h('div', { style: { display: 'grid', gap: 8 } },
       filteredFerments.map(item => {
         const meta = fermentMetaById.get(item.id) || { left: 0, progress: 0, status: 'En cours', statusColor: 'var(--gold)', targetIso: '' };
-        const logs = Array.isArray(item.journal) ? item.journal : [];
+        const estGerm = germIsType(item.type);
+        // On n'affiche dans les relevés que les entrées pH/odeur/couleur : les
+        // rinçages vivent dans le même journal mais ont leur propre bloc.
+        const logs = germReleves(item);
         const latestLog = logs[0] || null;
         const jd = journalDrafts[item.id] || { date: new Date().toISOString().slice(0, 10), ph: '', odeur: '', couleur: '', note: '' };
         return h('div', { key: item.id, style: { background: 'var(--bg4)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', padding: '10px 12px' } },
@@ -7390,8 +7455,57 @@ function DrevmCookView({
           ),
           h('div', { style: { height: 6, borderRadius: 6, overflow: 'hidden', background: 'rgba(255,255,255,.06)', marginBottom: 8 } }, h('div', { style: { width: `${meta.progress}%`, height: '100%', background: 'linear-gradient(90deg,var(--warn),#fdba74)' } })),
           item.notes && h('p', { style: { fontSize: 12, color: 'var(--text2)', marginBottom: 8 } }, item.notes),
+
+          // ── Suivi des rinçages (graines germées uniquement) ──
+          estGerm && (() => {
+            const grille = germGrille(item);
+            const today = new Date().toISOString().slice(0, 10);
+            const slot = germSlotNow();
+            const dansFenetre = grille.some(g => g.date === today);
+            const faitMaintenant = germFait(item, today, slot);
+            const total = grille.length * GERM_SLOTS.length;
+            const faits = grille.reduce((n, g) => n + g.slots.filter(s => s.fait).length, 0);
+            const aFaire = !item.done && dansFenetre && !faitMaintenant;
+            return h('div', {
+              style: { marginBottom: 8, padding: 10, borderRadius: 8,
+                border: `1px solid ${aFaire ? 'var(--warn-border)' : 'var(--border)'}`,
+                background: aFaire ? 'rgba(251,146,60,.08)' : 'rgba(0,0,0,.12)' }
+            },
+              h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 } },
+                h('span', { style: { fontSize: 11, fontWeight: 700, color: aFaire ? 'var(--warn)' : 'var(--text2)' } },
+                  aFaire ? `💧 Rinçage du ${slot} à faire` : (item.done ? '💧 Rinçages' : (dansFenetre ? `✓ Rinçage du ${slot} fait` : '💧 Rinçages'))),
+                h('span', { style: { fontSize: 10, color: 'var(--text3)', fontFamily: "'Space Mono',monospace" } }, `${faits}/${total}`)
+              ),
+              // Grille jour par jour : chaque case se coche à la main (rattrapage possible).
+              h('div', { style: { display: 'grid', gap: 4, marginBottom: 8 } },
+                grille.map(g => h('div', { key: g.date, style: { display: 'flex', alignItems: 'center', gap: 8 } },
+                  h('span', { style: { fontSize: 10, color: g.date === today ? 'var(--gold)' : 'var(--text3)', fontFamily: "'Space Mono',monospace", minWidth: 58, fontWeight: g.date === today ? 700 : 400 } },
+                    `J${g.jour} ${fmtDate(g.date)}`),
+                  g.slots.map(s => h('button', {
+                    key: s.moment,
+                    'aria-label': `Rinçage ${s.moment} du jour ${g.jour}`,
+                    onClick: () => upsertFerment({ ...item, journal: germToggleJournal(item, g.date, s.moment) }),
+                    style: { padding: '3px 10px', borderRadius: 999, cursor: 'pointer', fontSize: 10,
+                      border: `1px solid ${s.fait ? 'var(--success)' : 'var(--border2)'}`,
+                      background: s.fait ? 'rgba(74,222,128,.14)' : 'transparent',
+                      color: s.fait ? 'var(--success)' : 'var(--text3)',
+                      fontWeight: s.fait ? 700 : 400 }
+                  }, `${s.fait ? '✓' : '○'} ${s.moment}`))
+                ))
+              ),
+              !item.done && dansFenetre && h('button', {
+                onClick: () => upsertFerment({ ...item, journal: germToggleJournal(item, today, slot) }),
+                style: { padding: '5px 10px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700,
+                  background: faitMaintenant ? 'transparent' : 'linear-gradient(135deg,var(--warn),#fdba74)',
+                  color: faitMaintenant ? 'var(--text3)' : '#06120d',
+                  boxShadow: faitMaintenant ? 'inset 0 0 0 1px var(--border)' : 'none' }
+              }, faitMaintenant ? 'Annuler ce rinçage' : `Rincé maintenant (${slot})`),
+              h('p', { style: { margin: '8px 0 0', fontSize: 10.5, color: 'var(--text3)', lineHeight: 1.5, fontStyle: 'italic' } }, GERM_CONSEIL)
+            );
+          })(),
+
           h('div', { style: { display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 6 } },
-            latestLog ? h('div', { style: { fontSize: 11, color: 'var(--text3)', display: 'flex', gap: 8, flexWrap: 'wrap' } }, h('span', null, `pH: ${latestLog.ph || '—'}`), h('span', null, `Odeur: ${latestLog.odeur || '—'}`), h('span', null, `Couleur: ${latestLog.couleur || '—'}`)) : h('span', { style: { fontSize: 11, color: 'var(--text3)', fontStyle: 'italic' } }, 'Aucun relevé pH/odeur/couleur'),
+            latestLog ? h('div', { style: { fontSize: 11, color: 'var(--text3)', display: 'flex', gap: 8, flexWrap: 'wrap' } }, h('span', null, `pH: ${latestLog.ph || '—'}`), h('span', null, `Odeur: ${latestLog.odeur || '—'}`), h('span', null, `Couleur: ${latestLog.couleur || '—'}`)) : h('span', { style: { fontSize: 11, color: 'var(--text3)', fontStyle: 'italic' } }, estGerm ? 'Aucune note' : 'Aucun relevé pH/odeur/couleur'),
             h('button', {
               onClick: () => {
                 if (journalOpenId === item.id) {
