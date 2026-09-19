@@ -1142,7 +1142,7 @@ function normalize(d) {
       const src = (v.checked && typeof v.checked === 'object' && !Array.isArray(v.checked)) ? v.checked : {};
       const checked = {};
       for (const k of Object.keys(src)) if (src[k] === true) checked[k] = true;
-      return { ...v, id: String(v.id), checked };
+      return { ...v, id: String(v.id), checked, dateDepart: voyIsoValide(v.dateDepart), dateRetour: voyIsoValide(v.dateRetour) };
     });
   if (!Array.isArray(base.couple.potager)) base.couple.potager = [];
   if (!Array.isArray(base.couple.semansye)) base.couple.semansye = [];
@@ -11625,35 +11625,35 @@ function SportDjaView({ programme, updateProgramme }) {
 // et stables : réordonner ou insérer une étape plus tard ne doit jamais décocher
 // ce qui l'était déjà (l'état est stocké par id, pas par position).
 const VOYAGE_PROTOCOLE = [
-  { id: 'p1', titre: 'J-60 · Papiers & réservations', icon: '🛂', couleur: 'var(--accent-dja)', items: [
+  { id: 'p1', offset: -60, titre: 'J-60 · Papiers & réservations', icon: '🛂', couleur: 'var(--accent-dja)', items: [
     { id: 'v-passeport', t: 'Passeports / CNI valides (6 mois après le retour)' },
     { id: 'v-visa', t: 'Visa ou autorisation d\'entrée vérifiés' },
     { id: 'v-billets', t: 'Billets réservés' },
     { id: 'v-logement', t: 'Logement réservé' },
     { id: 'v-vaccins', t: 'Vaccins obligatoires et recommandés vérifiés' }
   ]},
-  { id: 'p2', titre: 'J-30 · Argent & couvertures', icon: '💳', couleur: 'var(--gold)', items: [
+  { id: 'p2', offset: -30, titre: 'J-30 · Argent & couvertures', icon: '💳', couleur: 'var(--gold)', items: [
     { id: 'v-assurance', t: 'Assurance voyage / annulation souscrite' },
     { id: 'v-banque', t: 'Banque prévenue des dates et des pays' },
     { id: 'v-plafonds', t: 'Plafonds de carte relevés si besoin' },
     { id: 'v-devises', t: 'Espèces ou devises commandées' },
     { id: 'v-ceam', t: 'Carte européenne d\'assurance maladie (si Europe)' }
   ]},
-  { id: 'p3', titre: 'J-15 · Santé & logistique', icon: '💊', couleur: 'var(--accent-liika)', items: [
+  { id: 'p3', offset: -15, titre: 'J-15 · Santé & logistique', icon: '💊', couleur: 'var(--accent-liika)', items: [
     { id: 'v-ordonnances', t: 'Ordonnances renouvelées, traitement en quantité suffisante' },
     { id: 'v-pharmacie', t: 'Trousse à pharmacie préparée' },
     { id: 'v-transferts', t: 'Transferts réservés (navette, location de voiture)' },
     { id: 'v-permis', t: 'Permis international si tu conduis sur place' },
     { id: 'v-garde', t: 'Garde organisée : plantes, animaux, courrier' }
   ]},
-  { id: 'p4', titre: 'J-7 · Numérique & sécurité', icon: '📱', couleur: '#60a5fa', items: [
+  { id: 'p4', offset: -7, titre: 'J-7 · Numérique & sécurité', icon: '📱', couleur: '#60a5fa', items: [
     { id: 'v-scans', t: 'Papiers scannés et sauvegardés en ligne' },
     { id: 'v-backup', t: 'Téléphone sauvegardé' },
     { id: 'v-horsligne', t: 'Cartes hors-ligne, musique et livres téléchargés' },
     { id: 'v-forfait', t: 'Forfait ou eSIM à l\'étranger vérifié' },
     { id: 'v-itineraire', t: 'Itinéraire transmis à un proche' }
   ]},
-  { id: 'p5', titre: 'J-2 · Bagages', icon: '🧳', couleur: '#4ade80', items: [
+  { id: 'p5', offset: -2, titre: 'J-2 · Bagages', icon: '🧳', couleur: '#4ade80', items: [
     { id: 'v-poids', t: 'Bagages pesés, limites de la compagnie vérifiées' },
     { id: 'v-liquides', t: 'Liquides de moins de 100 ml en cabine' },
     { id: 'v-adaptateur', t: 'Adaptateur de prise du pays' },
@@ -11661,20 +11661,20 @@ const VOYAGE_PROTOCOLE = [
     { id: 'v-meteo', t: 'Vêtements adaptés à la météo sur place' },
     { id: 'v-medoc-cabine', t: 'Médicaments en cabine avec leur ordonnance' }
   ]},
-  { id: 'p6', titre: 'Veille du départ', icon: '🌙', couleur: '#a78bfa', items: [
+  { id: 'p6', offset: -1, titre: 'Veille du départ', icon: '🌙', couleur: '#a78bfa', items: [
     { id: 'v-checkin', t: 'Enregistrement en ligne, carte d\'embarquement sur le téléphone' },
     { id: 'v-horaire', t: 'Heure et terminal reconfirmés' },
     { id: 'v-frigo', t: 'Frigo vidé, poubelles sorties' },
     { id: 'v-coupures', t: 'Eau, gaz et appareils coupés' },
     { id: 'v-charge', t: 'Tous les appareils chargés' }
   ]},
-  { id: 'p7', titre: 'Jour J', icon: '🛫', couleur: 'var(--success)', items: [
+  { id: 'p7', offset: 0, titre: 'Jour J', icon: '🛫', couleur: 'var(--success)', items: [
     { id: 'v-surmoi', t: 'Papiers, carte bancaire et espèces sur toi' },
     { id: 'v-cles', t: 'Clés confiées ou rangées' },
     { id: 'v-fermeture', t: 'Volets et fenêtres fermés' },
     { id: 'v-avance', t: 'Départ avec 3 h d\'avance (international) ou 2 h (régional)' }
   ]},
-  { id: 'p8', titre: 'Au retour', icon: '🏠', couleur: 'var(--text3)', items: [
+  { id: 'p8', apresRetour: true, titre: 'Au retour', icon: '🏠', couleur: 'var(--text3)', items: [
     { id: 'v-douane', t: 'Achats déclarés si nécessaire' },
     { id: 'v-sinistre', t: 'Assurance relancée en cas d\'incident' },
     { id: 'v-photos', t: 'Photos triées et sauvegardées' },
@@ -11685,18 +11685,93 @@ const VOYAGE_ETAPES_TOTAL = VOYAGE_PROTOCOLE.reduce((n, p) => n + p.items.length
 // Ancienne clé localStorage, conservée uniquement pour la reprise one-shot.
 const VOYAGE_LS_KEY = 'ld-voyages';
 
+// ─── Dates de voyage ───
+// Un voyage porte une date de départ et, en option, une date de retour. Chaque
+// phase du protocole en déduit son échéance (J-60 = départ − 60 jours), ce qui
+// permet de signaler ce qui est en retard. Tout reste facultatif : sans date de
+// départ, la checklist fonctionne exactement comme avant, sans échéances.
+function voyIsoValide(iso) {
+  const s = String(iso || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return '';
+  const d = new Date(`${s}T00:00:00`);
+  return isNaN(d.getTime()) ? '' : s;
+}
+function voyIsoPlus(iso, n) {
+  const s = voyIsoValide(iso);
+  if (!s) return '';
+  const d = new Date(`${s}T00:00:00`);
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+function voyAujourdhui() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+// Nombre de jours d'ici à `iso` (négatif = déjà passé).
+function voyJoursAvant(iso) {
+  const s = voyIsoValide(iso);
+  if (!s) return null;
+  return Math.round((new Date(`${s}T00:00:00`).getTime() - new Date(`${voyAujourdhui()}T00:00:00`).getTime()) / 864e5);
+}
+function voyFmtDate(iso) {
+  const s = voyIsoValide(iso);
+  if (!s) return '';
+  return new Date(`${s}T00:00:00`).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+// Échéance d'une phase : départ + offset, ou date de retour pour la phase finale.
+function voyEcheancePhase(v, phase) {
+  const dep = voyIsoValide(v && v.dateDepart);
+  if (phase.apresRetour) return voyIsoValide(v && v.dateRetour) || dep;
+  if (!dep) return '';
+  return voyIsoPlus(dep, phase.offset || 0);
+}
+// État d'un voyage par rapport à aujourd'hui, pour l'entête de la fiche.
+function voyEtat(v) {
+  const dep = voyIsoValide(v && v.dateDepart);
+  if (!dep) return null;
+  const ret = voyIsoValide(v && v.dateRetour);
+  const jDep = voyJoursAvant(dep);
+  if (jDep > 0) return { texte: jDep === 1 ? 'Départ demain' : `Départ dans ${jDep} jours`, couleur: jDep <= 7 ? 'var(--warn)' : 'var(--gold)' };
+  if (jDep === 0) return { texte: "Départ aujourd'hui", couleur: 'var(--warn)' };
+  if (ret && voyJoursAvant(ret) >= 0) return { texte: 'En voyage', couleur: 'var(--success)' };
+  return { texte: ret ? `Revenu le ${voyFmtDate(ret)}` : `Parti le ${voyFmtDate(dep)}`, couleur: 'var(--text3)' };
+}
+// Statut d'une phase : fait / en retard / bientôt / à venir.
+function voyStatutPhase(v, phase, nbFaits) {
+  if (nbFaits >= phase.items.length) return { cle: 'fait', texte: 'Fait', couleur: 'var(--success)' };
+  const ech = voyEcheancePhase(v, phase);
+  if (!ech) return { cle: 'neutre', texte: '', couleur: 'var(--text3)' };
+  const j = voyJoursAvant(ech);
+  if (j < 0) return { cle: 'retard', texte: `En retard de ${-j} j`, couleur: 'var(--danger)' };
+  if (j === 0) return { cle: 'aujourdhui', texte: "Aujourd'hui", couleur: 'var(--warn)' };
+  if (j <= 7) return { cle: 'bientot', texte: `J-${j}`, couleur: 'var(--warn)' };
+  return { cle: 'avenir', texte: `J-${j}`, couleur: 'var(--text3)' };
+}
+// Tri : les départs les plus proches d'abord, puis les voyages sans date.
+function voyTri(list) {
+  return list.slice().sort((a, b) => {
+    const da = voyIsoValide(a && a.dateDepart), db = voyIsoValide(b && b.dateDepart);
+    if (da && db) return da.localeCompare(db);
+    if (da) return -1;
+    if (db) return 1;
+    return 0;
+  });
+}
+
 function VoyagesView({ voyages, addVoyage, updateVoyage, deleteVoyage, toggleVoyageCheck }) {
   const h = React.createElement;
-  const list = Array.isArray(voyages) ? voyages : [];
-  const [form, setForm] = React.useState({ dest:'', periode:'', budget:'', notes:'', statut:'Rêve' });
+  const list = voyTri(Array.isArray(voyages) ? voyages : []);
+  const [form, setForm] = React.useState({ dest:'', periode:'', budget:'', notes:'', statut:'Rêve', dateDepart:'', dateRetour:'' });
   const [show, setShow] = React.useState(false);
   const [openId, setOpenId] = React.useState(null);
   const STATUTS = ['Rêve','Planifié','Réservé','Fait ✓'];
   const STAT_C = { 'Rêve':'var(--accent-dja)', 'Planifié':'var(--gold)', 'Réservé':'var(--accent-liika)', 'Fait ✓':'var(--success)' };
   const add = () => {
     if (!form.dest.trim()) return;
-    addVoyage({ id: Date.now().toString(), ...form, dest: form.dest.trim(), checked: {} });
-    setForm({ dest:'', periode:'', budget:'', notes:'', statut:'Rêve' });
+    if (form.dateDepart && form.dateRetour && form.dateRetour < form.dateDepart) return;
+    addVoyage({ id: Date.now().toString(), ...form, dest: form.dest.trim(),
+      dateDepart: voyIsoValide(form.dateDepart), dateRetour: voyIsoValide(form.dateRetour), checked: {} });
+    setForm({ dest:'', periode:'', budget:'', notes:'', statut:'Rêve', dateDepart:'', dateRetour:'' });
     setShow(false);
   };
   const inp = { background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'8px 12px', fontSize:13, width:'100%', boxSizing:'border-box' };
@@ -11715,6 +11790,16 @@ function VoyagesView({ voyages, addVoyage, updateVoyage, deleteVoyage, toggleVoy
         h('input', { placeholder:'Période (ex: été 2026)', value:form.periode, onChange:e=>setForm(p=>({...p,periode:e.target.value})), style:inp }),
         h('input', { placeholder:'Budget estimé', value:form.budget, onChange:e=>setForm(p=>({...p,budget:e.target.value})), style:inp })
       ),
+      // Dates facultatives : dès qu'un départ est saisi, chaque phase du protocole
+      // affiche son échéance et signale les retards.
+      h('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:4 } },
+        h('label', { style:{ fontSize:10, color:'var(--text3)' } }, 'Départ',
+          h('input', { type:'date', value:form.dateDepart, onChange:e=>setForm(p=>({...p,dateDepart:e.target.value})), style:{ ...inp, marginTop:3 } })),
+        h('label', { style:{ fontSize:10, color:'var(--text3)' } }, 'Retour',
+          h('input', { type:'date', value:form.dateRetour, min:form.dateDepart||undefined, onChange:e=>setForm(p=>({...p,dateRetour:e.target.value})), style:{ ...inp, marginTop:3 } }))
+      ),
+      form.dateDepart && form.dateRetour && form.dateRetour < form.dateDepart &&
+        h('div', { style:{ fontSize:11, color:'var(--danger)', marginBottom:8 } }, 'Le retour est avant le départ.'),
       h('div', { style:{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:8 } },
         STATUTS.map(s => h('button', { key:s, onClick:()=>setForm(p=>({...p,statut:s})), style:{ padding:'4px 12px', borderRadius:16, border:`1px solid ${form.statut===s?STAT_C[s]:'var(--border)'}`, background:'transparent', color:form.statut===s?STAT_C[s]:'var(--text3)', cursor:'pointer', fontWeight:form.statut===s?700:400, fontSize:12 } }, s))
       ),
@@ -11753,10 +11838,17 @@ function VoyagesView({ voyages, addVoyage, updateVoyage, deleteVoyage, toggleVoy
       return h('div', { key:v.id, style:{ background:'var(--glass)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'12px 16px', marginBottom:10 } },
         h('div', { style:{ display:'flex', gap:12, alignItems:'flex-start' } },
           h('div', { style:{ flex:1, minWidth:0 } },
-            h('div', { style:{ display:'flex', alignItems:'center', gap:10, marginBottom:6 } },
+            h('div', { style:{ display:'flex', alignItems:'center', gap:10, marginBottom:6, flexWrap:'wrap' } },
               h('span', { style:{ fontSize:22 } }, '✈️'),
-              h('span', { style:{ fontWeight:700, color:'var(--text)', fontSize:15 } }, v.dest)
+              h('span', { style:{ fontWeight:700, color:'var(--text)', fontSize:15 } }, v.dest),
+              // Compte à rebours, seulement si une date de départ est renseignée
+              (() => {
+                const e = voyEtat(v);
+                return e && h('span', { style:{ fontSize:10.5, fontWeight:700, color:e.couleur, background:e.couleur+'1f', borderRadius:999, padding:'2px 9px' } }, e.texte);
+              })()
             ),
+            voyIsoValide(v.dateDepart) && h('div', { style:{ fontSize:12, color:'var(--text3)', marginBottom:4 } },
+              '📅 ' + voyFmtDate(v.dateDepart) + (voyIsoValide(v.dateRetour) ? ' → ' + voyFmtDate(v.dateRetour) : '')),
             (v.periode||v.budget) && h('div', { style:{ fontSize:12, color:'var(--text3)', marginBottom:4 } }, [v.periode, v.budget&&'Budget : '+v.budget].filter(Boolean).join(' · ')),
             v.notes && h('div', { style:{ fontSize:12, color:'var(--text3)', fontStyle:'italic', marginBottom:8 } }, v.notes),
             h('div', { style:{ display:'flex', gap:4, flexWrap:'wrap' } },
@@ -11785,11 +11877,16 @@ function VoyagesView({ voyages, addVoyage, updateVoyage, deleteVoyage, toggleVoy
             VOYAGE_PROTOCOLE.map(phase => {
               const nf = phase.items.filter(it => checked[it.id]).length;
               const complete = nf === phase.items.length;
-              return h('div', { key:phase.id, style:{ borderLeft:`3px solid ${phase.couleur}`, paddingLeft:10 } },
-                h('div', { style:{ display:'flex', alignItems:'center', gap:8, marginBottom:6 } },
+              const st = voyStatutPhase(v, phase, nf);
+              const ech = voyEcheancePhase(v, phase);
+              return h('div', { key:phase.id, style:{ borderLeft:`3px solid ${st.cle === 'retard' ? 'var(--danger)' : phase.couleur}`, paddingLeft:10 } },
+                h('div', { style:{ display:'flex', alignItems:'center', gap:8, marginBottom:6, flexWrap:'wrap' } },
                   h('span', { style:{ fontSize:13 } }, phase.icon),
                   h('span', { style:{ fontSize:12, fontWeight:700, color: complete ? 'var(--success)' : phase.couleur } }, phase.titre),
-                  h('span', { style:{ fontFamily:"'Space Mono',monospace", fontSize:10, color:'var(--text3)' } }, `${nf}/${phase.items.length}`)
+                  h('span', { style:{ fontFamily:"'Space Mono',monospace", fontSize:10, color:'var(--text3)' } }, `${nf}/${phase.items.length}`),
+                  // Échéance calculée depuis la date de départ, si elle existe
+                  ech && h('span', { style:{ fontSize:10, color:'var(--text3)' } }, '· ' + voyFmtDate(ech)),
+                  st.texte && h('span', { style:{ fontSize:10, fontWeight:700, color:st.couleur, background:st.couleur+'1f', borderRadius:999, padding:'1px 8px' } }, st.texte)
                 ),
                 h('div', { style:{ display:'grid', gap:3 } },
                   phase.items.map(it => {
