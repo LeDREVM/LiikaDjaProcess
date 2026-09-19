@@ -791,6 +791,7 @@ const realDefaultData = {
     motivations: [],
     medical: [],
     soirees: [],
+    voyages: [],
     maison: {
       checked: {},
       custom: [],
@@ -1019,6 +1020,7 @@ const demoData = {
     motivations: [],
     medical: [],
     soirees: [],
+    voyages: [],
     maison: { checked: {}, custom: [], lastReset: '' },
     objMensuels: [],
     survie: {
@@ -1131,6 +1133,17 @@ function normalize(d) {
   if (!Array.isArray(base.couple.motivations)) base.couple.motivations = [];
   if (!Array.isArray(base.couple.medical)) base.couple.medical = [];
   if (!Array.isArray(base.couple.soirees)) base.couple.soirees = [];
+  // Voyages : chaque voyage porte sa propre checklist de préparation dans `checked`
+  // ({idEtape: true}). On ne garde que les entrées identifiables et les cases
+  // réellement cochées, sinon le rendu de la checklist part en vrille.
+  base.couple.voyages = (Array.isArray(base.couple.voyages) ? base.couple.voyages : [])
+    .filter(v => v && typeof v === 'object' && v.id)
+    .map(v => {
+      const src = (v.checked && typeof v.checked === 'object' && !Array.isArray(v.checked)) ? v.checked : {};
+      const checked = {};
+      for (const k of Object.keys(src)) if (src[k] === true) checked[k] = true;
+      return { ...v, id: String(v.id), checked };
+    });
   if (!Array.isArray(base.couple.potager)) base.couple.potager = [];
   if (!Array.isArray(base.couple.semansye)) base.couple.semansye = [];
   if (!base.liika.codeRousseau || typeof base.liika.codeRousseau !== 'object') base.liika.codeRousseau = clone(defaultData.liika.codeRousseau);
@@ -11607,49 +11620,176 @@ function SportDjaView({ programme, updateProgramme }) {
   );
 }
 
-function VoyagesView() {
-  const [voyages, setVoyages] = React.useState(() => { try { return JSON.parse(LS.getItem('ld-voyages')||'[]'); } catch { return []; } });
+// ─── Protocole de préparation de voyage ───
+// Checklist statique, cochée par voyage. Les identifiants d'étape sont explicites
+// et stables : réordonner ou insérer une étape plus tard ne doit jamais décocher
+// ce qui l'était déjà (l'état est stocké par id, pas par position).
+const VOYAGE_PROTOCOLE = [
+  { id: 'p1', titre: 'J-60 · Papiers & réservations', icon: '🛂', couleur: 'var(--accent-dja)', items: [
+    { id: 'v-passeport', t: 'Passeports / CNI valides (6 mois après le retour)' },
+    { id: 'v-visa', t: 'Visa ou autorisation d\'entrée vérifiés' },
+    { id: 'v-billets', t: 'Billets réservés' },
+    { id: 'v-logement', t: 'Logement réservé' },
+    { id: 'v-vaccins', t: 'Vaccins obligatoires et recommandés vérifiés' }
+  ]},
+  { id: 'p2', titre: 'J-30 · Argent & couvertures', icon: '💳', couleur: 'var(--gold)', items: [
+    { id: 'v-assurance', t: 'Assurance voyage / annulation souscrite' },
+    { id: 'v-banque', t: 'Banque prévenue des dates et des pays' },
+    { id: 'v-plafonds', t: 'Plafonds de carte relevés si besoin' },
+    { id: 'v-devises', t: 'Espèces ou devises commandées' },
+    { id: 'v-ceam', t: 'Carte européenne d\'assurance maladie (si Europe)' }
+  ]},
+  { id: 'p3', titre: 'J-15 · Santé & logistique', icon: '💊', couleur: 'var(--accent-liika)', items: [
+    { id: 'v-ordonnances', t: 'Ordonnances renouvelées, traitement en quantité suffisante' },
+    { id: 'v-pharmacie', t: 'Trousse à pharmacie préparée' },
+    { id: 'v-transferts', t: 'Transferts réservés (navette, location de voiture)' },
+    { id: 'v-permis', t: 'Permis international si tu conduis sur place' },
+    { id: 'v-garde', t: 'Garde organisée : plantes, animaux, courrier' }
+  ]},
+  { id: 'p4', titre: 'J-7 · Numérique & sécurité', icon: '📱', couleur: '#60a5fa', items: [
+    { id: 'v-scans', t: 'Papiers scannés et sauvegardés en ligne' },
+    { id: 'v-backup', t: 'Téléphone sauvegardé' },
+    { id: 'v-horsligne', t: 'Cartes hors-ligne, musique et livres téléchargés' },
+    { id: 'v-forfait', t: 'Forfait ou eSIM à l\'étranger vérifié' },
+    { id: 'v-itineraire', t: 'Itinéraire transmis à un proche' }
+  ]},
+  { id: 'p5', titre: 'J-2 · Bagages', icon: '🧳', couleur: '#4ade80', items: [
+    { id: 'v-poids', t: 'Bagages pesés, limites de la compagnie vérifiées' },
+    { id: 'v-liquides', t: 'Liquides de moins de 100 ml en cabine' },
+    { id: 'v-adaptateur', t: 'Adaptateur de prise du pays' },
+    { id: 'v-batterie', t: 'Chargeurs et batterie externe — en cabine obligatoirement' },
+    { id: 'v-meteo', t: 'Vêtements adaptés à la météo sur place' },
+    { id: 'v-medoc-cabine', t: 'Médicaments en cabine avec leur ordonnance' }
+  ]},
+  { id: 'p6', titre: 'Veille du départ', icon: '🌙', couleur: '#a78bfa', items: [
+    { id: 'v-checkin', t: 'Enregistrement en ligne, carte d\'embarquement sur le téléphone' },
+    { id: 'v-horaire', t: 'Heure et terminal reconfirmés' },
+    { id: 'v-frigo', t: 'Frigo vidé, poubelles sorties' },
+    { id: 'v-coupures', t: 'Eau, gaz et appareils coupés' },
+    { id: 'v-charge', t: 'Tous les appareils chargés' }
+  ]},
+  { id: 'p7', titre: 'Jour J', icon: '🛫', couleur: 'var(--success)', items: [
+    { id: 'v-surmoi', t: 'Papiers, carte bancaire et espèces sur toi' },
+    { id: 'v-cles', t: 'Clés confiées ou rangées' },
+    { id: 'v-fermeture', t: 'Volets et fenêtres fermés' },
+    { id: 'v-avance', t: 'Départ avec 3 h d\'avance (international) ou 2 h (régional)' }
+  ]},
+  { id: 'p8', titre: 'Au retour', icon: '🏠', couleur: 'var(--text3)', items: [
+    { id: 'v-douane', t: 'Achats déclarés si nécessaire' },
+    { id: 'v-sinistre', t: 'Assurance relancée en cas d\'incident' },
+    { id: 'v-photos', t: 'Photos triées et sauvegardées' },
+    { id: 'v-bilan', t: 'Noté ce qui a manqué pour le prochain voyage' }
+  ]}
+];
+const VOYAGE_ETAPES_TOTAL = VOYAGE_PROTOCOLE.reduce((n, p) => n + p.items.length, 0);
+// Ancienne clé localStorage, conservée uniquement pour la reprise one-shot.
+const VOYAGE_LS_KEY = 'ld-voyages';
+
+function VoyagesView({ voyages, addVoyage, updateVoyage, deleteVoyage, toggleVoyageCheck }) {
+  const h = React.createElement;
+  const list = Array.isArray(voyages) ? voyages : [];
   const [form, setForm] = React.useState({ dest:'', periode:'', budget:'', notes:'', statut:'Rêve' });
   const [show, setShow] = React.useState(false);
+  const [openId, setOpenId] = React.useState(null);
   const STATUTS = ['Rêve','Planifié','Réservé','Fait ✓'];
   const STAT_C = { 'Rêve':'var(--accent-dja)', 'Planifié':'var(--gold)', 'Réservé':'var(--accent-liika)', 'Fait ✓':'var(--success)' };
-  const save = l => { setVoyages(l); LS.setItem('ld-voyages', JSON.stringify(l)); };
-  const add = () => { if (!form.dest.trim()) return; save([{ id:Date.now().toString(), ...form }, ...voyages]); setForm({ dest:'', periode:'', budget:'', notes:'', statut:'Rêve' }); setShow(false); };
-  const del = id => save(voyages.filter(v => v.id !== id));
-  const upd = (id, statut) => save(voyages.map(v => v.id===id ? { ...v, statut } : v));
+  const add = () => {
+    if (!form.dest.trim()) return;
+    addVoyage({ id: Date.now().toString(), ...form, dest: form.dest.trim(), checked: {} });
+    setForm({ dest:'', periode:'', budget:'', notes:'', statut:'Rêve' });
+    setShow(false);
+  };
   const inp = { background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'8px 12px', fontSize:13, width:'100%', boxSizing:'border-box' };
-  return React.createElement('div', null,
-    React.createElement('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 } },
-      React.createElement('h2', { style:{ margin:0, fontSize:20 } }, '✈️ Voyages & Destinations'),
-      React.createElement('button', { onClick:()=>setShow(!show), style:{ padding:'8px 18px', borderRadius:20, border:'none', background:'#10b981', color:'#fff', cursor:'pointer', fontWeight:700 } }, show ? '✕' : '+ Voyage')
+  const faits = v => {
+    const c = (v && v.checked) || {};
+    return VOYAGE_PROTOCOLE.reduce((n, p) => n + p.items.filter(it => c[it.id]).length, 0);
+  };
+  return h('div', null,
+    h('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 } },
+      h('h2', { style:{ margin:0, fontSize:20 } }, '✈️ Voyages & Destinations'),
+      h('button', { onClick:()=>setShow(!show), style:{ padding:'8px 18px', borderRadius:20, border:'none', background:'#10b981', color:'#fff', cursor:'pointer', fontWeight:700 } }, show ? '✕' : '+ Voyage')
     ),
-    show && React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid rgba(16,185,129,.35)', borderRadius:'var(--radius)', padding:16, marginBottom:16 } },
-      React.createElement('input', { placeholder:'Destination *', value:form.dest, onChange:e=>setForm(p=>({...p,dest:e.target.value})), style:{ ...inp, marginBottom:8 } }),
-      React.createElement('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 } },
-        React.createElement('input', { placeholder:'Période (ex: été 2026)', value:form.periode, onChange:e=>setForm(p=>({...p,periode:e.target.value})), style:inp }),
-        React.createElement('input', { placeholder:'Budget estimé', value:form.budget, onChange:e=>setForm(p=>({...p,budget:e.target.value})), style:inp })
+    show && h('div', { style:{ background:'var(--glass)', border:'1px solid rgba(16,185,129,.35)', borderRadius:'var(--radius)', padding:16, marginBottom:16 } },
+      h('input', { placeholder:'Destination *', value:form.dest, onChange:e=>setForm(p=>({...p,dest:e.target.value})), style:{ ...inp, marginBottom:8 } }),
+      h('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 } },
+        h('input', { placeholder:'Période (ex: été 2026)', value:form.periode, onChange:e=>setForm(p=>({...p,periode:e.target.value})), style:inp }),
+        h('input', { placeholder:'Budget estimé', value:form.budget, onChange:e=>setForm(p=>({...p,budget:e.target.value})), style:inp })
       ),
-      React.createElement('div', { style:{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:8 } },
-        STATUTS.map(s => React.createElement('button', { key:s, onClick:()=>setForm(p=>({...p,statut:s})), style:{ padding:'4px 12px', borderRadius:16, border:`1px solid ${form.statut===s?STAT_C[s]:'var(--border)'}`, background:'transparent', color:form.statut===s?STAT_C[s]:'var(--text3)', cursor:'pointer', fontWeight:form.statut===s?700:400, fontSize:12 } }, s))
+      h('div', { style:{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:8 } },
+        STATUTS.map(s => h('button', { key:s, onClick:()=>setForm(p=>({...p,statut:s})), style:{ padding:'4px 12px', borderRadius:16, border:`1px solid ${form.statut===s?STAT_C[s]:'var(--border)'}`, background:'transparent', color:form.statut===s?STAT_C[s]:'var(--text3)', cursor:'pointer', fontWeight:form.statut===s?700:400, fontSize:12 } }, s))
       ),
-      React.createElement('textarea', { placeholder:"Notes, idées d'activités...", value:form.notes, onChange:e=>setForm(p=>({...p,notes:e.target.value})), style:{ ...inp, minHeight:60, marginBottom:10, resize:'vertical' } }),
-      React.createElement('button', { onClick:add, style:{ padding:'8px 20px', borderRadius:12, border:'none', background:'#10b981', color:'#fff', cursor:'pointer', fontWeight:700 } }, 'Enregistrer')
+      h('textarea', { placeholder:"Notes, idées d'activités...", value:form.notes, onChange:e=>setForm(p=>({...p,notes:e.target.value})), style:{ ...inp, minHeight:60, marginBottom:10, resize:'vertical' } }),
+      h('button', { onClick:add, style:{ padding:'8px 20px', borderRadius:12, border:'none', background:'#10b981', color:'#fff', cursor:'pointer', fontWeight:700 } }, 'Enregistrer')
     ),
-    voyages.length === 0 && !show && React.createElement('div', { style:{ textAlign:'center', padding:'50px 0', color:'var(--text3)' } }, '🌍 Ajoutez vos destinations de rêve !'),
-    voyages.map(v => React.createElement('div', { key:v.id, style:{ background:'var(--glass)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'12px 16px', marginBottom:10, display:'flex', gap:12, alignItems:'flex-start' } },
-      React.createElement('div', { style:{ flex:1 } },
-        React.createElement('div', { style:{ display:'flex', alignItems:'center', gap:10, marginBottom:6 } },
-          React.createElement('span', { style:{ fontSize:22 } }, '✈️'),
-          React.createElement('span', { style:{ fontWeight:700, color:'var(--text)', fontSize:15 } }, v.dest)
+    list.length === 0 && !show && h('div', { style:{ textAlign:'center', padding:'50px 0', color:'var(--text3)' } }, '🌍 Ajoutez vos destinations de rêve !'),
+    list.map(v => {
+      const n = faits(v);
+      const pct = Math.round(n / VOYAGE_ETAPES_TOTAL * 100);
+      const ouvert = openId === v.id;
+      const checked = v.checked || {};
+      return h('div', { key:v.id, style:{ background:'var(--glass)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'12px 16px', marginBottom:10 } },
+        h('div', { style:{ display:'flex', gap:12, alignItems:'flex-start' } },
+          h('div', { style:{ flex:1, minWidth:0 } },
+            h('div', { style:{ display:'flex', alignItems:'center', gap:10, marginBottom:6 } },
+              h('span', { style:{ fontSize:22 } }, '✈️'),
+              h('span', { style:{ fontWeight:700, color:'var(--text)', fontSize:15 } }, v.dest)
+            ),
+            (v.periode||v.budget) && h('div', { style:{ fontSize:12, color:'var(--text3)', marginBottom:4 } }, [v.periode, v.budget&&'Budget : '+v.budget].filter(Boolean).join(' · ')),
+            v.notes && h('div', { style:{ fontSize:12, color:'var(--text3)', fontStyle:'italic', marginBottom:8 } }, v.notes),
+            h('div', { style:{ display:'flex', gap:4, flexWrap:'wrap' } },
+              STATUTS.map(s => h('button', { key:s, onClick:()=>updateVoyage(v.id, { statut:s }), style:{ padding:'3px 10px', borderRadius:12, border:`1px solid ${v.statut===s?STAT_C[s]:'var(--border)'}`, background:v.statut===s?STAT_C[s]+'22':'transparent', color:v.statut===s?STAT_C[s]:'var(--text3)', cursor:'pointer', fontSize:11, fontWeight:v.statut===s?700:400 } }, s))
+            )
+          ),
+          h('button', { onClick:()=>confirm('Supprimer ce voyage et sa checklist ?') && deleteVoyage(v.id), style:{ background:'none', border:'none', color:'var(--danger)', cursor:'pointer', fontSize:18 } }, '×')
         ),
-        (v.periode||v.budget) && React.createElement('div', { style:{ fontSize:12, color:'var(--text3)', marginBottom:4 } }, [v.periode, v.budget&&'Budget : '+v.budget].filter(Boolean).join(' · ')),
-        v.notes && React.createElement('div', { style:{ fontSize:12, color:'var(--text3)', fontStyle:'italic', marginBottom:8 } }, v.notes),
-        React.createElement('div', { style:{ display:'flex', gap:4, flexWrap:'wrap' } },
-          STATUTS.map(s => React.createElement('button', { key:s, onClick:()=>upd(v.id,s), style:{ padding:'3px 10px', borderRadius:12, border:`1px solid ${v.statut===s?STAT_C[s]:'var(--border)'}`, background:v.statut===s?STAT_C[s]+'22':'transparent', color:v.statut===s?STAT_C[s]:'var(--text3)', cursor:'pointer', fontSize:11, fontWeight:v.statut===s?700:400 } }, s))
+
+        // ── Protocole de préparation ──
+        h('div', { style:{ marginTop:10, paddingTop:10, borderTop:'1px solid var(--border)' } },
+          h('div', { style:{ display:'flex', alignItems:'center', gap:10, marginBottom:8, flexWrap:'wrap' } },
+            h('button', {
+              onClick:()=>setOpenId(ouvert ? null : v.id),
+              style:{ padding:'4px 12px', borderRadius:12, border:'1px solid var(--border)', background:'transparent', color:'var(--text2)', cursor:'pointer', fontSize:11, fontWeight:700 }
+            }, (ouvert ? '▾ ' : '▸ ') + 'Protocole de départ'),
+            h('span', { style:{ fontFamily:"'Space Mono',monospace", fontSize:11, color: n === VOYAGE_ETAPES_TOTAL ? 'var(--success)' : 'var(--text3)' } },
+              `${n}/${VOYAGE_ETAPES_TOTAL}`),
+            h('div', { style:{ flex:1, minWidth:80, height:5, borderRadius:5, overflow:'hidden', background:'rgba(255,255,255,.07)' } },
+              h('div', { style:{ width:pct + '%', height:'100%', borderRadius:5, background: n === VOYAGE_ETAPES_TOTAL ? 'var(--success)' : 'linear-gradient(90deg,var(--gold),#10b981)', transition:'width .3s ease' } }))
+          ),
+          ouvert && h('div', { style:{ display:'grid', gap:12 } },
+            VOYAGE_PROTOCOLE.map(phase => {
+              const nf = phase.items.filter(it => checked[it.id]).length;
+              const complete = nf === phase.items.length;
+              return h('div', { key:phase.id, style:{ borderLeft:`3px solid ${phase.couleur}`, paddingLeft:10 } },
+                h('div', { style:{ display:'flex', alignItems:'center', gap:8, marginBottom:6 } },
+                  h('span', { style:{ fontSize:13 } }, phase.icon),
+                  h('span', { style:{ fontSize:12, fontWeight:700, color: complete ? 'var(--success)' : phase.couleur } }, phase.titre),
+                  h('span', { style:{ fontFamily:"'Space Mono',monospace", fontSize:10, color:'var(--text3)' } }, `${nf}/${phase.items.length}`)
+                ),
+                h('div', { style:{ display:'grid', gap:3 } },
+                  phase.items.map(it => {
+                    const ok = !!checked[it.id];
+                    return h('button', {
+                      key:it.id,
+                      onClick:()=>toggleVoyageCheck(v.id, it.id),
+                      style:{ display:'flex', alignItems:'flex-start', gap:8, textAlign:'left', width:'100%',
+                        padding:'5px 8px', borderRadius:8, cursor:'pointer',
+                        border:`1px solid ${ok ? 'transparent' : 'var(--border)'}`,
+                        background: ok ? 'rgba(74,222,128,.08)' : 'transparent' }
+                    },
+                      h('span', { style:{ flexShrink:0, width:14, height:14, borderRadius:4, marginTop:1,
+                        border:`2px solid ${ok ? 'var(--success)' : 'var(--border2)'}`,
+                        background: ok ? 'var(--success)' : 'transparent',
+                        color:'#06120d', fontSize:9, fontWeight:700, lineHeight:'11px', textAlign:'center' } }, ok ? '✓' : ''),
+                      h('span', { style:{ fontSize:12, lineHeight:1.45, color: ok ? 'var(--text3)' : 'var(--text2)', textDecoration: ok ? 'line-through' : 'none' } }, it.t)
+                    );
+                  })
+                )
+              );
+            })
+          )
         )
-      ),
-      React.createElement('button', { onClick:()=>del(v.id), style:{ background:'none', border:'none', color:'var(--danger)', cursor:'pointer', fontSize:18 } }, '×')
-    ))
+      );
+    })
   );
 }
 
@@ -12522,6 +12662,25 @@ useEffect(()=>{
   return ()=>clearTimeout(t);
 },[initialSyncDone]);
 
+// Reprise one-shot des voyages stockés en localStorage avant qu'ils ne passent
+// dans l'état partagé. On attend la fin de la synchro initiale pour connaître
+// l'état distant, sinon on risquerait de réimporter des voyages déjà présents
+// sur un autre appareil. La clé locale est retirée une fois la reprise faite.
+useEffect(()=>{
+  if(!initialSyncDone) return;
+  let anciens=[];
+  try{ const raw=LS.getItem(VOYAGE_LS_KEY); anciens=raw?JSON.parse(raw):[]; }catch(_){ anciens=[]; }
+  if(!Array.isArray(anciens)||anciens.length===0) return;
+  if(((data.couple||{}).voyages||[]).length===0){
+    setData(prev=>{
+      const next=clone(prev);
+      next.couple.voyages=anciens.filter(v=>v&&v.id).map(v=>({...v,id:String(v.id),checked:{}}));
+      return next;
+    });
+  }
+  try{ LS.removeItem(VOYAGE_LS_KEY); }catch(_){}
+},[initialSyncDone]);
+
 // Persiste localStorage à chaque changement
 useEffect(()=>saveData(data),[data]);
 
@@ -13025,6 +13184,42 @@ const ch=sb.channel('ld-realtime')
     setData(prev => {
       const next = clone(prev);
       next.couple.medical = [rdv, ...(next.couple.medical || [])];
+      return next;
+    });
+  }, []);
+  // Voyages : liste + checklist de préparation, section couple → synchro auto.
+  const addVoyage = useCallback(v => {
+    setData(prev => {
+      const next = clone(prev);
+      next.couple.voyages = [v, ...(next.couple.voyages || [])];
+      return next;
+    });
+  }, []);
+  const updateVoyage = useCallback((id, patch) => {
+    setData(prev => {
+      const next = clone(prev);
+      next.couple.voyages = (next.couple.voyages || []).map(v => v.id === id ? { ...v, ...patch } : v);
+      return next;
+    });
+  }, []);
+  const deleteVoyage = useCallback(id => {
+    setData(prev => {
+      const next = clone(prev);
+      next.couple.voyages = (next.couple.voyages || []).filter(v => v.id !== id);
+      return next;
+    });
+  }, []);
+  const toggleVoyageCheck = useCallback((id, itemId) => {
+    setData(prev => {
+      const next = clone(prev);
+      next.couple.voyages = (next.couple.voyages || []).map(v => {
+        if (v.id !== id) return v;
+        const checked = { ...(v.checked || {}) };
+        // On retire la clé au lieu d'y mettre false : la carte ne garde que les
+        // étapes réellement cochées et ne gonfle pas de `false` synchronisés.
+        if (checked[itemId]) delete checked[itemId];else checked[itemId] = true;
+        return { ...v, checked };
+      });
       return next;
     });
   }, []);
@@ -14631,7 +14826,7 @@ const ch=sb.channel('ld-realtime')
     view === 'idees' && React.createElement(IdeesView,null),
     view === 'medical' && React.createElement(MedicalView,{rdvs:data.couple.medical||[],addMedical,deleteMedical}),
     view === 'potager' && React.createElement(PotagerView,{plantes:(data.couple||{}).potager||[],addPlante,updatePlante,deletePlante,semansye:(data.couple||{}).semansye||[],addLot,updateLot,deleteLot}),
-    view === 'voyages' && React.createElement(VoyagesView,null),
+    view === 'voyages' && React.createElement(VoyagesView,{voyages:(data.couple||{}).voyages||[],addVoyage,updateVoyage,deleteVoyage,toggleVoyageCheck}),
     view === 'artiste' && React.createElement(ArtView,null),
     view === 'entretien' && React.createElement(EntretienView,{entretien:(data.dja||{}).entretien||[],vehicules:(data.dja||{}).vehicules||[],addEntretien,updateEntretien,deleteEntretien,addVehicule,updateVehicule,deleteVehicule})
   ), /*#__PURE__*/React.createElement(AddModal, {
