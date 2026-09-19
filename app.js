@@ -11803,6 +11803,66 @@ const VOYAGE_VALISE = [
   ]}
 ];
 
+// ─── Le nécessaire à emporter ───
+// Liste cochable par voyage, indépendante du protocole daté : le protocole dit
+// QUAND s'y prendre, cette liste dit CE QU'ON MET DANS LA VALISE. Les deux
+// partagent la même carte `checked` du voyage, d'où le préfixe `n-` sur les
+// identifiants pour qu'ils ne puissent jamais entrer en collision.
+const VOYAGE_NECESSAIRE = [
+  { id: 'n1', titre: 'Papiers & argent', icon: '📄', couleur: 'var(--danger)', items: [
+    { id: 'n-identite', t: 'Passeport ou carte d\'identité' },
+    { id: 'n-billets', t: 'Billets — sur le téléphone et sur papier' },
+    { id: 'n-permis', t: 'Permis de conduire (+ international si besoin)' },
+    { id: 'n-sante', t: 'Carte vitale, CEAM, attestation d\'assurance' },
+    { id: 'n-cb', t: 'Carte bancaire + une seconde carte rangée ailleurs' },
+    { id: 'n-especes', t: 'Espèces dans la devise locale' },
+    { id: 'n-copies', t: 'Copies des documents, séparées des originaux' }
+  ]},
+  { id: 'n2', titre: 'Vêtements', icon: '👕', couleur: 'var(--accent-liika)', items: [
+    { id: 'n-hauts', t: 'Hauts et bas selon la règle 5·4·3·2·1' },
+    { id: 'n-dessous', t: 'Sous-vêtements et chaussettes' },
+    { id: 'n-pull', t: 'Un pull ou une veste, même pour une destination chaude' },
+    { id: 'n-pluie', t: 'Coupe-vent ou tenue de pluie' },
+    { id: 'n-maillot', t: 'Maillot de bain' },
+    { id: 'n-habille', t: 'Une tenue habillée' },
+    { id: 'n-pyjama', t: 'Pyjama' },
+    { id: 'n-chaussures', t: 'Deux paires de chaussures : marche et légères' }
+  ]},
+  { id: 'n3', titre: 'Trousse de toilette', icon: '🧴', couleur: 'var(--gold)', items: [
+    { id: 'n-dents', t: 'Brosse à dents et dentifrice' },
+    { id: 'n-savon', t: 'Savon et shampoing (moins de 100 ml si cabine)' },
+    { id: 'n-deo', t: 'Déodorant' },
+    { id: 'n-rasoir', t: 'Rasoir' },
+    { id: 'n-peigne', t: 'Brosse ou peigne' },
+    { id: 'n-serviette', t: 'Serviette microfibre' },
+    { id: 'n-hygiene', t: 'Protections périodiques' }
+  ]},
+  { id: 'n4', titre: 'Pharmacie', icon: '💊', couleur: 'var(--success)', items: [
+    { id: 'n-traitement', t: 'Traitement en cours, avec son ordonnance' },
+    { id: 'n-douleur', t: 'Antidouleur et anti-fièvre' },
+    { id: 'n-ventre', t: 'Anti-diarrhéique et anti-nausée' },
+    { id: 'n-pansements', t: 'Pansements et désinfectant' },
+    { id: 'n-moustique', t: 'Anti-moustique' },
+    { id: 'n-solaire', t: 'Crème solaire' }
+  ]},
+  { id: 'n5', titre: 'Électronique', icon: '🔌', couleur: '#60a5fa', items: [
+    { id: 'n-tel', t: 'Téléphone et son chargeur' },
+    { id: 'n-batterie', t: 'Batterie externe — en cabine uniquement' },
+    { id: 'n-adaptateur', t: 'Adaptateur de prise du pays' },
+    { id: 'n-ecouteurs', t: 'Écouteurs' },
+    { id: 'n-photo', t: 'Appareil photo et cartes mémoire' }
+  ]},
+  { id: 'n6', titre: 'Confort du trajet', icon: '🎒', couleur: 'var(--accent-dja)', items: [
+    { id: 'n-gourde', t: 'Gourde vide, à remplir après le contrôle' },
+    { id: 'n-encas', t: 'De quoi grignoter' },
+    { id: 'n-masque', t: 'Masque de nuit et bouchons d\'oreille' },
+    { id: 'n-coussin', t: 'Coussin de nuque' },
+    { id: 'n-lecture', t: 'Lecture ou contenus téléchargés hors-ligne' },
+    { id: 'n-stylo', t: 'Un stylo, pour les formulaires d\'arrivée' }
+  ]}
+];
+const VOYAGE_NECESSAIRE_TOTAL = VOYAGE_NECESSAIRE.reduce((n, s) => n + s.items.length, 0);
+
 function VoyagesView({ voyages, addVoyage, updateVoyage, deleteVoyage, toggleVoyageCheck }) {
   const h = React.createElement;
   const list = voyTri(Array.isArray(voyages) ? voyages : []);
@@ -11847,7 +11907,7 @@ function VoyagesView({ voyages, addVoyage, updateVoyage, deleteVoyage, toggleVoy
     // ── Guide valise (lecture seule) ──
     tab === 'valise' && h('div', null,
       h('p', { style:{ fontSize:12.5, color:'var(--text3)', fontStyle:'italic', lineHeight:1.55, marginTop:0, marginBottom:16 } },
-        'Le quoi emporter est dans le protocole de chaque voyage. Ici, c\'est le comment : ranger, doser, et ne pas se faire piéger au comptoir.'),
+        'Le quand est dans le protocole de chaque voyage, le quoi dans sa liste « Le nécessaire ». Ici, c\'est le comment : ranger, doser, et ne pas se faire piéger au comptoir.'),
       h('div', { style:{ display:'grid', gap:12 } },
         VOYAGE_VALISE.map(sec => h('div', { key:sec.id, style:{ background:'var(--glass)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'12px 16px', borderLeft:`3px solid ${sec.couleur}` } },
           h('div', { style:{ display:'flex', alignItems:'center', gap:8, marginBottom:8 } },
@@ -11914,7 +11974,10 @@ function VoyagesView({ voyages, addVoyage, updateVoyage, deleteVoyage, toggleVoy
     list.map(v => {
       const n = faits(v);
       const pct = Math.round(n / VOYAGE_ETAPES_TOTAL * 100);
-      const ouvert = openId === v.id;
+      // Une seule section dépliée à la fois, protocole ou nécessaire.
+      const ouvert = openId === v.id + '|proto';
+      const ouvertNec = openId === v.id + '|nec';
+      const nNec = VOYAGE_NECESSAIRE.reduce((t, s) => t + s.items.filter(it => (v.checked || {})[it.id]).length, 0);
       const checked = v.checked || {};
       return h('div', { key:v.id, style:{ background:'var(--glass)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'12px 16px', marginBottom:10 } },
         h('div', { style:{ display:'flex', gap:12, alignItems:'flex-start' } },
@@ -11943,7 +12006,7 @@ function VoyagesView({ voyages, addVoyage, updateVoyage, deleteVoyage, toggleVoy
         h('div', { style:{ marginTop:10, paddingTop:10, borderTop:'1px solid var(--border)' } },
           h('div', { style:{ display:'flex', alignItems:'center', gap:10, marginBottom:8, flexWrap:'wrap' } },
             h('button', {
-              onClick:()=>setOpenId(ouvert ? null : v.id),
+              onClick:()=>setOpenId(ouvert ? null : v.id + '|proto'),
               style:{ padding:'5px 14px', borderRadius:12, cursor:'pointer', fontSize:11.5, fontWeight:700,
                 border:`1px solid ${n === VOYAGE_ETAPES_TOTAL ? 'var(--success)' : 'var(--gold)'}`,
                 background: n === VOYAGE_ETAPES_TOTAL ? 'rgba(74,222,128,.12)' : 'var(--gold-bg)',
@@ -11971,6 +12034,56 @@ function VoyagesView({ voyages, addVoyage, updateVoyage, deleteVoyage, toggleVoy
                 ),
                 h('div', { style:{ display:'grid', gap:3 } },
                   phase.items.map(it => {
+                    const ok = !!checked[it.id];
+                    return h('button', {
+                      key:it.id,
+                      onClick:()=>toggleVoyageCheck(v.id, it.id),
+                      style:{ display:'flex', alignItems:'flex-start', gap:8, textAlign:'left', width:'100%',
+                        padding:'5px 8px', borderRadius:8, cursor:'pointer',
+                        border:`1px solid ${ok ? 'transparent' : 'var(--border)'}`,
+                        background: ok ? 'rgba(74,222,128,.08)' : 'transparent' }
+                    },
+                      h('span', { style:{ flexShrink:0, width:14, height:14, borderRadius:4, marginTop:1,
+                        border:`2px solid ${ok ? 'var(--success)' : 'var(--border2)'}`,
+                        background: ok ? 'var(--success)' : 'transparent',
+                        color:'#06120d', fontSize:9, fontWeight:700, lineHeight:'11px', textAlign:'center' } }, ok ? '✓' : ''),
+                      h('span', { style:{ fontSize:12, lineHeight:1.45, color: ok ? 'var(--text3)' : 'var(--text2)', textDecoration: ok ? 'line-through' : 'none' } }, it.t)
+                    );
+                  })
+                )
+              );
+            })
+          )
+        ),
+
+        // ── Le nécessaire à emporter ──
+        h('div', { style:{ marginTop:8, paddingTop:8, borderTop:'1px dashed var(--border)' } },
+          h('div', { style:{ display:'flex', alignItems:'center', gap:10, marginBottom:8, flexWrap:'wrap' } },
+            h('button', {
+              onClick:()=>setOpenId(ouvertNec ? null : v.id + '|nec'),
+              style:{ padding:'5px 14px', borderRadius:12, cursor:'pointer', fontSize:11.5, fontWeight:700,
+                border:`1px solid ${nNec === VOYAGE_NECESSAIRE_TOTAL ? 'var(--success)' : 'var(--accent-liika)'}`,
+                background: nNec === VOYAGE_NECESSAIRE_TOTAL ? 'rgba(74,222,128,.12)' : 'var(--accent-liika-bg)',
+                color: nNec === VOYAGE_NECESSAIRE_TOTAL ? 'var(--success)' : 'var(--accent-liika)' }
+            }, (ouvertNec ? '▾ ' : '▸ ') + '🎒 Le nécessaire'),
+            h('span', { style:{ fontFamily:"'Space Mono',monospace", fontSize:11, color: nNec === VOYAGE_NECESSAIRE_TOTAL ? 'var(--success)' : 'var(--text3)' } },
+              `${nNec}/${VOYAGE_NECESSAIRE_TOTAL}`),
+            h('div', { style:{ flex:1, minWidth:80, height:5, borderRadius:5, overflow:'hidden', background:'rgba(255,255,255,.07)' } },
+              h('div', { style:{ width: Math.round(nNec / VOYAGE_NECESSAIRE_TOTAL * 100) + '%', height:'100%', borderRadius:5,
+                background: nNec === VOYAGE_NECESSAIRE_TOTAL ? 'var(--success)' : 'linear-gradient(90deg,var(--accent-liika),var(--gold))', transition:'width .3s ease' } }))
+          ),
+          ouvertNec && h('div', { style:{ display:'grid', gap:12 } },
+            VOYAGE_NECESSAIRE.map(sec => {
+              const nf = sec.items.filter(it => checked[it.id]).length;
+              const complete = nf === sec.items.length;
+              return h('div', { key:sec.id, style:{ borderLeft:`3px solid ${sec.couleur}`, paddingLeft:10 } },
+                h('div', { style:{ display:'flex', alignItems:'center', gap:8, marginBottom:6, flexWrap:'wrap' } },
+                  h('span', { style:{ fontSize:13 } }, sec.icon),
+                  h('span', { style:{ fontSize:12, fontWeight:700, color: complete ? 'var(--success)' : sec.couleur } }, sec.titre),
+                  h('span', { style:{ fontFamily:"'Space Mono',monospace", fontSize:10, color:'var(--text3)' } }, `${nf}/${sec.items.length}`)
+                ),
+                h('div', { style:{ display:'grid', gap:3 } },
+                  sec.items.map(it => {
                     const ok = !!checked[it.id];
                     return h('button', {
                       key:it.id,
