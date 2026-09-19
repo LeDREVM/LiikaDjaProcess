@@ -11721,7 +11721,30 @@ function VoyagesView({ voyages, addVoyage, updateVoyage, deleteVoyage, toggleVoy
       h('textarea', { placeholder:"Notes, idées d'activités...", value:form.notes, onChange:e=>setForm(p=>({...p,notes:e.target.value})), style:{ ...inp, minHeight:60, marginBottom:10, resize:'vertical' } }),
       h('button', { onClick:add, style:{ padding:'8px 20px', borderRadius:12, border:'none', background:'#10b981', color:'#fff', cursor:'pointer', fontWeight:700 } }, 'Enregistrer')
     ),
-    list.length === 0 && !show && h('div', { style:{ textAlign:'center', padding:'50px 0', color:'var(--text3)' } }, '🌍 Ajoutez vos destinations de rêve !'),
+    // Sans aucun voyage, le protocole serait invisible (il vit dans les fiches).
+    // On l'affiche donc ici en lecture seule : il reste consultable tout de suite,
+    // et l'utilisateur comprend qu'ajouter une destination le rend cochable.
+    list.length === 0 && !show && h('div', { style:{ padding:'30px 0 10px' } },
+      h('div', { style:{ textAlign:'center', color:'var(--text3)', marginBottom:24 } },
+        h('div', { style:{ fontSize:15, marginBottom:6 } }, '🌍 Ajoutez vos destinations de rêve !'),
+        h('div', { style:{ fontSize:12, fontStyle:'italic' } },
+          `Chaque voyage ouvre le protocole de départ ci-dessous — ${VOYAGE_ETAPES_TOTAL} étapes à cocher.`)
+      ),
+      h('div', { style:{ background:'var(--glass)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:16 } },
+        h('div', { style:{ fontSize:13, fontWeight:700, color:'var(--text2)', marginBottom:12 } }, '🧳 Protocole de départ'),
+        h('div', { style:{ display:'grid', gap:12 } },
+          VOYAGE_PROTOCOLE.map(phase => h('div', { key:phase.id, style:{ borderLeft:`3px solid ${phase.couleur}`, paddingLeft:10 } },
+            h('div', { style:{ display:'flex', alignItems:'center', gap:8, marginBottom:5 } },
+              h('span', { style:{ fontSize:13 } }, phase.icon),
+              h('span', { style:{ fontSize:12, fontWeight:700, color:phase.couleur } }, phase.titre)
+            ),
+            h('div', { style:{ display:'grid', gap:2 } },
+              phase.items.map(it => h('div', { key:it.id, style:{ fontSize:12, lineHeight:1.45, color:'var(--text3)' } }, '○ ' + it.t))
+            )
+          ))
+        )
+      )
+    ),
     list.map(v => {
       const n = faits(v);
       const pct = Math.round(n / VOYAGE_ETAPES_TOTAL * 100);
@@ -11748,8 +11771,11 @@ function VoyagesView({ voyages, addVoyage, updateVoyage, deleteVoyage, toggleVoy
           h('div', { style:{ display:'flex', alignItems:'center', gap:10, marginBottom:8, flexWrap:'wrap' } },
             h('button', {
               onClick:()=>setOpenId(ouvert ? null : v.id),
-              style:{ padding:'4px 12px', borderRadius:12, border:'1px solid var(--border)', background:'transparent', color:'var(--text2)', cursor:'pointer', fontSize:11, fontWeight:700 }
-            }, (ouvert ? '▾ ' : '▸ ') + 'Protocole de départ'),
+              style:{ padding:'5px 14px', borderRadius:12, cursor:'pointer', fontSize:11.5, fontWeight:700,
+                border:`1px solid ${n === VOYAGE_ETAPES_TOTAL ? 'var(--success)' : 'var(--gold)'}`,
+                background: n === VOYAGE_ETAPES_TOTAL ? 'rgba(74,222,128,.12)' : 'var(--gold-bg)',
+                color: n === VOYAGE_ETAPES_TOTAL ? 'var(--success)' : 'var(--gold)' }
+            }, (ouvert ? '▾ ' : '▸ ') + '🧳 Protocole de départ'),
             h('span', { style:{ fontFamily:"'Space Mono',monospace", fontSize:11, color: n === VOYAGE_ETAPES_TOTAL ? 'var(--success)' : 'var(--text3)' } },
               `${n}/${VOYAGE_ETAPES_TOTAL}`),
             h('div', { style:{ flex:1, minWidth:80, height:5, borderRadius:5, overflow:'hidden', background:'rgba(255,255,255,.07)' } },
