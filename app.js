@@ -11758,12 +11758,60 @@ function voyTri(list) {
   });
 }
 
+// ─── Guide « Préparer sa valise » ───
+// Contenu de référence, en lecture seule : rien à cocher ici (la checklist
+// datée vit dans les fiches voyage), donc aucune donnée persistée.
+const VOYAGE_VALISE = [
+  { id: 'm1', titre: 'La méthode de rangement', icon: '📦', couleur: 'var(--gold)', items: [
+    'Roule les vêtements au lieu de les plier : moins de plis, et jusqu\'à un tiers de place gagnée.',
+    'Le lourd en bas, côté roulettes : chaussures et trousse de toilette. La valise reste stable debout.',
+    'Chaussures dans des sacs, semelle contre la paroi, chaussettes roulées à l\'intérieur.',
+    'Le fragile au centre, enveloppé de vêtements — jamais contre une paroi.',
+    'Des pochettes de compression séparent par type et évitent de tout défaire pour trouver un t-shirt.'
+  ]},
+  { id: 'm2', titre: 'Combien emporter — la règle 5·4·3·2·1', icon: '👕', couleur: 'var(--accent-liika)', items: [
+    'Pour une semaine : 5 hauts, 4 bas, 3 paires de chaussettes et sous-vêtements en rab, 2 paires de chaussures, 1 tenue habillée.',
+    'Au-delà d\'une semaine, ne double pas : prévois plutôt une lessive sur place.',
+    'Une palette de 2 ou 3 couleurs qui vont ensemble : tout se combine, tu emportes moins.',
+    'Le plus volumineux (veste, gros pull) se porte sur soi le jour du départ.'
+  ]},
+  { id: 'm3', titre: 'En cabine, jamais en soute', icon: '🎒', couleur: 'var(--danger)', items: [
+    'Papiers, argent, cartes, clés.',
+    'Médicaments avec leur ordonnance.',
+    'Batterie externe et batteries au lithium : interdites en soute.',
+    'Un change complet — si la soute se perd, tu tiens 24 h.',
+    'Objets de valeur, appareils photo, ordinateur.'
+  ]},
+  { id: 'm4', titre: 'Les règles à ne pas rater', icon: '⚠️', couleur: 'var(--warn)', items: [
+    'Liquides en cabine : flacons de 100 ml maximum, dans un sac transparent d\'un litre.',
+    'Pas de couteau ni de ciseaux à lames de plus de 6 cm en cabine.',
+    'Poids et dimensions varient selon la compagnie — vérifie avant, pas à l\'aéroport.',
+    'Pèse ta valise à la maison : le surpoids se paie très cher au comptoir.'
+  ]},
+  { id: 'm5', titre: 'Les astuces qui changent tout', icon: '💡', couleur: 'var(--success)', items: [
+    'Un sac à linge sale dès le départ : le propre et le sale ne se mélangent jamais.',
+    'Photographie le contenu de ta valise : précieux pour une déclaration de perte.',
+    'Garde 20 % de place libre pour le retour — souvenirs et achats.',
+    'Une étiquette avec ton contact à l\'extérieur ET une deuxième à l\'intérieur.',
+    'Un double des papiers dans un bagage différent de celui des originaux.'
+  ]},
+  { id: 'm6', titre: 'Spécial départ de Guadeloupe', icon: '🌴', couleur: 'var(--accent-dja)', items: [
+    'Vers la métropole : garde une couche chaude accessible en cabine — l\'écart de température à l\'arrivée est brutal.',
+    'Vers une autre île : anti-moustique, crème solaire, et un K-way en saison cyclonique.',
+    'Au retour, le rhum voyage en soute uniquement, dans les limites douanières autorisées.',
+    'Fruits et plantes : réglementation stricte à l\'entrée, vérifie avant d\'en emporter.'
+  ]}
+];
+
 function VoyagesView({ voyages, addVoyage, updateVoyage, deleteVoyage, toggleVoyageCheck }) {
   const h = React.createElement;
   const list = voyTri(Array.isArray(voyages) ? voyages : []);
   const [form, setForm] = React.useState({ dest:'', periode:'', budget:'', notes:'', statut:'Rêve', dateDepart:'', dateRetour:'' });
   const [show, setShow] = React.useState(false);
   const [openId, setOpenId] = React.useState(null);
+  // Ajouté APRÈS openId volontairement : l'ordre des hooks est stable pour les
+  // tests de rendu, qui ciblent openId en 3e position.
+  const [tab, setTab] = React.useState('voyages');
   const STATUTS = ['Rêve','Planifié','Réservé','Fait ✓'];
   const STAT_C = { 'Rêve':'var(--accent-dja)', 'Planifié':'var(--gold)', 'Réservé':'var(--accent-liika)', 'Fait ✓':'var(--success)' };
   const add = () => {
@@ -11782,8 +11830,41 @@ function VoyagesView({ voyages, addVoyage, updateVoyage, deleteVoyage, toggleVoy
   return h('div', null,
     h('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 } },
       h('h2', { style:{ margin:0, fontSize:20 } }, '✈️ Voyages & Destinations'),
-      h('button', { onClick:()=>setShow(!show), style:{ padding:'8px 18px', borderRadius:20, border:'none', background:'#10b981', color:'#fff', cursor:'pointer', fontWeight:700 } }, show ? '✕' : '+ Voyage')
+      tab === 'voyages' && h('button', { onClick:()=>setShow(!show), style:{ padding:'8px 18px', borderRadius:20, border:'none', background:'#10b981', color:'#fff', cursor:'pointer', fontWeight:700 } }, show ? '✕' : '+ Voyage')
     ),
+
+    // ── Sous-onglets ──
+    h('div', { className:'scroll-x', style:{ display:'flex', gap:8, marginBottom:16 } },
+      [{ id:'voyages', l:'✈️ Mes voyages' }, { id:'valise', l:'🧳 Préparer sa valise' }].map(t =>
+        h('button', { key:t.id, onClick:()=>setTab(t.id), style:{
+          padding:'6px 14px', borderRadius:20, cursor:'pointer', fontSize:12, whiteSpace:'nowrap',
+          border:`1px solid ${tab===t.id?'var(--gold)':'var(--border)'}`,
+          background: tab===t.id?'var(--gold-bg)':'transparent',
+          color: tab===t.id?'var(--gold)':'var(--text3)',
+          fontWeight: tab===t.id?700:400 } }, t.l))
+    ),
+
+    // ── Guide valise (lecture seule) ──
+    tab === 'valise' && h('div', null,
+      h('p', { style:{ fontSize:12.5, color:'var(--text3)', fontStyle:'italic', lineHeight:1.55, marginTop:0, marginBottom:16 } },
+        'Le quoi emporter est dans le protocole de chaque voyage. Ici, c\'est le comment : ranger, doser, et ne pas se faire piéger au comptoir.'),
+      h('div', { style:{ display:'grid', gap:12 } },
+        VOYAGE_VALISE.map(sec => h('div', { key:sec.id, style:{ background:'var(--glass)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'12px 16px', borderLeft:`3px solid ${sec.couleur}` } },
+          h('div', { style:{ display:'flex', alignItems:'center', gap:8, marginBottom:8 } },
+            h('span', { style:{ fontSize:15 } }, sec.icon),
+            h('span', { style:{ fontSize:13.5, fontWeight:700, color:sec.couleur } }, sec.titre)
+          ),
+          h('div', { style:{ display:'grid', gap:6 } },
+            sec.items.map((txt, i) => h('div', { key:i, style:{ display:'flex', gap:8, alignItems:'flex-start' } },
+              h('span', { style:{ color:sec.couleur, flexShrink:0, fontSize:11, lineHeight:'18px' } }, '•'),
+              h('span', { style:{ fontSize:12.5, color:'var(--text2)', lineHeight:1.5 } }, txt)
+            ))
+          )
+        ))
+      )
+    ),
+
+    tab === 'voyages' && h('div', null,
     show && h('div', { style:{ background:'var(--glass)', border:'1px solid rgba(16,185,129,.35)', borderRadius:'var(--radius)', padding:16, marginBottom:16 } },
       h('input', { placeholder:'Destination *', value:form.dest, onChange:e=>setForm(p=>({...p,dest:e.target.value})), style:{ ...inp, marginBottom:8 } }),
       h('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 } },
@@ -11913,6 +11994,7 @@ function VoyagesView({ voyages, addVoyage, updateVoyage, deleteVoyage, toggleVoy
         )
       );
     })
+    )
   );
 }
 
