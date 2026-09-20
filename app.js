@@ -12135,8 +12135,11 @@ function VoyagesView({ voyages, addVoyage, updateVoyage, deleteVoyage, toggleVoy
 // synchronise entre appareils sans table dédiée. Les helpers de date des voyages
 // (voyIsoValide / voyJoursAvant / voyFmtDate) sont réutilisés tels quels.
 // ─────────────────────────────────────────────────────────────────────────────
-const PARIS_TYPES = ['Expo', 'Musée', 'Concert', 'Théâtre', 'Ciné', 'Resto', 'Balade', 'Marché', 'Autre'];
-const PARIS_TYPE_ICON = { Expo:'🖼', 'Musée':'🏛', Concert:'🎵', 'Théâtre':'🎭', 'Ciné':'🎬', Resto:'🍽', Balade:'🚶', 'Marché':'🧺', Autre:'✨' };
+// PARIS_TYPES est la source unique : normalize() n'accepte que ces valeurs, le
+// formulaire les propose, et le carnet se regroupe dans cet ordre. Ajouter un
+// type ici le propage partout.
+const PARIS_TYPES = ['Expo', 'Musée', 'Concert', 'Théâtre', 'Ciné', 'Resto', 'Balade', 'Sport', 'Marché', 'Autre'];
+const PARIS_TYPE_ICON = { Expo:'🖼', 'Musée':'🏛', Concert:'🎵', 'Théâtre':'🎭', 'Ciné':'🎬', Resto:'🍽', Balade:'🚶', Sport:'💪', 'Marché':'🧺', Autre:'✨' };
 const PARIS_STATUTS = ['Envie', 'Réservé', 'Fait'];
 const PARIS_STATUT_C = { 'Envie':'var(--accent-dja)', 'Réservé':'var(--gold)', 'Fait':'var(--success)' };
 
@@ -12204,6 +12207,9 @@ const PARIS_LIEUX = [
   { id: 'l-chicagofactory', nom: 'Chicago Factory', type: 'Resto', arr: '12e', adresse: '16 rue Henri Desgrange, 75012 Paris' },
   { id: 'l-afriknfusion', nom: "Afrik'N'Fusion", type: 'Resto', arr: '13e', adresse: "54 rue Jeanne d'Arc, 75013 Paris", note: 'Cuisine afro-fusion.', lien: 'https://www.afriknfusion.fr/la-carte/' },
   { id: 'l-leriche', nom: 'Leriche', type: 'Resto', arr: '17e', adresse: '16 rue Brey, 75017 Paris', tel: '0147540333', lien: 'https://www.leriche-restaurant.fr/' },
+  { id: 'l-aireremiseforme', nom: 'Aire de Remise en Forme', type: 'Sport', arr: '15e', adresse: 'Allée des Cygnes, 75015 Paris', note: 'Agrès en plein air, sur l\'île aux Cygnes.' },
+  { id: 'l-streetworkout', nom: 'Parc de Street Workout', type: 'Sport', arr: '15e', adresse: '33 avenue Albert Bartholomé, 75015 Paris', note: 'Barres et agrès en accès libre.' },
+  { id: 'l-jardinvoltiges', nom: 'Jardin des Voltiges', type: 'Sport', arr: '19e', adresse: 'Allée du Cercle, 75019 Paris' },
   // Hors Paris intra-muros : `arr` porte alors le nom de la commune. Le tri par
   // arrondissement les place en fin de catégorie, ce qui est le bon ordre ici.
   { id: 'l-factoryscreteil', nom: "Factory's Créteil", type: 'Resto', arr: 'Créteil', adresse: '27 rue de la Basse Quinte, 94000 Créteil' },
