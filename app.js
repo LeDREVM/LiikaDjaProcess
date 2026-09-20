@@ -12209,6 +12209,7 @@ const PARIS_LIEUX = [
   { id: 'l-leriche', nom: 'Leriche', type: 'Resto', arr: '17e', adresse: '16 rue Brey, 75017 Paris', tel: '0147540333', lien: 'https://www.leriche-restaurant.fr/' },
   { id: 'l-aireremiseforme', nom: 'Aire de Remise en Forme', type: 'Sport', arr: '15e', adresse: 'Allée des Cygnes, 75015 Paris', note: 'Agrès en plein air, sur l\'île aux Cygnes.' },
   { id: 'l-streetworkout', nom: 'Parc de Street Workout', type: 'Sport', arr: '15e', adresse: '33 avenue Albert Bartholomé, 75015 Paris', note: 'Barres et agrès en accès libre.' },
+  { id: 'l-jardinvoltiges', nom: 'Jardin des Voltiges', type: 'Sport', arr: '19e', adresse: 'Allée du Cercle, 75019 Paris' },
   // Hors Paris intra-muros : `arr` porte alors le nom de la commune. Le tri par
   // arrondissement les place en fin de catégorie, ce qui est le bon ordre ici.
   { id: 'l-factoryscreteil', nom: "Factory's Créteil", type: 'Resto', arr: 'Créteil', adresse: '27 rue de la Basse Quinte, 94000 Créteil' },
