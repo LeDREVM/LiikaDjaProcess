@@ -12166,6 +12166,35 @@ const PARIS_BONS_PLANS = [
   ]}
 ];
 
+// Carnet de lieux : des envies sans date, qu'on bascule en sortie datée d'un
+// bouton. Sélection de départ volontairement limitée à des institutions et des
+// lieux stables — à remplacer par ta propre liste. Les adresses et les horaires
+// bougent : vérifie avant de te déplacer.
+const PARIS_LIEUX = [
+  { id: 'l-orsay', nom: 'Musée d\'Orsay', type: 'Musée', arr: '7e', note: 'Impressionnistes, dans une ancienne gare.' },
+  { id: 'l-orangerie', nom: 'Musée de l\'Orangerie', type: 'Musée', arr: '1er', note: 'Les Nymphéas de Monet, en deux salles ovales.' },
+  { id: 'l-petitpalais', nom: 'Petit Palais', type: 'Musée', arr: '8e', note: 'Collections permanentes gratuites.' },
+  { id: 'l-carnavalet', nom: 'Musée Carnavalet', type: 'Musée', arr: '3e', note: 'Histoire de Paris. Collections permanentes gratuites.' },
+  { id: 'l-ima', nom: 'Institut du Monde Arabe', type: 'Musée', arr: '5e', note: 'Terrasse avec vue sur la Seine.' },
+  { id: 'l-lv', nom: 'Fondation Louis Vuitton', type: 'Musée', arr: '16e', note: 'Art contemporain, au Bois de Boulogne.' },
+  { id: 'l-philharmonie', nom: 'Philharmonie de Paris', type: 'Concert', arr: '19e', note: 'Classique et jazz, à la Villette.' },
+  { id: 'l-cigale', nom: 'La Cigale', type: 'Concert', arr: '18e', note: 'Salle historique de Pigalle.' },
+  { id: 'l-theatreville', nom: 'Théâtre de la Ville', type: 'Théâtre', arr: '4e', note: 'Théâtre et danse contemporaine.' },
+  { id: 'l-rex', nom: 'Le Grand Rex', type: 'Ciné', arr: '2e', note: 'La plus grande salle d\'Europe.' },
+  { id: 'l-aligre', nom: 'Marché d\'Aligre', type: 'Marché', arr: '12e', note: 'Marché couvert et brocante, le matin.' },
+  { id: 'l-enfantsrouges', nom: 'Marché des Enfants Rouges', type: 'Marché', arr: '3e', note: 'Le plus ancien marché couvert de Paris.' },
+  { id: 'l-puces', nom: 'Puces de Saint-Ouen', type: 'Marché', arr: 'Saint-Ouen', note: 'Brocante géante, du samedi au lundi.' },
+  { id: 'l-buttes', nom: 'Parc des Buttes-Chaumont', type: 'Balade', arr: '19e', note: 'Reliefs, belvédère et guinguettes.' },
+  { id: 'l-couleeverte', nom: 'Coulée verte René-Dumont', type: 'Balade', arr: '12e', note: 'Promenade plantée sur un ancien viaduc.' },
+  { id: 'l-canal', nom: 'Canal Saint-Martin', type: 'Balade', arr: '10e', note: 'Écluses et quais, agréable en fin de journée.' },
+  { id: 'l-lachaise', nom: 'Père-Lachaise', type: 'Balade', arr: '20e', note: 'Cimetière-jardin, gratuit.' },
+  { id: 'l-recyclerie', nom: 'La REcyclerie', type: 'Autre', arr: '18e', note: 'Tiers-lieu dans une ancienne gare, Porte de Clignancourt.' },
+  // Ajouté depuis ta liste. Type non vérifié : le site n'est pas joignable
+  // depuis cet environnement — corrige-le si « Autre » ne convient pas.
+  { id: 'l-bbetter', nom: 'B Better Paris', type: 'Autre', arr: '4e', note: '26 rue Beautreillis, 75004 Paris.', lien: 'http://www.bbetterparis.fr/' },
+  { id: 'l-tontonsveg', nom: 'Les Tontons Veg', type: 'Resto', arr: '10e', note: '8 rue de Paradis, 75010 Paris. Cuisine végétalienne.' }
+];
+
 function ParisView({ paris, addParis, updateParis, deleteParis }) {
   const h = React.createElement;
   const list = Array.isArray(paris) ? paris : [];
@@ -12173,6 +12202,19 @@ function ParisView({ paris, addParis, updateParis, deleteParis }) {
   const [show, setShow] = React.useState(false);
   const [filtre, setFiltre] = React.useState('avenir');
   const [plansOuverts, setPlansOuverts] = React.useState(false);
+  // Ajoutés après les précédents : l'ordre des hooks est stable pour les tests.
+  const [vue, setVue] = React.useState('agenda'); // 'agenda' | 'lieux'
+  const [progId, setProgId] = React.useState(null); // lieu en cours de programmation
+  const [progDate, setProgDate] = React.useState('');
+
+  // Un lieu est « déjà programmé » s'il existe une sortie du même titre encore à venir.
+  const dejaProgramme = nom => list.some(e => e.titre === nom && !(voyJoursAvant(e.date) < 0));
+  const programmer = (lieu, date) => {
+    addParis({ id: Date.now().toString(), titre: lieu.nom, type: lieu.type,
+      date: voyIsoValide(date), lieu: lieu.arr, prix: '', lien: lieu.lien || '',
+      notes: lieu.note || '', statut: 'Envie' });
+    setProgId(null); setProgDate(''); setVue('agenda');
+  };
 
   const inp = { background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'8px 12px', fontSize:13, width:'100%', boxSizing:'border-box' };
   const add = () => {
@@ -12198,11 +12240,56 @@ function ParisView({ paris, addParis, updateParis, deleteParis }) {
   return h('div', null,
     h('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6, gap:10, flexWrap:'wrap' } },
       h('h2', { style:{ margin:0, fontSize:20 } }, '🗼 Agenda Paris'),
-      h('button', { onClick:()=>setShow(!show), style:{ padding:'8px 18px', borderRadius:20, border:'none', background:'#e91e8c', color:'#fff', cursor:'pointer', fontWeight:700 } }, show ? '✕' : '+ Sortie')
+      vue === 'agenda' && h('button', { onClick:()=>setShow(!show), style:{ padding:'8px 18px', borderRadius:20, border:'none', background:'#e91e8c', color:'#fff', cursor:'pointer', fontWeight:700 } }, show ? '✕' : '+ Sortie')
     ),
     h('p', { style:{ margin:'0 0 16px', fontSize:12.5, color:'var(--text3)', fontStyle:'italic' } },
       nbAvenir > 0 ? `${nbAvenir} sortie${nbAvenir > 1 ? 's' : ''} à venir.` : 'Expos, concerts, tables, balades — note ce que tu veux voir avant que ça ferme.'),
 
+    // ── Sous-vues : agenda daté / carnet de lieux ──
+    h('div', { className:'scroll-x', style:{ display:'flex', gap:8, marginBottom:14 } },
+      [['agenda','🗓 Agenda'],['lieux','📍 Carnet de lieux']].map(([k,l]) =>
+        h('button', { key:k, onClick:()=>setVue(k), style:{ padding:'6px 14px', borderRadius:20, cursor:'pointer', fontSize:12, whiteSpace:'nowrap',
+          border:`1px solid ${vue===k?'#e91e8c':'var(--border)'}`, background: vue===k?'rgba(233,30,140,.12)':'transparent',
+          color: vue===k?'#e91e8c':'var(--text3)', fontWeight: vue===k?700:400 } }, l))
+    ),
+
+    // ── Carnet de lieux : des envies sans date, à basculer en sortie ──
+    vue === 'lieux' && h('div', null,
+      h('p', { style:{ margin:'0 0 14px', fontSize:12.5, color:'var(--text3)', fontStyle:'italic', lineHeight:1.5 } },
+        `${PARIS_LIEUX.length} lieux repérés. « Programmer » en fait une sortie datée dans l'agenda.`),
+      h('div', { style:{ display:'grid', gap:8 } },
+        PARIS_LIEUX.map(li => {
+          const deja = dejaProgramme(li.nom);
+          const enCours = progId === li.id;
+          return h('div', { key:li.id, style:{ background:'var(--glass)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'10px 14px' } },
+            h('div', { style:{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginBottom:4 } },
+              h('span', { style:{ fontSize:16 } }, PARIS_TYPE_ICON[li.type] || '✨'),
+              h('span', { style:{ fontWeight:700, fontSize:14, color:'var(--text)' } }, li.nom),
+              h('span', { style:{ fontSize:10, color:'var(--text3)', border:'1px solid var(--border)', borderRadius:999, padding:'1px 8px' } }, li.type),
+              h('span', { style:{ fontSize:11, color:'var(--text3)' } }, '📍 ' + li.arr),
+              deja && h('span', { style:{ fontSize:10, fontWeight:700, color:'var(--success)', background:'rgba(74,222,128,.14)', borderRadius:999, padding:'1px 8px' } }, '✓ Programmé')
+            ),
+            li.note && h('div', { style:{ fontSize:12, color:'var(--text3)', marginBottom:8, lineHeight:1.45 } }, li.note),
+            !enCours && h('button', {
+              onClick:()=>{ setProgId(li.id); setProgDate(''); },
+              style:{ padding:'4px 12px', borderRadius:12, cursor:'pointer', fontSize:11.5, fontWeight:700,
+                border:'1px solid #e91e8c', background:'rgba(233,30,140,.10)', color:'#e91e8c' }
+            }, '📅 Programmer'),
+            enCours && h('div', { style:{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' } },
+              h('input', { type:'date', value:progDate, onChange:ev=>setProgDate(ev.target.value),
+                style:{ ...inp, width:'auto', flex:'1 1 150px', padding:'6px 10px', fontSize:12 } }),
+              h('button', { onClick:()=>programmer(li, progDate),
+                style:{ padding:'6px 14px', borderRadius:12, border:'none', background:'#e91e8c', color:'#fff', cursor:'pointer', fontSize:11.5, fontWeight:700 } },
+                progDate ? 'Ajouter à l\'agenda' : 'Ajouter sans date'),
+              h('button', { onClick:()=>{ setProgId(null); setProgDate(''); },
+                style:{ padding:'6px 10px', borderRadius:12, border:'1px solid var(--border)', background:'transparent', color:'var(--text3)', cursor:'pointer', fontSize:11.5 } }, 'Annuler')
+            )
+          );
+        })
+      )
+    ),
+
+    vue === 'agenda' && h('div', null,
     show && h('div', { style:{ background:'var(--glass)', border:'1px solid rgba(233,30,140,.35)', borderRadius:'var(--radius)', padding:16, marginBottom:16 } },
       h('input', { placeholder:'Quoi ? (ex : expo Basquiat à la Philharmonie) *', value:form.titre, onChange:e=>setForm(p=>({...p,titre:e.target.value})), style:{ ...inp, marginBottom:8 } }),
       h('div', { style:{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:8 } },
@@ -12284,6 +12371,7 @@ function ParisView({ paris, addParis, updateParis, deleteParis }) {
           )
         ))
       )
+    )
     )
   );
 }
