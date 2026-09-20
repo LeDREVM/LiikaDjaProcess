@@ -1155,6 +1155,7 @@ function normalize(d) {
       ...e, id: String(e.id),
       date: voyIsoValide(e.date),
       type: PARIS_TYPES.indexOf(e.type) >= 0 ? e.type : 'Autre',
+      adresse: typeof e.adresse === 'string' ? e.adresse : '',
       statut: PARIS_STATUTS.indexOf(e.statut) >= 0 ? e.statut : 'Envie'
     }));
   if (!Array.isArray(base.couple.potager)) base.couple.potager = [];
@@ -12191,14 +12192,32 @@ const PARIS_LIEUX = [
   { id: 'l-recyclerie', nom: 'La REcyclerie', type: 'Autre', arr: '18e', note: 'Tiers-lieu dans une ancienne gare, Porte de Clignancourt.' },
   // Ajouté depuis ta liste. Type non vérifié : le site n'est pas joignable
   // depuis cet environnement — corrige-le si « Autre » ne convient pas.
-  { id: 'l-bbetter', nom: 'B Better Paris', type: 'Autre', arr: '4e', note: '26 rue Beautreillis, 75004 Paris.', lien: 'http://www.bbetterparis.fr/' },
-  { id: 'l-tontonsveg', nom: 'Les Tontons Veg', type: 'Resto', arr: '10e', note: '8 rue de Paradis, 75010 Paris. Cuisine végétalienne.' }
+  { id: 'l-bbetter', nom: 'B Better Paris', type: 'Autre', arr: '4e', adresse: '26 rue Beautreillis, 75004 Paris', note: 'Type non vérifié — le site n\'est pas joignable depuis l\'environnement d\'exécution.', lien: 'http://www.bbetterparis.fr/' },
+  { id: 'l-tontonsveg', nom: 'Les Tontons Veg', type: 'Resto', arr: '10e', adresse: '8 rue de Paradis, 75010 Paris', note: 'Cuisine végétalienne.' }
 ];
+
+// Lien d'itinéraire Google Maps, construit côté client : pas d'appel réseau ni
+// de clé d'API. On vise l'adresse quand on l'a, sinon le nom du lieu suivi de
+// « Paris » — Maps résout très bien les établissements connus. Aucune adresse
+// n'est inventée : un mauvais numéro de rue enverrait au mauvais endroit.
+function parisItineraire(dest) {
+  const q = String(dest || '').trim();
+  if (!q) return '';
+  return 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(q);
+}
+// Cible d'itinéraire d'un lieu du carnet ou d'une sortie de l'agenda.
+function parisDestination(o) {
+  if (!o) return '';
+  const adr = String(o.adresse || '').trim();
+  if (adr) return adr;
+  const nom = String(o.nom || o.titre || '').trim();
+  return nom ? nom + ', Paris' : '';
+}
 
 function ParisView({ paris, addParis, updateParis, deleteParis }) {
   const h = React.createElement;
   const list = Array.isArray(paris) ? paris : [];
-  const [form, setForm] = React.useState({ titre:'', type:'Expo', date:'', lieu:'', prix:'', lien:'', notes:'', statut:'Envie' });
+  const [form, setForm] = React.useState({ titre:'', type:'Expo', date:'', lieu:'', adresse:'', prix:'', lien:'', notes:'', statut:'Envie' });
   const [show, setShow] = React.useState(false);
   const [filtre, setFiltre] = React.useState('avenir');
   const [plansOuverts, setPlansOuverts] = React.useState(false);
@@ -12211,7 +12230,7 @@ function ParisView({ paris, addParis, updateParis, deleteParis }) {
   const dejaProgramme = nom => list.some(e => e.titre === nom && !(voyJoursAvant(e.date) < 0));
   const programmer = (lieu, date) => {
     addParis({ id: Date.now().toString(), titre: lieu.nom, type: lieu.type,
-      date: voyIsoValide(date), lieu: lieu.arr, prix: '', lien: lieu.lien || '',
+      date: voyIsoValide(date), lieu: lieu.arr, adresse: lieu.adresse || '', prix: '', lien: lieu.lien || '',
       notes: lieu.note || '', statut: 'Envie' });
     setProgId(null); setProgDate(''); setVue('agenda');
   };
@@ -12220,7 +12239,7 @@ function ParisView({ paris, addParis, updateParis, deleteParis }) {
   const add = () => {
     if (!form.titre.trim()) return;
     addParis({ id: Date.now().toString(), ...form, titre: form.titre.trim(), date: voyIsoValide(form.date) });
-    setForm({ titre:'', type:'Expo', date:'', lieu:'', prix:'', lien:'', notes:'', statut:'Envie' });
+    setForm({ titre:'', type:'Expo', date:'', lieu:'', adresse:'', prix:'', lien:'', notes:'', statut:'Envie' });
     setShow(false);
   };
 
@@ -12270,11 +12289,19 @@ function ParisView({ paris, addParis, updateParis, deleteParis }) {
               deja && h('span', { style:{ fontSize:10, fontWeight:700, color:'var(--success)', background:'rgba(74,222,128,.14)', borderRadius:999, padding:'1px 8px' } }, '✓ Programmé')
             ),
             li.note && h('div', { style:{ fontSize:12, color:'var(--text3)', marginBottom:8, lineHeight:1.45 } }, li.note),
-            !enCours && h('button', {
-              onClick:()=>{ setProgId(li.id); setProgDate(''); },
-              style:{ padding:'4px 12px', borderRadius:12, cursor:'pointer', fontSize:11.5, fontWeight:700,
-                border:'1px solid #e91e8c', background:'rgba(233,30,140,.10)', color:'#e91e8c' }
-            }, '📅 Programmer'),
+            li.adresse && h('div', { style:{ fontSize:11.5, color:'var(--text3)', marginBottom:8 } }, '🏠 ' + li.adresse),
+            h('div', { style:{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' } },
+              !enCours && h('button', {
+                onClick:()=>{ setProgId(li.id); setProgDate(''); },
+                style:{ padding:'4px 12px', borderRadius:12, cursor:'pointer', fontSize:11.5, fontWeight:700,
+                  border:'1px solid #e91e8c', background:'rgba(233,30,140,.10)', color:'#e91e8c' }
+              }, '📅 Programmer'),
+              !enCours && h('a', { href: parisItineraire(parisDestination(li)), target:'_blank', rel:'noopener noreferrer',
+                style:{ padding:'4px 12px', borderRadius:12, fontSize:11.5, fontWeight:700, textDecoration:'none',
+                  border:'1px solid var(--border2)', color:'var(--text2)' } }, '🧭 Itinéraire'),
+              !enCours && li.lien && h('a', { href: li.lien, target:'_blank', rel:'noopener noreferrer',
+                style:{ fontSize:11.5, color:'#e91e8c', textDecoration:'none' } }, '↗ Site')
+            ),
             enCours && h('div', { style:{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' } },
               h('input', { type:'date', value:progDate, onChange:ev=>setProgDate(ev.target.value),
                 style:{ ...inp, width:'auto', flex:'1 1 150px', padding:'6px 10px', fontSize:12 } }),
@@ -12300,6 +12327,7 @@ function ParisView({ paris, addParis, updateParis, deleteParis }) {
           h('input', { type:'date', value:form.date, onChange:e=>setForm(p=>({...p,date:e.target.value})), style:{ ...inp, marginTop:3 } })),
         h('input', { placeholder:'Lieu / arrondissement', value:form.lieu, onChange:e=>setForm(p=>({...p,lieu:e.target.value})), style:{ ...inp, alignSelf:'flex-end' } })
       ),
+      h('input', { placeholder:'Adresse exacte (pour l\'itinéraire)', value:form.adresse, onChange:e=>setForm(p=>({...p,adresse:e.target.value})), style:{ ...inp, marginBottom:8 } }),
       h('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 } },
         h('input', { placeholder:'Prix', value:form.prix, onChange:e=>setForm(p=>({...p,prix:e.target.value})), style:inp }),
         h('input', { placeholder:'Lien de réservation', value:form.lien, onChange:e=>setForm(p=>({...p,lien:e.target.value})), style:inp })
@@ -12336,9 +12364,13 @@ function ParisView({ paris, addParis, updateParis, deleteParis }) {
                   j === 0 ? "Aujourd'hui" : j === 1 ? 'Demain' : j > 0 ? `Dans ${j} j` : `Il y a ${-j} j`)
               ),
               h('div', { style:{ fontSize:12, color:'var(--text3)', marginBottom:4 } },
-                [voyIsoValide(e.date) && '📅 ' + voyFmtDate(e.date), e.lieu && '📍 ' + e.lieu, e.prix && '💶 ' + e.prix].filter(Boolean).join(' · ') || 'Sans date'),
+                [voyIsoValide(e.date) && '📅 ' + voyFmtDate(e.date), e.lieu && '📍 ' + e.lieu, e.adresse && '🏠 ' + e.adresse, e.prix && '💶 ' + e.prix].filter(Boolean).join(' · ') || 'Sans date'),
               e.notes && h('div', { style:{ fontSize:12, color:'var(--text3)', fontStyle:'italic', marginBottom:6 } }, e.notes),
-              e.lien && h('a', { href:e.lien, target:'_blank', rel:'noopener noreferrer', style:{ fontSize:11.5, color:'#e91e8c', textDecoration:'none', display:'inline-block', marginBottom:6 } }, '↗ Réserver'),
+              h('div', { style:{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap', marginBottom:6 } },
+                h('a', { href: parisItineraire(parisDestination(e)), target:'_blank', rel:'noopener noreferrer',
+                  style:{ fontSize:11.5, color:'var(--text2)', textDecoration:'none', border:'1px solid var(--border2)', borderRadius:12, padding:'3px 10px' } }, '🧭 Itinéraire'),
+                e.lien && h('a', { href:e.lien, target:'_blank', rel:'noopener noreferrer', style:{ fontSize:11.5, color:'#e91e8c', textDecoration:'none' } }, '↗ Réserver')
+              ),
               h('div', { style:{ display:'flex', gap:4, flexWrap:'wrap' } },
                 PARIS_STATUTS.map(s => h('button', { key:s, onClick:()=>updateParis(e.id, { statut:s }), style:{ padding:'3px 10px', borderRadius:12, cursor:'pointer', fontSize:11,
                   border:`1px solid ${e.statut===s?PARIS_STATUT_C[s]:'var(--border)'}`,
