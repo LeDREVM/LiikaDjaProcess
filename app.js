@@ -12203,7 +12203,11 @@ const PARIS_LIEUX = [
   { id: 'l-diambo', nom: 'Diambo Resto', type: 'Resto', arr: '11e', adresse: '28 rue Neuve des Boulets, 75011 Paris' },
   { id: 'l-chicagofactory', nom: 'Chicago Factory', type: 'Resto', arr: '12e', adresse: '16 rue Henri Desgrange, 75012 Paris' },
   { id: 'l-afriknfusion', nom: "Afrik'N'Fusion", type: 'Resto', arr: '13e', adresse: "54 rue Jeanne d'Arc, 75013 Paris", note: 'Cuisine afro-fusion.', lien: 'https://www.afriknfusion.fr/la-carte/' },
-  { id: 'l-leriche', nom: 'Leriche', type: 'Resto', arr: '17e', adresse: '16 rue Brey, 75017 Paris', tel: '0147540333', lien: 'https://www.leriche-restaurant.fr/' }
+  { id: 'l-leriche', nom: 'Leriche', type: 'Resto', arr: '17e', adresse: '16 rue Brey, 75017 Paris', tel: '0147540333', lien: 'https://www.leriche-restaurant.fr/' },
+  // Hors Paris intra-muros : `arr` porte alors le nom de la commune. Le tri par
+  // arrondissement les place en fin de catégorie, ce qui est le bon ordre ici.
+  { id: 'l-factoryscreteil', nom: "Factory's Créteil", type: 'Resto', arr: 'Créteil', adresse: '27 rue de la Basse Quinte, 94000 Créteil' },
+  { id: 'l-delicetropical', nom: 'Délice Tropical Bokit', type: 'Resto', arr: 'Créteil', adresse: 'Impasse des Marais, 94000 Créteil', note: 'Bokit — cuisine guadeloupéenne.' }
 ];
 
 
@@ -12223,7 +12227,13 @@ function parisDestination(o) {
   const adr = String(o.adresse || '').trim();
   if (adr) return adr;
   const nom = String(o.nom || o.titre || '').trim();
-  return nom ? nom + ', Paris' : '';
+  if (!nom) return '';
+  // Sans adresse, on complète par la ville. `arr` vaut « 12e » dans Paris, mais
+  // le nom de la commune ailleurs : s'y fier évite d'envoyer chercher un lieu
+  // de Créteil dans Paris.
+  const arr = String(o.arr || '').trim();
+  const commune = (arr && !/^\d/.test(arr)) ? arr : 'Paris';
+  return nom + ', ' + commune;
 }
 
 // Numéro de téléphone en lien cliquable. On retire espaces, points et tirets
