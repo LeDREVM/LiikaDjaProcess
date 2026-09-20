@@ -1156,6 +1156,7 @@ function normalize(d) {
       date: voyIsoValide(e.date),
       type: PARIS_TYPES.indexOf(e.type) >= 0 ? e.type : 'Autre',
       adresse: typeof e.adresse === 'string' ? e.adresse : '',
+      tel: typeof e.tel === 'string' ? e.tel : '',
       statut: PARIS_STATUTS.indexOf(e.statut) >= 0 ? e.statut : 'Envie'
     }));
   if (!Array.isArray(base.couple.potager)) base.couple.potager = [];
@@ -12172,6 +12173,7 @@ const PARIS_BONS_PLANS = [
 // lieux stables — à remplacer par ta propre liste. Les adresses et les horaires
 // bougent : vérifie avant de te déplacer.
 const PARIS_LIEUX = [
+  // ── Repères parisiens (institutions et lieux stables) ──
   { id: 'l-orsay', nom: 'Musée d\'Orsay', type: 'Musée', arr: '7e', note: 'Impressionnistes, dans une ancienne gare.' },
   { id: 'l-orangerie', nom: 'Musée de l\'Orangerie', type: 'Musée', arr: '1er', note: 'Les Nymphéas de Monet, en deux salles ovales.' },
   { id: 'l-petitpalais', nom: 'Petit Palais', type: 'Musée', arr: '8e', note: 'Collections permanentes gratuites.' },
@@ -12190,11 +12192,21 @@ const PARIS_LIEUX = [
   { id: 'l-canal', nom: 'Canal Saint-Martin', type: 'Balade', arr: '10e', note: 'Écluses et quais, agréable en fin de journée.' },
   { id: 'l-lachaise', nom: 'Père-Lachaise', type: 'Balade', arr: '20e', note: 'Cimetière-jardin, gratuit.' },
   { id: 'l-recyclerie', nom: 'La REcyclerie', type: 'Autre', arr: '18e', note: 'Tiers-lieu dans une ancienne gare, Porte de Clignancourt.' },
-  // Ajouté depuis ta liste. Type non vérifié : le site n'est pas joignable
-  // depuis cet environnement — corrige-le si « Autre » ne convient pas.
-  { id: 'l-bbetter', nom: 'B Better Paris', type: 'Autre', arr: '4e', adresse: '26 rue Beautreillis, 75004 Paris', note: 'Type non vérifié — le site n\'est pas joignable depuis l\'environnement d\'exécution.', lien: 'http://www.bbetterparis.fr/' },
-  { id: 'l-tontonsveg', nom: 'Les Tontons Veg', type: 'Resto', arr: '10e', adresse: '8 rue de Paradis, 75010 Paris', note: 'Cuisine végétalienne.' }
+
+  // ── Tes lieux ──
+  { id: 'l-888', nom: '888 Night Market', type: 'Resto', arr: '3e', adresse: '37 rue Beaubourg, 75003 Paris' },
+  { id: 'l-bbetter', nom: 'B Better Paris', type: 'Resto', arr: '4e', adresse: '26 rue Beautreillis, 75004 Paris', lien: 'http://www.bbetterparis.fr/' },
+  { id: 'l-landmonkeys', nom: 'Land&Monkeys Turenne', type: 'Resto', arr: '4e', adresse: '2 rue de Turenne, 75004 Paris', note: 'Boulangerie-pâtisserie végétale.' },
+  { id: 'l-sma', nom: 'Service Militaire Adapté', type: 'Autre', arr: '7e', adresse: '27 rue Oudinot, 75007 Paris', note: 'Point de rassemblement.' },
+  { id: 'l-tontonsveg', nom: 'Les Tontons Veg', type: 'Resto', arr: '10e', adresse: '8 rue de Paradis, 75010 Paris', note: 'Cuisine végétalienne.' },
+  { id: 'l-bomaye', nom: 'Bomaye Burger Paradis', type: 'Resto', arr: '10e', adresse: '16 rue de Paradis, 75010 Paris', note: 'Burgers. Même rue que Les Tontons Veg.' },
+  { id: 'l-diambo', nom: 'Diambo Resto', type: 'Resto', arr: '11e', adresse: '28 rue Neuve des Boulets, 75011 Paris' },
+  { id: 'l-chicagofactory', nom: 'Chicago Factory', type: 'Resto', arr: '12e', adresse: '16 rue Henri Desgrange, 75012 Paris' },
+  { id: 'l-afriknfusion', nom: "Afrik'N'Fusion", type: 'Resto', arr: '13e', adresse: "54 rue Jeanne d'Arc, 75013 Paris", note: 'Cuisine afro-fusion.', lien: 'https://www.afriknfusion.fr/la-carte/' },
+  { id: 'l-leriche', nom: 'Leriche', type: 'Resto', arr: '17e', adresse: '16 rue Brey, 75017 Paris', tel: '0147540333', lien: 'https://www.leriche-restaurant.fr/' }
 ];
+
+
 
 // Lien d'itinéraire Google Maps, construit côté client : pas d'appel réseau ni
 // de clé d'API. On vise l'adresse quand on l'a, sinon le nom du lieu suivi de
@@ -12214,10 +12226,17 @@ function parisDestination(o) {
   return nom ? nom + ', Paris' : '';
 }
 
+// Numéro de téléphone en lien cliquable. On retire espaces, points et tirets
+// pour le href ; l'affichage garde la forme saisie.
+function parisTelHref(tel) {
+  const t = String(tel || '').replace(/[^\d+]/g, '');
+  return t ? 'tel:' + t : '';
+}
+
 function ParisView({ paris, addParis, updateParis, deleteParis }) {
   const h = React.createElement;
   const list = Array.isArray(paris) ? paris : [];
-  const [form, setForm] = React.useState({ titre:'', type:'Expo', date:'', lieu:'', adresse:'', prix:'', lien:'', notes:'', statut:'Envie' });
+  const [form, setForm] = React.useState({ titre:'', type:'Expo', date:'', lieu:'', adresse:'', tel:'', prix:'', lien:'', notes:'', statut:'Envie' });
   const [show, setShow] = React.useState(false);
   const [filtre, setFiltre] = React.useState('avenir');
   const [plansOuverts, setPlansOuverts] = React.useState(false);
@@ -12230,7 +12249,7 @@ function ParisView({ paris, addParis, updateParis, deleteParis }) {
   const dejaProgramme = nom => list.some(e => e.titre === nom && !(voyJoursAvant(e.date) < 0));
   const programmer = (lieu, date) => {
     addParis({ id: Date.now().toString(), titre: lieu.nom, type: lieu.type,
-      date: voyIsoValide(date), lieu: lieu.arr, adresse: lieu.adresse || '', prix: '', lien: lieu.lien || '',
+      date: voyIsoValide(date), lieu: lieu.arr, adresse: lieu.adresse || '', tel: lieu.tel || '', prix: '', lien: lieu.lien || '',
       notes: lieu.note || '', statut: 'Envie' });
     setProgId(null); setProgDate(''); setVue('agenda');
   };
@@ -12239,7 +12258,7 @@ function ParisView({ paris, addParis, updateParis, deleteParis }) {
   const add = () => {
     if (!form.titre.trim()) return;
     addParis({ id: Date.now().toString(), ...form, titre: form.titre.trim(), date: voyIsoValide(form.date) });
-    setForm({ titre:'', type:'Expo', date:'', lieu:'', adresse:'', prix:'', lien:'', notes:'', statut:'Envie' });
+    setForm({ titre:'', type:'Expo', date:'', lieu:'', adresse:'', tel:'', prix:'', lien:'', notes:'', statut:'Envie' });
     setShow(false);
   };
 
@@ -12276,8 +12295,20 @@ function ParisView({ paris, addParis, updateParis, deleteParis }) {
     vue === 'lieux' && h('div', null,
       h('p', { style:{ margin:'0 0 14px', fontSize:12.5, color:'var(--text3)', fontStyle:'italic', lineHeight:1.5 } },
         `${PARIS_LIEUX.length} lieux repérés. « Programmer » en fait une sortie datée dans l'agenda.`),
-      h('div', { style:{ display:'grid', gap:8 } },
-        PARIS_LIEUX.map(li => {
+      // Regroupés par catégorie, dans l'ordre de PARIS_TYPES ; à l'intérieur
+      // d'une catégorie, par arrondissement croissant.
+      h('div', { style:{ display:'grid', gap:18 } },
+        PARIS_TYPES.map(t => {
+          const groupe = PARIS_LIEUX.filter(l => l.type === t)
+            .slice().sort((a, b) => (parseInt(a.arr, 10) || 99) - (parseInt(b.arr, 10) || 99));
+          if (!groupe.length) return null;
+          return h('div', { key:t },
+            h('div', { style:{ display:'flex', alignItems:'center', gap:8, marginBottom:8, paddingBottom:6, borderBottom:'1px solid var(--border)' } },
+              h('span', { style:{ fontSize:15 } }, PARIS_TYPE_ICON[t] || '✨'),
+              h('span', { style:{ fontSize:13, fontWeight:700, color:'var(--text2)' } }, t),
+              h('span', { style:{ fontFamily:"'Space Mono',monospace", fontSize:10.5, color:'var(--text3)' } }, groupe.length)
+            ),
+            h('div', { style:{ display:'grid', gap:8 } }, groupe.map(li => {
           const deja = dejaProgramme(li.nom);
           const enCours = progId === li.id;
           return h('div', { key:li.id, style:{ background:'var(--glass)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'10px 14px' } },
@@ -12300,7 +12331,9 @@ function ParisView({ paris, addParis, updateParis, deleteParis }) {
                 style:{ padding:'4px 12px', borderRadius:12, fontSize:11.5, fontWeight:700, textDecoration:'none',
                   border:'1px solid var(--border2)', color:'var(--text2)' } }, '🧭 Itinéraire'),
               !enCours && li.lien && h('a', { href: li.lien, target:'_blank', rel:'noopener noreferrer',
-                style:{ fontSize:11.5, color:'#e91e8c', textDecoration:'none' } }, '↗ Site')
+                style:{ fontSize:11.5, color:'#e91e8c', textDecoration:'none' } }, '↗ Site'),
+              !enCours && li.tel && h('a', { href: parisTelHref(li.tel),
+                style:{ fontSize:11.5, color:'var(--text2)', textDecoration:'none' } }, '📞 ' + li.tel)
             ),
             enCours && h('div', { style:{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' } },
               h('input', { type:'date', value:progDate, onChange:ev=>setProgDate(ev.target.value),
@@ -12311,6 +12344,8 @@ function ParisView({ paris, addParis, updateParis, deleteParis }) {
               h('button', { onClick:()=>{ setProgId(null); setProgDate(''); },
                 style:{ padding:'6px 10px', borderRadius:12, border:'1px solid var(--border)', background:'transparent', color:'var(--text3)', cursor:'pointer', fontSize:11.5 } }, 'Annuler')
             )
+          );
+            }))
           );
         })
       )
@@ -12330,7 +12365,8 @@ function ParisView({ paris, addParis, updateParis, deleteParis }) {
       h('input', { placeholder:'Adresse exacte (pour l\'itinéraire)', value:form.adresse, onChange:e=>setForm(p=>({...p,adresse:e.target.value})), style:{ ...inp, marginBottom:8 } }),
       h('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 } },
         h('input', { placeholder:'Prix', value:form.prix, onChange:e=>setForm(p=>({...p,prix:e.target.value})), style:inp }),
-        h('input', { placeholder:'Lien de réservation', value:form.lien, onChange:e=>setForm(p=>({...p,lien:e.target.value})), style:inp })
+        h('input', { placeholder:'Lien de réservation', value:form.lien, onChange:e=>setForm(p=>({...p,lien:e.target.value})), style:inp }),
+        h('input', { placeholder:'Téléphone', value:form.tel, onChange:e=>setForm(p=>({...p,tel:e.target.value})), style:inp })
       ),
       h('textarea', { placeholder:'Notes…', value:form.notes, onChange:e=>setForm(p=>({...p,notes:e.target.value})), style:{ ...inp, minHeight:55, marginBottom:10, resize:'vertical' } }),
       h('button', { onClick:add, style:{ padding:'8px 20px', borderRadius:12, border:'none', background:'#e91e8c', color:'#fff', cursor:'pointer', fontWeight:700 } }, 'Enregistrer')
@@ -12369,7 +12405,8 @@ function ParisView({ paris, addParis, updateParis, deleteParis }) {
               h('div', { style:{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap', marginBottom:6 } },
                 h('a', { href: parisItineraire(parisDestination(e)), target:'_blank', rel:'noopener noreferrer',
                   style:{ fontSize:11.5, color:'var(--text2)', textDecoration:'none', border:'1px solid var(--border2)', borderRadius:12, padding:'3px 10px' } }, '🧭 Itinéraire'),
-                e.lien && h('a', { href:e.lien, target:'_blank', rel:'noopener noreferrer', style:{ fontSize:11.5, color:'#e91e8c', textDecoration:'none' } }, '↗ Réserver')
+                e.lien && h('a', { href:e.lien, target:'_blank', rel:'noopener noreferrer', style:{ fontSize:11.5, color:'#e91e8c', textDecoration:'none' } }, '↗ Réserver'),
+                e.tel && h('a', { href: parisTelHref(e.tel), style:{ fontSize:11.5, color:'var(--text2)', textDecoration:'none' } }, '📞 ' + e.tel)
               ),
               h('div', { style:{ display:'flex', gap:4, flexWrap:'wrap' } },
                 PARIS_STATUTS.map(s => h('button', { key:s, onClick:()=>updateParis(e.id, { statut:s }), style:{ padding:'3px 10px', borderRadius:12, cursor:'pointer', fontSize:11,
