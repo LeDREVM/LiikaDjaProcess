@@ -1137,9 +1137,39 @@ function normalize(d) {
   if (!Array.isArray(base.couple.soirees)) base.couple.soirees = [];
   // Emploi du temps : objet indexé par jour (0 = lundi → 6 = dimanche). La vue et
   // l'export .ics le parcourent ; un tableau ou un null venu d'une vieille sauvegarde
-  // les ferait planter.
-  if (!base.couple.planning || typeof base.couple.planning !== 'object' || Array.isArray(base.couple.planning)) {
-    base.couple.planning = {};
+  // les ferait planter. Depuis que les journées sont modifiables, leurs créneaux
+  // vivent ici (`items`) : on assainit donc chaque créneau, et on ne garde que les
+  // journées réellement existantes.
+  {
+    const src = planObjet(base.couple.planning) || {};
+    const plan = {};
+    for (let day = 0; day <= 6; day++) {
+      const d = planObjet(src[day]);
+      if (!d) continue;
+      const jour = {};
+      const ch = planObjet(d.checked);
+      if (ch) {
+        const coches = {};
+        for (const k of Object.keys(ch)) if (ch[k] === true) coches[k] = true;
+        if (Object.keys(coches).length) jour.checked = coches;
+      }
+      const nettoie = liste => liste
+        .filter(planItemValide)
+        .map(it => ({
+          id: String(it.id),
+          time: planIcsTime(it.time) ? String(it.time).trim() : '09:00',
+          cat: PLAN_CATEGORIES[it.cat] ? it.cat : 'repos',
+          title: String(it.title).trim(),
+          detail: it.detail == null ? '' : String(it.detail),
+          who: PLAN_WHO[it.who] ? it.who : 'both'
+        }));
+      // `items` présent = journée reprise en main, même vide (on ne la fait pas
+      // « repousser » depuis le modèle à la prochaine synchro).
+      if (Array.isArray(d.items)) jour.items = nettoie(d.items);
+      else if (Array.isArray(d.custom) && d.custom.length) jour.custom = nettoie(d.custom);
+      if (Object.keys(jour).length) plan[day] = jour;
+    }
+    base.couple.planning = plan;
   }
   // Voyages : chaque voyage porte sa propre checklist de préparation dans `checked`
   // ({idEtape: true}). On ne garde que les entrées identifiables et les cases
@@ -4077,6 +4107,49 @@ const PLAN_WHO = {
     color: '#4ade80'
   }
 };
+// ─── Emploi du temps : lecture d'une journée ───
+// Une journée jamais modifiée est rendue depuis le modèle INITIAL_PLANNING (plus
+// les créneaux ajoutés par l'ancienne version dans `custom`). Dès la première
+// modification la journée est « adoptée » : ses créneaux sont recopiés dans
+// `items`, qui devient seul maître à bord. C'est ce qui permet de modifier,
+// déplacer ou supprimer même un créneau venu du modèle.
+//   planning[jour] = { checked:{id:true}, items:[…] }   ← journée adoptée
+//   planning[jour] = { checked:{id:true}, custom:[…] }  ← ancienne forme, toujours lue
+// '06:00' → '060000'. Renvoie null si l'heure est illisible (créneau ignoré).
+function planIcsTime(t) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(t == null ? '' : t).trim());
+  if (!m) return null;
+  const hh = Number(m[1]), mn = Number(m[2]);
+  if (hh > 23 || mn > 59) return null;
+  return String(hh).padStart(2, '0') + String(mn).padStart(2, '0') + '00';
+}
+function planIcsMinutes(hhmmss) { return Number(hhmmss.slice(0, 2)) * 60 + Number(hhmmss.slice(2, 4)); }
+function planObjet(v) { return (v && typeof v === 'object' && !Array.isArray(v)) ? v : null; }
+function planJourBrut(planning, day) { return planObjet(planObjet(planning) ? planning[day] : null) || {}; }
+function planItemValide(it) { return !!(it && typeof it === 'object' && it.id != null && String(it.title || '').trim()); }
+// Créneaux du modèle pour une journée, avec leurs identifiants stables.
+function planItemsModele(day) {
+  return (INITIAL_PLANNING[day] || []).map((it, i) => ({ ...it, id: 'i' + day + '-' + i }));
+}
+// Créneaux d'une journée, TOUJOURS triés par heure : sans ça un créneau ajouté à
+// 07:00 s'affichait après celui de 21:00.
+function planDayItems(planning, day) {
+  const d = planJourBrut(planning, day);
+  const src = Array.isArray(d.items)
+    ? d.items
+    : planItemsModele(day).concat(Array.isArray(d.custom) ? d.custom : []);
+  return src
+    .filter(planItemValide)
+    .map(it => ({ ...it, id: String(it.id), title: String(it.title).trim() }))
+    .sort((a, b) => {
+      const ta = planIcsTime(a.time) || '999999';
+      const tb = planIcsTime(b.time) || '999999';
+      return ta < tb ? -1 : ta > tb ? 1 : 0;
+    });
+}
+// Vrai si la journée a déjà été reprise en main (donc plus liée au modèle).
+function planJourAdopte(planning, day) { return Array.isArray(planJourBrut(planning, day).items); }
+
 // Lien Google Maps : requête nommée complète (nom du lieu + commune + Guadeloupe)
 // -> Maps épingle le POI officiel, pas de coordonnées inventées.
 const mapsUrl = q => 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q);
@@ -5276,8 +5349,11 @@ function MaisonView({
 function PlanningView({
   planning,
   togglePlanningCheck,
-  addPlanningCustomItem,
-  deletePlanningCustomItem,
+  addPlanningItem,
+  updatePlanningItem,
+  deletePlanningItem,
+  movePlanningItem,
+  resetPlanningDay,
   soirees,
   addSoiree,
   deleteSoiree
@@ -5298,34 +5374,85 @@ function PlanningView({
     cat: 'repos',
     title: '',
     detail: '',
-    who: 'both'
+    who: 'both',
+    jour: 0
   });
-  const planDay = (planning || {})[activeDay] || {
-    checked: {},
-    custom: []
-  };
+  // Créneau en cours de modification (null = le formulaire sert à en ajouter un).
+  const [editingId, setEditingId] = useState(null);
+  const planDay = planJourBrut(planning, activeDay);
   const checked = planDay.checked || {};
-  const customItems = planDay.custom || [];
-  const initItems = (INITIAL_PLANNING[activeDay] || []).map((it, i) => ({
-    ...it,
-    id: `i${activeDay}-${i}`
-  }));
-  const dayItems = [...initItems, ...customItems];
+  const dayItems = planDayItems(planning, activeDay);
   const doneCount = dayItems.filter(it => !!checked[it.id]).length;
+  const jourAdopte = planJourAdopte(planning, activeDay);
+  // Jour visé par le formulaire, toujours ramené à un index de jour valide : une
+  // valeur absente ou aberrante retomberait sinon sur PLAN_DAYS_FULL[undefined].
+  // Attention : Number(null) vaut 0, donc un jour absent atterrirait sur lundi
+  // au lieu du jour affiché. On n'accepte qu'un vrai nombre ou une chaîne chiffrée.
+  const jourCible = (() => {
+    const v = addForm.jour;
+    const n = typeof v === 'number' ? v
+      : (typeof v === 'string' && v.trim() !== '' ? Number(v) : NaN);
+    return Number.isInteger(n) && n >= 0 && n <= 6 ? n : activeDay;
+  })();
+  const formVide = {
+    time: '09:00',
+    cat: 'repos',
+    title: '',
+    detail: '',
+    who: 'both',
+    jour: activeDay
+  };
+  const fermerForm = () => {
+    setAddForm(formVide);
+    setEditingId(null);
+    setAddingItem(false);
+  };
+  const ouvrirAjout = () => {
+    if (addingItem && !editingId) return fermerForm();
+    setAddForm(formVide);
+    setEditingId(null);
+    setAddingItem(true);
+  };
+  // Un clic sur ✎ recharge le créneau dans le même formulaire que l'ajout.
+  const ouvrirEdition = item => {
+    setAddForm({
+      time: item.time || '09:00',
+      cat: PLAN_CATEGORIES[item.cat] ? item.cat : 'repos',
+      title: item.title || '',
+      detail: item.detail || '',
+      who: PLAN_WHO[item.who] ? item.who : 'both',
+      jour: activeDay
+    });
+    setEditingId(item.id);
+    setAddingItem(true);
+  };
   const handleAdd = () => {
     if (!addForm.title.trim()) return;
-    addPlanningCustomItem(activeDay, {
-      ...addForm,
-      id: Date.now().toString()
-    });
-    setAddForm({
-      time: '09:00',
-      cat: 'repos',
-      title: '',
-      detail: '',
-      who: 'both'
-    });
-    setAddingItem(false);
+    const { jour, ...champs } = addForm;
+    const versAutreJour = jourCible !== activeDay;
+    if (editingId) {
+      updatePlanningItem(activeDay, editingId, champs);
+      if (versAutreJour) movePlanningItem(activeDay, jourCible, editingId);
+    } else {
+      addPlanningItem(jourCible, { ...champs, id: Date.now().toString() });
+    }
+    fermerForm();
+  };
+  const dupliquerItem = item => {
+    const { id, ...champs } = item;
+    addPlanningItem(activeDay, { ...champs, title: champs.title + ' (copie)', id: Date.now().toString() });
+  };
+  const supprimerItem = item => {
+    if (confirm('Supprimer « ' + item.title + ' » du ' + PLAN_DAYS_FULL[activeDay].toLowerCase() + ' ?')) {
+      deletePlanningItem(activeDay, item.id);
+      if (editingId === item.id) fermerForm();
+    }
+  };
+  const reinitialiserJour = () => {
+    if (confirm('Remettre le ' + PLAN_DAYS_FULL[activeDay].toLowerCase() + ' tel qu\'il était au départ ? Tes ajouts et modifications de cette journée seront perdus.')) {
+      resetPlanningDay(activeDay);
+      fermerForm();
+    }
   };
   // Toute la semaine (pas seulement le jour affiché) en fichier .ics, importable
   // dans le calendrier d'un iPhone ou d'un Samsung.
@@ -5460,6 +5587,7 @@ function PlanningView({
     onClick: () => {
       setActiveDay(i);
       setAddingItem(false);
+      setEditingId(null);
     },
     style: {
       minWidth: 44,
@@ -5515,8 +5643,22 @@ function PlanningView({
       fontFamily: "'Space Mono',monospace",
       whiteSpace: 'nowrap'
     }
-  }, "📅 .ics"), /*#__PURE__*/React.createElement("button", {
-    onClick: () => setAddingItem(p => !p),
+  }, "📅 .ics"), jourAdopte && /*#__PURE__*/React.createElement("button", {
+    onClick: reinitialiserJour,
+    title: "Remettre cette journée telle qu'elle était au départ",
+    style: {
+      padding: '5px 10px',
+      borderRadius: 20,
+      border: '1px solid #2d5a3d',
+      background: 'transparent',
+      color: '#8bb89a',
+      cursor: 'pointer',
+      fontSize: 11,
+      fontFamily: "'Space Mono',monospace",
+      whiteSpace: 'nowrap'
+    }
+  }, "↺"), /*#__PURE__*/React.createElement("button", {
+    onClick: ouvrirAjout,
     style: {
       padding: '5px 12px',
       borderRadius: 20,
@@ -5630,26 +5772,54 @@ function PlanningView({
   }, Object.entries(PLAN_WHO).map(([k, v]) => /*#__PURE__*/React.createElement("option", {
     key: k,
     value: k
-  }, v.label))), /*#__PURE__*/React.createElement("div", {
+  }, v.label))), /*#__PURE__*/React.createElement("select", {
+    value: jourCible,
+    onChange: e => setAddForm(p => ({
+      ...p,
+      jour: Number(e.target.value)
+    })),
+    title: "Jour du cr\u00e9neau",
     style: {
+      padding: '6px 10px',
+      borderRadius: 8,
+      border: '1px solid ' + (jourCible === activeDay ? '#2d5a3d' : '#4ade80'),
+      background: 'rgba(10,20,14,.9)',
+      color: '#e8f5e0',
+      fontSize: 12,
+      outline: 'none'
+    }
+  }, PLAN_DAYS_FULL.map((j, i) => /*#__PURE__*/React.createElement("option", {
+    key: i,
+    value: i
+  }, j))), jourCible !== activeDay && /*#__PURE__*/React.createElement("div", {
+    style: {
+      gridColumn: '1/-1',
+      fontSize: 10,
+      color: '#4ade80',
+      fontFamily: "'Space Mono',monospace"
+    }
+  }, (editingId ? "\u2192 sera d\u00e9plac\u00e9 vers " : "\u2192 sera ajout\u00e9 au ") + PLAN_DAYS_FULL[jourCible].toLowerCase()), /*#__PURE__*/React.createElement("div", {
+    style: {
+      gridColumn: '1/-1',
       display: 'flex',
       gap: 6
     }
   }, /*#__PURE__*/React.createElement("button", {
     onClick: handleAdd,
+    disabled: !addForm.title.trim(),
     style: {
       flex: 1,
       padding: '7px',
       borderRadius: 8,
       border: 'none',
-      background: '#4ade80',
-      color: '#0a0f0d',
-      cursor: 'pointer',
+      background: addForm.title.trim() ? '#4ade80' : '#1e3a2a',
+      color: addForm.title.trim() ? '#0a0f0d' : '#4b7a5c',
+      cursor: addForm.title.trim() ? 'pointer' : 'not-allowed',
       fontSize: 12,
       fontWeight: 700
     }
-  }, "\u2713 Ajouter"), /*#__PURE__*/React.createElement("button", {
-    onClick: () => setAddingItem(false),
+  }, editingId ? "\u2713 Enregistrer" : "\u2713 Ajouter"), /*#__PURE__*/React.createElement("button", {
+    onClick: fermerForm,
     style: {
       padding: '7px 12px',
       borderRadius: 8,
@@ -5667,7 +5837,6 @@ function PlanningView({
     const cat = PLAN_CATEGORIES[item.cat] || PLAN_CATEGORIES.repos;
     const who = PLAN_WHO[item.who] || PLAN_WHO.both;
     const isDone = !!checked[item.id];
-    const isCustom = !item.id.startsWith('i');
     return /*#__PURE__*/React.createElement("div", {
       key: item.id,
       className: "plan-item-card plan-fade",
@@ -5765,21 +5934,28 @@ function PlanningView({
         borderRadius: 10,
         flexShrink: 0
       }
-    }, who.label), isCustom && /*#__PURE__*/React.createElement("button", {
+    }, who.label), [
+      { k: 'edit', t: "Modifier ce créneau", l: "✎", f: () => ouvrirEdition(item), c: editingId === item.id ? '#4ade80' : '#4b7a5c' },
+      { k: 'copy', t: "Dupliquer ce créneau", l: "⧉", f: () => dupliquerItem(item), c: '#4b7a5c' },
+      { k: 'del', t: "Supprimer ce créneau", l: "\xD7", f: () => supprimerItem(item), c: '#4b7a5c' }
+    ].map(b => /*#__PURE__*/React.createElement("button", {
+      key: b.k,
+      title: b.t,
+      'aria-label': b.t,
       onClick: e => {
         e.stopPropagation();
-        deletePlanningCustomItem(activeDay, item.id);
+        b.f();
       },
       style: {
         background: 'none',
         border: 'none',
-        color: '#4b7a5c',
+        color: b.c,
         cursor: 'pointer',
-        fontSize: 14,
-        padding: '0 2px',
+        fontSize: b.k === 'del' ? 14 : 12,
+        padding: '0 3px',
         lineHeight: 1
       }
-    }, "\xD7"))), item.detail && /*#__PURE__*/React.createElement("p", {
+    }, b.l)))), item.detail && /*#__PURE__*/React.createElement("p", {
       style: {
         margin: '5px 0 0 21px',
         fontSize: 11,
@@ -6622,30 +6798,16 @@ const ICS_AIDE_TEL = [
 // une série d'événements « chaque lundi à 06:00 », etc. — la forme que tous les
 // calendriers (iPhone, Samsung, Google, Outlook) savent lire.
 const PLAN_ICS_JOURS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
-// '06:00' → '060000'. Renvoie null si l'heure est illisible (créneau ignoré).
-function planIcsTime(t) {
-  const m = /^(\d{1,2}):(\d{2})$/.exec(String(t == null ? '' : t).trim());
-  if (!m) return null;
-  const hh = Number(m[1]), mn = Number(m[2]);
-  if (hh > 23 || mn > 59) return null;
-  return String(hh).padStart(2, '0') + String(mn).padStart(2, '0') + '00';
-}
-function planIcsMinutes(hhmmss) { return Number(hhmmss.slice(0, 2)) * 60 + Number(hhmmss.slice(2, 4)); }
 function planningToIcsEvents(planning) {
   const out = [];
-  const p = (planning && typeof planning === 'object' && !Array.isArray(planning)) ? planning : {};
   // En solo, on n'emporte que ses propres créneaux (+ ceux marqués « à deux ».)
   const moi = ACTIVE_MODE === 'solo' ? ACTIVE_SOLO : null;
   PLAN_ICS_JOURS.forEach((jour, day) => {
-    const jourData = (p[day] && typeof p[day] === 'object') ? p[day] : {};
-    const custom = Array.isArray(jourData.custom) ? jourData.custom : [];
-    const items = []
-      .concat((INITIAL_PLANNING[day] || []).map((it, i) => ({ ...it, id: 'i' + day + '-' + i })))
-      .concat(custom.filter(it => it && typeof it === 'object'))
+    // Même source que la vue Planning : ce qui est affiché est ce qui est exporté.
+    const items = planDayItems(planning, day)
       .map(it => ({ ...it, t: planIcsTime(it.time) }))
-      .filter(it => it.t && String(it.title || '').trim())
-      .filter(it => !moi || !it.who || it.who === 'both' || it.who === moi)
-      .sort((a, b) => a.t.localeCompare(b.t));
+      .filter(it => it.t)
+      .filter(it => !moi || !it.who || it.who === 'both' || it.who === moi);
     items.forEach((it, i) => {
       // Durée : jusqu'au créneau suivant, 1 h par défaut, bornée à 15 min–1 h 30
       // pour qu'une longue plage vide ne bloque pas toute la journée.
@@ -14230,25 +14392,53 @@ const ch=sb.channel('ld-realtime')
       return next;
     });
   }, []);
-  const addPlanningCustomItem = useCallback((day, item) => {
+  // Toute modification d'une journée passe par ici. Si la journée était encore
+  // celle du modèle, ses créneaux sont d'abord recopiés dans `items` (« adoption »)
+  // — ensuite seulement la transformation est appliquée. `custom` est vidé car son
+  // contenu a été repris dans `items` : sans ça les créneaux apparaîtraient en double.
+  const majJourPlanning = useCallback((day, transformer) => {
     setData(prev => {
       const next = clone(prev);
-      if (!next.couple.planning) next.couple.planning = {};
-      const d = next.couple.planning[day] || {
-        checked: {},
-        custom: []
-      };
-      d.custom = [...(d.custom || []), item];
-      next.couple.planning[day] = d;
+      if (!planObjet(next.couple.planning)) next.couple.planning = {};
+      const avant = planDayItems(next.couple.planning, day);
+      const apres = transformer(avant);
+      if (!apres) return prev;
+      const d = planObjet(next.couple.planning[day]) || {};
+      next.couple.planning[day] = { ...d, items: apres.filter(planItemValide), custom: [] };
       return next;
     });
   }, []);
-  const deletePlanningCustomItem = useCallback((day, id) => {
+  const addPlanningItem = useCallback((day, item) => {
+    majJourPlanning(day, liste => [...liste, item]);
+  }, [majJourPlanning]);
+  const updatePlanningItem = useCallback((day, id, patch) => {
+    majJourPlanning(day, liste => liste.map(it => it.id === id ? { ...it, ...patch, id: it.id } : it));
+  }, [majJourPlanning]);
+  const deletePlanningItem = useCallback((day, id) => {
+    majJourPlanning(day, liste => liste.filter(it => it.id !== id));
+  }, [majJourPlanning]);
+  // Déplacer un créneau d'un jour à l'autre : les deux journées sont adoptées dans
+  // la même mise à jour, sinon la seconde écraserait la première.
+  const movePlanningItem = useCallback((fromDay, toDay, id) => {
+    if (fromDay === toDay) return;
     setData(prev => {
       const next = clone(prev);
-      if (next.couple.planning && next.couple.planning[day]) {
-        next.couple.planning[day].custom = (next.couple.planning[day].custom || []).filter(i => i.id !== id);
-      }
+      if (!planObjet(next.couple.planning)) next.couple.planning = {};
+      const P = next.couple.planning;
+      const source = planDayItems(P, fromDay);
+      const item = source.find(it => it.id === id);
+      if (!item) return prev;
+      const cible = planDayItems(P, toDay);
+      P[fromDay] = { ...(planObjet(P[fromDay]) || {}), items: source.filter(it => it.id !== id), custom: [] };
+      P[toDay] = { ...(planObjet(P[toDay]) || {}), items: [...cible, item], custom: [] };
+      return next;
+    });
+  }, []);
+  // Rendre une journée à son modèle d'origine (et oublier les cases cochées).
+  const resetPlanningDay = useCallback((day) => {
+    setData(prev => {
+      const next = clone(prev);
+      if (planObjet(next.couple.planning)) delete next.couple.planning[day];
       return next;
     });
   }, []);
@@ -15654,7 +15844,7 @@ const ch=sb.channel('ld-realtime')
     view === 'sport' && React.createElement(SportView,{data,upsertSport,deleteSport}),
     view === 'budget' && React.createElement(BudgetView,{data,upsertBudgetLine,deleteBudgetLine}),
     view === 'vision' && React.createElement(VisionView,{data,updateVision}),
-    view === 'planning' && React.createElement(PlanningView,{planning:(data.couple||{}).planning||{},togglePlanningCheck,addPlanningCustomItem,deletePlanningCustomItem,soirees:(data.couple||{}).soirees||[],addSoiree,deleteSoiree}),
+    view === 'planning' && React.createElement(PlanningView,{planning:(data.couple||{}).planning||{},togglePlanningCheck,addPlanningItem,updatePlanningItem,deletePlanningItem,movePlanningItem,resetPlanningDay,soirees:(data.couple||{}).soirees||[],addSoiree,deleteSoiree}),
     view === 'drevmcook' && React.createElement(DrevmCookView,{ferments:data.ferments||[],upsertFerment,deleteFerment,recipes:data.recipes||[],upsertRecipe,deleteRecipe,importRecipes}),
     view === 'konsevasyon' && React.createElement(KonsevasyonView,{rezev:data.rezev||[],upsertRezev,deleteRezev}),
     view === 'programdja' && React.createElement(SportDjaView,{programme:(data.dja||{}).programme,updateProgramme}),
