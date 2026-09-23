@@ -1135,6 +1135,12 @@ function normalize(d) {
   if (!Array.isArray(base.couple.motivations)) base.couple.motivations = [];
   if (!Array.isArray(base.couple.medical)) base.couple.medical = [];
   if (!Array.isArray(base.couple.soirees)) base.couple.soirees = [];
+  // Emploi du temps : objet indexé par jour (0 = lundi → 6 = dimanche). La vue et
+  // l'export .ics le parcourent ; un tableau ou un null venu d'une vieille sauvegarde
+  // les ferait planter.
+  if (!base.couple.planning || typeof base.couple.planning !== 'object' || Array.isArray(base.couple.planning)) {
+    base.couple.planning = {};
+  }
   // Voyages : chaque voyage porte sa propre checklist de préparation dans `checked`
   // ({idEtape: true}). On ne garde que les entrées identifiables et les cases
   // réellement cochées, sinon le rendu de la checklist part en vrille.
@@ -5321,6 +5327,16 @@ function PlanningView({
     });
     setAddingItem(false);
   };
+  // Toute la semaine (pas seulement le jour affiché) en fichier .ics, importable
+  // dans le calendrier d'un iPhone ou d'un Samsung.
+  const exportEmploiDuTemps = () => {
+    const evs = planningToIcsEvents(planning);
+    if (!evs.length) {
+      alert("Aucun créneau à exporter pour l'instant.");
+      return;
+    }
+    downloadIcs(evs, 'emploi-du-temps.ics');
+  };
   return /*#__PURE__*/React.createElement("div", {
     style: {
       fontFamily: "'Playfair Display','Georgia',serif",
@@ -5479,7 +5495,27 @@ function PlanningView({
       color: '#b7f7c8',
       fontWeight: 700
     }
-  }, PLAN_DAYS_FULL[activeDay]), /*#__PURE__*/React.createElement("button", {
+  }, PLAN_DAYS_FULL[activeDay]), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 8,
+      flexShrink: 0
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: exportEmploiDuTemps,
+    title: "Télécharger toute la semaine au format .ics (iPhone, Samsung, Google…)",
+    style: {
+      padding: '5px 12px',
+      borderRadius: 20,
+      border: '1px solid #2d5a3d',
+      background: 'transparent',
+      color: '#8bb89a',
+      cursor: 'pointer',
+      fontSize: 11,
+      fontFamily: "'Space Mono',monospace",
+      whiteSpace: 'nowrap'
+    }
+  }, "📅 .ics"), /*#__PURE__*/React.createElement("button", {
     onClick: () => setAddingItem(p => !p),
     style: {
       padding: '5px 12px',
@@ -5489,9 +5525,10 @@ function PlanningView({
       color: '#4ade80',
       cursor: 'pointer',
       fontSize: 11,
-      fontFamily: "'Space Mono',monospace"
+      fontFamily: "'Space Mono',monospace",
+      whiteSpace: 'nowrap'
     }
-  }, "+ Ajouter")), addingItem && /*#__PURE__*/React.createElement("div", {
+  }, "+ Ajouter"))), addingItem && /*#__PURE__*/React.createElement("div", {
     style: {
       margin: '0 16px 12px',
       background: 'rgba(74,222,128,.06)',
@@ -6443,11 +6480,26 @@ const ICS_MEAL_TIME = { Matin: '080000', Midi: '120000', Soir: '193000' };
 function icsEscape(v) {
   return String(v == null ? '' : v).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
 }
+// Pliage des lignes (RFC 5545) : 75 OCTETS maximum, pas 75 caractères. On compte
+// donc en UTF-8 et on avance point de code par point de code — couper au milieu
+// d'un « é » ou d'un emoji produit un fichier que le calendrier refuse ou affiche
+// en charabia. Les lignes de suite commencent par une espace, qui compte aussi.
+function icsOctets(cp) { return cp < 0x80 ? 1 : cp < 0x800 ? 2 : cp < 0x10000 ? 3 : 4; }
 function icsFold(line) {
-  if (line.length <= 73) return line;
-  let out = '', i = 0;
-  while (i < line.length) { out += (i === 0 ? '' : '\r\n ') + line.slice(i, i + 73); i += 73; }
-  return out;
+  const s = String(line == null ? '' : line);
+  const MAX = 75;
+  let out = '', courant = '', taille = 0;
+  for (const ch of s) {
+    const n = icsOctets(ch.codePointAt(0));
+    if (taille + n > MAX) {
+      out += (out ? '\r\n ' : '') + courant;
+      courant = '';
+      taille = 1; // l'espace de continuation
+    }
+    courant += ch;
+    taille += n;
+  }
+  return out + (out ? '\r\n ' : '') + courant;
 }
 function icsDate(iso) { return String(iso || '').slice(0, 10).replace(/-/g, ''); }
 function icsDateAddDays(iso, n) {
@@ -6502,6 +6554,9 @@ function buildIcsEvents(data, opts) {
       });
     });
   }
+  if (o.planning) {
+    planningToIcsEvents((data2.couple || {}).planning).forEach(e => ev.push(e));
+  }
   if (o.medical) {
     ((data2.couple || {}).medical || []).forEach(m => {
       ev.push(medicalToIcsEvent(m));
@@ -6540,13 +6595,89 @@ function medicalToIcsEvent(m) {
     description: [m.medecin, m.notes].filter(Boolean).join(' — ')
   };
 }
+// Marche à suivre côté téléphone, une fois le .ics téléchargé.
+const ICS_AIDE_TEL = [
+  {
+    titre: '🍏 iPhone (Calendrier Apple)',
+    etapes: [
+      'Touche « Exporter .ics » : Safari propose de télécharger le fichier.',
+      'Ouvre l\'app Fichiers → Téléchargements, puis touche le fichier .ics.',
+      'iOS propose « Ajouter tout » — choisis le calendrier de destination et valide.',
+      'Astuce : crée d\'abord un calendrier dédié (Calendrier → Calendriers → Ajouter) pour pouvoir tout masquer ou supprimer d\'un coup.'
+    ]
+  },
+  {
+    titre: '📱 Samsung / Android',
+    etapes: [
+      'Touche « Exporter .ics » : le fichier part dans Téléchargements.',
+      'Ouvre l\'app Mes fichiers → Téléchargements et touche le fichier .ics.',
+      'Choisis Calendrier (ou Agenda Google) dans la liste des applis proposées.',
+      'Si rien ne s\'ouvre : va sur calendar.google.com depuis un ordinateur → Paramètres → Importer, sélectionne le fichier. Les événements redescendent sur le téléphone à la synchro suivante.'
+    ]
+  }
+];
+
+// ─── Emploi du temps hebdo → événements récurrents ───
+// Le planning de la semaine (créneaux d'origine + ceux ajoutés à la main) devient
+// une série d'événements « chaque lundi à 06:00 », etc. — la forme que tous les
+// calendriers (iPhone, Samsung, Google, Outlook) savent lire.
+const PLAN_ICS_JOURS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+// '06:00' → '060000'. Renvoie null si l'heure est illisible (créneau ignoré).
+function planIcsTime(t) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(t == null ? '' : t).trim());
+  if (!m) return null;
+  const hh = Number(m[1]), mn = Number(m[2]);
+  if (hh > 23 || mn > 59) return null;
+  return String(hh).padStart(2, '0') + String(mn).padStart(2, '0') + '00';
+}
+function planIcsMinutes(hhmmss) { return Number(hhmmss.slice(0, 2)) * 60 + Number(hhmmss.slice(2, 4)); }
+function planningToIcsEvents(planning) {
+  const out = [];
+  const p = (planning && typeof planning === 'object' && !Array.isArray(planning)) ? planning : {};
+  // En solo, on n'emporte que ses propres créneaux (+ ceux marqués « à deux ».)
+  const moi = ACTIVE_MODE === 'solo' ? ACTIVE_SOLO : null;
+  PLAN_ICS_JOURS.forEach((jour, day) => {
+    const jourData = (p[day] && typeof p[day] === 'object') ? p[day] : {};
+    const custom = Array.isArray(jourData.custom) ? jourData.custom : [];
+    const items = []
+      .concat((INITIAL_PLANNING[day] || []).map((it, i) => ({ ...it, id: 'i' + day + '-' + i })))
+      .concat(custom.filter(it => it && typeof it === 'object'))
+      .map(it => ({ ...it, t: planIcsTime(it.time) }))
+      .filter(it => it.t && String(it.title || '').trim())
+      .filter(it => !moi || !it.who || it.who === 'both' || it.who === moi)
+      .sort((a, b) => a.t.localeCompare(b.t));
+    items.forEach((it, i) => {
+      // Durée : jusqu'au créneau suivant, 1 h par défaut, bornée à 15 min–1 h 30
+      // pour qu'une longue plage vide ne bloque pas toute la journée.
+      const suivant = items[i + 1];
+      const ecart = suivant ? planIcsMinutes(suivant.t) - planIcsMinutes(it.t) : 60;
+      const cat = PLAN_CATEGORIES[it.cat];
+      const qui = it.who === 'dja' ? NAME_DJA : it.who === 'liika' ? NAME_LIIKA : '';
+      out.push({
+        uid: 'plan-' + day + '-' + (it.id || i) + '@lanmou-douvan',
+        recurDay: jour,
+        time: it.t,
+        durationMin: Math.max(15, Math.min(90, ecart > 0 ? ecart : 60)),
+        summary: (cat ? cat.icon + ' ' : '') + (qui ? qui + ' · ' : '') + String(it.title).trim(),
+        description: [cat && cat.label, it.detail].filter(Boolean).join(' — ')
+      });
+    });
+  });
+  return out;
+}
 // Télécharge un tableau d'événements sous forme de fichier .ics.
+// Le lien est réellement inséré dans la page et l'URL libérée en différé : sans
+// ça, Safari iOS et certains navigateurs Android annulent le téléchargement.
 function downloadIcs(events, filename) {
   const blob = new Blob([eventsToIcs(events)], { type: 'text/calendar;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = filename || 'lanmou-douvan.ics'; a.click();
-  URL.revokeObjectURL(url);
+  a.href = url;
+  a.download = filename || 'lanmou-douvan.ics';
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { try { document.body.removeChild(a); } catch (e) {} URL.revokeObjectURL(url); }, 4000);
 }
 function eventsToIcs(events) {
   const stamp = icsStamp();
@@ -6588,8 +6719,10 @@ function eventsToIcs(events) {
 
 function CalendarView({ data }) {
   const h = React.createElement;
-  const [opts, setOpts] = useState({ ferments: true, objMensuels: true, meals: false, sport: false, medical: true, potager: true });
+  const [opts, setOpts] = useState({ planning: true, ferments: true, objMensuels: true, meals: false, sport: false, medical: true, potager: true });
+  const [aide, setAide] = useState(false);
   const sources = [
+    { key: 'planning', label: 'Emploi du temps de la semaine (récurrent)', icon: '🗓' },
     { key: 'ferments', label: 'Ferments (date « prêt »)', icon: '🫙' },
     { key: 'objMensuels', label: 'Objectifs du mois', icon: '🎯' },
     { key: 'medical', label: 'Suivi médical (RDV)', icon: '🩺' },
@@ -6647,6 +6780,27 @@ function CalendarView({ data }) {
           )
         : h('div', { style: { padding: '20px 0', textAlign: 'center', color: 'var(--text3)', fontSize: 14 } }, 'Aucun événement. Active une source ou ajoute des données datées.'),
       events.length > 40 ? h('div', { style: { marginTop: 10, fontSize: 12, color: 'var(--text3)', textAlign: 'center' } }, '… et ' + (events.length - 40) + ' de plus dans le fichier.') : null
+    ),
+    // Mode d'emploi téléphone : sans ça, le fichier atterrit dans « Téléchargements »
+    // et personne ne sait quoi en faire — surtout sur Android.
+    h('div', { className: 'lx-card', style: { padding: 20 } },
+      h('button', {
+        onClick: () => setAide(a => !a),
+        style: { width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text)', fontSize: 14, fontWeight: 600, fontFamily: "'Outfit', sans-serif", textAlign: 'left' }
+      },
+        h('span', null, '📱 Comment l\'ajouter sur iPhone ou Samsung'),
+        h('span', { style: { color: 'var(--text3)', fontSize: 12 } }, aide ? '▲' : '▼')
+      ),
+      aide && h('div', { style: { marginTop: 16, display: 'grid', gap: 16 } },
+        ICS_AIDE_TEL.map(bloc => h('div', { key: bloc.titre },
+          h('div', { style: { fontFamily: "'Space Mono', monospace", fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: 8 } }, bloc.titre),
+          h('ol', { style: { margin: 0, paddingLeft: 20, display: 'grid', gap: 6 } },
+            bloc.etapes.map((e, i) => h('li', { key: i, style: { fontSize: 13, color: 'var(--text2)', lineHeight: 1.5 } }, e))
+          )
+        )),
+        h('p', { style: { margin: 0, fontSize: 12, color: 'var(--text3)', lineHeight: 1.6 } },
+          'Les créneaux de l\'emploi du temps arrivent en événements qui se répètent chaque semaine. Chaque événement garde le même identifiant d\'un export à l\'autre : la plupart des calendriers mettent alors à jour l\'existant plutôt que de le dupliquer — mais vérifie après un deuxième import, tous ne se comportent pas pareil.')
+      )
     )
   );
 }
