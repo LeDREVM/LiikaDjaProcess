@@ -9117,6 +9117,7 @@ const CATEGORIES = [
       { id:'couple',  label:'Nous deux',   icon:'♡'  },
       { id:'culture', label:'Culture GWA', icon:'🎭' },
       { id:'paris',   label:'Agenda Paris', icon:'🗼' },
+      { id:'meteo',   label:'Météo',       icon:'🌦' },
       { id:'vision',  label:'Vision',      icon:'✦'  },
     ],
   },
@@ -9201,7 +9202,7 @@ var MT_VIEW_ICON = {
   budget:'ph-light ph-wallet', repas:'ph-light ph-fork-knife', courses:'ph-light ph-shopping-cart',
   medical:'ph-light ph-first-aid-kit', drevmcook:'ph-light ph-plant', potager:'ph-light ph-leaf',
   konsevasyon:'ph-light ph-basket', programdja:'ph-light ph-person-simple-run',
-  paris:'ph-light ph-eiffel-tower',
+  paris:'ph-light ph-eiffel-tower', meteo:'ph-light ph-cloud-sun',
   voyages:'ph-light ph-airplane-tilt', charts:'ph-light ph-chart-line-up', planning:'ph-light ph-calendar-blank',
   objmensuel:'ph-light ph-target', coderousseau:'ph-light ph-graduation-cap', route:'ph-light ph-truck',
   survie:'ph-light ph-compass', calendar:'ph-light ph-calendar-dots', liika:'ph-light ph-diamond',
@@ -10449,6 +10450,149 @@ function wmoInfo(code) {
   if (c === 96 || c === 99) return { icon: '⛈', label: 'Orage + grêle' };
   return { icon: '🌡', label: 'Météo' };
 }
+// ─── Météo temps réel · Guadeloupe & France ───
+// Quatre sources publiques, SANS clé d'API — rappel d'invariant : tout fichier à
+// la racine est publié, donc aucun secret ne peut vivre ici.
+//   • Open-Meteo (déjà utilisé par le Potager) : conditions + prévisions
+//   • Open-Meteo Marine : houle, période, température de la mer
+//   • NOAA / NHC : cyclones actifs du bassin Atlantique
+//   • USGS : séismes récents
+// Les données ne sont JAMAIS stockées dans `data` : elles sont éphémères et
+// n'ont rien à faire dans la synchro Supabase ni dans normalize().
+const METEO_LIEUX = [
+  { id: 'gosier',   nom: 'Le Gosier',       zone: 'gwa', lat: 16.2049, lon: -61.4919, tz: 'America/Guadeloupe', plage: true },
+  { id: 'pap',      nom: 'Pointe-à-Pitre',  zone: 'gwa', lat: 16.2411, lon: -61.5330, tz: 'America/Guadeloupe', plage: false },
+  { id: 'steanne',  nom: 'Sainte-Anne',     zone: 'gwa', lat: 16.2265, lon: -61.3826, tz: 'America/Guadeloupe', plage: true },
+  { id: 'stfrancois', nom: 'Saint-François', zone: 'gwa', lat: 16.2515, lon: -61.2703, tz: 'America/Guadeloupe', plage: true },
+  { id: 'deshaies', nom: 'Deshaies',        zone: 'gwa', lat: 16.3036, lon: -61.7946, tz: 'America/Guadeloupe', plage: true },
+  { id: 'basseterre', nom: 'Basse-Terre',   zone: 'gwa', lat: 15.9985, lon: -61.7320, tz: 'America/Guadeloupe', plage: false },
+  { id: 'paris',    nom: 'Paris',           zone: 'fr',  lat: 48.8566, lon: 2.3522,   tz: 'Europe/Paris', plage: false },
+  { id: 'creteil',  nom: 'Créteil',         zone: 'fr',  lat: 48.7904, lon: 2.4556,   tz: 'Europe/Paris', plage: false }
+];
+// Images satellite & cartes. Point clé : une <img> n'est PAS soumise au CORS,
+// contrairement à un fetch() — c'est pour ça qu'on peut afficher ces visuels
+// alors que le flux JSON du NHC est refusé par le navigateur. Chaque image
+// bascule sur son lien si elle ne charge pas (URL changée, source en panne).
+const METEO_VISUELS = [
+  {
+    id: 'two',
+    titre: 'Prévision tropicale à 7 jours',
+    desc: 'Zones de formation surveillées par le National Hurricane Center.',
+    img: 'https://www.nhc.noaa.gov/xgtwo/two_atl_7d0.png',
+    lien: 'https://www.nhc.noaa.gov/gtwo.php?basin=atlc&fdays=7'
+  },
+  {
+    id: 'satellite',
+    titre: 'Satellite — Atlantique tropical',
+    desc: 'Image GOES-Est la plus récente, bassin de formation des cyclones.',
+    img: 'https://cdn.star.nesdis.noaa.gov/GOES19/ABI/SECTOR/taw/GEOCOLOR/latest.jpg',
+    lien: 'https://www.star.nesdis.noaa.gov/goes/sector.php?sat=G19&sector=taw'
+  },
+  {
+    id: 'radar',
+    titre: 'Radar NOAA — Atlantique',
+    desc: 'Carte interactive, centrée sur le bassin. S\'ouvre dans un onglet.',
+    img: null,
+    lien: 'https://radar.weather.gov/?settings=v1_eyJhZ2VuZGEiOnsiaWQiOm51bGwsImNlbnRlciI6Wy01NS4zMTMsMjYuMjM1XSwibG9jYXRpb24iOm51bGwsInpvb20iOjMuMjQ3NDAwNDMwNzU2MzI1fSwiYW5pbWF0aW5nIjpmYWxzZSwiYmFzZSI6InN0YW5kYXJkIiwiYXJ0Y2MiOmZhbHNlLCJjb3VudHkiOmZhbHNlLCJjd2EiOmZhbHNlLCJyZmMiOmZhbHNlLCJzdGF0ZSI6ZmFsc2UsIm1lbnUiOnRydWUsInNob3J0RnVzZWRPbmx5IjpmYWxzZSwib3BhY2l0eSI6eyJhbGVydHMiOjAuOCwibG9jYWwiOjAuNiwibG9jYWxTdGF0aW9ucyI6MC44LCJuYXRpb25hbCI6MC42fX0%3D'
+  }
+];
+const METEO_SOURCES = [
+  { t: 'Vigilance Météo-France (alerte officielle)', u: 'https://vigilance.meteofrance.fr/fr' },
+  { t: 'Vigilance Guadeloupe', u: 'https://vigilance.meteofrance.fr/fr/guadeloupe' },
+  { t: 'National Hurricane Center (cyclones)', u: 'https://www.nhc.noaa.gov/' },
+  { t: 'Séismes Antilles — IPGP / OVSG', u: 'http://www.ipgp.fr/fr/ovsg/observatoire-volcanologique-sismologique-guadeloupe' }
+];
+// Échelle de Beaufort simplifiée, en km/h.
+function meteoVent(kmh) {
+  const v = Number(kmh) || 0;
+  if (v < 12) return { l: 'Calme', c: 'var(--success)' };
+  if (v < 29) return { l: 'Brise légère', c: 'var(--success)' };
+  if (v < 39) return { l: 'Vent modéré', c: 'var(--gold)' };
+  if (v < 50) return { l: 'Vent frais', c: 'var(--gold)' };
+  if (v < 62) return { l: 'Grand frais', c: 'var(--warn)' };
+  if (v < 89) return { l: 'Coup de vent', c: 'var(--warn)' };
+  if (v < 118) return { l: 'Tempête', c: 'var(--danger)' };
+  return { l: 'Force cyclonique', c: 'var(--danger)' };
+}
+function meteoUV(uv) {
+  const u = Number(uv) || 0;
+  if (u < 3) return { l: 'Faible', c: 'var(--success)', conseil: 'Pas de protection nécessaire.' };
+  if (u < 6) return { l: 'Modéré', c: 'var(--gold)', conseil: 'Crème solaire et chapeau.' };
+  if (u < 8) return { l: 'Élevé', c: 'var(--warn)', conseil: 'Ombre entre 11 h et 15 h, crème indice 50.' };
+  if (u < 11) return { l: 'Très élevé', c: 'var(--danger)', conseil: 'Éviter l\'exposition en milieu de journée.' };
+  return { l: 'Extrême', c: 'var(--danger)', conseil: 'Exposition à éviter — brûlure en quelques minutes.' };
+}
+// Verdict plage : on ne fabrique pas un chiffre, on dit ce qui gêne.
+function meteoPlageVerdict({ vagues, vent, pluie, uv, code }) {
+  const contre = [];
+  if (Number(vagues) >= 2) contre.push('houle de ' + Number(vagues).toFixed(1) + ' m');
+  else if (Number(vagues) >= 1.25) contre.push('mer agitée');
+  if (Number(vent) >= 39) contre.push('vent soutenu');
+  if (Number(pluie) >= 60) contre.push('pluie probable');
+  if (Number(code) >= 95) contre.push('risque d\'orage');
+  if (Number(uv) >= 11) contre.push('UV extrême');
+  if (!contre.length) return { ok: true, l: 'Bonnes conditions', c: 'var(--success)', d: 'Rien de bloquant côté mer, vent et ciel.' };
+  if (contre.length === 1 && Number(vagues) < 2 && Number(code) < 95) return { ok: true, l: 'Correct', c: 'var(--gold)', d: 'À surveiller : ' + contre[0] + '.' };
+  return { ok: false, l: 'Mauvaises conditions', c: 'var(--danger)', d: contre.join(', ') + '.' };
+}
+// Saison cyclonique atlantique : 1er juin → 30 novembre.
+function meteoSaisonCyclonique(d) {
+  const m = (d || new Date()).getMonth();
+  const dedans = m >= 5 && m <= 10;
+  return {
+    dedans,
+    l: dedans ? 'Saison cyclonique en cours' : 'Hors saison cyclonique',
+    d: dedans
+      ? 'Du 1er juin au 30 novembre. Kit d\'urgence, papiers et eau à garder prêts.'
+      : 'La saison va du 1er juin au 30 novembre. Un cyclone hors saison reste possible mais rare.'
+  };
+}
+// Jours de vent fort dans la prévision, seuils de l'échelle tropicale (km/h,
+// vent moyen sur 10 min). On ne garde que ce qui mérite d'être signalé : en
+// dessous de 50 km/h, un alizé soutenu n'est pas une information.
+const METEO_SEUILS_VENT = [
+  { min: 118, l: 'Force cyclonique', icone: '🌀', c: 'var(--danger)' },
+  { min: 89,  l: 'Tempête',          icone: '🌪', c: 'var(--danger)' },
+  { min: 63,  l: 'Force tempête tropicale', icone: '💨', c: 'var(--warn)' },
+  { min: 50,  l: 'Vent fort',        icone: '💨', c: 'var(--gold)' }
+];
+function meteoVentsViolents(jours) {
+  if (!jours || !Array.isArray(jours.time)) return [];
+  const vents = Array.isArray(jours.wind_speed_10m_max) ? jours.wind_speed_10m_max : [];
+  const rafales = Array.isArray(jours.wind_gusts_10m_max) ? jours.wind_gusts_10m_max : [];
+  const out = [];
+  jours.time.forEach((jour, i) => {
+    const v = Number(vents[i]);
+    if (!isFinite(v)) return;
+    const s = METEO_SEUILS_VENT.find(x => v >= x.min);
+    if (!s) return;
+    const r = Number(rafales[i]);
+    out.push({ jour, vent: v, rafale: isFinite(r) ? r : null, l: s.l, icone: s.icone, c: s.c });
+  });
+  return out;
+}
+function seismeCouleur(mag) {
+  const m = Number(mag) || 0;
+  if (m >= 5.5) return 'var(--danger)';
+  if (m >= 4.5) return 'var(--warn)';
+  if (m >= 3.5) return 'var(--gold)';
+  return 'var(--text3)';
+}
+function meteoIlYA(ms) {
+  const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+  if (s < 60) return 'à l\'instant';
+  const mn = Math.round(s / 60);
+  if (mn < 60) return 'il y a ' + mn + ' min';
+  const hh = Math.round(mn / 60);
+  if (hh < 24) return 'il y a ' + hh + ' h';
+  return 'il y a ' + Math.round(hh / 24) + ' j';
+}
+// Fenêtre de recherche des séismes autour du lieu (degrés).
+function meteoBoite(lieu) {
+  const r = lieu.zone === 'gwa' ? 3.5 : 4;
+  return { minlat: lieu.lat - r, maxlat: lieu.lat + r, minlon: lieu.lon - r, maxlon: lieu.lon + r };
+}
+
 function GuadeloupeMeteo() {
   const h = React.createElement;
   const TZ = 'America/Guadeloupe';
@@ -10481,6 +10625,262 @@ function GuadeloupeMeteo() {
     w && h('span', { style: pill, title: w.label }, h('span', { style: { fontSize: 15 } }, w.icon), h('span', { style: { fontWeight: 600, color: 'var(--text)' } }, meteo.temp + '°C'), h('span', { style: { color: 'var(--text3)' } }, w.label)),
     meteo === 'error' && h('span', { style: { ...pill, color: 'var(--text3)' } }, '🌡 Météo indisponible')
   );
+}
+
+// Vue Météo temps réel. Quatre blocs indépendants : si une source tombe, les
+// autres restent affichées — d'où un état {d, err} séparé par bloc plutôt qu'un
+// chargement global qui masquerait tout.
+function MeteoView() {
+  const h = React.createElement;
+  const [lieuId, setLieuId] = React.useState(() => {
+    try { return LS.getItem('ld-meteo-lieu') || 'gosier'; } catch (e) { return 'gosier'; }
+  });
+  const lieu = METEO_LIEUX.find(l => l.id === lieuId) || METEO_LIEUX[0];
+  const [actuel, setActuel] = React.useState({ d: null, err: null });
+  const [mer, setMer] = React.useState({ d: null, err: null });
+  const [seismes, setSeismes] = React.useState({ d: null, err: null });
+  const [maj, setMaj] = React.useState(null);
+  const [tic, setTic] = React.useState(0);
+
+  const choisirLieu = id => {
+    setLieuId(id);
+    try { LS.setItem('ld-meteo-lieu', id); } catch (e) {}
+  };
+
+  React.useEffect(() => {
+    let alive = true;
+    const json = url => fetch(url).then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)));
+    const pose = (set, p, lire) => p
+      .then(d => { if (alive) set({ d: lire(d), err: null }); })
+      .catch(e => { if (alive) set({ d: null, err: e && e.message ? e.message : 'indisponible' }); });
+
+    const charger = () => {
+      setActuel({ d: null, err: null }); setMer({ d: null, err: null });
+      setSeismes({ d: null, err: null });
+
+      pose(setActuel, json('https://api.open-meteo.com/v1/forecast?latitude=' + lieu.lat + '&longitude=' + lieu.lon +
+        '&current=temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,is_day' +
+        '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,uv_index_max,sunrise,sunset' +
+        '&forecast_days=7&timezone=' + encodeURIComponent(lieu.tz)), d => d);
+
+      if (lieu.plage) {
+        pose(setMer, json('https://marine-api.open-meteo.com/v1/marine?latitude=' + lieu.lat + '&longitude=' + lieu.lon +
+          '&current=wave_height,wave_period,wave_direction,sea_surface_temperature&timezone=' + encodeURIComponent(lieu.tz)), d => d && d.current);
+      } else {
+        setMer({ d: null, err: null });
+      }
+
+      const b = meteoBoite(lieu);
+      pose(setSeismes, json('https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&limit=15&orderby=time' +
+        '&minmagnitude=2.5&starttime=' + new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10) +
+        '&minlatitude=' + b.minlat.toFixed(2) + '&maxlatitude=' + b.maxlat.toFixed(2) +
+        '&minlongitude=' + b.minlon.toFixed(2) + '&maxlongitude=' + b.maxlon.toFixed(2)),
+        d => (Array.isArray(d && d.features) ? d.features : []).filter(f => f && typeof f === 'object'));
+
+      setMaj(Date.now());
+    };
+
+    charger();
+    const iv = setInterval(charger, 600000); // 10 min
+    return () => { alive = false; clearInterval(iv); };
+  }, [lieu.id, tic]);
+
+  // ── Briques d'affichage ──
+  const carte = (titre, icone, contenu, extra) => h('div', { className: 'lx-card', style: { padding: 16, marginBottom: 14 } },
+    h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 10, flexWrap: 'wrap' } },
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+        h('span', { style: { fontSize: 16 } }, icone),
+        h('span', { style: { fontSize: 14, fontWeight: 700, color: 'var(--text)' } }, titre)),
+      extra || null),
+    contenu);
+  const enAttente = h('div', { style: { fontSize: 12.5, color: 'var(--text3)', fontStyle: 'italic', padding: '6px 0' } }, 'Chargement…');
+  const enErreur = (quoi, lien) => h('div', { style: { fontSize: 12.5, color: 'var(--text3)', lineHeight: 1.55, padding: '6px 0' } },
+    h('div', { style: { color: 'var(--warn)', marginBottom: 4 } }, '⚠ ' + quoi + ' indisponible pour le moment.'),
+    h('div', null, 'Le reste de la page fonctionne. ',
+      h('button', { onClick: () => setTic(t => t + 1), style: { background: 'none', border: 'none', padding: 0, color: 'var(--gold)', cursor: 'pointer', fontSize: 12.5, textDecoration: 'underline' } }, 'Réessayer'),
+      lien ? h(React.Fragment, null, ' · ', h('a', { href: lien, target: '_blank', rel: 'noopener noreferrer', style: { color: 'var(--gold)' } }, 'voir la source')) : null)
+  );
+  const stat = (l, v, c) => h('div', { style: { background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: '8px 10px', minWidth: 96, flex: '1 1 96px' } },
+    h('div', { style: { fontSize: 10, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text3)', marginBottom: 3 } }, l),
+    h('div', { style: { fontSize: 14, fontWeight: 700, color: c || 'var(--text)' } }, v));
+
+  // ── Maintenant + prévisions ──
+  const cur = actuel.d && actuel.d.current;
+  const jours = (actuel.d && actuel.d.daily) || null;
+  const w = cur ? wmoInfo(cur.weather_code) : null;
+  const vent = cur ? meteoVent(cur.wind_speed_10m) : null;
+  const uvJour = jours && jours.uv_index_max ? meteoUV(jours.uv_index_max[0]) : null;
+  const fmtJour = iso => {
+    const d = new Date(String(iso) + 'T12:00:00');
+    return isNaN(d.getTime()) ? String(iso) : d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' });
+  };
+  const fmtHeure = iso => {
+    const d = new Date(String(iso));
+    return isNaN(d.getTime()) ? '—' : d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: lieu.tz });
+  };
+
+  const blocActuel = carte('Maintenant · ' + lieu.nom, w ? w.icon : '🌡',
+    actuel.err ? enErreur('La météo', 'https://vigilance.meteofrance.fr/fr')
+    : !cur ? enAttente
+    : h('div', null,
+        h('div', { style: { display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 10, flexWrap: 'wrap' } },
+          h('span', { style: { fontSize: 34, fontWeight: 700, color: 'var(--text)', lineHeight: 1 } }, Math.round(cur.temperature_2m) + '°'),
+          h('span', { style: { fontSize: 13, color: 'var(--text2)' } }, w.label),
+          cur.apparent_temperature != null && h('span', { style: { fontSize: 12, color: 'var(--text3)' } }, 'ressenti ' + Math.round(cur.apparent_temperature) + '°')),
+        h('div', { style: { display: 'flex', gap: 8, flexWrap: 'wrap' } },
+          stat('Vent', Math.round(cur.wind_speed_10m) + ' km/h', vent.c),
+          cur.wind_gusts_10m != null && stat('Rafales', Math.round(cur.wind_gusts_10m) + ' km/h'),
+          cur.relative_humidity_2m != null && stat('Humidité', Math.round(cur.relative_humidity_2m) + ' %'),
+          cur.precipitation != null && stat('Pluie', Number(cur.precipitation).toFixed(1) + ' mm'),
+          uvJour && stat('UV du jour', jours.uv_index_max[0] + ' · ' + uvJour.l, uvJour.c)),
+        h('div', { style: { fontSize: 11.5, color: vent.c, marginTop: 8 } }, vent.l),
+        uvJour && h('div', { style: { fontSize: 11.5, color: 'var(--text3)', marginTop: 3 } }, '☀️ ' + uvJour.conseil),
+        jours && jours.sunrise && h('div', { style: { fontSize: 11.5, color: 'var(--text3)', marginTop: 3 } },
+          '🌅 ' + fmtHeure(jours.sunrise[0]) + '   🌇 ' + fmtHeure(jours.sunset[0]))
+      ));
+
+  const blocPrev = jours && !actuel.err ? carte('7 jours', '📅',
+    h('div', { style: { display: 'grid', gap: 5 } },
+      jours.time.map((t, i) => {
+        const wi = wmoInfo(jours.weather_code[i]);
+        return h('div', { key: t, style: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, padding: '5px 0', borderBottom: i < jours.time.length - 1 ? '1px solid var(--border)' : 'none' } },
+          h('span', { style: { width: 62, color: 'var(--text2)', flexShrink: 0 } }, i === 0 ? "Aujourd'hui" : fmtJour(t)),
+          h('span', { style: { fontSize: 15, width: 24, flexShrink: 0 } }, wi.icon),
+          h('span', { style: { flex: 1, minWidth: 0, color: 'var(--text3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, wi.label),
+          jours.precipitation_probability_max && h('span', { style: { color: 'var(--text3)', width: 42, textAlign: 'right', flexShrink: 0 } }, (jours.precipitation_probability_max[i] || 0) + ' %'),
+          h('span', { style: { fontFamily: "'Space Mono',monospace", width: 62, textAlign: 'right', flexShrink: 0, color: 'var(--text)' } },
+            Math.round(jours.temperature_2m_min[i]) + '/' + Math.round(jours.temperature_2m_max[i]) + '°')
+        );
+      })
+    )) : null;
+
+  // ── Mer & plage ──
+  const m = mer.d;
+  const verdict = (m && cur && jours) ? meteoPlageVerdict({
+    vagues: m.wave_height, vent: cur.wind_speed_10m,
+    pluie: jours.precipitation_probability_max ? jours.precipitation_probability_max[0] : 0,
+    uv: jours.uv_index_max ? jours.uv_index_max[0] : 0, code: cur.weather_code
+  }) : null;
+  const blocPlage = lieu.plage ? carte('Mer & plage', '🏖',
+    mer.err ? enErreur('La houle')
+    : !m ? enAttente
+    : h('div', null,
+        verdict && h('div', { style: { background: 'var(--bg2)', border: '1px solid ' + verdict.c, borderRadius: 10, padding: '9px 12px', marginBottom: 10 } },
+          h('div', { style: { fontSize: 13, fontWeight: 700, color: verdict.c, marginBottom: 2 } }, (verdict.ok ? '✓ ' : '✕ ') + verdict.l),
+          h('div', { style: { fontSize: 12, color: 'var(--text3)', lineHeight: 1.5 } }, verdict.d)),
+        h('div', { style: { display: 'flex', gap: 8, flexWrap: 'wrap' } },
+          m.wave_height != null && stat('Houle', Number(m.wave_height).toFixed(1) + ' m'),
+          m.wave_period != null && stat('Période', Math.round(m.wave_period) + ' s'),
+          m.sea_surface_temperature != null && stat('Mer', Math.round(m.sea_surface_temperature) + '°C')),
+        h('div', { style: { fontSize: 11.5, color: 'var(--text3)', marginTop: 8, lineHeight: 1.5 } },
+          'Indications de houle au large — elles ne disent rien des courants d\'arrachement ni du drapeau de baignade sur place.')
+      )) : null;
+
+  // ── Vents violents & saison cyclonique ──
+  // Le flux du NHC n'envoie pas d'en-tête CORS : un navigateur refuse de le lire,
+  // et aucune autre URL chez eux n'y changerait rien. L'alerte est donc dérivée de
+  // la prévision Open-Meteo — la même source que le reste de la page, éprouvée en
+  // production — et on renvoie vers les bulletins officiels pour un système nommé.
+  const saison = meteoSaisonCyclonique(new Date());
+  const alertes = jours ? meteoVentsViolents(jours) : null;
+  const blocCyclone = carte('Vents violents & saison cyclonique', '🌀',
+    actuel.err ? enErreur('La prévision de vent', 'https://vigilance.meteofrance.fr/fr/guadeloupe')
+    : !alertes ? enAttente
+    : h('div', null,
+        alertes.length === 0
+          ? h('div', { style: { fontSize: 13, color: 'var(--success)', fontWeight: 700, marginBottom: 8 } }, '✓ Aucun vent violent prévu sur 7 jours.')
+          : h('div', { style: { display: 'grid', gap: 7, marginBottom: 8 } },
+              alertes.map(a => h('div', { key: a.jour, style: { background: 'var(--bg2)', border: '1px solid ' + a.c, borderRadius: 10, padding: '9px 12px' } },
+                h('div', { style: { fontSize: 13, fontWeight: 700, color: a.c, marginBottom: 3 } }, a.icone + ' ' + fmtJour(a.jour) + ' · ' + a.l),
+                h('div', { style: { fontSize: 12, color: 'var(--text3)', lineHeight: 1.5 } },
+                  'Vent moyen ' + Math.round(a.vent) + ' km/h' + (a.rafale ? ', rafales ' + Math.round(a.rafale) + ' km/h' : ''))
+              ))),
+        h('div', { style: { fontSize: 12, color: saison.dedans ? 'var(--warn)' : 'var(--text3)', lineHeight: 1.5 } },
+          (saison.dedans ? '⚠ ' : '') + saison.l + ' — ' + saison.d),
+        h('div', { style: { fontSize: 11.5, color: 'var(--text3)', marginTop: 8, lineHeight: 1.55 } },
+          'Vents tirés de la prévision pour ' + lieu.nom + '. Ce bloc ne suit pas les systèmes nommés : ',
+          h('strong', { style: { color: 'var(--text2)' } }, "l'alerte qui fait foi en Guadeloupe est la vigilance Météo-France"),
+          '. ',
+          h('a', { href: 'https://vigilance.meteofrance.fr/fr/guadeloupe', target: '_blank', rel: 'noopener noreferrer', style: { color: 'var(--gold)' } }, 'Vigilance Guadeloupe'),
+          ' · ',
+          h('a', { href: 'https://www.nhc.noaa.gov/', target: '_blank', rel: 'noopener noreferrer', style: { color: 'var(--gold)' } }, 'Bulletins NHC'), '.')
+      ));
+
+  // ── Radar & satellite ──
+  // Une <img> n'est pas soumise au CORS : ces visuels s'affichent là où un
+  // fetch() serait refusé. Si l'image ne charge pas, on la retire et le lien
+  // reste — le bloc ne peut donc pas se retrouver vide ou cassé.
+  const blocVisuels = carte('Radar & satellite', '🛰',
+    h('div', { style: { display: 'grid', gap: 10 } },
+      METEO_VISUELS.map(v => h('div', { key: v.id, style: { background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px' } },
+        h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginBottom: 4 } },
+          h('span', { style: { fontSize: 12.5, fontWeight: 700, color: 'var(--text)' } }, v.titre),
+          h('a', { href: v.lien, target: '_blank', rel: 'noopener noreferrer', style: { fontSize: 11.5, color: 'var(--gold)', textDecoration: 'none', flexShrink: 0 } }, 'ouvrir ↗')),
+        h('div', { style: { fontSize: 11.5, color: 'var(--text3)', lineHeight: 1.45, marginBottom: v.img ? 8 : 0 } }, v.desc),
+        v.img && h('a', { href: v.lien, target: '_blank', rel: 'noopener noreferrer', style: { display: 'block' } },
+          h('img', {
+            src: v.img, alt: v.titre, loading: 'lazy',
+            onError: e => { if (e && e.target && e.target.style) e.target.style.display = 'none'; },
+            style: { width: '100%', height: 'auto', borderRadius: 8, border: '1px solid var(--border)', display: 'block', background: 'var(--bg4)' }
+          }))
+      ))
+    ));
+
+  // ── Séismes ──
+  const sq = seismes.d ? seismes.d.filter(f => f && typeof f === 'object') : null;
+  const blocSeisme = carte('Séismes · 30 derniers jours', '🌋',
+    seismes.err ? enErreur('Le relevé sismique', 'https://earthquake.usgs.gov/earthquakes/map/')
+    : !sq ? enAttente
+    : h('div', null,
+        sq.length === 0
+          ? h('div', { style: { fontSize: 13, color: 'var(--success)' } }, '✓ Aucun séisme de magnitude 2,5 ou plus dans la zone.')
+          : h('div', { style: { display: 'grid', gap: 5 } },
+              sq.map((f, i) => {
+                const p = (f && f.properties) || {};
+                const c = seismeCouleur(p.mag);
+                return h('div', { key: f.id || i, style: { display: 'flex', alignItems: 'center', gap: 10, fontSize: 12.5, padding: '6px 0', borderBottom: i < sq.length - 1 ? '1px solid var(--border)' : 'none' } },
+                  h('span', { style: { fontFamily: "'Space Mono',monospace", fontWeight: 700, color: c, width: 38, flexShrink: 0 } }, 'M' + (p.mag != null ? Number(p.mag).toFixed(1) : '?')),
+                  h('span', { style: { flex: 1, minWidth: 0, color: 'var(--text2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, p.place || 'Localisation inconnue'),
+                  h('span', { style: { color: 'var(--text3)', flexShrink: 0, fontSize: 11.5 } }, p.time ? meteoIlYA(p.time) : '')
+                );
+              })),
+        h('div', { style: { fontSize: 11.5, color: 'var(--text3)', marginTop: 8, lineHeight: 1.55 } },
+          'Magnitude 2,5 minimum, dans un rayon d\'environ ' + (lieu.zone === 'gwa' ? '350' : '400') + ' km. La Guadeloupe est en zone sismique 5 : une secousse ressentie est normale et ne présage rien.')
+      ));
+
+  return h('div', null,
+    h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, gap: 8, flexWrap: 'wrap' } },
+      h('h2', { style: { margin: 0, fontSize: 20 } }, '🌦 Météo temps réel'),
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: 10 } },
+        maj && h('span', { style: { fontSize: 11, color: 'var(--text3)', fontFamily: "'Space Mono',monospace" } }, 'maj ' + meteoIlYA(maj)),
+        h('button', { onClick: () => setTic(t => t + 1), title: 'Rafraîchir maintenant',
+          style: { padding: '7px 14px', borderRadius: 20, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text2)', cursor: 'pointer', fontWeight: 700, fontSize: 13 } }, '↻'))),
+
+    h('div', { className: 'scroll-x', style: { display: 'flex', gap: 6, marginBottom: 16 } },
+      METEO_LIEUX.map(l => h('button', {
+        key: l.id, onClick: () => choisirLieu(l.id),
+        style: { flexShrink: 0, padding: '6px 13px', borderRadius: 20, cursor: 'pointer', fontSize: 12, whiteSpace: 'nowrap',
+          border: '1px solid ' + (l.id === lieu.id ? 'var(--gold)' : 'var(--border)'),
+          background: l.id === lieu.id ? 'var(--gold-bg)' : 'transparent',
+          color: l.id === lieu.id ? 'var(--gold)' : 'var(--text3)',
+          fontWeight: l.id === lieu.id ? 700 : 400 }
+      }, (l.zone === 'gwa' ? '🌴 ' : '🗼 ') + l.nom))),
+
+    blocActuel,
+    blocPlage,
+    blocPrev,
+    blocCyclone,
+    blocVisuels,
+    blocSeisme,
+
+    h('div', { className: 'lx-card', style: { padding: 14 } },
+      h('div', { style: { fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text3)', marginBottom: 8 } }, 'Sources officielles'),
+      h('div', { style: { display: 'grid', gap: 5 } },
+        METEO_SOURCES.map(s => h('a', { key: s.u, href: s.u, target: '_blank', rel: 'noopener noreferrer',
+          style: { fontSize: 12.5, color: 'var(--gold)', textDecoration: 'none' } }, '↗ ' + s.t))),
+      h('div', { style: { fontSize: 11.5, color: 'var(--text3)', marginTop: 10, lineHeight: 1.55 } },
+        'Données Open-Meteo, NOAA/NHC et USGS, rafraîchies toutes les 10 minutes. Ces chiffres sont indicatifs : en cas d\'alerte, ce sont la vigilance Météo-France et les consignes de la préfecture qui font foi.')
+  ));
 }
 
 // Almanach lunaire potager (concombre/giraumon) — version plein écran statique,
@@ -16357,6 +16757,7 @@ const ch=sb.channel('ld-realtime')
     view === 'programdja' && React.createElement(SportDjaView,{programme:(data.dja||{}).programme,updateProgramme}),
     view === 'culture' && React.createElement(CultureGwadView,null),
     view === 'paris' && React.createElement(ParisView,{paris:(data.couple||{}).paris||[],addParis,updateParis,deleteParis}),
+    view === 'meteo' && React.createElement(MeteoView,null),
     view === 'coderousseau' && React.createElement(CodeRousseauView,{codeRousseau:(data.liika||{}).codeRousseau,updateCodeRousseau}),
     view === 'objmensuel' && renderObjMensuel(),
     view === 'calendar' && React.createElement(CalendarView,{data}),
