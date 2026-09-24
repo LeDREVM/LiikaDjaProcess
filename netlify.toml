@@ -1,5 +1,10 @@
 [build]
-  command = "npm run build"
+  # Volontairement PAS `npm run build` : un échec de compilation du sous-projet
+  # nutrition annulait tout le déploiement, y compris le tableau de bord qui ne
+  # demande aucune compilation. Le script publie le site principal dans tous les
+  # cas, et n'échoue que si le site principal lui-même est incomplet.
+  command = "node scripts/netlify-build.js"
+  # La racine est publiée telle quelle : le tableau de bord est servi sans build.
   publish = "."
 
 [[redirects]]
