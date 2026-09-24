@@ -9501,9 +9501,137 @@ function IdeesView() {
   );
 }
 
+// ─── Fiche nutriments ───
+// Ce que chaque nutriment fait VRAIMENT, ce qu'un manque installé peut donner,
+// où le trouver, et surtout ce qu'il ne faut pas faire. Deux principes tenus
+// partout : un symptôme n'est pas un diagnostic (la même fatigue a cent causes),
+// et une carence se confirme par une prise de sang, jamais par une liste.
+// Repères d'apport : références ANSES/EFSA pour un adulte.
+const NUTRI_CADRE = [
+  { t: 'Un symptôme n\'est pas un diagnostic', d: 'La fatigue, les crampes ou la chute de cheveux ont des dizaines de causes possibles. Cette fiche dit ce qu\'un manque PEUT donner, pas ce que tu as.' },
+  { t: 'Une carence se confirme par une prise de sang', d: 'Pour le fer, la B12, la vitamine D ou la thyroïde, le dosage est simple et remboursé. C\'est ça qui tranche, pas un tableau.' },
+  { t: 'Une maladie peut créer une carence — l\'inverse est rare', d: 'Une maladie cœliaque, une maladie rénale ou un cancer épuisent des nutriments. Corriger la carence ne soigne pas la maladie qui l\'a créée.' },
+  { t: 'Se supplémenter à l\'aveugle peut nuire', d: 'Fer, iode, sélénium, vitamine D, potassium : pour chacun, le trop fait des dégâts réels. Les ⚠ ci-dessous disent lesquels.' }
+];
+const NUTRIMENTS = [
+  {
+    id: 'b12', nom: 'Vitamine B12', emoji: '🩸', repere: '4 µg/jour',
+    role: 'Renouvelle les globules rouges, entretient la gaine des nerfs, sert à fabriquer l\'ADN.',
+    manque: 'Fatigue, essoufflement, fourmillements dans les mains et les pieds, troubles de l\'équilibre et de la mémoire.',
+    sources: ['Produits animaux uniquement', 'Aliments enrichis (boissons végétales, levure)', 'Complément — indispensable en alimentation 100 % végétale'],
+    astuce: 'Une dose hebdomadaire unique fonctionne aussi bien qu\'une dose quotidienne : l\'absorption sature.',
+    garde: 'Spiruline, nori et autres algues contiennent des analogues INACTIFS : ils faussent le dosage sanguin sans corriger la carence. Les atteintes nerveuses non traitées peuvent devenir définitives.'
+  },
+  {
+    id: 'fer', nom: 'Fer', emoji: '🔩', repere: '11 mg/j homme · 16 mg/j femme réglée',
+    role: 'Transporte l\'oxygène dans le sang et participe à la production d\'énergie.',
+    manque: 'Fatigue qui ne passe pas, essoufflement à l\'effort, pâleur, ongles cassants, mains et pieds froids.',
+    sources: ['Lentilles, pois chiches, haricots rouges', 'Tofu, graines de courge', 'Cacao non sucré, épinards'],
+    astuce: 'De la vitamine C au même repas (citron, poivron) multiplie l\'absorption ; thé et café pendant le repas la divisent — les décaler d\'une heure.',
+    garde: 'Ne jamais se supplémenter sans bilan sanguin : le fer en excès s\'accumule et abîme le foie. C\'est aussi une cause fréquente d\'intoxication grave chez l\'enfant.'
+  },
+  {
+    id: 'd', nom: 'Vitamine D', emoji: '☀️', repere: '15 µg/j (600 UI)',
+    role: 'Permet de fixer le calcium sur l\'os, soutient les muscles et l\'immunité.',
+    manque: 'Douleurs osseuses et musculaires diffuses, fatigue, fractures qui surviennent pour rien.',
+    sources: ['Le soleil — de loin l\'essentiel', 'Poissons gras, jaune d\'œuf', 'Champignons exposés aux UV, produits enrichis'],
+    astuce: 'En Guadeloupe, 15 à 20 min de soleil sur les bras et les jambes suffisent largement. Une peau très pigmentée ou couverte demande plus de temps.',
+    garde: 'Limite haute : 100 µg/j (4 000 UI). Les mégadoses répétées font monter le calcium sanguin et abîment les reins.'
+  },
+  {
+    id: 'iode', nom: 'Iode', emoji: '🦋', repere: '150 µg/j · 200 µg grossesse',
+    role: 'Matière première des hormones thyroïdiennes, qui règlent le métabolisme entier.',
+    manque: 'Fatigue, frilosité, prise de poids, goitre. Pendant la grossesse, atteinte du développement cérébral du fœtus.',
+    sources: ['Sel iodé', 'Poissons et fruits de mer', 'Produits laitiers, œufs'],
+    astuce: 'Le sel iodé couvre le besoin sans y penser — encore faut-il acheter la version iodée.',
+    garde: 'Limite : 600 µg/j. Une seule portion de kombu ou de varech peut dépasser 1 000 µg. L\'excès dérègle la thyroïde autant que le manque.'
+  },
+  {
+    id: 'calcium', nom: 'Calcium', emoji: '🦴', repere: '950 mg/jour',
+    role: 'Construit et entretient l\'os, permet la contraction musculaire et la coagulation.',
+    manque: 'Perte osseuse silencieuse pendant des années, crampes. La fracture arrive avant le symptôme.',
+    sources: ['Chou kale, brocoli, chou chinois', 'Tofu pris au sulfate de calcium', 'Amandes, sésame complet, eaux calciques', 'Boissons végétales enrichies (bien secouer)'],
+    astuce: 'Épinards et oseille sont riches en calcium mais leurs oxalates le bloquent : les choux sont bien meilleurs pour ça.',
+    garde: 'Sans vitamine D, le calcium avalé n\'est pas fixé — les deux vont ensemble.'
+  },
+  {
+    id: 'zinc', nom: 'Zinc', emoji: '🛡️', repere: '11–14 mg/j homme · 8–11 mg/j femme',
+    role: 'Immunité, cicatrisation, peau, goût et odorat, fertilité.',
+    manque: 'Infections à répétition, plaies qui traînent, chute de cheveux, perte du goût, acné.',
+    sources: ['Légumineuses, flocons d\'avoine', 'Graines de courge, noix de cajou', 'Tofu, tempeh'],
+    astuce: 'Le trempage et la fermentation cassent les phytates qui retiennent le zinc — c\'est ce que fait le levain dans le pain.',
+    garde: 'Limite : 25 mg/j. Au-delà et sur la durée, la supplémentation en zinc provoque une carence en cuivre.'
+  },
+  {
+    id: 'mg', nom: 'Magnésium', emoji: '⚡', repere: '380 mg/j homme · 300 mg/j femme',
+    role: 'Intervient dans plus de 300 réactions : muscles, nerfs, sommeil, rythme cardiaque.',
+    manque: 'Crampes, paupière qui saute, fatigue, irritabilité, sommeil haché.',
+    sources: ['Cacao non sucré, amandes, noix de cajou', 'Légumineuses, céréales complètes', 'Banane, eaux magnésiennes'],
+    astuce: 'Le raffinage enlève l\'essentiel du magnésium : le complet en garde jusqu\'à cinq fois plus que le blanc.',
+    garde: 'En complément et à forte dose, effet laxatif. À éviter en cas d\'insuffisance rénale — le rein ne peut plus en évacuer l\'excès.'
+  },
+  {
+    id: 'b9', nom: 'Folates (B9)', emoji: '🌿', repere: '330 µg/j · 400 µg avant conception',
+    role: 'Fabrication de l\'ADN et des cellules neuves ; fermeture du tube neural chez le fœtus.',
+    manque: 'Anémie, fatigue, essoufflement. Chez le fœtus, malformations du système nerveux.',
+    sources: ['Légumes à feuilles vert foncé', 'Légumineuses, pois chiches', 'Avocat, agrumes, betterave'],
+    astuce: 'Fragile à la chaleur et à l\'eau de cuisson : cru, vapeur ou cuisson courte.',
+    garde: 'La supplémentation avant conception est l\'une des rares recommandations universelles — à commencer AVANT la grossesse : le tube neural se ferme dès la 4ᵉ semaine, souvent avant qu\'on sache.'
+  },
+  {
+    id: 'omega3', nom: 'Oméga-3', emoji: '🐟', repere: 'ALA ~2 g/j · EPA + DHA 500 mg/j',
+    role: 'Composent les membranes des neurones et de la rétine, régulent l\'inflammation.',
+    manque: 'Peau sèche, concentration en baisse. Une carence franche est rare sous nos climats.',
+    sources: ['Lin moulu, chia, noix, huile de colza (ALA)', 'Poissons gras (EPA/DHA)', 'Huile de microalgues (EPA/DHA végétal)'],
+    astuce: 'Le corps ne convertit qu\'une petite part de l\'ALA végétal en DHA : sans poisson, l\'huile de microalgues est la voie directe.',
+    garde: 'Les graines de lin entières traversent sans rien livrer : il faut les moudre. Les huiles riches en oméga-3 rancissent vite — au frais, à l\'abri de la lumière.'
+  },
+  {
+    id: 'c', nom: 'Vitamine C', emoji: '🍋', repere: '110 mg/jour',
+    role: 'Fabrique le collagène (peau, vaisseaux, gencives), aide à absorber le fer végétal.',
+    manque: 'Gencives qui saignent, bleus faciles, fatigue, cicatrisation lente.',
+    sources: ['Goyave, acérola, cerise pays', 'Poivron, persil, brocoli', 'Agrumes, kiwi, mangue'],
+    astuce: 'La goyave en contient plus de quatre fois plus que l\'orange, à poids égal.',
+    garde: 'Détruite par la cuisson longue. Au-delà de 1 g/j en complément : diarrhées, et risque de calculs rénaux chez les prédisposés.'
+  },
+  {
+    id: 'k', nom: 'Potassium', emoji: '🍌', repere: '3 500 mg/jour',
+    role: 'Équilibre les liquides du corps, fait baisser la tension, rythme le cœur et les muscles.',
+    manque: 'Crampes, fatigue, troubles du rythme cardiaque. Le plus souvent lié à des pertes : diarrhées, vomissements, diurétiques.',
+    sources: ['Banane, patate douce, igname', 'Haricots, lentilles, avocat', 'Épinards, eau de coco'],
+    astuce: 'Augmenter le potassium fait autant pour la tension que baisser le sel — les deux ensemble valent mieux qu\'un seul.',
+    garde: 'Les compléments de potassium sont dangereux en cas d\'insuffisance rénale ou sous IEC/sartans : l\'excès peut arrêter le cœur. Par l\'alimentation et avec des reins sains, aucun risque.'
+  },
+  {
+    id: 'se', nom: 'Sélénium', emoji: '🥜', repere: '70 µg/jour',
+    role: 'Enzymes antioxydantes, activation des hormones thyroïdiennes, immunité.',
+    manque: 'Rare. Fatigue, faiblesse musculaire, thyroïde qui fonctionne mal.',
+    sources: ['Noix du Brésil', 'Céréales complètes', 'Œufs, poissons'],
+    astuce: 'Une à deux noix du Brésil couvrent la journée entière.',
+    garde: 'Fenêtre étroite — limite : 300 µg/j. Une poignée de noix du Brésil par jour mène à la sélénose : ongles cassants, chute de cheveux, haleine d\'ail.'
+  },
+  {
+    id: 'a', nom: 'Vitamine A', emoji: '🥕', repere: '750 µg/j homme · 650 µg/j femme',
+    role: 'Vision nocturne, renouvellement de la peau et des muqueuses, immunité.',
+    manque: 'Vision qui baisse à la tombée du jour, peau rêche, infections répétées.',
+    sources: ['Carotte, patate douce, giraumon, mangue (bêta-carotène)', 'Épinards, brèdes', 'Œufs, beurre, foie (rétinol)'],
+    astuce: 'Le bêta-carotène a besoin d\'un corps gras dans le même repas pour être absorbé — un filet d\'huile sur les carottes.',
+    garde: 'Le rétinol animal en excès est toxique et provoque des malformations : foie et compléments à forte dose sont à proscrire pendant la grossesse. Le bêta-carotène des légumes, lui, ne présente pas ce risque.'
+  }
+];
+const NUTRI_BILAN = [
+  'Fatigue qui dure plus de quelques semaines sans raison évidente.',
+  'Alimentation 100 % végétale depuis plus de six mois (B12, fer, vitamine D, iode, zinc).',
+  'Règles abondantes, grossesse en cours ou envisagée, allaitement.',
+  'Chirurgie de l\'estomac, maladie cœliaque, maladie de Crohn, traitement au long cours (IPP, metformine, diurétiques).',
+  'Fourmillements persistants dans les mains ou les pieds — à ne pas laisser traîner.'
+];
+
 function MedicalView({ rdvs, addMedical, deleteMedical }) {
   const [form, setForm] = React.useState({ titre:'', date:'', medecin:'', notes:'', qui:'Couple' });
   const [show, setShow] = React.useState(false);
+  const [tab, setTab] = React.useState('rdv');
+  const [ouvert, setOuvert] = React.useState(null);
   const QUIS = ['Dja','Liika','Couple'];
   const QUI_C = { 'Dja':'var(--accent-dja)', 'Liika':'var(--accent-liika)', 'Couple':'var(--gold)' };
   // Migration unique depuis localStorage
@@ -9566,11 +9694,84 @@ function MedicalView({ rdvs, addMedical, deleteMedical }) {
   return React.createElement('div', null,
     React.createElement('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20, gap:8, flexWrap:'wrap' } },
       React.createElement('h2', { style:{ margin:0, fontSize:20 } }, '🩺 Suivi médical'),
-      React.createElement('div', { style:{ display:'flex', gap:8 } },
+      tab === 'rdv' && React.createElement('div', { style:{ display:'flex', gap:8 } },
         (rdvs||[]).some(r => r.date) && React.createElement('button', { onClick:exportAll, title:'Exporter tous les RDV au format .ics', style:{ padding:'8px 14px', borderRadius:20, border:'1px solid var(--border)', background:'transparent', color:'var(--text2)', cursor:'pointer', fontWeight:700, fontSize:13 } }, '📅 Exporter'),
         React.createElement('button', { onClick:()=>setShow(!show), style:{ padding:'8px 18px', borderRadius:20, border:'none', background:'#10b981', color:'#fff', cursor:'pointer', fontWeight:700 } }, show ? '✕' : '+ RDV')
       )
     ),
+
+    // ── Sous-onglets ──
+    React.createElement('div', { className:'scroll-x', style:{ display:'flex', gap:8, marginBottom:16 } },
+      [{ id:'rdv', l:'🩺 Rendez-vous' }, { id:'nutriments', l:'🥗 Nutriments' }].map(t =>
+        React.createElement('button', { key:t.id, onClick:()=>setTab(t.id), style:{
+          padding:'6px 14px', borderRadius:20, cursor:'pointer', fontSize:12, whiteSpace:'nowrap',
+          border:`1px solid ${tab===t.id?'#10b981':'var(--border)'}`,
+          background: tab===t.id?'rgba(16,185,129,.15)':'transparent',
+          color: tab===t.id?'#10b981':'var(--text3)',
+          fontWeight: tab===t.id?700:400 } }, t.l))
+    ),
+
+    // ── Fiche nutriments (lecture seule) ──
+    tab === 'nutriments' && React.createElement('div', null,
+      React.createElement('div', { style:{ display:'grid', gap:8, marginBottom:18 } },
+        NUTRI_CADRE.map((c, i) => React.createElement('div', { key:i, style:{ background:'var(--glass)', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:'10px 13px', borderLeft:'3px solid #10b981' } },
+          React.createElement('div', { style:{ fontSize:12.5, fontWeight:700, color:'var(--text)', marginBottom:3 } }, c.t),
+          React.createElement('div', { style:{ fontSize:12, color:'var(--text3)', lineHeight:1.5 } }, c.d)
+        ))
+      ),
+      React.createElement('div', { style:{ display:'grid', gap:8 } },
+        NUTRIMENTS.map(n => {
+          const open = ouvert === n.id;
+          return React.createElement('div', { key:n.id, style:{ background:'var(--glass)', border:`1px solid ${open?'#10b981':'var(--border)'}`, borderRadius:'var(--radius)', overflow:'hidden' } },
+            React.createElement('button', {
+              onClick: () => setOuvert(open ? null : n.id),
+              style:{ width:'100%', display:'flex', alignItems:'center', gap:10, padding:'11px 14px', background:'none', border:'none', cursor:'pointer', textAlign:'left', color:'var(--text)' }
+            },
+              React.createElement('span', { style:{ fontSize:17, flexShrink:0 } }, n.emoji),
+              React.createElement('span', { style:{ flex:1, minWidth:0 } },
+                React.createElement('span', { style:{ display:'block', fontSize:13.5, fontWeight:700 } }, n.nom),
+                React.createElement('span', { style:{ display:'block', fontFamily:"'Space Mono',monospace", fontSize:10.5, color:'var(--text3)', marginTop:2 } }, n.repere)
+              ),
+              React.createElement('span', { style:{ color:'var(--text3)', fontSize:11, flexShrink:0 } }, open ? '▲' : '▼')
+            ),
+            open && React.createElement('div', { style:{ padding:'0 14px 13px', display:'grid', gap:9 } },
+              [['À quoi ça sert', n.role, 'var(--text2)'], ['Ce qu\'un manque peut donner', n.manque, 'var(--text2)']].map(([t, v, c], i) =>
+                React.createElement('div', { key:i },
+                  React.createElement('div', { style:{ fontSize:10, textTransform:'uppercase', letterSpacing:'.05em', color:'var(--text3)', marginBottom:2 } }, t),
+                  React.createElement('div', { style:{ fontSize:12.5, color:c, lineHeight:1.5 } }, v)
+                )),
+              React.createElement('div', null,
+                React.createElement('div', { style:{ fontSize:10, textTransform:'uppercase', letterSpacing:'.05em', color:'var(--text3)', marginBottom:4 } }, 'Où le trouver'),
+                React.createElement('div', { style:{ display:'flex', flexWrap:'wrap', gap:5 } },
+                  n.sources.map((s, i) => React.createElement('span', { key:i, style:{ fontSize:11.5, color:'var(--text2)', background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:12, padding:'3px 9px' } }, s))
+                )
+              ),
+              React.createElement('div', { style:{ display:'flex', gap:6, alignItems:'flex-start', fontSize:12, color:'var(--gold)', lineHeight:1.5 } },
+                React.createElement('span', { style:{ flexShrink:0 } }, '💡'),
+                React.createElement('span', null, n.astuce)
+              ),
+              React.createElement('div', { style:{ display:'flex', gap:6, alignItems:'flex-start', fontSize:12, color:'var(--warn)', lineHeight:1.5, background:'rgba(245,158,11,.08)', borderRadius:8, padding:'8px 10px' } },
+                React.createElement('span', { style:{ flexShrink:0 } }, '⚠'),
+                React.createElement('span', null, n.garde)
+              )
+            )
+          );
+        })
+      ),
+      React.createElement('div', { style:{ marginTop:20, background:'var(--glass)', border:'1px solid rgba(16,185,129,.35)', borderRadius:'var(--radius)', padding:'13px 16px' } },
+        React.createElement('div', { style:{ fontSize:13, fontWeight:700, color:'#10b981', marginBottom:8 } }, '🧪 Quand demander un bilan sanguin'),
+        React.createElement('div', { style:{ display:'grid', gap:5 } },
+          NUTRI_BILAN.map((b, i) => React.createElement('div', { key:i, style:{ display:'flex', gap:8, alignItems:'flex-start', fontSize:12.5, color:'var(--text2)', lineHeight:1.5 } },
+            React.createElement('span', { style:{ color:'#10b981', flexShrink:0 } }, '•'),
+            React.createElement('span', null, b)
+          ))
+        ),
+        React.createElement('div', { style:{ marginTop:10, fontSize:11.5, color:'var(--text3)', fontStyle:'italic', lineHeight:1.5 } },
+          'Ces dosages sont simples et pris en charge. Un résultat chiffré vaut mieux que n\'importe quelle liste de symptômes — celle-ci comprise.')
+      )
+    ),
+
+    tab === 'rdv' && React.createElement(React.Fragment, null,
     prochain && !show && React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid rgba(16,185,129,.35)', borderRadius:'var(--radius)', padding:'12px 16px', marginBottom:16, display:'flex', alignItems:'center', gap:12 } },
       React.createElement('span', { style:{ fontSize:24 } }, '⏰'),
       React.createElement('div', null,
@@ -9596,6 +9797,7 @@ function MedicalView({ rdvs, addMedical, deleteMedical }) {
     aVenir.map(x => renderCard(x.r, x.d)),
     passes.length > 0 && React.createElement('div', { style:{ fontSize:11, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em', margin:'16px 0 8px' } }, 'Passés'),
     passes.map(x => renderCard(x.r, x.d))
+    )
   );
 }
 
