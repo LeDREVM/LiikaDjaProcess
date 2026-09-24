@@ -10469,6 +10469,33 @@ const METEO_LIEUX = [
   { id: 'paris',    nom: 'Paris',           zone: 'fr',  lat: 48.8566, lon: 2.3522,   tz: 'Europe/Paris', plage: false },
   { id: 'creteil',  nom: 'Créteil',         zone: 'fr',  lat: 48.7904, lon: 2.4556,   tz: 'Europe/Paris', plage: false }
 ];
+// Images satellite & cartes. Point clé : une <img> n'est PAS soumise au CORS,
+// contrairement à un fetch() — c'est pour ça qu'on peut afficher ces visuels
+// alors que le flux JSON du NHC est refusé par le navigateur. Chaque image
+// bascule sur son lien si elle ne charge pas (URL changée, source en panne).
+const METEO_VISUELS = [
+  {
+    id: 'two',
+    titre: 'Prévision tropicale à 7 jours',
+    desc: 'Zones de formation surveillées par le National Hurricane Center.',
+    img: 'https://www.nhc.noaa.gov/xgtwo/two_atl_7d0.png',
+    lien: 'https://www.nhc.noaa.gov/gtwo.php?basin=atlc&fdays=7'
+  },
+  {
+    id: 'satellite',
+    titre: 'Satellite — Atlantique tropical',
+    desc: 'Image GOES-Est la plus récente, bassin de formation des cyclones.',
+    img: 'https://cdn.star.nesdis.noaa.gov/GOES19/ABI/SECTOR/taw/GEOCOLOR/latest.jpg',
+    lien: 'https://www.star.nesdis.noaa.gov/goes/sector.php?sat=G19&sector=taw'
+  },
+  {
+    id: 'radar',
+    titre: 'Radar NOAA — Atlantique',
+    desc: 'Carte interactive, centrée sur le bassin. S\'ouvre dans un onglet.',
+    img: null,
+    lien: 'https://radar.weather.gov/?settings=v1_eyJhZ2VuZGEiOnsiaWQiOm51bGwsImNlbnRlciI6Wy01NS4zMTMsMjYuMjM1XSwibG9jYXRpb24iOm51bGwsInpvb20iOjMuMjQ3NDAwNDMwNzU2MzI1fSwiYW5pbWF0aW5nIjpmYWxzZSwiYmFzZSI6InN0YW5kYXJkIiwiYXJ0Y2MiOmZhbHNlLCJjb3VudHkiOmZhbHNlLCJjd2EiOmZhbHNlLCJyZmMiOmZhbHNlLCJzdGF0ZSI6ZmFsc2UsIm1lbnUiOnRydWUsInNob3J0RnVzZWRPbmx5IjpmYWxzZSwib3BhY2l0eSI6eyJhbGVydHMiOjAuOCwibG9jYWwiOjAuNiwibG9jYWxTdGF0aW9ucyI6MC44LCJuYXRpb25hbCI6MC42fX0%3D'
+  }
+];
 const METEO_SOURCES = [
   { t: 'Vigilance Météo-France (alerte officielle)', u: 'https://vigilance.meteofrance.fr/fr' },
   { t: 'Vigilance Guadeloupe', u: 'https://vigilance.meteofrance.fr/fr/guadeloupe' },
@@ -10519,6 +10546,30 @@ function meteoSaisonCyclonique(d) {
       ? 'Du 1er juin au 30 novembre. Kit d\'urgence, papiers et eau à garder prêts.'
       : 'La saison va du 1er juin au 30 novembre. Un cyclone hors saison reste possible mais rare.'
   };
+}
+// Jours de vent fort dans la prévision, seuils de l'échelle tropicale (km/h,
+// vent moyen sur 10 min). On ne garde que ce qui mérite d'être signalé : en
+// dessous de 50 km/h, un alizé soutenu n'est pas une information.
+const METEO_SEUILS_VENT = [
+  { min: 118, l: 'Force cyclonique', icone: '🌀', c: 'var(--danger)' },
+  { min: 89,  l: 'Tempête',          icone: '🌪', c: 'var(--danger)' },
+  { min: 63,  l: 'Force tempête tropicale', icone: '💨', c: 'var(--warn)' },
+  { min: 50,  l: 'Vent fort',        icone: '💨', c: 'var(--gold)' }
+];
+function meteoVentsViolents(jours) {
+  if (!jours || !Array.isArray(jours.time)) return [];
+  const vents = Array.isArray(jours.wind_speed_10m_max) ? jours.wind_speed_10m_max : [];
+  const rafales = Array.isArray(jours.wind_gusts_10m_max) ? jours.wind_gusts_10m_max : [];
+  const out = [];
+  jours.time.forEach((jour, i) => {
+    const v = Number(vents[i]);
+    if (!isFinite(v)) return;
+    const s = METEO_SEUILS_VENT.find(x => v >= x.min);
+    if (!s) return;
+    const r = Number(rafales[i]);
+    out.push({ jour, vent: v, rafale: isFinite(r) ? r : null, l: s.l, icone: s.icone, c: s.c });
+  });
+  return out;
 }
 function seismeCouleur(mag) {
   const m = Number(mag) || 0;
@@ -10587,7 +10638,6 @@ function MeteoView() {
   const lieu = METEO_LIEUX.find(l => l.id === lieuId) || METEO_LIEUX[0];
   const [actuel, setActuel] = React.useState({ d: null, err: null });
   const [mer, setMer] = React.useState({ d: null, err: null });
-  const [cyclones, setCyclones] = React.useState({ d: null, err: null });
   const [seismes, setSeismes] = React.useState({ d: null, err: null });
   const [maj, setMaj] = React.useState(null);
   const [tic, setTic] = React.useState(0);
@@ -10606,11 +10656,11 @@ function MeteoView() {
 
     const charger = () => {
       setActuel({ d: null, err: null }); setMer({ d: null, err: null });
-      setCyclones({ d: null, err: null }); setSeismes({ d: null, err: null });
+      setSeismes({ d: null, err: null });
 
       pose(setActuel, json('https://api.open-meteo.com/v1/forecast?latitude=' + lieu.lat + '&longitude=' + lieu.lon +
         '&current=temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,is_day' +
-        '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max,uv_index_max,sunrise,sunset' +
+        '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,uv_index_max,sunrise,sunset' +
         '&forecast_days=7&timezone=' + encodeURIComponent(lieu.tz)), d => d);
 
       if (lieu.plage) {
@@ -10619,11 +10669,6 @@ function MeteoView() {
       } else {
         setMer({ d: null, err: null });
       }
-
-      // Les entrées sont filtrées ICI : une valeur nulle dans le flux ferait
-      // planter le rendu (s.id sur null), et un flux tiers n'est jamais garanti.
-      pose(setCyclones, json('https://www.nhc.noaa.gov/CurrentStorms.json'),
-        d => (Array.isArray(d && d.activeStorms) ? d.activeStorms : []).filter(s => s && typeof s === 'object'));
 
       const b = meteoBoite(lieu);
       pose(setSeismes, json('https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&limit=15&orderby=time' +
@@ -10731,36 +10776,55 @@ function MeteoView() {
           'Indications de houle au large — elles ne disent rien des courants d\'arrachement ni du drapeau de baignade sur place.')
       )) : null;
 
-  // ── Cyclones ──
+  // ── Vents violents & saison cyclonique ──
+  // Le flux du NHC n'envoie pas d'en-tête CORS : un navigateur refuse de le lire,
+  // et aucune autre URL chez eux n'y changerait rien. L'alerte est donc dérivée de
+  // la prévision Open-Meteo — la même source que le reste de la page, éprouvée en
+  // production — et on renvoie vers les bulletins officiels pour un système nommé.
   const saison = meteoSaisonCyclonique(new Date());
-  // Second filet au rendu : les deux flux tiers sont déjà filtrés au chargement,
-  // mais rien ne coûte à ne jamais dépendre d'une seule barrière.
-  const st = cyclones.d ? cyclones.d.filter(s => s && typeof s === 'object') : null;
-  const blocCyclone = carte('Cyclones · bassin Atlantique', '🌀',
-    cyclones.err ? enErreur('La veille cyclonique', 'https://www.nhc.noaa.gov/')
-    : !st ? enAttente
+  const alertes = jours ? meteoVentsViolents(jours) : null;
+  const blocCyclone = carte('Vents violents & saison cyclonique', '🌀',
+    actuel.err ? enErreur('La prévision de vent', 'https://vigilance.meteofrance.fr/fr/guadeloupe')
+    : !alertes ? enAttente
     : h('div', null,
-        st.length === 0
-          ? h('div', { style: { fontSize: 13, color: 'var(--success)', fontWeight: 700, marginBottom: 6 } }, '✓ Aucun système actif dans l\'Atlantique.')
+        alertes.length === 0
+          ? h('div', { style: { fontSize: 13, color: 'var(--success)', fontWeight: 700, marginBottom: 8 } }, '✓ Aucun vent violent prévu sur 7 jours.')
           : h('div', { style: { display: 'grid', gap: 7, marginBottom: 8 } },
-              st.map((s, i) => h('div', { key: s.id || i, style: { background: 'var(--bg2)', border: '1px solid var(--danger)', borderRadius: 10, padding: '9px 12px' } },
-                h('div', { style: { fontSize: 13, fontWeight: 700, color: 'var(--danger)', marginBottom: 3 } },
-                  '🌀 ' + [s.classification, s.name].filter(Boolean).join(' ')),
+              alertes.map(a => h('div', { key: a.jour, style: { background: 'var(--bg2)', border: '1px solid ' + a.c, borderRadius: 10, padding: '9px 12px' } },
+                h('div', { style: { fontSize: 13, fontWeight: 700, color: a.c, marginBottom: 3 } }, a.icone + ' ' + fmtJour(a.jour) + ' · ' + a.l),
                 h('div', { style: { fontSize: 12, color: 'var(--text3)', lineHeight: 1.5 } },
-                  [s.intensity ? 'Vents ' + s.intensity + ' kt' : null,
-                   s.pressure ? s.pressure + ' mb' : null,
-                   (s.latitudeNumeric != null && s.longitudeNumeric != null) ? 'position ' + Number(s.latitudeNumeric).toFixed(1) + ', ' + Number(s.longitudeNumeric).toFixed(1) : null,
-                   s.movementDir != null ? 'déplacement ' + s.movementDir + '° à ' + (s.movementSpeed || '?') + ' kt' : null
-                  ].filter(Boolean).join(' · ') || 'Système actif — voir le bulletin officiel.')
+                  'Vent moyen ' + Math.round(a.vent) + ' km/h' + (a.rafale ? ', rafales ' + Math.round(a.rafale) + ' km/h' : ''))
               ))),
         h('div', { style: { fontSize: 12, color: saison.dedans ? 'var(--warn)' : 'var(--text3)', lineHeight: 1.5 } },
           (saison.dedans ? '⚠ ' : '') + saison.l + ' — ' + saison.d),
         h('div', { style: { fontSize: 11.5, color: 'var(--text3)', marginTop: 8, lineHeight: 1.55 } },
-          'Source NOAA/NHC. ',
-          h('strong', { style: { color: 'var(--text2)' } }, 'L\'alerte qui fait foi en Guadeloupe est la vigilance Météo-France'),
-          ' — elle demande une clé d\'API et ne peut pas être affichée ici : ',
-          h('a', { href: 'https://vigilance.meteofrance.fr/fr/guadeloupe', target: '_blank', rel: 'noopener noreferrer', style: { color: 'var(--gold)' } }, 'la consulter directement'), '.')
+          'Vents tirés de la prévision pour ' + lieu.nom + '. Ce bloc ne suit pas les systèmes nommés : ',
+          h('strong', { style: { color: 'var(--text2)' } }, "l'alerte qui fait foi en Guadeloupe est la vigilance Météo-France"),
+          '. ',
+          h('a', { href: 'https://vigilance.meteofrance.fr/fr/guadeloupe', target: '_blank', rel: 'noopener noreferrer', style: { color: 'var(--gold)' } }, 'Vigilance Guadeloupe'),
+          ' · ',
+          h('a', { href: 'https://www.nhc.noaa.gov/', target: '_blank', rel: 'noopener noreferrer', style: { color: 'var(--gold)' } }, 'Bulletins NHC'), '.')
       ));
+
+  // ── Radar & satellite ──
+  // Une <img> n'est pas soumise au CORS : ces visuels s'affichent là où un
+  // fetch() serait refusé. Si l'image ne charge pas, on la retire et le lien
+  // reste — le bloc ne peut donc pas se retrouver vide ou cassé.
+  const blocVisuels = carte('Radar & satellite', '🛰',
+    h('div', { style: { display: 'grid', gap: 10 } },
+      METEO_VISUELS.map(v => h('div', { key: v.id, style: { background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px' } },
+        h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginBottom: 4 } },
+          h('span', { style: { fontSize: 12.5, fontWeight: 700, color: 'var(--text)' } }, v.titre),
+          h('a', { href: v.lien, target: '_blank', rel: 'noopener noreferrer', style: { fontSize: 11.5, color: 'var(--gold)', textDecoration: 'none', flexShrink: 0 } }, 'ouvrir ↗')),
+        h('div', { style: { fontSize: 11.5, color: 'var(--text3)', lineHeight: 1.45, marginBottom: v.img ? 8 : 0 } }, v.desc),
+        v.img && h('a', { href: v.lien, target: '_blank', rel: 'noopener noreferrer', style: { display: 'block' } },
+          h('img', {
+            src: v.img, alt: v.titre, loading: 'lazy',
+            onError: e => { if (e && e.target && e.target.style) e.target.style.display = 'none'; },
+            style: { width: '100%', height: 'auto', borderRadius: 8, border: '1px solid var(--border)', display: 'block', background: 'var(--bg4)' }
+          }))
+      ))
+    ));
 
   // ── Séismes ──
   const sq = seismes.d ? seismes.d.filter(f => f && typeof f === 'object') : null;
@@ -10806,6 +10870,7 @@ function MeteoView() {
     blocPlage,
     blocPrev,
     blocCyclone,
+    blocVisuels,
     blocSeisme,
 
     h('div', { className: 'lx-card', style: { padding: 14 } },
