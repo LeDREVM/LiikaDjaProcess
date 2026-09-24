@@ -11992,7 +11992,8 @@ const VOYAGE_PROTOCOLE = [
     { id: 'v-adaptateur', t: 'Adaptateur de prise du pays' },
     { id: 'v-batterie', t: 'Chargeurs et batterie externe — en cabine obligatoirement' },
     { id: 'v-meteo', t: 'Vêtements adaptés à la météo sur place' },
-    { id: 'v-medoc-cabine', t: 'Médicaments en cabine avec leur ordonnance' }
+    { id: 'v-medoc-cabine', t: 'Médicaments en cabine avec leur ordonnance' },
+    { id: 'v-interdits', t: 'Objets interdits vérifiés (onglet « Interdit en avion »)' }
   ]},
   { id: 'p6', offset: -1, titre: 'Veille du départ', icon: '🌙', couleur: '#a78bfa', items: [
     { id: 'v-checkin', t: 'Enregistrement en ligne, carte d\'embarquement sur le téléphone' },
@@ -12094,6 +12095,69 @@ function voyTri(list) {
 // ─── Guide « Préparer sa valise » ───
 // Contenu de référence, en lecture seule : rien à cocher ici (la checklist
 // datée vit dans les fiches voyage), donc aucune donnée persistée.
+// ─── Ce qu'on n'a pas le droit d'emporter ───
+// Transcrit du rappel affiché à l'enregistrement en ligne (portail Amadeus de la
+// compagnie). Purement informatif : les règles exactes dépendent de la compagnie,
+// du pays et de la destination — cette liste sert à ne pas se faire surprendre au
+// contrôle, pas à trancher un cas limite.
+const VOYAGE_INTERDITS_LOI = 'Article L1252-5 du Code des transports : le transport non autorisé de marchandises dangereuses par voie aérienne est passible d\'un an d\'emprisonnement et de 30 000 € d\'amende.';
+const VOYAGE_INTERDITS = [
+  {
+    id: 'i1',
+    titre: 'Interdit en soute ET en cabine',
+    sous: 'Considérés comme dangereux : ne peuvent pas être embarqués, nulle part.',
+    icon: '☢️',
+    couleur: 'var(--danger)',
+    items: [
+      'Explosifs, engins pyrotechniques',
+      'Liquides inflammables',
+      'Matières solides inflammables',
+      'Gaz inflammables',
+      'Substances et médicaments radioactifs',
+      'Substances toxiques et infectieuses',
+      'Produits corrosifs',
+      'Oxydants'
+    ]
+  },
+  {
+    id: 'i2',
+    titre: 'Interdit en cabine',
+    sous: 'À ne pas mettre dans le bagage à main — en soute, c\'est possible pour certains.',
+    icon: '🎒',
+    couleur: 'var(--warn)',
+    items: [
+      'Armes à feu, émetteurs de projectiles, répliques',
+      'Objets tranchants ou contondants',
+      'Dispositifs paralysants (taser) ou incapacitants (lacrymogène)',
+      'Outils de travail',
+      'Dispositifs spécifiquement conçus pour assommer ou immobiliser'
+    ]
+  },
+  {
+    id: 'i3',
+    titre: 'Interdit en soute',
+    sous: 'Articles secondaires interdits dans les bagages enregistrés.',
+    icon: '🧳',
+    couleur: 'var(--accent-dja)',
+    items: [
+      'Substances et engins explosifs ou incendiaires'
+    ]
+  }
+];
+// Les pièges du quotidien : ce qui part vraiment à la poubelle au contrôle, ou
+// ce qui est refusé à l'embarquement alors qu'on n'y pense jamais.
+const VOYAGE_INTERDITS_PIEGES = [
+  { t: 'Batterie externe et batteries au lithium', r: 'En cabine uniquement, jamais en soute. Au-delà de 100 Wh, accord de la compagnie nécessaire.' },
+  { t: 'Liquides de plus de 100 ml en cabine', r: 'Confisqués au contrôle. Tout doit tenir dans un sac transparent d\'un litre.' },
+  { t: 'Briquet et allumettes', r: 'Un seul sur soi en général, et interdits en soute. Les briquets tempête sont refusés partout.' },
+  { t: 'Ciseaux et couteaux', r: 'Lames de plus de 6 cm interdites en cabine. Le couteau suisse part en soute.' },
+  { t: 'Bouteille d\'eau remplie', r: 'À vider avant le contrôle, à remplir après — les fontaines sont côté embarquement.' },
+  { t: 'Rhum et alcools', r: 'En soute, dans les limites douanières. Acheté en duty free, garde le sac scellé et le ticket.' },
+  { t: 'Aérosols et parfums', r: 'Tolérés en petite quantité pour usage personnel ; les bombes de peinture ou de gaz sont interdites.' },
+  { t: 'Fruits, plantes et graines', r: 'Réglementation stricte à l\'entrée de beaucoup de pays — vérifie avant d\'en emporter.' },
+  { t: 'Cigarette électronique', r: 'En cabine uniquement, et interdiction de l\'utiliser ou de la recharger à bord.' }
+];
+
 const VOYAGE_VALISE = [
   { id: 'm1', titre: 'La méthode de rangement', icon: '📦', couleur: 'var(--gold)', items: [
     'Roule les vêtements au lieu de les plier : moins de plis, et jusqu\'à un tiers de place gagnée.',
@@ -12228,13 +12292,53 @@ function VoyagesView({ voyages, addVoyage, updateVoyage, deleteVoyage, toggleVoy
 
     // ── Sous-onglets ──
     h('div', { className:'scroll-x', style:{ display:'flex', gap:8, marginBottom:16 } },
-      [{ id:'voyages', l:'✈️ Mes voyages' }, { id:'valise', l:'🧳 Préparer sa valise' }].map(t =>
+      [{ id:'voyages', l:'✈️ Mes voyages' }, { id:'valise', l:'🧳 Préparer sa valise' }, { id:'interdits', l:'🚫 Interdit en avion' }].map(t =>
         h('button', { key:t.id, onClick:()=>setTab(t.id), style:{
           padding:'6px 14px', borderRadius:20, cursor:'pointer', fontSize:12, whiteSpace:'nowrap',
           border:`1px solid ${tab===t.id?'var(--gold)':'var(--border)'}`,
           background: tab===t.id?'var(--gold-bg)':'transparent',
           color: tab===t.id?'var(--gold)':'var(--text3)',
           fontWeight: tab===t.id?700:400 } }, t.l))
+    ),
+
+    // ── Articles interdits (lecture seule) ──
+    tab === 'interdits' && h('div', null,
+      h('div', { style:{ background:'rgba(239,68,68,.08)', border:'1px solid var(--danger)', borderRadius:'var(--radius)', padding:'12px 16px', marginBottom:16 } },
+        h('div', { style:{ display:'flex', alignItems:'center', gap:8, marginBottom:6 } },
+          h('span', { style:{ fontSize:15 } }, '⚖️'),
+          h('span', { style:{ fontSize:13, fontWeight:700, color:'var(--danger)' } }, 'Ce n\'est pas qu\'une formalité')),
+        h('p', { style:{ margin:0, fontSize:12.5, color:'var(--text2)', lineHeight:1.55 } }, VOYAGE_INTERDITS_LOI)
+      ),
+      h('div', { style:{ display:'grid', gap:12 } },
+        VOYAGE_INTERDITS.map(sec => h('div', { key:sec.id, style:{ background:'var(--glass)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'12px 16px', borderLeft:`3px solid ${sec.couleur}` } },
+          h('div', { style:{ display:'flex', alignItems:'center', gap:8, marginBottom:4 } },
+            h('span', { style:{ fontSize:15 } }, sec.icon),
+            h('span', { style:{ fontSize:13.5, fontWeight:700, color:sec.couleur } }, sec.titre)
+          ),
+          h('p', { style:{ margin:'0 0 8px', fontSize:11.5, color:'var(--text3)', fontStyle:'italic', lineHeight:1.5 } }, sec.sous),
+          h('div', { style:{ display:'grid', gap:6 } },
+            sec.items.map((it, i) => h('div', { key:i, style:{ display:'flex', gap:8, alignItems:'flex-start', fontSize:12.5, color:'var(--text2)', lineHeight:1.55 } },
+              h('span', { style:{ color:sec.couleur, flexShrink:0, fontWeight:700 } }, '✕'),
+              h('span', null, it)
+            ))
+          )
+        ))
+      ),
+      h('div', { style:{ marginTop:20 } },
+        h('div', { style:{ display:'flex', alignItems:'center', gap:8, marginBottom:4 } },
+          h('span', { style:{ fontSize:15 } }, '💡'),
+          h('span', { style:{ fontSize:13.5, fontWeight:700, color:'var(--gold)' } }, 'Les pièges courants')),
+        h('p', { style:{ margin:'0 0 10px', fontSize:11.5, color:'var(--text3)', fontStyle:'italic', lineHeight:1.5 } },
+          'Hors liste officielle : ce qui finit vraiment à la poubelle au contrôle, ou se voit refuser à l\'embarquement.'),
+        h('div', { style:{ display:'grid', gap:8 } },
+          VOYAGE_INTERDITS_PIEGES.map((p, i) => h('div', { key:i, style:{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:'9px 12px' } },
+            h('div', { style:{ fontSize:12.5, fontWeight:700, color:'var(--text)', marginBottom:3 } }, p.t),
+            h('div', { style:{ fontSize:12, color:'var(--text3)', lineHeight:1.5 } }, p.r)
+          ))
+        )
+      ),
+      h('p', { style:{ marginTop:18, marginBottom:0, fontSize:11.5, color:'var(--text3)', fontStyle:'italic', lineHeight:1.55 } },
+        'Rappel affiché à l\'enregistrement en ligne. Les règles exactes varient selon la compagnie, le pays et la destination — en cas de doute sur un objet précis, demande à la compagnie avant de partir.')
     ),
 
     // ── Guide valise (lecture seule) ──
