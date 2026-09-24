@@ -10664,6 +10664,47 @@ const POTAGER_MEDICINALES = [
     { nom: 'Curcuma', latin: 'Curcuma longa' },
     { nom: 'Gingembre', latin: 'Zingiber officinale' },
     { nom: 'Cannelle', latin: 'Cinnamomum verum' }
+  ]},
+  // Planche « Herbs for glands » — herboristerie traditionnelle, classée par glande.
+  // Ce sont des usages TRADITIONNELS, pas des traitements démontrés : le champ
+  // `garde` porte les précautions réellement documentées (toxicité, interactions),
+  // parce qu'une liste de plantes sans ses contre-indications est un piège.
+  { famille: '🫀 Plantes & glandes (herboristerie traditionnelle)', plantes: [
+    { nom: 'Tulsi / Basilic sacré', latin: 'Ocimum tenuiflorum — surrénales' },
+    { nom: 'Maca', latin: 'Lepidium meyenii — surrénales' },
+    { nom: 'Cordyceps', latin: 'Cordyceps sinensis — surrénales' },
+    { nom: 'Jujube', latin: 'Ziziphus jujuba — surrénales' },
+    { nom: 'Graine d’ortie', latin: 'Urtica dioica (graine) — surrénales' },
+
+    { nom: 'Griffe de chat', latin: 'Uncaria tomentosa — thymus', garde: 'Stimulant immunitaire : à éviter sous immunosuppresseurs ou après une greffe.' },
+    { nom: 'Chaparral', latin: 'Larrea tridentata — thymus', garde: 'Hépatotoxicité documentée (hépatites graves, alerte FDA 1992). Usage interne déconseillé.' },
+    { nom: 'Trèfle rouge', latin: 'Trifolium pratense — thymus', garde: 'Phyto-œstrogènes : prudence en cas de cancer hormono-dépendant ou sous anticoagulant.' },
+    { nom: 'Moringa (feuille)', latin: 'Moringa oleifera — thymus' },
+    { nom: 'Pau d’arco', latin: 'Handroanthus impetiginosus — thymus', garde: 'Lapachol toxique à dose élevée ; augmente le risque de saignement sous anticoagulant.' },
+
+    { nom: 'Muira puama', latin: 'Ptychopetalum olacoides — hypophyse' },
+    { nom: 'Bacopa', latin: 'Bacopa monnieri — hypophyse' },
+    { nom: 'Ginkgo', latin: 'Ginkgo biloba — hypophyse', garde: 'Antiagrégant : risque de saignement sous anticoagulant ou avant une opération.' },
+    { nom: 'Shatavari', latin: 'Asparagus racemosus — hypophyse' },
+    { nom: 'Fo-ti / He Shou Wu', latin: 'Reynoutria multiflora — hypophyse', garde: 'Hépatotoxicité documentée — cause connue d’hépatites d’origine médicamenteuse.' },
+
+    { nom: 'Varech vésiculeux', latin: 'Fucus vesiculosus — thyroïde', garde: 'Très riche en iode : peut dérégler la thyroïde dans un sens comme dans l’autre.' },
+    { nom: 'Lycope', latin: 'Lycopus europaeus — thyroïde', garde: 'Abaisse les hormones thyroïdiennes : interfère avec un traitement thyroïdien.' },
+    { nom: 'Mousse d’Irlande', latin: 'Chondrus crispus — thyroïde', garde: 'Apport d’iode notable : même prudence que le varech.' },
+    { nom: 'Mélisse', latin: 'Melissa officinalis — thyroïde' },
+    { nom: 'Paille d’avoine', latin: 'Avena sativa — thyroïde' },
+
+    { nom: 'Armoise', latin: 'Artemisia vulgaris — épiphyse', garde: 'Emménagogue : à proscrire pendant la grossesse. Allergies croisées Astéracées.' },
+    { nom: 'Scutellaire', latin: 'Scutellaria lateriflora — épiphyse' },
+    { nom: 'Coriandre', latin: 'Coriandrum sativum — épiphyse' },
+    { nom: 'Encens / Oliban', latin: 'Boswellia serrata — épiphyse' },
+    { nom: 'Racine d’épine-vinette', latin: 'Berberis vulgaris — épiphyse', garde: 'Berbérine : interdite pendant la grossesse et chez le nourrisson ; nombreuses interactions médicamenteuses.' },
+
+    { nom: 'Gymnema', latin: 'Gymnema sylvestre — pancréas', garde: 'Fait baisser la glycémie : risque d’hypoglycémie en s’ajoutant à un traitement du diabète.' },
+    { nom: 'Melon amer', latin: 'Momordica charantia — pancréas', garde: 'Fait baisser la glycémie : même risque d’addition avec un traitement du diabète.' },
+    { nom: 'Fenugrec', latin: 'Trigonella foenum-graecum — pancréas' },
+    { nom: 'Feuille de myrtille', latin: 'Vaccinium myrtillus (feuille) — pancréas' },
+    { nom: 'Hydraste du Canada', latin: 'Hydrastis canadensis — pancréas', garde: 'Berbérine : interdite pendant la grossesse et chez le nourrisson ; inhibe des enzymes du foie (interactions).' }
   ]}
 ];
 
@@ -10971,18 +11012,28 @@ function PotagerView({ plantes, addPlante, updatePlante, deletePlante, semansye,
       const nq = normPot(q);
       const groupes = POTAGER_MEDICINALES.map(g => ({
         famille: g.famille,
-        plantes: g.plantes.filter(p => !nq || normPot(p.nom).indexOf(nq) !== -1 || normPot(p.latin).indexOf(nq) !== -1 || normPot(g.famille).indexOf(nq) !== -1)
+        plantes: g.plantes.filter(p => !nq || normPot(p.nom).indexOf(nq) !== -1 || normPot(p.latin).indexOf(nq) !== -1 || normPot(p.garde || '').indexOf(nq) !== -1 || normPot(g.famille).indexOf(nq) !== -1)
       })).filter(g => g.plantes.length);
       const total = POTAGER_MEDICINALES.reduce((n, g) => n + g.plantes.length, 0);
       return h('div', null,
-        h('div', { style:{ fontSize:12, color:'var(--text3)', marginBottom:10 } }, 'Référentiel de ' + total + ' plantes médicinales & utiles (lecture seule) — nom commun et nom latin, groupés par source.'),
+        h('div', { style:{ fontSize:12, color:'var(--text3)', marginBottom:10, lineHeight:1.5 } },
+          'Référentiel de ' + total + ' plantes médicinales & utiles (lecture seule) — nom commun et nom latin, groupés par source. ' +
+          'Usages traditionnels : ce n\'est ni un diagnostic ni un traitement. Les ⚠ signalent une toxicité ou une interaction documentée.'),
         h('input', { placeholder:'🔎 Chercher (nom, latin, source…)', value:q, onChange:e=>setQ(e.target.value), style:{ background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'8px 12px', fontSize:13, width:'100%', boxSizing:'border-box', marginBottom:14 } }),
         groupes.map(g => h('div', { key:g.famille, style:{ marginBottom:18 } },
           h('div', { style:{ fontSize:13, fontWeight:700, color:'#10b981', marginBottom:8 } }, g.famille + ' · ' + g.plantes.length),
           h('div', { style:{ display:'grid', gap:6 } },
-            g.plantes.map(p => h('div', { key:p.nom, style:{ display:'flex', alignItems:'baseline', gap:8, flexWrap:'wrap', background:'var(--glass)', border:'1px solid var(--border)', borderRadius:10, padding:'8px 12px' } },
-              h('span', { style:{ fontWeight:600, fontSize:13.5, color:'var(--text)' } }, p.nom),
-              h('span', { style:{ fontStyle:'italic', fontSize:12, color:'var(--text3)' } }, p.latin)
+            g.plantes.map(p => h('div', { key:p.nom, style:{ background:'var(--glass)', border:`1px solid ${p.garde ? 'var(--warn)' : 'var(--border)'}`, borderRadius:10, padding:'8px 12px' } },
+              h('div', { style:{ display:'flex', alignItems:'baseline', gap:8, flexWrap:'wrap' } },
+                h('span', { style:{ fontWeight:600, fontSize:13.5, color:'var(--text)' } }, p.nom),
+                h('span', { style:{ fontStyle:'italic', fontSize:12, color:'var(--text3)' } }, p.latin)
+              ),
+              // Une plante « traditionnelle » peut être franchement dangereuse : la
+              // précaution s'affiche avec la plante, jamais dans une note de bas de page.
+              p.garde && h('div', { style:{ display:'flex', gap:6, alignItems:'flex-start', marginTop:6, fontSize:11.5, color:'var(--warn)', lineHeight:1.45 } },
+                h('span', { style:{ flexShrink:0 } }, '⚠'),
+                h('span', null, p.garde)
+              )
             ))
           )
         )),
