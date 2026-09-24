@@ -31,7 +31,11 @@ route Liika, objectifs mensuels, stats, calendrier exportable ICS, plan de repas
    aperçu, capture). Au minimum `node --check app.js` doit passer.
 6. **Garder le style existant** : `React.createElement`, variables CSS du thème, français côté UI.
 7. **Git** : développer sur une branche de travail, jamais de push direct sur la branche par défaut.
-8. **Avant de clôturer un diff conséquent** : option `/review-diff` (relecture indépendante).
+8. **Messages de commit courts** : une ligne de sujet ≤ 72 caractères, puis 3 à 6 lignes de corps
+   au maximum (le pourquoi, pas le détail). Le contexte long, les tableaux et les résultats de
+   tests vont dans la **description de la PR**, pas dans le commit — un message trop long finit
+   tronqué en plein mot quand un outil s'en sert comme titre de PR (cf. PR #99 à #102).
+9. **Avant de clôturer un diff conséquent** : option `/review-diff` (relecture indépendante).
 
 ## 🔁 Boucle d'apprentissage — `lessons.md`
 - **Avant une tâche** : lire `lessons.md` (s'il existe) — pièges connus de CE projet.
