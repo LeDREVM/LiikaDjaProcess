@@ -7501,6 +7501,94 @@ function germGrille(item) {
   return out;
 }
 
+// ─── Boissons & ferments : recette → préparation → conditionnement → conservation ───
+// Les recettes DrevmCook disent quoi mettre dedans ; ici on suit la boisson
+// jusqu'au bocal et jusqu'à la date où il faut la jeter. Le `conditionnement`
+// n'est pas un détail : sur un kombucha, un mauvais contenant explose, et sur
+// l'ail, le mauvais liquide tue.
+const BOISSONS = [
+  {
+    id: 'b-fap', nom: 'Jus de feuilles de fruit à pain', emoji: '🍃', famille: 'Jus & infusions',
+    resume: 'Décoction traditionnelle caribéenne, bue en cure courte.',
+    ingredients: ['3 à 5 feuilles de fruit à pain bien fraîches', '1 L d\'eau', 'Citron vert (optionnel)', 'Gingembre ou menthe (optionnel)'],
+    preparation: [
+      'Laver soigneusement les feuilles à l\'eau claire.',
+      'Porter le litre d\'eau à ébullition, y plonger les feuilles.',
+      'Laisser bouillir 15 à 20 min : le liquide vire au vert foncé.',
+      'Filtrer et laisser refroidir à découvert.',
+      'Boire nature, ou avec un trait de citron vert ou de gingembre.'
+    ],
+    conditionnement: 'Bouteille en verre propre, remplie à ras bord et fermée — moins d\'air, moins d\'oxydation. Éviter le plastique tant que le liquide est chaud.',
+    conservation: '48 h au réfrigérateur, pas plus. À température ambiante, quelques heures seulement. Une odeur aigre ou un dépôt trouble = à jeter.',
+    dose: 'Usage traditionnel : 1 verre de 150 à 250 ml par jour, le matin de préférence.',
+    garde: 'Usage traditionnel des Antilles : les vertus qu\'on lui prête (tension, glycémie, reins) ne sont pas démontrées cliniquement. Si tu es traité pour la tension ou le diabète, parles-en au médecin avant d\'en boire tous les jours — une plante qui agirait vraiment s\'additionnerait au traitement. Par prudence, s\'abstenir pendant la grossesse et l\'allaitement, faute de données.'
+  },
+  {
+    id: 'b-kombucha1', nom: 'Kombucha — 1ʳᵉ fermentation', emoji: '🫖', famille: 'Kombucha',
+    resume: 'Le thé sucré devient kombucha sous l\'action du SCOBY. 7 à 10 jours.',
+    ingredients: ['1 SCOBY', '1 L de thé noir ou vert infusé', '70 à 100 g de sucre', '100 ml de starter (kombucha déjà fermenté)'],
+    preparation: [
+      'Infuser le thé, y dissoudre le sucre tant que c\'est chaud.',
+      'Laisser refroidir complètement — un liquide tiède tue le SCOBY.',
+      'Verser dans le bocal, ajouter le SCOBY et les 100 ml de starter.',
+      'Couvrir d\'un linge tenu par un élastique. Jamais de couvercle fermé.',
+      'Laisser 7 à 10 jours à l\'abri du soleil, puis goûter : sucré au début, vinaigré à la fin.'
+    ],
+    conditionnement: 'Bocal large en verre, ouverture couverte d\'un linge serré — la culture a besoin d\'oxygène et d\'être protégée des mouches. Jamais de métal ni de céramique vernissée : l\'acidité attaque et peut libérer du plomb.',
+    conservation: 'Une fois à ton goût, mettre en bouteille. Garder le SCOBY à part dans 100 ml de son liquide pour la fournée suivante.',
+    dose: 'Commencer par un petit verre : c\'est acide et vivant, l\'estomac s\'habitue.',
+    garde: 'Une pellicule beige, filandreuse ou brune est normale : c\'est le SCOBY qui se forme. Une moisissure sèche, poilue, bleue/verte/noire posée EN SURFACE n\'est pas récupérable : jeter le liquide ET le SCOBY, sans tenter de gratter. Le sucre n\'est pas négociable — c\'est lui que la culture mange, il ne reste presque rien à la fin.'
+  },
+  {
+    id: 'b-kombucha2', nom: 'Kombucha — 2ᵉ fermentation', emoji: '🍾', famille: 'Kombucha',
+    resume: 'Mise en bouteille avec des fruits : c\'est là que les bulles se font.',
+    ingredients: ['Kombucha de 1ʳᵉ fermentation', 'Fruits frais, purée ou jus de fruits (environ 10 % du volume)', 'Gingembre, hibiscus ou épices (optionnel)'],
+    preparation: [
+      'Retirer le SCOBY : il n\'intervient pas dans cette étape.',
+      'Répartir fruits ou jus dans les bouteilles, compléter avec le kombucha.',
+      'Fermer hermétiquement, laisser 2 à 4 jours à température ambiante.',
+      'Ouvrir chaque jour pour laisser sortir le gaz, puis refermer.',
+      'Réfrigérer dès que la gazéification convient : le froid arrête la fermentation.'
+    ],
+    conditionnement: 'Bouteilles en verre épais à bouchon mécanique, conçues pour la pression (type limonade). Remplir en laissant 4 à 5 cm de vide sous le bouchon. Une bouteille de jus recyclée n\'est pas faite pour ça.',
+    conservation: 'Au réfrigérateur une fois pétillante. Se boit dans le mois ; au-delà elle continue lentement d\'acidifier.',
+    dose: 'Ouvrir au-dessus de l\'évier, doucement, bouteille droite.',
+    garde: 'Risque réel d\'explosion : le sucre des fruits relance la production de gaz en vase clos. Dégazer TOUS les jours, et ne jamais oublier une bouteille à température ambiante. En cas de doute, une bouteille froide et une ouverture lente évitent l\'accident.'
+  },
+  {
+    id: 'b-scoby', nom: 'SCOBY — entretenir la culture', emoji: '🧫', famille: 'Kombucha',
+    resume: 'Culture symbiotique de bactéries et de levures : le moteur du kombucha.',
+    ingredients: ['Le SCOBY (biofilm de cellulose, souple et caoutchouteux)', 'Son liquide acide (le starter)', 'Un bocal dédié'],
+    preparation: [
+      'Manipuler avec des mains propres, ou une cuillère en bois — jamais de métal.',
+      'Le SCOBY s\'épaissit à chaque fournée : décoller et retirer les couches du bas quand il devient trop épais.',
+      'Une couche détachée peut lancer un second bocal ou se donner.',
+      'Conditions favorables : 25 à 30 °C, pH entre 4 et 4,5, de l\'oxygène, à l\'abri de la poussière et des mouches.'
+    ],
+    conditionnement: '« Hôtel à SCOBY » : un bocal en verre où il baigne dans du kombucha bien acide, couvert d\'un linge. Il ne doit jamais sécher.',
+    conservation: 'Plusieurs mois au frais dans son liquide, sans rien faire. Jamais au congélateur : le froid extrême détruit la culture.',
+    dose: '—',
+    garde: 'Un SCOBY qui sent le vinaigre franc va bien. Une odeur de moisi, de fromage ou de pourri, ou des taches poilues en surface, signent une contamination : tout jeter et repartir d\'une culture saine.'
+  },
+  {
+    id: 'b-ail', nom: 'Ail lactofermenté (ail confit par fermentation)', emoji: '🧄', famille: 'Ferments',
+    resume: 'Gousses entières en saumure : doux, digeste, et l\'haleine bien plus discrète.',
+    ingredients: ['6 à 8 têtes d\'ail', '15 g de sel de mer', '500 ml d\'eau (soit une saumure à 3 %)', 'Thym, sarriette ou laurier (optionnel)'],
+    preparation: [
+      'Éplucher les gousses en les gardant entières.',
+      'Dissoudre les 15 g de sel dans les 500 ml d\'eau.',
+      'Ranger les gousses dans le bocal avec les herbes.',
+      'Couvrir entièrement d\'eau salée : rien ne doit dépasser.',
+      'Fermer, puis 1 semaine à 20 °C, puis 1 mois à moins de 18 °C.'
+    ],
+    conditionnement: 'Un bocal de 750 g ou plusieurs petits, avec ou sans joint. Le poser sur une petite assiette : la saumure déborde pendant la phase active.',
+    conservation: 'Une fois ouvert, au frais, les gousses toujours immergées. Le brunissement signale un contact avec l\'air : retirer ce qui est abîmé et remettre sous liquide.',
+    dose: 'S\'utilise partout : houmous, dips, pestos, plats cuits, en tout genre.',
+    garde: 'C\'est de l\'ail en SAUMURE, pas de l\'ail dans l\'huile. L\'ail conservé dans l\'huile à température ambiante est une cause classique de botulisme : le sel et l\'acidification de la lactofermentation protègent, l\'huile non. Si tu veux de l\'ail à l\'huile, il se garde au réfrigérateur et se consomme dans la semaine.'
+  }
+];
+const BOISSONS_FAMILLES = ['Jus & infusions', 'Kombucha', 'Ferments'];
+
 function DrevmCookView({
   ferments,
   upsertFerment,
@@ -7545,6 +7633,7 @@ function DrevmCookView({
   const [newReadyAlerts, setNewReadyAlerts] = useState([]);
   const [journalOpenId, setJournalOpenId] = useState(null);
   const [journalDrafts, setJournalDrafts] = useState({});
+  const [boissonOuverte, setBoissonOuverte] = useState(null);
   const alertedReadyRef = useRef(new Set());
   const [fermentForm, setFermentForm] = useState({
     nom: '',
@@ -7899,6 +7988,67 @@ function DrevmCookView({
         );
       })
     )
+    ),
+
+    // ── Boissons : de la recette au bocal, jusqu'à la date de péremption ──
+    h('div', { className: 'lx-card', style: { padding: 16, marginBottom: 20 } },
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 } },
+        h('h3', { style: { margin: 0, fontSize: 16 } }, '🥤 Boissons & ferments'),
+        h('span', { style: { fontFamily: "'Space Mono',monospace", fontSize: 11, color: 'var(--text3)' } }, BOISSONS.length + ' fiches')
+      ),
+      h('p', { style: { margin: '0 0 12px', fontSize: 12, color: 'var(--text3)', fontStyle: 'italic', lineHeight: 1.5 } },
+        'Recette, préparation, conditionnement et conservation — le contenant et la date de péremption comptent autant que la recette.'),
+      BOISSONS_FAMILLES.map(fam => {
+        const liste = BOISSONS.filter(b => b.famille === fam);
+        if (!liste.length) return null;
+        return h('div', { key: fam, style: { marginBottom: 12 } },
+          h('div', { style: { fontSize: 11, fontWeight: 700, color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 } }, fam),
+          h('div', { style: { display: 'grid', gap: 7 } },
+            liste.map(b => {
+              const open = boissonOuverte === b.id;
+              return h('div', { key: b.id, style: { background: 'var(--bg4)', border: `1px solid ${open ? 'var(--gold)' : 'var(--border)'}`, borderRadius: 'var(--radius-sm)', overflow: 'hidden' } },
+                h('button', {
+                  onClick: () => setBoissonOuverte(open ? null : b.id),
+                  style: { width: '100%', display: 'flex', alignItems: 'flex-start', gap: 9, padding: '10px 12px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', color: 'var(--text)' }
+                },
+                  h('span', { style: { fontSize: 16, flexShrink: 0 } }, b.emoji),
+                  h('span', { style: { flex: 1, minWidth: 0 } },
+                    h('span', { style: { display: 'block', fontSize: 13, fontWeight: 700 } }, b.nom),
+                    h('span', { style: { display: 'block', fontSize: 11.5, color: 'var(--text3)', marginTop: 2, lineHeight: 1.4 } }, b.resume)
+                  ),
+                  h('span', { style: { color: 'var(--text3)', fontSize: 11, flexShrink: 0 } }, open ? '▲' : '▼')
+                ),
+                open && h('div', { style: { padding: '0 12px 12px', display: 'grid', gap: 10 } },
+                  h('div', null,
+                    h('div', { style: { fontSize: 10, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text3)', marginBottom: 4 } }, 'Il te faut'),
+                    h('div', { style: { display: 'grid', gap: 3 } },
+                      b.ingredients.map((it, i) => h('div', { key: i, style: { fontSize: 12.5, color: 'var(--text2)', lineHeight: 1.45 } }, '· ' + it))
+                    )
+                  ),
+                  h('div', null,
+                    h('div', { style: { fontSize: 10, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text3)', marginBottom: 4 } }, 'Préparation'),
+                    h('div', { style: { display: 'grid', gap: 4 } },
+                      b.preparation.map((p, i) => h('div', { key: i, style: { display: 'flex', gap: 7, fontSize: 12.5, color: 'var(--text2)', lineHeight: 1.45 } },
+                        h('span', { style: { fontFamily: "'Space Mono',monospace", fontSize: 11, color: 'var(--gold)', flexShrink: 0 } }, (i + 1) + '.'),
+                        h('span', null, p)
+                      ))
+                    )
+                  ),
+                  [['📦 Conditionnement', b.conditionnement], ['🧊 Conservation', b.conservation]].map(([t, v]) =>
+                    h('div', { key: t, style: { background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px' } },
+                      h('div', { style: { fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 3 } }, t),
+                      h('div', { style: { fontSize: 12, color: 'var(--text3)', lineHeight: 1.5 } }, v)
+                    )),
+                  b.dose && b.dose !== '—' && h('div', { style: { display: 'flex', gap: 6, alignItems: 'flex-start', fontSize: 12, color: 'var(--text3)', lineHeight: 1.5 } },
+                    h('span', { style: { flexShrink: 0 } }, '🥄'), h('span', null, b.dose)),
+                  h('div', { style: { display: 'flex', gap: 6, alignItems: 'flex-start', fontSize: 12, color: 'var(--warn)', lineHeight: 1.5, background: 'rgba(245,158,11,.08)', borderRadius: 8, padding: '8px 10px' } },
+                    h('span', { style: { flexShrink: 0 } }, '⚠'), h('span', null, b.garde))
+                )
+              );
+            })
+          )
+        );
+      })
     ),
 
     h('div', { style: { display: 'flex', gap: 8, marginBottom: 20, alignItems: 'center' } },
