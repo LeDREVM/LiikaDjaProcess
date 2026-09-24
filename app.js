@@ -7634,6 +7634,9 @@ function DrevmCookView({
   const [journalOpenId, setJournalOpenId] = useState(null);
   const [journalDrafts, setJournalDrafts] = useState({});
   const [boissonOuverte, setBoissonOuverte] = useState(null);
+  // Sous-onglet affiché. Les recettes en premier : c'est la partie la plus
+  // consultée, et elle était jusqu'ici reléguée sous tout le reste.
+  const [tab, setTab] = useState('recettes');
   const alertedReadyRef = useRef(new Set());
   const [fermentForm, setFermentForm] = useState({
     nom: '',
@@ -7746,6 +7749,19 @@ function DrevmCookView({
     }).length,
     pret: fermentList.filter(f => (fermentMetaById.get(f.id) || {}).status === 'Prêt').length
   }), [fermentList, fermentMetaById]);
+  // Ce qui réclame une action AUJOURD'HUI : bocaux prêts + rinçages de graines
+  // germées pas encore faits sur le créneau en cours. Sert à badger l'onglet
+  // Ferments — un rinçage quotidien ne doit pas disparaître derrière un onglet
+  // fermé (cf. lessons.md L01).
+  const fermentsAFaire = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const slot = germSlotNow();
+    const rincages = fermentList.filter(f =>
+      !f.done && germIsType(f.type) &&
+      germGrille(f).some(g => g.date === today) &&
+      !germFait(f, today, slot)).length;
+    return fermentStats.pret + rincages;
+  }, [fermentList, fermentStats.pret]);
 
   if (selected) {
     const r = allRecipes.find(x => x.id === selected);
@@ -7786,7 +7802,23 @@ function DrevmCookView({
       }, 'OK')))
     ),
 
-    h('div', {
+    // ── Sous-onglets : Recettes / Ferments / Boissons ──
+    h('div', { className: 'scroll-x', style: { display: 'flex', gap: 8, marginBottom: 16 } },
+      [{ id: 'recettes', l: '🍳 Recettes', n: allRecipes.length },
+       { id: 'ferments', l: '🫙 Ferments', n: fermentList.length, alerte: fermentsAFaire },
+       { id: 'boissons', l: '🥤 Boissons', n: BOISSONS.length }].map(t =>
+        h('button', { key: t.id, onClick: () => setTab(t.id), style: {
+          flexShrink: 0, padding: '7px 15px', borderRadius: 20, cursor: 'pointer', fontSize: 12.5, whiteSpace: 'nowrap',
+          border: '1px solid ' + (tab === t.id ? 'var(--gold)' : 'var(--border)'),
+          background: tab === t.id ? 'var(--gold-bg)' : 'transparent',
+          color: tab === t.id ? 'var(--gold)' : 'var(--text3)',
+          fontWeight: tab === t.id ? 700 : 400 } },
+          t.l + (t.n ? ' (' + t.n + ')' : ''),
+          // Un bocal prêt ne doit pas disparaître derrière un onglet fermé.
+          t.alerte ? h('span', { style: { marginLeft: 6, background: 'var(--success)', color: '#06120d', borderRadius: 10, padding: '1px 6px', fontSize: 10, fontWeight: 700 } }, t.alerte) : null))
+    ),
+
+    tab === 'ferments' && h('div', {
       style: {
         background: 'linear-gradient(160deg,var(--bg3),var(--bg2))',
         borderRadius: 'var(--radius)',
@@ -7991,7 +8023,7 @@ function DrevmCookView({
     ),
 
     // ── Boissons : de la recette au bocal, jusqu'à la date de péremption ──
-    h('div', { className: 'lx-card', style: { padding: 16, marginBottom: 20 } },
+    tab === 'boissons' && h('div', { className: 'lx-card', style: { padding: 16, marginBottom: 20 } },
       h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 } },
         h('h3', { style: { margin: 0, fontSize: 16 } }, '🥤 Boissons & ferments'),
         h('span', { style: { fontFamily: "'Space Mono',monospace", fontSize: 11, color: 'var(--text3)' } }, BOISSONS.length + ' fiches')
@@ -8051,6 +8083,8 @@ function DrevmCookView({
       })
     ),
 
+    // ── Onglet Recettes : filtre, ajout, grille ──
+    tab === 'recettes' && h(React.Fragment, null,
     h('div', { style: { display: 'flex', gap: 8, marginBottom: 20, alignItems: 'center' } },
       h('div', { className: 'scroll-x', style: { display: 'flex', gap: 6, flex: 1 } },
         cats.map(c => h('button', {
@@ -8149,6 +8183,7 @@ function DrevmCookView({
         h('div', { style: { fontSize: 11, color: 'var(--text3)', display: 'flex', justifyContent: 'space-between' } }, h('span', null, `${(r.ingredients || []).length} ingrédients`), h('span', { style: { color: 'var(--gold)' } }, r.budget))
         );
       })
+    )
     )
   );
 }
