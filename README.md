@@ -157,10 +157,16 @@ npm run build    # → nutrition/
 
 ## Déploiement
 
-Statique, sur **Netlify** (`netlify.toml` : `publish = "."`, redirection SPA vers
-`/index.html`) et **GitHub Pages**.
+Statique, sur **Netlify** et **GitHub Pages**. Les deux publient le dossier `_site`,
+assemblé au moment du déploiement par `scripts/build-site.js` à partir d'une **liste
+blanche** : `index.html`, `app.js`, `styles.css`, l'image de fond, les pages autonomes,
+`highdrevm/` et la sortie `nutrition/`.
 
-> ⚠️ **Tout fichier à la racine est publié.** Jamais de secret ici. La clé Supabase
+Tout le reste — `.claude/`, `src/`, `scripts/`, `supabase/`, la configuration, le README
+et les notes de travail — reste dans le dépôt sans être servi.
+
+> ⚠️ **Une nouvelle page publique doit être ajoutée à la liste blanche**, sinon elle ne
+> sera pas en ligne. Et toujours : jamais de secret dans le dépôt. La clé Supabase
 > présente dans `app.js` est la clé *publishable* (anon) — jamais de `service_role`.
 
 ---

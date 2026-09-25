@@ -17,7 +17,9 @@ route Liika, objectifs mensuels, stats, calendrier exportable ICS, plan de repas
   Aucun `npm install`, aucun import de module.
 - **Données** : `localStorage` (`dja-liika-goals`) + synchro **Supabase** (`app_state`,
   `user_accounts`, `app_sessions`). `normalize()` garantit la forme — ne pas la casser.
-- **Déploiement statique** : Netlify (`publish="."`) + GitHub Pages. Pas de secret à la racine.
+- **Déploiement statique** : Netlify + GitHub Pages publient `_site`, assemblé par
+  `scripts/build-site.js` à partir d'une **liste blanche**. Un fichier non nommé dans cette
+  liste n'est PAS en ligne — ajouter une page publique, c'est l'ajouter à la liste.
 - **Validation** (à défaut de tests/lint) : `node --check app.js`.
 
 ## 🧭 Protocole de travail — à appliquer CHAQUE session

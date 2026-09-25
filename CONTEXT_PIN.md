@@ -17,9 +17,12 @@
 - **Thème visuel** : variables CSS dans `styles.css` (`--gold` or, `--accent-dja` violet,
   `--accent-liika` rose, `--accent-couple` or, fond vert sombre). Le fond photo doit rester
   fortement voilé pour la lisibilité du contenu.
-- **Déploiement statique** : Netlify (`publish = "."`) + GitHub Pages. TOUT fichier à la racine
-  est publié → ne pas y déposer de secret. Clé Supabase « publishable » OK ; jamais de
-  `service_role` ni de secret en dur.
+- **Déploiement statique** : Netlify + GitHub Pages publient `_site`, assemblé par
+  `scripts/build-site.js` à partir d'une **liste blanche** (index.html, app.js, styles.css,
+  l'image de fond, les pages autonomes, highdrevm, nutrition). Ce qui n'y est pas nommé n'est
+  pas en ligne : `.claude/`, `src/`, `scripts/`, `supabase/`, la config et les notes restent
+  privés. Une nouvelle page publique doit être ajoutée à la liste, sinon elle sera absente.
+  Clé Supabase « publishable » OK ; jamais de `service_role` ni de secret en dur.
 - **Git** : développer sur une branche de travail, JAMAIS de push direct sur la branche par défaut.
 - **Communication** : français, expliquer simplement (pourquoi → quoi → comment), jamais « c'est
   fait » sans preuve réelle (sortie de commande / capture / aperçu).
