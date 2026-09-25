@@ -4,8 +4,11 @@
   # demande aucune compilation. Le script publie le site principal dans tous les
   # cas, et n'échoue que si le site principal lui-même est incomplet.
   command = "node scripts/netlify-build.js"
-  # La racine est publiée telle quelle : le tableau de bord est servi sans build.
-  publish = "."
+  # PAS la racine : elle contiendrait .claude/, claude-config-kit-drevm/, src/,
+  # scripts/, supabase/, la configuration et les notes de travail — tout cela
+  # téléchargeable publiquement. `_site` est assemblé par scripts/build-site.js
+  # à partir d'une liste blanche : ce qui n'y est pas nommé n'est pas publié.
+  publish = "_site"
 
 [[redirects]]
   from = "/nutrition/*"

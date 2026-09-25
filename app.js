@@ -7624,6 +7624,118 @@ BOISSONS.push(
 );
 const BOISSONS_FAMILLES = ['Jus & infusions', 'Kombucha', 'Ginger beer', 'Ferments'];
 
+// ─── Pharmacopée alimentaire — §13 et §16 du document maître DrevmCook ───
+// Le principe : distinguer l'usage alimentaire, l'usage traditionnel et l'usage
+// thérapeutique. Une plante peut soutenir une fonction sans « guérir » quoi que
+// ce soit. Les fiches botaniques détaillées vivent dans Potager → Médicinales ;
+// ici on ne porte QUE le niveau de lecture et le cadre de sécurité.
+const PHARMA_NIVEAUX = [
+  { id: 'vert',  l: 'VERT',  t: 'Aliment courant', d: 'Usage culinaire raisonnable.', c: 'var(--success)' },
+  { id: 'jaune', l: 'JAUNE', t: 'Plante active', d: 'Interactions, contre-indications, ou données humaines limitées.', c: 'var(--warn)' },
+  { id: 'rouge', l: 'ROUGE', t: 'Usage thérapeutique ou toxicité potentielle', d: 'Pas de protocole maison — avis professionnel nécessaire.', c: 'var(--danger)' }
+];
+const PHARMA_GLANDES = [
+  { nom: 'Surrénales', icon: '🫘', plantes: [
+      { n: 'Tulsi', niv: 'jaune', d: 'Polyphénols et composés aromatiques ; infusion traditionnelle.' },
+      { n: 'Maca', niv: 'jaune', d: 'Poudre alimentaire, usage traditionnel de vitalité.' },
+      { n: 'Cordyceps', niv: 'jaune', d: 'Champignon de complément — pas un aliment local courant.' },
+      { n: 'Jujube', niv: 'vert', d: 'Glucides, fibres, vitamine C variable selon le produit.' },
+      { n: 'Graines d\'ortie', niv: 'jaune', d: 'Lipides et protéines ; données nutritionnelles variables.' }
+    ],
+    budget: '8 à 25 € selon les produits importés.',
+    alt: 'Alternative péyi : moringa + gingembre + citron vert — sans prétendre agir spécifiquement sur les surrénales.' },
+  { nom: 'Thymus', icon: '🛡️', plantes: [
+      { n: 'Moringa', niv: 'vert', d: 'Protéines partielles, fer, calcium, caroténoïdes, polyphénols.' },
+      { n: 'Trèfle rouge', niv: 'jaune', d: 'Isoflavones : prudence en contexte hormonal ou sous traitement.' },
+      { n: 'Griffe du chat', niv: 'jaune', d: 'Plante traditionnelle ; interactions possibles.' },
+      { n: 'Pau d\'arco', niv: 'jaune', d: 'Plante traditionnelle ; interactions possibles.' },
+      { n: 'Chaparral', niv: 'rouge', d: 'À ne pas intégrer à un protocole alimentaire maison.' }
+    ],
+    budget: 'Moringa ≈ 2 à 8 € selon feuilles fraîches ou poudre.' },
+  { nom: 'Hypophyse', icon: '🧠', plantes: [
+      { n: 'Bacopa', niv: 'jaune', d: '' },
+      { n: 'Ginkgo biloba', niv: 'jaune', d: '' },
+      { n: 'Shatavari', niv: 'jaune', d: '' },
+      { n: 'Muira puama', niv: 'jaune', d: '' },
+      { n: 'Fo-ti (He Shou Wu)', niv: 'rouge', d: 'Usage interne à ne pas banaliser.' }
+    ],
+    regle: 'Conservées à l\'index ethnobotanique, sans aucune allégation de stimulation ou de régénération de l\'hypophyse.' },
+  { nom: 'Thyroïde', icon: '🦋', plantes: [
+      { n: 'Bladderwrack', niv: 'jaune', d: 'Minéraux, mais teneur en iode très variable.' },
+      { n: 'Irish moss', niv: 'jaune', d: 'Même réserve sur l\'iode.' },
+      { n: 'Mélisse', niv: 'vert', d: 'Polyphénols et huiles essentielles ; infusion.' },
+      { n: 'Bugleweed', niv: 'jaune', d: 'Plante active — pas une tisane quotidienne générique.' },
+      { n: 'Paille d\'avoine', niv: 'jaune', d: 'Vérifier l\'absence de contamination au gluten si nécessaire.' }
+    ],
+    regle: 'Ne pas chercher à corriger une thyroïde par supplémentation sauvage en iode.' },
+  { nom: 'Pinéale', icon: '🌙', plantes: [
+      { n: 'Coriandre', niv: 'vert', d: 'Vitamine K, composés aromatiques, antioxydants.' },
+      { n: 'Armoise', niv: 'jaune', d: '' },
+      { n: 'Skullcap', niv: 'jaune', d: '' },
+      { n: 'Racine de berbéris', niv: 'jaune', d: '' },
+      { n: 'Encens', niv: 'jaune', d: 'Une résine ne se traite pas automatiquement comme un aliment.' }
+    ],
+    regle: 'Association issue de la planche d\'origine — elle ne démontre aucune action spécifique sur la glande pinéale.' },
+  { nom: 'Pancréas & glucose', icon: '🩸', plantes: [
+      { n: 'Melon amer', niv: 'vert', d: 'Fibres, vitamine C, composés amers ; étudié pour le métabolisme glucidique.' },
+      { n: 'Fenugrec', niv: 'vert', d: 'Protéines, fibres solubles, fer, composés aromatiques.' },
+      { n: 'Gymnema sylvestre', niv: 'jaune', d: 'Plante active étudiée pour le métabolisme du glucose.' },
+      { n: 'Feuille de myrtille', niv: 'jaune', d: '' },
+      { n: 'Hydraste', niv: 'rouge', d: 'Pas de protocole maison.' }
+    ],
+    budget: 'Fenugrec ≈ 2 à 5 € · melon amer ≈ 3 à 8 € selon disponibilité locale.' }
+];
+const PHARMA_CADRES = [
+  { id: 'c-senescence', titre: 'Sénescence cellulaire & antioxydants', icon: '🧬',
+    principe: 'Les « cellules zombies » des planches virales sont les cellules sénescentes. DrevmCook ne promet pas de les éliminer avec des aliments.',
+    items: [
+      'Quercétine — oignon, câpres, pommes, thé : flavonoïde antioxydant.',
+      'Fisétine — fraises, pommes, concombre, kaki : étudiée en recherche ; l\'alimentation n\'équivaut pas à un traitement sénolytique.',
+      'Curcuma — curcuminoïdes, à associer au poivre et à une matière grasse.',
+      'Thé vert — EGCG ; la boisson et les extraits concentrés n\'exposent pas de la même façon.',
+      'Moringa, oignon péyi, cacao brut — polyphénols, quercétine, flavanols.'
+    ] },
+  { id: 'c-foie', titre: 'Soutien du foie & de la digestion', icon: '🌿',
+    principe: '« Détox » n\'est employé ici que dans un sens : une alimentation qui soutient les fonctions normales du foie et de l\'intestin.',
+    items: [
+      'Gingembre — gingérols, usage digestif culinaire.',
+      'Curcuma — curcuminoïdes, épice anti-inflammatoire.',
+      'Ail — composés organosulfurés, précurseurs de l\'allicine.',
+      'Crucifères (chou, chou-fleur) — fibres, vitamine C, glucosinolates.',
+      'Lactofermentations — conservation, acidité, diversité alimentaire ; hygiène et immersion obligatoires.'
+    ] },
+  { id: 'c-parasites', titre: 'Parasites — cadre de sécurité', icon: '⚠️',
+    principe: 'À NE PAS REPRODUIRE : la combinaison maison d\'ivermectine, mébendazole, praziquantel, TUDCA et charbon actif. Une parasitose suspectée demande l\'identification du parasite et un traitement adapté.',
+    items: [
+      'Papaye — vitamine C, caroténoïdes, fibres, papaïne.',
+      'Graines de courge — protéines, magnésium, zinc, acides gras insaturés.',
+      'Ail — composés soufrés, condiment traditionnel.',
+      'Gingembre — gingérols, digestion.',
+      'Fermentations maison — légumes lactofermentés, kombucha, kéfir, en bonnes conditions d\'hygiène.'
+    ],
+    fin: 'Ces aliments restent des aliments : ils ne remplacent pas un antiparasitaire.' },
+  { id: 'c-cancer', titre: 'Plantes à ne pas transformer en « remède cancer »', icon: '🚫',
+    principe: 'Aucune plante n\'est présentée ici comme traitement ou prévention garantie du cancer.',
+    items: [
+      'À valoriser comme aliments ou condiments : chou, pourpier, romarin, curcuma, origan, mélisse, sureau.',
+      'Prudence élevée : chaparral, bloodroot, consoude en usage interne, mayapple.',
+      'Une image ou un usage traditionnel ne suffit pas à faire d\'une plante toxique un ingrédient.'
+    ] }
+];
+// §16 — la règle qui produit toutes les fiches ci-dessus.
+const PHARMA_REGLE = [
+  'Nom commun + nom botanique dès qu\'une plante médicinale est citée.',
+  'Partie utilisée : feuille, racine, graine, fruit, écorce…',
+  'Apports nutritifs de chaque ingrédient.',
+  'Composés bioactifs connus, quand ils sont pertinents.',
+  'Usage culinaire ou traditionnel clairement identifié comme tel.',
+  'Niveau VERT / JAUNE / ROUGE.',
+  'Interactions et contre-indications importantes.',
+  'Budget Guadeloupe.',
+  'Alternative locale quand l\'ingrédient est importé.',
+  'Ne jamais écrire qu\'un aliment « guérit » ou « détoxifie » une maladie, ni qu\'il remplace un traitement.'
+];
+
 function DrevmCookView({
   ferments,
   upsertFerment,
@@ -7841,7 +7953,8 @@ function DrevmCookView({
     h('div', { className: 'scroll-x', style: { display: 'flex', gap: 8, marginBottom: 16 } },
       [{ id: 'recettes', l: '🍳 Recettes', n: allRecipes.length },
        { id: 'ferments', l: '🫙 Ferments', n: fermentList.length, alerte: fermentsAFaire },
-       { id: 'boissons', l: '🥤 Boissons', n: BOISSONS.length }].map(t =>
+       { id: 'boissons', l: '🥤 Boissons', n: BOISSONS.length },
+       { id: 'pharma', l: '📖 Pharmacopée' }].map(t =>
         h('button', { key: t.id, onClick: () => setTab(t.id), style: {
           flexShrink: 0, padding: '7px 15px', borderRadius: 20, cursor: 'pointer', fontSize: 12.5, whiteSpace: 'nowrap',
           border: '1px solid ' + (tab === t.id ? 'var(--gold)' : 'var(--border)'),
@@ -8055,6 +8168,78 @@ function DrevmCookView({
         );
       })
     )
+    ),
+
+    // ── Onglet Pharmacopée : §13 et §16 du document maître ──
+    tab === 'pharma' && h('div', null,
+      h('div', { className: 'lx-card', style: { padding: 16, marginBottom: 14 } },
+        h('h3', { style: { margin: '0 0 6px', fontSize: 16 } }, '📖 Pharmacopée alimentaire'),
+        h('p', { style: { margin: '0 0 12px', fontSize: 12.5, color: 'var(--text3)', lineHeight: 1.55, fontStyle: 'italic' } },
+          'Distinguer l\'usage alimentaire, l\'usage traditionnel et l\'usage thérapeutique. Une plante ou un nutriment peut soutenir une fonction du corps sans « guérir » une maladie ni « régénérer » un organe.'),
+        h('div', { style: { display: 'grid', gap: 7 } },
+          PHARMA_NIVEAUX.map(n => h('div', { key: n.id, style: { display: 'flex', gap: 10, alignItems: 'flex-start', background: 'var(--bg2)', border: '1px solid ' + n.c, borderRadius: 8, padding: '8px 11px' } },
+            h('span', { style: { fontFamily: "'Space Mono',monospace", fontSize: 11, fontWeight: 700, color: n.c, flexShrink: 0, minWidth: 48 } }, n.l),
+            h('span', { style: { fontSize: 12, color: 'var(--text2)', lineHeight: 1.45 } },
+              h('strong', { style: { color: 'var(--text)' } }, n.t), ' — ' + n.d)
+          ))
+        )
+      ),
+
+      h('div', { className: 'lx-card', style: { padding: 16, marginBottom: 14 } },
+        h('h3', { style: { margin: '0 0 4px', fontSize: 15 } }, 'Glandes & fonctions'),
+        h('p', { style: { margin: '0 0 12px', fontSize: 11.5, color: 'var(--text3)', lineHeight: 1.5 } },
+          'Les listes proviennent des planches d\'herboristerie qui circulent. Le niveau de lecture, lui, est ajouté ici. Fiches botaniques détaillées : Potager → Médicinales.'),
+        h('div', { style: { display: 'grid', gap: 12 } },
+          PHARMA_GLANDES.map(g => h('div', { key: g.nom, style: { background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px' } },
+            h('div', { style: { display: 'flex', alignItems: 'center', gap: 7, marginBottom: 7 } },
+              h('span', { style: { fontSize: 14 } }, g.icon),
+              h('span', { style: { fontSize: 13, fontWeight: 700, color: 'var(--text)' } }, g.nom)),
+            h('div', { style: { display: 'grid', gap: 4 } },
+              g.plantes.map(p => {
+                const niv = PHARMA_NIVEAUX.find(n => n.id === p.niv) || PHARMA_NIVEAUX[1];
+                return h('div', { key: p.n, style: { display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12, lineHeight: 1.45 } },
+                  h('span', { style: { width: 9, height: 9, borderRadius: '50%', background: niv.c, flexShrink: 0, marginTop: 4 } }),
+                  h('span', null,
+                    h('span', { style: { color: 'var(--text)', fontWeight: 600 } }, p.n),
+                    p.d ? h('span', { style: { color: 'var(--text3)' } }, ' — ' + p.d) : null)
+                );
+              })),
+            g.regle && h('div', { style: { marginTop: 7, fontSize: 11.5, color: 'var(--warn)', lineHeight: 1.45 } }, '⚠ ' + g.regle),
+            g.alt && h('div', { style: { marginTop: 5, fontSize: 11.5, color: 'var(--text3)', lineHeight: 1.45 } }, '🌴 ' + g.alt),
+            g.budget && h('div', { style: { marginTop: 5, fontSize: 11.5, color: 'var(--gold)' } }, '💰 ' + g.budget)
+          ))
+        )
+      ),
+
+      h('div', { style: { display: 'grid', gap: 12, marginBottom: 14 } },
+        PHARMA_CADRES.map(c => h('div', { key: c.id, className: 'lx-card', style: { padding: 16 } },
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 } },
+            h('span', { style: { fontSize: 15 } }, c.icon),
+            h('span', { style: { fontSize: 14, fontWeight: 700, color: 'var(--text)' } }, c.titre)),
+          h('p', { style: { margin: '0 0 9px', fontSize: 12, color: c.id === 'c-parasites' ? 'var(--danger)' : 'var(--text3)', lineHeight: 1.55 } }, c.principe),
+          h('div', { style: { display: 'grid', gap: 4 } },
+            c.items.map((it, i) => h('div', { key: i, style: { display: 'flex', gap: 7, fontSize: 12, color: 'var(--text2)', lineHeight: 1.5 } },
+              h('span', { style: { color: 'var(--text3)', flexShrink: 0 } }, '·'), h('span', null, it)))),
+          c.fin && h('div', { style: { marginTop: 8, fontSize: 12, color: 'var(--warn)', lineHeight: 1.5 } }, '⚠ ' + c.fin)
+        ))
+      ),
+
+      h('div', { className: 'lx-card', style: { padding: 16, marginBottom: 20 } },
+        h('h3', { style: { margin: '0 0 4px', fontSize: 15 } }, '✍️ Règle éditoriale santé'),
+        h('p', { style: { margin: '0 0 10px', fontSize: 11.5, color: 'var(--text3)', lineHeight: 1.5 } },
+          'Ce que doit contenir toute fiche DrevmCook qui touche à une plante ou à un nutriment.'),
+        h('div', { style: { display: 'grid', gap: 5 } },
+          PHARMA_REGLE.map((r, i) => h('div', { key: i, style: { display: 'flex', gap: 9, fontSize: 12.5, color: 'var(--text2)', lineHeight: 1.5 } },
+            h('span', { style: { fontFamily: "'Space Mono',monospace", fontSize: 11, color: 'var(--gold)', flexShrink: 0, minWidth: 18 } }, (i + 1) + '.'),
+            h('span', { style: i === PHARMA_REGLE.length - 1 ? { color: 'var(--warn)' } : null }, r)))),
+        h('p', { style: { margin: '12px 0 0', fontSize: 11.5, color: 'var(--text3)', fontStyle: 'italic', lineHeight: 1.55 } },
+          'DrevmCook transforme la pharmacopée populaire en culture alimentaire documentée : produit péyi, nutrition, tradition, prudence et autonomie.')
+      ),
+
+      h('p', { style: { fontSize: 11.5, color: 'var(--text3)', lineHeight: 1.55, margin: 0 } },
+        'Les nutriments (magnésium, fer, zinc, oméga-3, vitamines B et C) ont leur fiche détaillée dans ',
+        h('strong', { style: { color: 'var(--text2)' } }, 'Suivi médical → Nutriments'),
+        ' — avec les apports de référence et les contre-indications de supplémentation.')
     ),
 
     // ── Boissons : de la recette au bocal, jusqu'à la date de péremption ──
