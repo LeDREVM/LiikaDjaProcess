@@ -7587,7 +7587,42 @@ const BOISSONS = [
     garde: 'C\'est de l\'ail en SAUMURE, pas de l\'ail dans l\'huile. L\'ail conservé dans l\'huile à température ambiante est une cause classique de botulisme : le sel et l\'acidification de la lactofermentation protègent, l\'huile non. Si tu veux de l\'ail à l\'huile, il se garde au réfrigérateur et se consomme dans la semaine.'
   }
 ];
-const BOISSONS_FAMILLES = ['Jus & infusions', 'Kombucha', 'Ferments'];
+BOISSONS.push(
+  {
+    id: 'b-gingerbug', nom: 'Ginger bug — levain de gingembre', emoji: '🫚', famille: 'Ginger beer',
+    resume: 'La culture vivante qui fait pétiller les boissons. 3 à 7 jours.',
+    ingredients: ['20 g de gingembre frais avec sa peau, puis 10 g par jour', '20 g de sucre de canne, puis 10 g par jour', '250 ml d\'eau potable non chlorée'],
+    preparation: [
+      'Jour 1 : mélanger 250 ml d\'eau, 20 g de gingembre finement haché et 20 g de sucre dans un bocal propre d\'au moins 500 ml.',
+      'Couvrir d\'un tissu bien fixé, ou d\'un couvercle simplement posé — jamais fermé.',
+      'Jours 2 à 7 : ajouter chaque jour 10 g de gingembre et 10 g de sucre, remuer avec un ustensile propre.',
+      'C\'est prêt quand ça pétille nettement après avoir remué, que ça sent le gingembre fermenté, et qu\'aucune moisissure n\'apparaît.',
+      'Après prélèvement, compléter avec de l\'eau et renourrir gingembre + sucre pour garder la culture en vie.'
+    ],
+    conditionnement: 'Bocal en verre d\'au moins 500 ml, ouverture couverte d\'un tissu — la culture a besoin de respirer. À l\'abri du soleil direct.',
+    conservation: 'Au réfrigérateur entre deux usages, à réactiver à température ambiante avant de s\'en servir. Nourrir régulièrement, sinon la culture s\'épuise.',
+    dose: '120 ml de ginger bug filtré suffisent pour 1,5 L de ginger beer.',
+    garde: 'En Guadeloupe la chaleur accélère tout : surveiller dès le deuxième jour. Odeur putride, moisissure colorée ou duveteuse, aspect douteux → jeter la culture entière, sans tenter de récupérer. Les bulles seules ne garantissent rien sur le plan sanitaire.'
+  },
+  {
+    id: 'b-gingerbeer', nom: 'Ginger beer péyi au citron vert', emoji: '🍋', famille: 'Ginger beer',
+    resume: 'Boisson gazeuse fermentée, ≈ 1,5 L. 25 min de travail, 1 à 3 jours de fermentation.',
+    ingredients: ['120 g de gingembre frais', '1,5 L d\'eau potable', '100 à 120 g de sucre de canne', '2 citrons verts', '120 ml de ginger bug actif filtré', 'Curcuma frais (15 g) ou menthe — facultatif'],
+    preparation: [
+      'Laver et râper le gingembre. Le faire frémir 5 min dans 500 ml d\'eau, puis infuser 15 à 20 min hors du feu.',
+      'Filtrer si tu veux, dissoudre le sucre, puis compléter avec le reste d\'eau froide.',
+      'Attendre le retour à température ambiante — sinon le ginger bug meurt. Ajouter le jus des citrons verts et les 120 ml de ginger bug.',
+      'Mettre en bouteille en laissant un espace libre sous le bouchon.',
+      'Laisser fermenter à l\'abri du soleil en tâtant souvent la bouteille. Réfrigérer DÈS qu\'elle est ferme — ne pas attendre trois jours par principe.',
+      'Refroidir complètement, ouvrir lentement au-dessus de l\'évier, servir frais.'
+    ],
+    conditionnement: 'Bouteille PET alimentaire prévue pour les boissons gazeuses, propre. Éviter le verre le temps d\'apprendre à sentir la pression : une bouteille en verre surpressurisée éclate.',
+    conservation: 'Au réfrigérateur, quelques jours de préférence. La fermentation et la pression continuent doucement même au froid : ouvrir avec prudence, jeter au moindre doute.',
+    dose: '≈ 17 à 20 g de sucre ajouté par verre de 250 ml avant fermentation ; la teneur finale baisse, sans qu\'on puisse la calculer.',
+    garde: 'Une fermentation spontanée produit de l\'alcool en quantité imprévisible : cette boisson ne peut PAS être présentée comme sans alcool, et ne convient pas si l\'absence totale d\'alcool est requise (grossesse, enfants, traitement, abstinence). Ne jamais laisser une bouteille sous pression au chaud. Pour une version sans alcool ni pression : infusion gingembre-citron refroidie, allongée d\'eau gazeuse du commerce juste avant de servir.'
+  }
+);
+const BOISSONS_FAMILLES = ['Jus & infusions', 'Kombucha', 'Ginger beer', 'Ferments'];
 
 function DrevmCookView({
   ferments,
