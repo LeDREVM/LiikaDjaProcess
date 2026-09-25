@@ -1,0 +1,16264 @@
+const {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo
+} = React;
+function useWindowWidth() {
+  const [w, setW] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 1200);
+  useEffect(() => {
+    const h = () => setW(window.innerWidth);
+    window.addEventListener('resize', h, {
+      passive: true
+    });
+    return () => window.removeEventListener('resize', h);
+  }, []);
+  return w;
+}
+
+// ─── Helpers ───
+const accent = {
+  dja: 'var(--accent-dja)',
+  liika: 'var(--accent-liika)',
+  couple: 'var(--accent-couple)'
+};
+const accentBg = {
+  dja: 'var(--accent-dja-bg)',
+  liika: 'var(--accent-liika-bg)',
+  couple: 'var(--accent-couple-bg)'
+};
+const accentBorder = {
+  dja: 'var(--accent-dja-border)',
+  liika: 'var(--accent-liika-border)',
+  couple: 'var(--accent-couple-border)'
+};
+const clone = o => typeof structuredClone === 'function' ? structuredClone(o) : JSON.parse(JSON.stringify(o));
+const defaultUI = {};
+
+// ─── Yife — version commerciale (copie autonome de l'app du couple) ─────────
+// Ce fichier est une COPIE : il ne partage rien avec l'app privée (autre
+// app.js, autre projet Supabase, autre espace localStorage). Le drapeau historique
+// DEMO reste vrai en permanence : il coupe toutes les tables du couple (recettes,
+// courses, médias, photos cloud…) et garde les identités neutres. Les données de
+// l'utilisateur voyagent dans UN seul blob par espace (table yife_spaces), voir
+// sbLoad/sbSave plus bas et highdrevm/supabase/yife.sql.
+const DEMO = true;
+
+// Stockage local : préfixé par compte (« yife:<id utilisateur>: »), posé par
+// <YifeGate> avant le montage de <App>. Deux comptes sur le même navigateur ne
+// se voient donc jamais.
+const _rawLS = (typeof window !== 'undefined' && window.localStorage) ? window.localStorage : {
+  getItem() { return null; }, setItem() {}, removeItem() {}
+};
+let LS_NS = 'yife:';
+const LS = {
+  getItem: (k) => _rawLS.getItem(LS_NS + k),
+  setItem: (k, v) => _rawLS.setItem(LS_NS + k, v),
+  removeItem: (k) => _rawLS.removeItem(LS_NS + k)
+};
+
+// Libellés de marque / identité. Les vrais prénoms viennent des données
+// (data.dja.name / data.liika.name) ; ces valeurs ne servent que de repli.
+const BRAND       = 'Yife';
+const BRAND_TAG   = 'Ta vie, solo ou à deux';
+const NAME_DJA    = 'Moi';
+const NAME_LIIKA  = 'Partenaire';
+const COUPLE_NAME = 'Nous deux';
+const CALLSIGN    = 'Partenaire';
+
+// ─── Mode de gestion de vie : Couple (2 profils) ou Solo (1 profil) ──────────
+// Dans Yife, le mode est une propriété de l'ESPACE (data.profil.mode), partagée
+// entre les deux partenaires. <App> rafraîchit ces variables module à chaque rendu
+// (avant la création de l'arbre enfant) pour que les vues lisent la bonne valeur.
+let ACTIVE_MODE = 'couple'; // 'couple' | 'solo'
+let ACTIVE_SOLO = 'dja';    // 'dja' | 'liika' (personne active en solo)
+let ACTIVE_NAMES = { dja: NAME_DJA, liika: NAME_LIIKA };
+// Prénom affiché pour une clé de personne ('dja' | 'liika' | 'couple').
+function yName(w){ return w === 'couple' ? COUPLE_NAME : (ACTIVE_NAMES[w] || (w === 'dja' ? NAME_DJA : NAME_LIIKA)); }
+// Suivi médical : la valeur stockée reste 'Dja' / 'Liika' / 'Couple', seul l'affichage suit les prénoms.
+function quiLabel(q){ return q === 'Dja' ? yName('dja') : q === 'Liika' ? yName('liika') : q; }
+// Clés de personnes affichées par les sélecteurs (repas, budget, sport, objectifs…).
+function personKeys(){ return ACTIVE_MODE === 'solo' ? [ACTIVE_SOLO] : ['dja', 'liika', 'couple']; }
+// Vues trop liées à l'app d'origine (métier ou programme perso) : absentes de Yife.
+const YIFE_HIDDEN_VIEWS = ['programdja', 'coderousseau', 'youngboudha'];
+// Catégories visibles : libellés « Pro · <prénom> » calculés avec les vrais
+// prénoms ; en solo, on masque la catégorie « Pro » du partenaire.
+function visibleCategories(){
+  const nom = w => ACTIVE_NAMES[w] || (w === 'dja' ? NAME_DJA : NAME_LIIKA);
+  let cats = CATEGORIES.map(c => {
+    const views = c.views.filter(v => YIFE_HIDDEN_VIEWS.indexOf(v.id) < 0).map(v =>
+      v.id === 'dja' ? { ...v, label: 'Profil ' + nom('dja') } :
+      v.id === 'liika' ? { ...v, label: 'Profil ' + nom('liika') } : v);
+    if (c.id === 'prodja') return { ...c, label: 'Pro · ' + nom('dja'), desc: 'Projets · Entretien · Vision', views };
+    if (c.id === 'prolia') return { ...c, label: 'Pro · ' + nom('liika'), desc: 'Planning · Objectifs · Survie', views };
+    return { ...c, views };
+  });
+  if (ACTIVE_MODE !== 'solo') return cats;
+  const hide = ACTIVE_SOLO === 'dja' ? 'prolia' : 'prodja';
+  return cats.filter(c => c.id !== hide);
+}
+
+// ─── Supabase (projet DÉDIÉ à Yife — jamais celui du couple) ───
+// URL et clé « publishable » viennent de highdrevm/config.js. Sans config, Yife
+// fonctionne en mode local (un seul appareil, pas de compte).
+const YIFE_CFG = (typeof window !== 'undefined' && window.YIFE_CONFIG) || {};
+const SB_READY = !!(YIFE_CFG.supabaseUrl && YIFE_CFG.supabaseKey && typeof supabase !== 'undefined');
+const sb = SB_READY ? supabase.createClient(YIFE_CFG.supabaseUrl, YIFE_CFG.supabaseKey, {
+  auth: { storageKey: 'yife-auth', persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+}) : null;
+// Espace courant et place de l'utilisateur dedans ('dja' = créateur, 'liika' = invité).
+// Posés par <YifeGate> ; null = mode local.
+let YIFE_SPACE_ID = null;
+let YIFE_SLOT = 'dja';
+
+// ID unique de cet appareil (généré une seule fois, persisté en localStorage)
+const DEVICE_ID = (() => {
+  let id = LS.getItem('ld-device-id');
+  if (!id) {
+    id = 'dev_' + Math.random().toString(36).slice(2, 10);
+    LS.setItem('ld-device-id', id);
+  }
+  return id;
+})();
+async function sbLoad() {
+  if (!sb || !YIFE_SPACE_ID) return null;
+  const { data, error } = await sb.from('yife_spaces').select('data').eq('id', YIFE_SPACE_ID).maybeSingle();
+  if (error) throw error;
+  if (!data || !data.data || !Object.keys(data.data).length) return null;
+  return normalize(data.data);
+}
+async function sbSave(d) {
+  if (!sb || !YIFE_SPACE_ID) return;
+  const { error } = await sb.from('yife_spaces')
+    .update({ data: d, updated_at: new Date().toISOString(), device_id: DEVICE_ID })
+    .eq('id', YIFE_SPACE_ID);
+  if (error) throw error;
+}
+
+// ─── Tables dédiées de l'app d'origine (recettes, ferments, rézèv, courses, médias) ───
+// Dans Yife tout vit dans le blob de l'espace : ces fonctions restent (les vues
+// les appellent) mais ne font rien.
+const _yifeNoop = () => Promise.resolve({ data: null, error: null });
+const _yifeNone = () => Promise.resolve([]);
+const sbLoadRecipes = _yifeNone, sbUpsertRecipe = _yifeNoop, sbDeleteRecipe = _yifeNoop;
+const sbLoadFerments = _yifeNone, sbUpsertFerment = _yifeNoop, sbDeleteFerment = _yifeNoop;
+const sbLoadRezev = _yifeNone, sbUpsertRezev = _yifeNoop, sbDeleteRezev = _yifeNoop;
+const sbLoadCourses = _yifeNone, sbUpsertCourse = _yifeNoop, sbDeleteCourse = _yifeNoop, sbDeleteCoursesByIds = _yifeNoop;
+const sbLoadMedia = _yifeNone, sbUpsertMedia = _yifeNoop, sbDeleteMedia = _yifeNoop;
+
+// ─── Data ───
+// Young Boudha : journal 7 jours du chakra de la gorge (Vishuddha). Forme par défaut
+// réutilisée par yifeData, normalize() et le bouton « Nouveau cycle ».
+function ybEmpty() {
+  return {
+    jours: Array.from({ length: 7 }, () => ({
+      etat: '', parole: '', mantra: '', ecriture: '',
+      respiration: false, chant: false, silence: false,
+      rituel: '', affirmation: ''
+    })),
+    integration: ''
+  };
+}
+// ─── Données de départ Yife : TOUT est vide, prêt à être rempli ─────────────
+// Même forme exacte que l'app d'origine (normalize() complète toute clé manquante
+// à partir de defaultData). Aucun exemple, aucune donnée personnelle : les
+// prénoms sont posés à la création de l'espace.
+function yifePerson(color) {
+  return {
+    name: '', role: '', location: '', color,
+    objectives: [], actions: [], notes: [], meals: [],
+    budget: { revenus: [], depenses: [] },
+    vision: '', sport: []
+  };
+}
+const yifeData = {
+  // Profil de l'espace : nom affiché, mode solo/couple, personne active en solo.
+  profil: { espace: '', mode: 'couple', soloWho: 'dja' },
+  dja: { ...yifePerson('dja'), vehicules: [], entretien: [], youngBoudha: ybEmpty(), programme: { done: {} } },
+  liika: { ...yifePerson('liika'), codeRousseau: { eleves: [], fiches: [], notes: '' } },
+  couple: {
+    objectives: [], actions: [], notes: [], meals: [],
+    budget: { revenus: [], depenses: [] },
+    vision: '', sport: [],
+    planning: {},
+    ideeJour: { liste: [], custom: [] },
+    motivations: [], medical: [], soirees: [], voyages: [], paris: [],
+    maison: { checked: {}, custom: [], lastReset: '' },
+    objMensuels: [],
+    survie: {
+      foyer: 2, stocks: [],
+      bob: { dja: [], liika: [], commun: [] },
+      plan: { ralliement: [], contacts: [], protocoles: [] }
+    }
+  },
+  recipes: [], ferments: [], rezev: [], courses: [], media: [],
+  games: {
+    chess: { fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', lastBy: '', result: '' },
+    crossword: { filled: {}, done: false },
+    streak: { count: 0, lastDay: '' },
+    badges: []
+  },
+  album: []
+};
+const defaultData = yifeData;
+
+// Garantit que les données chargées/reçues ont toujours la forme attendue
+// (dja / liika / couple complets). Évite l'écran blanc si Supabase renvoie
+// un état partiel, null ou d'une ancienne version.
+function normalize(d) {
+  if (!d || typeof d !== 'object') return clone(defaultData);
+  const base = clone(defaultData);
+  for (const k of ['dja', 'liika', 'couple']) {
+    base[k] = {
+      ...base[k],
+      ...(d[k] && typeof d[k] === 'object' ? d[k] : {})
+    };
+  }
+  if (d.profil && typeof d.profil === 'object') {
+    const pr = d.profil;
+    base.profil = {
+      espace: typeof pr.espace === 'string' ? pr.espace : '',
+      mode: pr.mode === 'solo' ? 'solo' : 'couple',
+      soloWho: pr.soloWho === 'liika' ? 'liika' : 'dja'
+    };
+  }
+  if (Array.isArray(d.recipes)) base.recipes = d.recipes;
+  if (d.games && typeof d.games === 'object') {
+    base.games = {
+      chess: { ...base.games.chess, ...(d.games.chess || {}) },
+      crossword: { ...base.games.crossword, ...(d.games.crossword || {}) },
+      streak: { ...base.games.streak, ...(d.games.streak || {}) },
+      badges: Array.isArray(d.games.badges) ? d.games.badges : []
+    };
+  }
+  if (Array.isArray(d.ferments)) base.ferments = d.ferments;
+  // Konsèvasyon : entrées {id,n,e,d}. Filtrées ici car une entrée sans id ferait
+  // planter le rendu de la rézèv (kvIdOf/find sur undefined).
+  if (Array.isArray(d.rezev)) base.rezev = d.rezev.filter(r => r && typeof r === 'object' && r.id);
+  if (Array.isArray(d.courses)) base.courses = d.courses;
+  if (Array.isArray(d.media)) base.media = d.media;
+  if (Array.isArray(d.album)) base.album = d.album;
+  if (!Array.isArray(base.dja.entretien)) base.dja.entretien = [];
+  if (!Array.isArray(base.dja.vehicules)) base.dja.vehicules = [];
+  // Amorçage unique des véhicules : les utilisateurs ayant déjà une liste vide
+  // enregistrée (vehicules:[]) ne recevaient jamais la graine par défaut (le spread
+  // de d.dja écrase base.dja.vehicules). On injecte donc les véhicules par défaut une
+  // seule fois ; le drapeau évite de les réinjecter si l'utilisateur les supprime.
+  if (!base.dja.vehiculesSeeded && base.dja.vehicules.length === 0 &&
+      Array.isArray(defaultData.dja.vehicules) && defaultData.dja.vehicules.length > 0) {
+    base.dja.vehicules = clone(defaultData.dja.vehicules);
+    // Amorce aussi le carnet d'entretien s'il est vide (même mécanique d'écrasement).
+    if (base.dja.entretien.length === 0 && Array.isArray(defaultData.dja.entretien)) {
+      base.dja.entretien = clone(defaultData.dja.entretien);
+    }
+  }
+  base.dja.vehiculesSeeded = true;
+  if (!Array.isArray(base.couple.motivations)) base.couple.motivations = [];
+  if (!Array.isArray(base.couple.medical)) base.couple.medical = [];
+  if (!Array.isArray(base.couple.soirees)) base.couple.soirees = [];
+  // Emploi du temps : objet indexé par jour (0 = lundi → 6 = dimanche). La vue et
+  // l'export .ics le parcourent ; un tableau ou un null venu d'une vieille sauvegarde
+  // les ferait planter. Depuis que les journées sont modifiables, leurs créneaux
+  // vivent ici (`items`) : on assainit donc chaque créneau, et on ne garde que les
+  // journées réellement existantes.
+  {
+    const src = planObjet(base.couple.planning) || {};
+    const plan = {};
+    for (let day = 0; day <= 6; day++) {
+      const d = planObjet(src[day]);
+      if (!d) continue;
+      const jour = {};
+      const ch = planObjet(d.checked);
+      if (ch) {
+        const coches = {};
+        for (const k of Object.keys(ch)) if (ch[k] === true) coches[k] = true;
+        if (Object.keys(coches).length) jour.checked = coches;
+      }
+      const nettoie = liste => liste
+        .filter(planItemValide)
+        .map(it => ({
+          id: String(it.id),
+          time: planIcsTime(it.time) ? String(it.time).trim() : '09:00',
+          cat: PLAN_CATEGORIES[it.cat] ? it.cat : 'repos',
+          title: String(it.title).trim(),
+          detail: it.detail == null ? '' : String(it.detail),
+          who: PLAN_WHO[it.who] ? it.who : 'both'
+        }));
+      // `items` présent = journée reprise en main, même vide (on ne la fait pas
+      // « repousser » depuis le modèle à la prochaine synchro).
+      if (Array.isArray(d.items)) jour.items = nettoie(d.items);
+      else if (Array.isArray(d.custom) && d.custom.length) jour.custom = nettoie(d.custom);
+      if (Object.keys(jour).length) plan[day] = jour;
+    }
+    base.couple.planning = plan;
+  }
+  // Voyages : chaque voyage porte sa propre checklist de préparation dans `checked`
+  // ({idEtape: true}). On ne garde que les entrées identifiables et les cases
+  // réellement cochées, sinon le rendu de la checklist part en vrille.
+  base.couple.voyages = (Array.isArray(base.couple.voyages) ? base.couple.voyages : [])
+    .filter(v => v && typeof v === 'object' && v.id)
+    .map(v => {
+      const src = (v.checked && typeof v.checked === 'object' && !Array.isArray(v.checked)) ? v.checked : {};
+      const checked = {};
+      for (const k of Object.keys(src)) if (src[k] === true) checked[k] = true;
+      return { ...v, id: String(v.id), checked, dateDepart: voyIsoValide(v.dateDepart), dateRetour: voyIsoValide(v.dateRetour) };
+    });
+  // Agenda Paris : entrées datées. La date est assainie comme celles des voyages,
+  // et le statut ramené à une valeur connue — le rendu s'appuie dessus pour la
+  // couleur du badge et planterait sur une valeur inattendue.
+  base.couple.paris = (Array.isArray(base.couple.paris) ? base.couple.paris : [])
+    .filter(e => e && typeof e === 'object' && e.id)
+    .map(e => ({
+      ...e, id: String(e.id),
+      date: voyIsoValide(e.date),
+      type: PARIS_TYPES.indexOf(e.type) >= 0 ? e.type : 'Autre',
+      adresse: typeof e.adresse === 'string' ? e.adresse : '',
+      tel: typeof e.tel === 'string' ? e.tel : '',
+      statut: PARIS_STATUTS.indexOf(e.statut) >= 0 ? e.statut : 'Envie'
+    }));
+  if (!Array.isArray(base.couple.potager)) base.couple.potager = [];
+  if (!Array.isArray(base.couple.semansye)) base.couple.semansye = [];
+  if (!base.liika.codeRousseau || typeof base.liika.codeRousseau !== 'object') base.liika.codeRousseau = clone(defaultData.liika.codeRousseau);
+  if (!Array.isArray(base.liika.codeRousseau.eleves)) base.liika.codeRousseau.eleves = [];
+  if (!Array.isArray(base.liika.codeRousseau.fiches)) base.liika.codeRousseau.fiches = [];
+  if (typeof base.liika.codeRousseau.notes !== 'string') base.liika.codeRousseau.notes = '';
+  // Young Boudha : garantir la forme (7 jours + integration) après le spread de dja,
+  // qui a pu remplacer youngBoudha par une version distante partielle.
+  {
+    const yd = (base.dja.youngBoudha && typeof base.dja.youngBoudha === 'object') ? base.dja.youngBoudha : {};
+    const jin = Array.isArray(yd.jours) ? yd.jours : [];
+    base.dja.youngBoudha = {
+      jours: Array.from({ length: 7 }, (_, i) => {
+        const j = (jin[i] && typeof jin[i] === 'object') ? jin[i] : {};
+        return {
+          etat: typeof j.etat === 'string' ? j.etat : '',
+          parole: typeof j.parole === 'string' ? j.parole : '',
+          mantra: typeof j.mantra === 'string' ? j.mantra : '',
+          ecriture: typeof j.ecriture === 'string' ? j.ecriture : '',
+          respiration: !!j.respiration,
+          chant: !!j.chant,
+          silence: !!j.silence,
+          rituel: typeof j.rituel === 'string' ? j.rituel : '',
+          affirmation: typeof j.affirmation === 'string' ? j.affirmation : ''
+        };
+      }),
+      integration: typeof yd.integration === 'string' ? yd.integration : ''
+    };
+  }
+  // Program Dja : carte {clé exercice → booléen}. Même raison que Young Boudha —
+  // le spread de dja a pu remplacer programme par une version partielle. On ne
+  // garde que les valeurs booléennes pour que le rendu des cases reste sain.
+  {
+    const pd = (base.dja.programme && typeof base.dja.programme === 'object') ? base.dja.programme : {};
+    const din = (pd.done && typeof pd.done === 'object' && !Array.isArray(pd.done)) ? pd.done : {};
+    const dout = {};
+    for (const k of Object.keys(din)) if (din[k] === true) dout[k] = true;
+    base.dja.programme = { done: dout };
+  }
+  // Survie : garantir la forme (le spread couple ci-dessus a pu remplacer survie par une version partielle)
+  {
+    const sd = (d.couple && typeof d.couple.survie === 'object' && d.couple.survie) ? d.couple.survie : {};
+    const sb = base.couple.survie || {};
+    const bobIn = sd.bob && typeof sd.bob === 'object' ? sd.bob : {};
+    const planIn = sd.plan && typeof sd.plan === 'object' ? sd.plan : {};
+    base.couple.survie = {
+      foyer: Number(sd.foyer) > 0 ? Number(sd.foyer) : (sb.foyer || 2),
+      stocks: Array.isArray(sd.stocks) ? sd.stocks : (sb.stocks || []),
+      bob: {
+        dja: Array.isArray(bobIn.dja) ? bobIn.dja : ((sb.bob && sb.bob.dja) || []),
+        liika: Array.isArray(bobIn.liika) ? bobIn.liika : ((sb.bob && sb.bob.liika) || []),
+        commun: Array.isArray(bobIn.commun) ? bobIn.commun : ((sb.bob && sb.bob.commun) || [])
+      },
+      plan: {
+        ralliement: Array.isArray(planIn.ralliement) ? planIn.ralliement : ((sb.plan && sb.plan.ralliement) || []),
+        contacts: Array.isArray(planIn.contacts) ? planIn.contacts : ((sb.plan && sb.plan.contacts) || []),
+        protocoles: Array.isArray(planIn.protocoles) ? planIn.protocoles : ((sb.plan && sb.plan.protocoles) || [])
+      }
+    };
+  }
+  // Métadonnées de synchro : horodatages par section + date globale
+  if (d._t && typeof d._t === 'object') base._t = d._t;
+  if (typeof d.updatedAt === 'string') base.updatedAt = d.updatedAt;
+  return base;
+}
+
+// ─── Synchro multi-appareils : fusion par section (le plus récent gagne) ───
+// Au lieu d'écraser tout le blob JSON, chaque section éditable porte un
+// horodatage dans data._t["chemin.section"]. À la fusion (chargement initial
+// ou réception temps réel), on garde pour CHAQUE section la version la plus
+// récemment modifiée → les éditions simultanées (l'un sur les repas, l'autre sur
+// le sport…) ne s'effacent plus.
+const SYNC_TOP = ['dja', 'liika', 'couple'];
+// Dans Yife, TOUT vit dans le blob de l'espace (pas de tables dédiées) : chaque
+// clé de premier niveau doit donc être suivie ici, sinon la fusion multi-appareils
+// l'ignore et la version d'un appareil écrase celle de l'autre.
+const SYNC_FLAT = ['games', 'album', 'profil', 'recipes', 'ferments', 'rezev', 'courses', 'media'];
+function syncPaths(a, b) {
+  const set = new Set();
+  for (const top of SYNC_TOP) {
+    for (const k of Object.keys({ ...((a && a[top]) || {}), ...((b && b[top]) || {}) })) set.add(top + '.' + k);
+  }
+  for (const k of SYNC_FLAT) set.add(k);
+  return set;
+}
+function getPath(obj, path) {
+  const i = path.indexOf('.');
+  if (i < 0) return obj ? obj[path] : undefined;
+  const a = path.slice(0, i), b = path.slice(i + 1);
+  return obj && obj[a] ? obj[a][b] : undefined;
+}
+function setPath(obj, path, val) {
+  const i = path.indexOf('.');
+  if (i < 0) { obj[path] = val; return; }
+  const a = path.slice(0, i), b = path.slice(i + 1);
+  if (!obj[a] || typeof obj[a] !== 'object') obj[a] = {};
+  obj[a][b] = val;
+}
+// Horodate les sections qui ont changé entre prev et next ; met à jour updatedAt.
+function stampChanges(prev, next) {
+  if (!next || next === prev) return next;
+  const now = new Date().toISOString();
+  const t = { ...((prev && prev._t) || {}), ...(next._t || {}) };
+  let changed = false;
+  for (const p of syncPaths(prev, next)) {
+    if (JSON.stringify(getPath(prev, p)) !== JSON.stringify(getPath(next, p))) {
+      t[p] = now;
+      changed = true;
+    }
+  }
+  next._t = t;
+  if (changed) next.updatedAt = now;
+  else if (!next.updatedAt) next.updatedAt = (prev && prev.updatedAt) || now;
+  return next;
+}
+// Fusionne deux états : pour chaque section, garde la plus récemment modifiée.
+function mergeStates(local, remote) {
+  if (!remote) return local;
+  if (!local) return remote;
+  const out = clone(local);
+  const lt = local._t || {}, rt = remote._t || {};
+  out._t = { ...lt };
+  for (const p of syncPaths(local, remote)) {
+    const lts = Date.parse(lt[p] || '') || 0;
+    const rts = Date.parse(rt[p] || '') || 0;
+    if (rts > lts) {
+      setPath(out, p, clone(getPath(remote, p)));
+      out._t[p] = rt[p];
+    }
+  }
+  const lu = Date.parse(local.updatedAt || '') || 0;
+  const ru = Date.parse(remote.updatedAt || '') || 0;
+  out.updatedAt = ru > lu ? remote.updatedAt : local.updatedAt;
+  return out;
+}
+function loadData() {
+  try {
+    const d = LS.getItem('dja-liika-goals');
+    return normalize(d ? JSON.parse(d) : defaultData);
+  } catch (e) {
+    return clone(defaultData);
+  }
+}
+function saveData(d) {
+  LS.setItem('dja-liika-goals', JSON.stringify(d));
+}
+function loadUI() {
+  try {
+    const u = LS.getItem('dja-liika-ui');
+    return u ? {
+      ...defaultUI,
+      ...JSON.parse(u)
+    } : defaultUI;
+  } catch (e) {
+    return defaultUI;
+  }
+}
+function saveUI(u) {
+  LS.setItem('dja-liika-ui', JSON.stringify(u));
+}
+
+// ─── Components ───
+
+function ProgressRing({
+  pct,
+  size = 48,
+  stroke = 4,
+  color
+}) {
+  const r = (size - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  const off = circ - pct / 100 * circ;
+  return /*#__PURE__*/React.createElement("svg", {
+    width: size,
+    height: size,
+    style: {
+      transform: 'rotate(-90deg)'
+    }
+  }, /*#__PURE__*/React.createElement("circle", {
+    cx: size / 2,
+    cy: size / 2,
+    r: r,
+    fill: "none",
+    stroke: "var(--border2)",
+    strokeWidth: stroke
+  }), /*#__PURE__*/React.createElement("circle", {
+    cx: size / 2,
+    cy: size / 2,
+    r: r,
+    fill: "none",
+    stroke: color,
+    strokeWidth: stroke,
+    strokeDasharray: circ,
+    strokeDashoffset: off,
+    strokeLinecap: "round",
+    style: {
+      transition: 'stroke-dashoffset .5s ease'
+    }
+  }));
+}
+function StatCard({
+  label,
+  value,
+  color,
+  icon
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: 'linear-gradient(160deg,var(--bg3),var(--bg2))',
+      borderRadius: 'var(--radius)',
+      padding: '16px 20px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 14,
+      border: '1px solid var(--border)',
+      boxShadow: 'var(--shadow)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 42,
+      height: 42,
+      borderRadius: 12,
+      background: accentBg[color],
+      border: `1px solid ${accentBorder[color]}`,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontSize: 18
+    }
+  }, icon), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: 'var(--text3)',
+      marginBottom: 3,
+      letterSpacing: '.05em'
+    }
+  }, label), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 22,
+      fontWeight: 600,
+      color: 'var(--text)'
+    }
+  }, value)));
+}
+
+function ObjectiveCard({obj,color,onToggle,onProgress,onDelete}){
+  const h = React.createElement;
+  const av = accent[color];
+  const bv = accentBg[color];
+  const accentVar = av;
+  const bgVar = bv;
+  return h('div', {
+    style: {
+      background: 'var(--bg3)',
+      borderRadius: 'var(--radius)',
+      padding: '16px 20px',
+      borderLeft: `3px solid ${obj.done ? 'var(--success)' : av}`,
+      animation: 'fadeUp .4s ease both',
+      opacity: obj.done ? 0.6 : 1,
+      transition: 'opacity .3s'
+    }
+  }, h('div', {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      gap: 12
+    }
+  }, h('div', {
+    style: {
+      flex: 1
+    }
+  }, h('div', {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 8,
+      marginBottom: 6
+    }
+  }, h('span', {
+    style: {
+      fontSize: 11,
+      padding: '2px 8px',
+      borderRadius: 20,
+      background: bgVar,
+      color: accentVar,
+      fontWeight: 500
+    }
+  }, obj.cat), obj.done ? h('span', {
+    style: {
+      fontSize: 11,
+      padding: '2px 8px',
+      borderRadius: 20,
+      background: 'var(--success-bg)',
+      color: 'var(--success)',
+      fontWeight: 500
+    }
+  }, 'Fait') : null), h('div', {
+    style: {
+      fontSize: 15,
+      fontWeight: 500,
+      marginBottom: 4,
+      textDecoration: obj.done ? 'line-through' : 'none'
+    }
+  }, obj.title), h('div', {
+    style: {
+      fontSize: 13,
+      color: 'var(--text3)'
+    }
+  }, obj.desc)), h('div', {
+    style: {
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      gap: 4
+    }
+  }, h(ProgressRing, {
+    pct: obj.progress,
+    color: obj.done ? 'var(--success)' : accentVar
+  }), h('span', {
+    style: {
+      fontSize: 11,
+      fontWeight: 500,
+      color: obj.done ? 'var(--success)' : accentVar
+    }
+  }, obj.progress + '%'))), h('div', {
+    style: {
+      marginTop: 12,
+      display: 'flex',
+      alignItems: 'center',
+      gap: 8
+    }
+  }, h('input', {
+    type: 'range',
+    min: '0',
+    max: '100',
+    step: '5',
+    value: obj.progress,
+    onChange: e => onProgress(obj.id, parseInt(e.target.value, 10)),
+    style: {
+      flex: 1,
+      height: 4,
+      accentColor: accentVar,
+      cursor: 'pointer'
+    }
+  }), h('button', {
+    onClick: () => onToggle(obj.id),
+    style: {
+      background: obj.done ? 'var(--success-bg)' : 'var(--bg4)',
+      border: 'none',
+      borderRadius: 'var(--radius-xs)',
+      padding: '6px 12px',
+      fontSize: 12,
+      color: obj.done ? 'var(--success)' : 'var(--text2)',
+      cursor: 'pointer',
+      whiteSpace: 'nowrap'
+    }
+  }, obj.done ? 'Réactiver' : 'Valider'), h('button', {
+    onClick: () => onDelete(obj.id),
+    'aria-label': 'Supprimer',
+    style: {
+      background: 'none',
+      border: 'none',
+      fontSize: 14,
+      color: 'var(--text3)',
+      cursor: 'pointer',
+      padding: '6px'
+    }
+  }, '✕')));
+}
+function ActionItem({
+  action,
+  color,
+  onToggle
+}) {
+  const av = accent[color];
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 12,
+      padding: '12px 16px',
+      background: 'linear-gradient(160deg,var(--bg3),var(--bg2))',
+      borderRadius: 'var(--radius-sm)',
+      border: '1px solid var(--border)',
+      cursor: 'pointer',
+      transition: 'all .15s',
+      animation: 'slideIn .3s ease both'
+    },
+    onClick: () => onToggle(action.id)
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 20,
+      height: 20,
+      minWidth: 20,
+      borderRadius: 6,
+      border: action.done ? 'none' : `2px solid var(--border2)`,
+      background: action.done ? 'var(--success)' : 'transparent',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      transition: 'all .2s'
+    }
+  }, action.done && /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: 'var(--bg)',
+      fontSize: 12,
+      fontWeight: 700
+    }
+  }, "\u2713")), /*#__PURE__*/React.createElement("span", {
+    style: {
+      flex: 1,
+      fontSize: 14,
+      color: action.done ? 'var(--text3)' : 'var(--text)',
+      textDecoration: action.done ? 'line-through' : 'none',
+      transition: 'all .2s'
+    }
+  }, action.text), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 10,
+      padding: '2px 8px',
+      borderRadius: 20,
+      background: accentBg[color],
+      color: av,
+      fontWeight: 500
+    }
+  }, action.cat));
+}
+function NotesPanel({
+  who,
+  notes,
+  onAdd,
+  onDelete
+}) {
+  const [draft, setDraft] = useState('');
+  const av = accent[who];
+  const bv = accentBorder[who];
+  const fmt = iso => {
+    const d = new Date(iso);
+    return d.toLocaleDateString('fr-FR', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    }) + ' ' + d.toLocaleTimeString('fr-FR', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+  const submit = () => {
+    if (draft.trim()) {
+      onAdd(who, draft);
+      setDraft('');
+    }
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 32
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "gold-rule",
+    style: {
+      marginBottom: 20
+    }
+  }), /*#__PURE__*/React.createElement("h3", {
+    style: {
+      fontFamily: "'Cormorant Garamond',serif",
+      fontSize: 18,
+      fontWeight: 600,
+      marginBottom: 14,
+      color: 'var(--gold2)',
+      letterSpacing: '.02em'
+    }
+  }, "Notes"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 8,
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement("textarea", {
+    value: draft,
+    onChange: e => setDraft(e.target.value),
+    onKeyDown: e => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submit();
+    },
+    placeholder: "Nouvelle note\u2026 (Ctrl+Entr\xE9e pour valider)",
+    rows: 3,
+    style: {
+      flex: 1,
+      background: 'var(--bg3)',
+      border: `1px solid ${bv}`,
+      borderRadius: 'var(--radius-sm)',
+      padding: '10px 12px',
+      color: 'var(--text)',
+      fontSize: 13,
+      resize: 'vertical',
+      outline: 'none',
+      fontFamily: 'inherit',
+      lineHeight: 1.6
+    }
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: submit,
+    style: {
+      alignSelf: 'flex-end',
+      padding: '8px 14px',
+      borderRadius: 'var(--radius-sm)',
+      border: 'none',
+      background: `linear-gradient(135deg,${av},${av}cc)`,
+      color: '#06120d',
+      cursor: 'pointer',
+      fontSize: 12,
+      fontWeight: 700,
+      whiteSpace: 'nowrap',
+      letterSpacing: '.04em'
+    }
+  }, "+ Ajouter")), !(notes || []).length && /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 13,
+      color: 'var(--text3)',
+      textAlign: 'center',
+      padding: '20px 0',
+      fontStyle: 'italic'
+    }
+  }, "Aucune note pour l'instant."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 10
+    }
+  }, (notes || []).map(n => /*#__PURE__*/React.createElement("div", {
+    key: n.id,
+    style: {
+      background: 'linear-gradient(160deg,var(--bg3),var(--bg2))',
+      border: `1px solid var(--border)`,
+      borderLeft: `2px solid ${bv}`,
+      borderRadius: 'var(--radius-sm)',
+      padding: '12px 14px',
+      boxShadow: 'var(--shadow)'
+    }
+  }, /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 13,
+      color: 'var(--text)',
+      lineHeight: 1.65,
+      whiteSpace: 'pre-wrap',
+      marginBottom: 7
+    }
+  }, n.text), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 10,
+      color: 'var(--text3)',
+      fontFamily: "'Space Mono',monospace"
+    }
+  }, fmt(n.date)), /*#__PURE__*/React.createElement("button", {
+    onClick: () => onDelete(who, n.id),
+    "aria-label": "Supprimer la note",
+    style: {
+      background: 'none',
+      border: 'none',
+      color: 'var(--text3)',
+      cursor: 'pointer',
+      fontSize: 16,
+      lineHeight: 1,
+      padding: '0 2px'
+    }
+  }, "\xD7"))))));
+}
+function AddModal({
+  show,
+  onClose,
+  onAdd,
+  type,
+  color
+}) {
+  const [title, setTitle] = useState('');
+  const [desc, setDesc] = useState('');
+  const [cat, setCat] = useState('Carriere');
+  if (!show) return null;
+  const av = accent[color] || accent.dja;
+  const cats = color === 'couple' ? ['Couple'] : ['Carriere', 'Sante', 'Finances', 'Perso'];
+  const sm = typeof window !== 'undefined' && window.innerWidth <= 600;
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(0,0,0,.75)',
+      backdropFilter: 'blur(4px)',
+      display: 'flex',
+      alignItems: sm ? 'flex-end' : 'center',
+      justifyContent: 'center',
+      zIndex: 200,
+      padding: sm ? 0 : 20
+    },
+    onClick: onClose
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: 'linear-gradient(160deg,var(--bg3),var(--bg2))',
+      borderRadius: sm ? '20px 20px 0 0' : 'var(--radius)',
+      padding: sm ? '24px 20px 32px' : 28,
+      maxWidth: 440,
+      width: '100%',
+      border: '1px solid var(--gold-border)',
+      boxShadow: '0 -8px 40px rgba(0,0,0,.6)'
+    },
+    onClick: e => e.stopPropagation()
+  }, /*#__PURE__*/React.createElement("h3", {
+    style: {
+      fontFamily: "'Cormorant Garamond',serif",
+      fontSize: 20,
+      fontWeight: 600,
+      marginBottom: 4,
+      color: 'var(--gold2)'
+    }
+  }, type === 'objective' ? 'Nouvel objectif' : 'Nouvelle action'), /*#__PURE__*/React.createElement("div", {
+    className: "gold-rule",
+    style: {
+      marginBottom: 18
+    }
+  }), /*#__PURE__*/React.createElement("input", {
+    placeholder: type === 'objective' ? 'Titre de l\'objectif' : 'Action a realiser',
+    value: title,
+    onChange: e => setTitle(e.target.value),
+    style: {
+      width: '100%',
+      padding: '10px 14px',
+      borderRadius: 'var(--radius-sm)',
+      border: '1px solid var(--border2)',
+      background: 'var(--bg4)',
+      color: 'var(--text)',
+      fontSize: 14,
+      marginBottom: 12,
+      outline: 'none'
+    }
+  }), type === 'objective' && /*#__PURE__*/React.createElement("input", {
+    placeholder: "Description",
+    value: desc,
+    onChange: e => setDesc(e.target.value),
+    style: {
+      width: '100%',
+      padding: '10px 14px',
+      borderRadius: 'var(--radius-sm)',
+      border: '1px solid var(--border2)',
+      background: 'var(--bg4)',
+      color: 'var(--text)',
+      fontSize: 14,
+      marginBottom: 12,
+      outline: 'none'
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 8,
+      marginBottom: 20,
+      flexWrap: 'wrap'
+    }
+  }, cats.map(c => /*#__PURE__*/React.createElement("button", {
+    key: c,
+    onClick: () => setCat(c),
+    style: {
+      padding: '6px 14px',
+      borderRadius: 20,
+      border: cat === c ? `1px solid ${av}` : '1px solid var(--border)',
+      background: cat === c ? 'rgba(0,0,0,.2)' : 'transparent',
+      color: cat === c ? av : 'var(--text3)',
+      fontSize: 12,
+      cursor: 'pointer',
+      transition: 'all .15s'
+    }
+  }, c))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 10,
+      justifyContent: 'flex-end'
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: onClose,
+    style: {
+      padding: '10px 20px',
+      borderRadius: 'var(--radius-sm)',
+      border: '1px solid var(--border2)',
+      background: 'transparent',
+      color: 'var(--text2)',
+      cursor: 'pointer',
+      fontSize: 13
+    }
+  }, "Annuler"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      if (title.trim()) {
+        onAdd(title, desc, cat);
+        setTitle('');
+        setDesc('');
+        onClose();
+      }
+    },
+    style: {
+      padding: '10px 20px',
+      borderRadius: 'var(--radius-sm)',
+      border: 'none',
+      background: `linear-gradient(135deg,var(--gold),var(--gold2))`,
+      color: '#06120d',
+      cursor: 'pointer',
+      fontSize: 13,
+      fontWeight: 700,
+      letterSpacing: '.04em'
+    }
+  }, "Ajouter"))));
+}
+function ChartPanel({
+  data
+}) {
+  const canvasRef = useRef(null);
+  const chartRef = useRef(null);
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    if (chartRef.current) chartRef.current.destroy();
+    const all = [...data.dja.objectives, ...data.liika.objectives, ...data.couple.objectives];
+    const cats = [...new Set(all.map(o => o.cat))];
+    const avgByCat = cats.map(c => {
+      const items = all.filter(o => o.cat === c);
+      return Math.round(items.reduce((s, i) => s + i.progress, 0) / items.length);
+    });
+    chartRef.current = new Chart(canvasRef.current, {
+      type: 'bar',
+      data: {
+        labels: cats,
+        datasets: [{
+          data: avgByCat,
+          backgroundColor: ['#8b5cf6', '#34d399', '#fbbf24', '#f472b6', '#60a5fa'],
+          borderRadius: 8,
+          barPercentage: .6
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: false
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            max: 100,
+            grid: {
+              color: 'rgba(255,255,255,.04)'
+            },
+            ticks: {
+              color: '#6e6a80',
+              font: {
+                family: 'Outfit'
+              }
+            }
+          },
+          x: {
+            grid: {
+              display: false
+            },
+            ticks: {
+              color: '#a8a4b8',
+              font: {
+                family: 'Outfit',
+                weight: 500
+              }
+            }
+          }
+        }
+      }
+    });
+    return () => {
+      if (chartRef.current) chartRef.current.destroy();
+    };
+  }, [data]);
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'relative',
+      height: 260
+    }
+  }, /*#__PURE__*/React.createElement("canvas", {
+    ref: canvasRef
+  }));
+}
+function DoughnutPanel({
+  data,
+  who
+}) {
+  const canvasRef = useRef(null);
+  const chartRef = useRef(null);
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    if (chartRef.current) chartRef.current.destroy();
+    const src = who === 'couple' ? data.couple.objectives : data[who].objectives;
+    const done = src.filter(o => o.done).length;
+    const inProgress = src.filter(o => !o.done && o.progress > 0).length;
+    const notStarted = src.filter(o => !o.done && o.progress === 0).length;
+    chartRef.current = new Chart(canvasRef.current, {
+      type: 'doughnut',
+      data: {
+        labels: ['Termines', 'En cours', 'A faire'],
+        datasets: [{
+          data: [done, inProgress, notStarted],
+          backgroundColor: ['#34d399', '#8b5cf6', '#2a2a3a'],
+          borderWidth: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '70%',
+        plugins: {
+          legend: {
+            display: false
+          }
+        }
+      }
+    });
+    return () => {
+      if (chartRef.current) chartRef.current.destroy();
+    };
+  }, [data, who]);
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'relative',
+      height: 200
+    }
+  }, /*#__PURE__*/React.createElement("canvas", {
+    ref: canvasRef
+  }));
+}
+
+// ─── Default idées du jour ───
+const DEFAULT_IDEES = [{
+  id: 'di1',
+  text: 'Cuisiner ensemble une nouvelle recette DrevmCook'
+}, {
+  id: 'di2',
+  text: 'Planifier une sortie à la plage ce week-end'
+}, {
+  id: 'di3',
+  text: 'Se dire 3 choses qu\'on apprécie l\'un chez l\'autre'
+}, {
+  id: 'di4',
+  text: 'Essayer une nouvelle activité sportive ensemble'
+}, {
+  id: 'di5',
+  text: 'Regarder un film de la liste culture'
+}, {
+  id: 'di6',
+  text: 'Écrire ses objectifs de la semaine ensemble'
+}, {
+  id: 'di7',
+  text: 'Préparer un batch cooking pour la semaine'
+}, {
+  id: 'di8',
+  text: 'Explorer un nouveau coin de la Guadeloupe'
+}, {
+  id: 'di9',
+  text: 'Méditer 10 minutes ensemble au lever'
+}, {
+  id: 'di10',
+  text: 'Préparer un lait végétal maison DrevmCook'
+}, {
+  id: 'di11',
+  text: 'Créer quelque chose ensemble (art, musique, cuisine)'
+}, {
+  id: 'di12',
+  text: 'Appeler de la famille ou des amis proches'
+}, {
+  id: 'di13',
+  text: 'Faire une liste de gratitude à deux'
+}, {
+  id: 'di14',
+  text: 'Prendre soin de soi : bain, soin, relaxation'
+}, {
+  id: 'di15',
+  text: 'Lancer une lactofermentation maison'
+}, {
+  id: 'di16',
+  text: 'Écrire une vision 5 ans ensemble'
+}, {
+  id: 'di17',
+  text: 'Préparer les mini baguettes sans gluten DrevmCook'
+}, {
+  id: 'di18',
+  text: 'Faire une randonnée dans la nature guadeloupéenne'
+}, {
+  id: 'di19',
+  text: 'Planifier les objectifs couple du mois'
+}, {
+  id: 'di20',
+  text: 'Préparer un pique-nique végétalien pour une sortie'
+}, {
+  id: 'di21',
+  text: 'Tester une infusion de feuilles de fruit à pain'
+}, {
+  id: 'di22',
+  text: 'Regarder le coucher de soleil ensemble au Point des Châteaux'
+}];
+
+// ─── Phrases de motivation quotidienne ───
+const DEFAULT_MOTIVATIONS = [
+  { id: 'mo1',  text: 'Chaque jour est une nouvelle page à écrire ensemble ♡' },
+  { id: 'mo2',  text: 'La distance entre le rêve et la réalité s\'appelle l\'action.' },
+  { id: 'mo3',  text: 'Vous êtes plus forts ensemble que séparément.' },
+  { id: 'mo4',  text: 'Petit à petit, l\'oiseau fait son nid — chaque effort compte.' },
+  { id: 'mo5',  text: 'La Guadeloupe vous inspire, laissez-la vous nourrir de beauté.' },
+  { id: 'mo6',  text: 'Votre vision 2026-2036 commence aujourd\'hui, maintenant.' },
+  { id: 'mo7',  text: 'Semer avec intention, récolter avec gratitude.' },
+  { id: 'mo8',  text: 'L\'amour grandit quand on l\'arrose de présence et d\'attention.' },
+  { id: 'mo9',  text: 'Ce que vous mangez nourrit non seulement le corps, mais l\'esprit.' },
+  { id: 'mo10', text: 'Un pas vers vos objectifs vaut mieux que mille paroles.' },
+  { id: 'mo11', text: 'La constance bat le talent quand le talent ne travaille pas.' },
+  { id: 'mo12', text: 'Votre énergie est votre trésor le plus précieux — protégez-la.' },
+  { id: 'mo13', text: 'Ensemble vous transformez les projets en réalités.' },
+  { id: 'mo14', text: 'Le soleil des Antilles rappelle que chaque matin est un cadeau.' },
+  { id: 'mo15', text: 'Célébrez chaque petite victoire — elles forgent les grandes.' },
+  { id: 'mo16', text: 'Votre cuisine est un acte d\'amour envers vos corps et la planète.' },
+  { id: 'mo17', text: 'Disciplinés sur les petites choses, libres sur les grandes.' },
+  { id: 'mo18', text: 'La santé est la fondation de tous vos rêves — prenez-en soin.' },
+  { id: 'mo19', text: 'Chaque ferment que vous créez est une leçon de patience et de vie.' },
+  { id: 'mo20', text: 'Ce qui ne vous défie pas ne vous fait pas grandir.' },
+  { id: 'mo21', text: 'Vos objectifs ne vous attendent pas — c\'est vous qui devez avancer.' },
+  { id: 'mo22', text: 'La gratitude ouvre les portes que l\'inquiétude ferme.' },
+  { id: 'mo23', text: 'Restez curieux — chaque jour cache une connaissance à découvrir.' },
+  { id: 'mo24', text: 'Votre couple est une œuvre d\'art que vous créez ensemble chaque jour.' },
+  { id: 'mo25', text: 'Faire confiance au processus, même quand le résultat n\'est pas visible.' },
+  { id: 'mo26', text: 'La nature vous enseigne la résilience — observez, apprenez, croissez.' },
+  { id: 'mo27', text: 'Chaque "non" à ce qui vous draine est un "oui" à ce qui vous nourrit.' },
+  { id: 'mo28', text: 'Les rêves les plus grands commencent par la discipline la plus humble.' },
+  { id: 'mo29', text: 'Votre authenticité est votre plus grande force — ne la trahissez jamais.' },
+  { id: 'mo30', text: 'Breathe. Focus. Build. — Ensemble, vous pouvez tout construire.' },
+  { id: 'mo31', text: 'Le chemin vers la liberté financière se trace pas à pas, budget après budget.' },
+  { id: 'mo32', text: 'Nourrir son corps de plantes vivantes, c\'est nourrir son âme.' },
+  { id: 'mo33', text: 'Votre histoire s\'écrit maintenant — faites-en une belle.' },
+  { id: 'mo34', text: 'La mer des Antilles vous rappelle l\'infini de vos possibilités.' },
+  { id: 'mo35', text: 'Prenez soin de vous pour mieux prendre soin de l\'autre.' },
+  { id: 'mo36', text: 'Chaque objectif coché est une promesse tenue envers vous-mêmes.' },
+  { id: 'mo37', text: 'La force d\'un couple se mesure dans les moments difficiles.' },
+  { id: 'mo38', text: 'Ce que vous semez dans vos habitudes, vous le récoltez dans votre vie.' },
+  { id: 'mo39', text: 'L\'art, la cuisine, la nature — votre vie est déjà riche.' },
+  { id: 'mo40', text: 'Avancez lentement si nécessaire, mais n\'arrêtez jamais.' },
+  { id: 'mo41', text: 'La cohérence est la magie que vous pouvez pratiquer chaque jour.' },
+  { id: 'mo42', text: 'Votre jardin intérieur mérite autant de soin que vos ferments.' },
+  { id: 'mo43', text: 'Imaginez qui vous serez dans 5 ans si vous agissez dès aujourd\'hui.' },
+  { id: 'mo44', text: 'Moins de bruit, plus de profondeur — vous êtes sur la bonne voie.' },
+  { id: 'mo45', text: 'Le couple qui crée ensemble, évolue ensemble.' },
+  { id: 'mo46', text: 'Votre créativité est inépuisable — laissez-la s\'exprimer.' },
+  { id: 'mo47', text: 'Chaque difficulté surmontée ensemble renforce votre lien.' },
+  { id: 'mo48', text: 'La simplicité choisie est plus puissante que l\'abondance subie.' },
+  { id: 'mo49', text: 'Vous êtes le projet le plus important que vous ayez jamais entrepris.' },
+  { id: 'mo50', text: 'Aujourd\'hui est un bon jour pour être fiers de qui vous êtes devenus.' }
+];
+
+// ─── Default recipes DrevmCook ───
+const DEFAULT_RECIPES = [{
+  id: 'r1',
+  nom: 'Houmous Vivant',
+  categorie: 'Salés',
+  tags: ['vegan', 'sans-gluten'],
+  ingredients: ['Pois chiches cuits', 'Ail', 'Citron vert', 'Tahini ou graines de courge mixées', 'Huile', 'Sel', 'Jus de lactofermentation (optionnel)'],
+  preparation: 'Mixer tous les ingrédients jusqu\'à texture crémeuse. Ajuster l\'huile et le citron selon goût. Servir avec légumes crus ou pain maison.',
+  apports: 'Pois chiche : protéines, fibres, fer. Ail : immunité. Citron vert : vitamine C. Graines de courge : zinc, magnésium.',
+  budget: '≈ 4 à 7 €'
+}, {
+  id: 'r2',
+  nom: 'Rainbow Salad',
+  categorie: 'Salés',
+  tags: ['vegan', 'sans-gluten', 'cru'],
+  ingredients: ['Chou rouge', 'Carotte', 'Betterave crue', 'Avocat', 'Tofu grillé ou pois chiches', 'Graines de courge', 'Sauce citron gingembre'],
+  preparation: 'Assembler tous les ingrédients en bol coloré. Préparer la sauce en mixant citron vert, gingembre, huile et sel. Arroser et servir immédiatement.',
+  apports: 'Chou rouge : anthocyanes, vitamine C. Betterave : circulation, fer végétal. Avocat : bons lipides, potassium. Gingembre : digestion, anti-inflammatoire.',
+  budget: '≈ 5 à 9 €'
+}, {
+  id: 'r3',
+  nom: 'Mini Baguettes Maison',
+  categorie: 'Boulangerie',
+  tags: ['vegan', 'sans-gluten'],
+  ingredients: ['350 g farine ou mélange sans gluten', '1 sachet levure boulangère', 'Eau tiède', 'Huile de tournesol', 'Sel', 'Herbes aromatiques', 'Graines de courge (optionnel)'],
+  preparation: '1. Activer la levure dans l\'eau tiède avec l\'huile. 2. Ajouter farine, sel, herbes. 3. Mélanger. 4. Couvrir 30 min. 5. Faire des rabats toutes les 30 min (x3). 6. Former 4 mini baguettes. 7. Grifier le dessus. 8. Cuire à 200°C pendant 15-20 min.',
+  apports: 'Farine : énergie, glucides, fibres. Levure : fermentation. Huile : vitamine E. Herbes : antioxydants. Graines de courge : zinc, magnésium.',
+  budget: '≈ 2,40 à 6 € (version SG)'
+}, {
+  id: 'r4',
+  nom: 'Focaccia DrevmCook',
+  categorie: 'Boulangerie',
+  tags: ['vegan', 'sans-gluten'],
+  ingredients: ['300 g farine sans gluten', '100 g levain actif ou levure', '250 ml eau tiède', '3 c.s. huile', 'Sel', 'Ail', 'Thym / romarin / bouquet garni', 'Tomates ou oignons', 'Graines de courge (optionnel)'],
+  preparation: '1. Mélanger farine, levain, eau, huile et sel. 2. Laisser pousser 1-2 h. 3. Verser dans un plat huilé. 4. Faire des trous avec les doigts. 5. Ajouter ail, herbes, tomates ou oignons. 6. Cuire 20-25 min à 200°C.',
+  apports: 'Ail : allicine, immunité. Tomate : lycopène, vitamine C. Oignon : quercétine, prébiotiques. Romarin/thym : antioxydants, digestion.',
+  budget: '≈ 5 à 8 €'
+}, {
+  id: 'r5',
+  nom: 'Galettes Anti-Gaspillage',
+  categorie: 'Boulangerie',
+  tags: ['vegan', 'sans-gluten'],
+  ingredients: ['Reste de levain', 'Farine de pois chiche ou riz', 'Eau', 'Sel', 'Herbes', 'Huile pour cuisson'],
+  preparation: '1. Mélanger le levain avec farine et eau. 2. Ajouter sel et herbes. 3. Cuire à la poêle comme une crêpe épaisse.',
+  apports: 'Levain : fermentation, digestibilité. Pois chiche : protéines, fibres, fer. Herbes : antioxydants.',
+  budget: '≈ 1 à 2 €'
+}, {
+  id: 'r6',
+  nom: 'Carottes Épicées Fermentées',
+  categorie: 'Fermentés',
+  tags: ['vegan', 'sans-gluten', 'fermenté'],
+  ingredients: ['1 kg carottes', '10 g sel marin', 'Gingembre', 'Cannelle', 'Ail'],
+  preparation: '1. Râper les carottes. 2. Ajouter sel et épices. 3. Malaxer pour faire sortir le jus. 4. Tasser en bocal. 5. Compléter avec eau si besoin. 6. Garder immergé. 7. Fermenter 2-3 semaines.',
+  apports: 'Carotte : bêta-carotène, fibres, potassium. Gingembre : gingérols, digestion. Cannelle : antioxydants. Ail : allicine.',
+  budget: '≈ 4 à 6 €'
+}, {
+  id: 'r7',
+  nom: 'Chou Rouge Lactofermenté',
+  categorie: 'Fermentés',
+  tags: ['vegan', 'sans-gluten', 'fermenté'],
+  ingredients: ['Chou rouge', 'Sel marin (2% du poids)', 'Ail (optionnel)', 'Gingembre (optionnel)'],
+  preparation: 'Émincer finement le chou, saler, malaxer vigoureusement jusqu\'à ce que le jus sorte. Tasser en bocal, garder immergé sous le liquide. Fermenter 1 à 3 semaines à température ambiante.',
+  apports: 'Chou rouge : anthocyanes, vitamine C, fibres, antioxydants. Probiotiques naturels après fermentation.',
+  budget: '≈ 3 à 5 €'
+}, {
+  id: 'r8',
+  nom: 'Sauce Piquante Fermentée',
+  categorie: 'Fermentés',
+  tags: ['vegan', 'sans-gluten', 'fermenté'],
+  ingredients: ['Piments locaux (bonda man jak, habanero)', 'Ail', 'Sel', 'Eau filtrée', 'Gingembre (optionnel)'],
+  preparation: 'Mettre piments et ail en saumure (eau + sel). Fermenter 1-2 semaines en bocal recouvert d\'un tissu. Mixer finement. Conserver au frais après ouverture.',
+  apports: 'Piment : capsaïcine, circulation, métabolisme. Ail : allicine, immunité. Gingembre : anti-inflammatoire.',
+  budget: '≈ 4 à 6 €'
+}, {
+  id: 'r9',
+  nom: 'Banane Givrée Cacao',
+  categorie: 'Desserts',
+  tags: ['vegan', 'sans-gluten', 'cru'],
+  ingredients: ['Bananes mûres (congelées)', 'Cacao brut', 'Graines de courge trempées ou torréfiées', 'Cannelle', 'Lait végétal (optionnel)'],
+  preparation: '1. Couper les bananes. 2. Congeler 2h minimum. 3. Mixer avec cacao et un peu de lait végétal. 4. Ajouter graines de courge. Servir immédiatement ou remettre 20 min au congélateur.',
+  apports: 'Banane : potassium, énergie. Cacao : magnésium, antioxydants. Graines de courge : zinc, protéines, magnésium.',
+  budget: '≈ 2 à 4 €'
+}, {
+  id: 'r10',
+  nom: 'Tiramisu Banane Chocolat',
+  categorie: 'Desserts',
+  tags: ['vegan', 'sans-gluten'],
+  ingredients: ['4 bananes mûres', '200 g biscuits SG ou base riz/fruit à pain', 'Cacao brut', 'Café (optionnel)', 'Cannelle', 'Crème de coco ou mascarpone', 'Aquafaba (option vegan)', 'Sucre roux', 'Vanille', 'Chocolat noir fondu'],
+  preparation: '1. Préparer la crème (mascarpone + sucre + vanille, ou crème coco + aquafaba fouettée). 2. Préparer base biscuitée, tremper dans café léger. 3. Monter couches : biscuit, banane, crème, cacao. 4. Ajouter chocolat noir fondu. 5. Repos au frais 4h minimum.',
+  apports: 'Banane : potassium, énergie, B6. Cacao brut : magnésium, flavonoïdes, fer. Crème de coco : bons lipides. Chocolat noir : antioxydants.',
+  budget: '≈ 11 à 18 €'
+}, {
+  id: 'r11',
+  nom: "M&M's Maison Naturels",
+  categorie: 'Desserts',
+  tags: ['vegan', 'sans-gluten'],
+  ingredients: ['120-130 g poudre d\'amande', '50 g cacao 100%', '60 g sucre de coco', 'Pincée de sel', '1 c.s. vanille liquide', '3 c.s. lait végétal', 'Chocolat blanc ou noir + huile de coco (enrobage)', 'Colorants naturels : matcha, spiruline, betterave, maca, phycocyanine'],
+  preparation: '1. Mélanger amande, cacao, sucre et sel. 2. Ajouter vanille et lait végétal. 3. Former une boule. 4. Couper en petits morceaux d\'1 cm. 5. Congeler 10-20 min. 6. Fondre chocolat + huile + colorant naturel. 7. Enrober. 8. Congeler 10-30 min.',
+  apports: 'Amande : vitamine E, magnésium, protéines. Cacao : magnésium, antioxydants, fer. Colorants : matcha/spiruline/betterave (antioxydants).',
+  budget: '≈ 11 à 23 €'
+}, {
+  id: 'r12',
+  nom: 'Snickers DrevmCook',
+  categorie: 'Desserts',
+  tags: ['vegan', 'sans-gluten'],
+  ingredients: ['Base nougat: poudre d\'amande, beurre de cacahuète, lait végétal, sirop naturel, sel, vanille', 'Caramel: dattes, beurre de cacahuète, eau chaude, sel, vanille', 'Cacahuètes grillées', 'Enrobage: chocolat noir + huile de coco'],
+  preparation: '1. Mélanger base nougat, étaler dans un moule. 2. Mixer dattes + beurre cacahuète + eau + sel (caramel). 3. Étaler caramel sur la base. 4. Ajouter cacahuètes. 5. Congeler. 6. Couper en barres. 7. Enrober de chocolat noir fondu. 8. Garder au frais.',
+  apports: 'Dattes : potassium, énergie, fibres. Cacahuètes : protéines, bons lipides, magnésium. Amande : vitamine E. Chocolat noir : antioxydants.',
+  budget: '≈ 14 à 25 € pour 8-10 barres'
+}, {
+  id: 'r13',
+  nom: "Lait d'Amande Maison",
+  categorie: 'Boissons',
+  tags: ['vegan', 'sans-gluten', 'cru'],
+  ingredients: ['100 g amandes (trempées 8-12h)', '700 ml eau filtrée', '1 pincée de sel', 'Vanille (optionnel)'],
+  preparation: '1. Faire tremper les amandes 8-12h. 2. Rincer. 3. Mixer avec l\'eau filtrée 2 min à puissance max. 4. Filtrer avec tissu propre ou sac à lait végétal. 5. Conserver 2-3 jours au frais dans une bouteille fermée.',
+  apports: 'Amande : vitamine E, magnésium, protéines végétales, bons lipides. Eau filtrée : hydratation, base neutre.',
+  budget: '≈ 3,50 à 6 €'
+}, {
+  id: 'r14',
+  nom: 'Lait de Graines de Courge',
+  categorie: 'Boissons',
+  tags: ['vegan', 'sans-gluten', 'cru'],
+  ingredients: ['100 g graines de courge (trempées 4-8h)', '700 ml eau filtrée', '1 pincée de sel', 'Cannelle (optionnel)'],
+  preparation: '1. Tremper les graines 4-8h. 2. Rincer. 3. Mixer avec l\'eau. 4. Filtrer. 5. Assaisonner. 6. Conserver au frais 2-3 jours. Bien agiter avant de servir.',
+  apports: 'Graines de courge : zinc, magnésium, protéines végétales, bons lipides. Cannelle : antioxydants, soutien glycémique.',
+  budget: '≈ 2,50 à 5 €'
+}, {
+  id: 'r15',
+  nom: 'Infusion Feuilles Fruit à Pain',
+  categorie: 'Boissons',
+  tags: ['vegan', 'sans-gluten', 'tropical'],
+  ingredients: ['4-6 feuilles de fruit à pain', '1 L eau', 'Gingembre (optionnel)', 'Cannelle (optionnel)', 'Miel ou sirop de canne (optionnel)'],
+  preparation: '1. Nettoyer les feuilles. 2. Faire bouillir l\'eau. 3. Ajouter les feuilles. 4. Laisser frémir 10-15 min. 5. Filtrer. Servir chaud ou refroidi avec citron vert et menthe.',
+  apports: 'Feuilles de fruit à pain : polyphénols, flavonoïdes, potassium, usage traditionnel digestif. Gingembre : digestion, anti-inflammatoire.',
+  budget: '≈ 0,80 à 1,50 €'
+}, {
+  id: 'r16',
+  nom: 'Plantes & Herbier Créole',
+  categorie: 'Référence',
+  tags: ['tropical', 'guadeloupe', 'plantes'],
+  ingredients: ['Pourpier : oméga-3 végétaux, fibres, minéraux', 'Atoumo : digestion, respiration, infusion traditionnelle créole', 'Moringa : fer, calcium, protéines partielles, chlorophylle', 'Feuilles de goyave : tanins, antioxydants, infusion digestive', 'Feuilles de patate douce : chlorophylle, fibres, brèdes sautées', 'Leaf of Life (Bryophyllum pinnatum) : usage traditionnel – voir précautions'],
+  preparation: 'Répertoire des plantes traditionnelles antillaises utilisées en cuisine et médecine populaire DrevmCook. Toujours commencer à petite dose. Ces plantes ne remplacent pas un avis médical. Leaf of Life : contient des glycosides cardiaques — éviter grossesse, problèmes cardiaques, enfants.',
+  apports: 'Patrimoine botanique caribéen : antioxydants, huiles essentielles, flavonoïdes, minéraux, polyphénols.',
+  budget: 'Gratuit (cueillette) à ≈ 1-2 € (marché local)'
+}, {
+  // ─── Desserts sans cuisson ───
+  id: 'r17',
+  nom: 'Charlotte aux Fruits Rouges',
+  categorie: 'Desserts',
+  tags: ['sans-cuisson', 'végétarien', 'fruits'],
+  ingredients: ['2 couches de biscuits à la cuillère', '2 tasses de crème entière battue', '1 tasse de fruits rouges mélangés', '2 c. à soupe de coulis de framboise', 'Quelques fruits rouges pour décorer'],
+  preparation: '1. Monter la crème entière bien froide en chantilly ferme. 2. Tapisser le fond du moule d\'une couche de biscuits à la cuillère. 3. Étaler la moitié de la crème, puis les fruits rouges et le coulis. 4. Recouvrir d\'une seconde couche de biscuits, puis du reste de crème. 5. Décorer de fruits rouges frais. 6. Réfrigérer 4 heures avant de servir.',
+  apports: 'Fruits rouges : vitamine C, anthocyanes, fibres. Crème : lipides, calcium, vitamine A. Biscuits : glucides, énergie rapide.',
+  budget: '≈ 8 à 12 €'
+}, {
+  id: 'r18',
+  nom: 'Cheesecake Vanille sans Cuisson',
+  categorie: 'Desserts',
+  tags: ['sans-cuisson', 'végétarien'],
+  ingredients: ['1 couche de biscuits sablés écrasés', '2 tasses de fromage frais ou mascarpone', '½ tasse de crème entière battue', '1 c. à soupe d\'extrait de vanille', 'Miettes de biscuits pour décorer'],
+  preparation: '1. Écraser les biscuits sablés et les tasser au fond du moule. 2. Fouetter le fromage frais avec la vanille. 3. Incorporer délicatement la crème montée. 4. Verser sur la base biscuitée et lisser. 5. Parsemer de miettes de biscuits. 6. Réfrigérer 4 heures.',
+  apports: 'Fromage frais / mascarpone : protéines, calcium. Crème : bons lipides, vitamine A. Vanille : arômes naturels, antioxydants.',
+  budget: '≈ 7 à 11 €'
+}, {
+  id: 'r19',
+  nom: 'Délice Chocolat-Café',
+  categorie: 'Desserts',
+  tags: ['sans-cuisson', 'végétarien', 'chocolat'],
+  ingredients: ['1 couche de biscuits au cacao écrasés', '2 tasses de crème entière ou mascarpone', '2 c. à soupe de café fort refroidi', '2 c. à soupe de cacao en poudre', 'Copeaux de chocolat'],
+  preparation: '1. Écraser les biscuits au cacao et les tasser au fond du plat. 2. Fouetter la crème (ou le mascarpone) avec le cacao en poudre. 3. Ajouter le café froid et mélanger sans casser la texture. 4. Verser sur la base et lisser. 5. Parsemer de copeaux de chocolat. 6. Réfrigérer 4 heures.',
+  apports: 'Cacao : magnésium, flavonoïdes, fer. Café : caféine, polyphénols. Crème : lipides, calcium.',
+  budget: '≈ 7 à 10 €'
+}, {
+  id: 'r20',
+  nom: 'Verrine Coco-Framboise',
+  categorie: 'Desserts',
+  tags: ['sans-cuisson', 'végétarien', 'fruits'],
+  ingredients: ['1 ou 2 couches de biscuits sablés', '2 tasses de crème coco ou mascarpone', '½ tasse de coulis de framboise', '2 c. à soupe de noix de coco râpée', 'Framboises fraîches pour décorer'],
+  preparation: '1. Émietter les biscuits au fond des verrines. 2. Fouetter la crème de coco bien froide. 3. Alterner couches de crème et de coulis de framboise. 4. Parsemer de noix de coco râpée. 5. Décorer de framboises fraîches. 6. Réfrigérer 4 heures.',
+  apports: 'Framboise : vitamine C, fibres, antioxydants. Coco : bons lipides (TCM), manganèse. Biscuits : glucides, énergie.',
+  budget: '≈ 8 à 12 €'
+}, {
+  id: 'r21',
+  nom: 'Gâteau Froid Praliné',
+  categorie: 'Desserts',
+  tags: ['sans-cuisson', 'végétarien'],
+  ingredients: ['1 couche de biscuits type petits-beurre', '2 tasses de crème entière ou mascarpone', '½ tasse de pâte pralinée', '2 c. à soupe de noisettes concassées', 'Éclats de praliné'],
+  preparation: '1. Tapisser le moule de biscuits petits-beurre. 2. Fouetter la crème puis incorporer la pâte pralinée. 3. Étaler sur les biscuits (alterner une seconde couche si le moule est haut). 4. Parsemer de noisettes concassées et d\'éclats de praliné. 5. Réfrigérer 4 heures.',
+  apports: 'Noisette : vitamine E, magnésium, bons lipides. Praliné : glucides, énergie. Crème : calcium, vitamine A.',
+  budget: '≈ 9 à 14 €'
+}, {
+  // ─── Trempettes maison ───
+  id: 'r22',
+  nom: 'Houmous à la Betterave',
+  categorie: 'Tartinades',
+  tags: ['vegan', 'sans-gluten', 'apéro'],
+  ingredients: ['250 g de pois chiches', '1 betterave cuite', '2 c. à soupe de tahini', 'Jus d\'½ citron', '1 gousse d\'ail', 'Sel, poivre'],
+  preparation: 'Mixer tous les ingrédients jusqu\'à obtenir une texture lisse et crémeuse. Ajuster le citron et le sel selon le goût. Servir avec des crudités, du pain pita ou des crackers.',
+  apports: 'Pois chiche : protéines, fibres, fer. Betterave : nitrates, folates, soutien de la circulation. Tahini : calcium, bons lipides.',
+  budget: '≈ 3 à 5 €'
+}, {
+  id: 'r23',
+  nom: 'Tzatziki',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'apéro', 'rapide'],
+  ingredients: ['1 yaourt grec', '½ concombre râpé', '1 gousse d\'ail', '1 c. à soupe d\'huile d\'olive', 'Aneth', 'Sel, poivre'],
+  preparation: 'Râper le concombre et le presser pour retirer l\'eau. Mélanger avec le yaourt grec, l\'ail écrasé, l\'huile d\'olive et l\'aneth ciselé. Saler, poivrer. Laisser reposer 1 h au frais avant de servir.',
+  apports: 'Yaourt grec : protéines, probiotiques, calcium. Concombre : hydratation, potassium. Ail : allicine, immunité.',
+  budget: '≈ 2 à 4 €'
+}, {
+  id: 'r24',
+  nom: 'Guacamole',
+  categorie: 'Tartinades',
+  tags: ['vegan', 'sans-gluten', 'cru', 'apéro'],
+  ingredients: ['2 avocats', '1 tomate', 'Jus d\'½ citron vert', '¼ d\'oignon rouge', 'Coriandre', 'Sel, poivre'],
+  preparation: 'Écraser les avocats à la fourchette. Ajouter la tomate en petits dés, l\'oignon rouge finement haché, le jus de citron vert et la coriandre ciselée. Saler, poivrer et servir aussitôt pour garder la couleur.',
+  apports: 'Avocat : bons lipides, potassium, vitamine E. Tomate : lycopène, vitamine C. Citron vert : vitamine C, anti-oxydation naturelle.',
+  budget: '≈ 3 à 6 €'
+}, {
+  id: 'r25',
+  nom: 'Dip Feta & Poivrons Rôtis',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'apéro'],
+  ingredients: ['200 g de feta', '1 poivron rouge rôti', '3 c. à soupe de yaourt', '1 c. à soupe d\'huile d\'olive', 'Origan', 'Sel, poivre'],
+  preparation: 'Rôtir le poivron puis le peler. Mixer avec la feta émiettée, le yaourt et l\'huile d\'olive jusqu\'à texture onctueuse. Assaisonner d\'origan, sel et poivre. Servir tiède ou frais avec du pain grillé.',
+  apports: 'Feta : protéines, calcium (attention au sodium). Poivron rôti : vitamine C, bêta-carotène. Yaourt : probiotiques, protéines.',
+  budget: '≈ 4 à 6 €'
+}, {
+  id: 'r26',
+  nom: 'Rillettes de Saumon',
+  categorie: 'Tartinades',
+  tags: ['sans-gluten', 'protéiné', 'apéro'],
+  ingredients: ['200 g de saumon fumé', '100 g de fromage frais', '1 c. à soupe de citron', 'Ciboulette', 'Sel, poivre'],
+  preparation: 'Hacher le saumon fumé au couteau. Mélanger avec le fromage frais, le jus de citron et la ciboulette ciselée. Poivrer (saler peu, le saumon l\'est déjà). Réserver 1 h au frais et servir sur des toasts.',
+  apports: 'Saumon : oméga-3, protéines, vitamine D. Fromage frais : calcium, protéines. Citron : vitamine C.',
+  budget: '≈ 7 à 10 €'
+}, {
+  id: 'r27',
+  nom: 'Dip Avocat & Fromage Frais',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'rapide'],
+  ingredients: ['1 avocat', '100 g de fromage frais', 'Jus d\'½ citron', 'Ciboulette', 'Sel, poivre'],
+  preparation: 'Mixer l\'avocat avec le fromage frais et le jus de citron jusqu\'à texture lisse. Ajouter la ciboulette ciselée, saler et poivrer. Servir frais avec des bâtonnets de légumes.',
+  apports: 'Avocat : bons lipides, potassium, fibres. Fromage frais : protéines, calcium. Citron : vitamine C.',
+  budget: '≈ 3 à 5 €'
+}, {
+  // ─── Houmous sains ───
+  id: 'r28',
+  nom: 'Houmous Betterave-Basilic',
+  categorie: 'Tartinades',
+  tags: ['vegan', 'sans-gluten', 'houmous'],
+  ingredients: ['250 g de pois chiches', '200 g de betterave cuite', 'Basilic', 'Jus de 1 citron', '2 c. à soupe d\'huile d\'olive', 'Sel et poivre au goût', 'Topping : 1 c. à café de graines'],
+  preparation: 'Mixer les pois chiches avec la betterave, le basilic, le jus de citron et l\'huile d\'olive jusqu\'à texture crémeuse. Rectifier sel et poivre. Servir avec un filet d\'huile et une cuillère de graines.',
+  apports: 'Pois chiche : protéines, fibres, fer. Betterave : nitrates, folates. Basilic : antioxydants, huiles essentielles. Graines : zinc, magnésium.',
+  budget: '≈ 3 à 5 €'
+}, {
+  id: 'r29',
+  nom: 'Houmous de Lentilles',
+  categorie: 'Tartinades',
+  tags: ['vegan', 'sans-gluten', 'houmous'],
+  ingredients: ['250 g de lentilles cuites', 'Coriandre fraîche', 'Jus de 1 citron', '2 c. à soupe d\'huile d\'olive', 'Sel et poivre au goût'],
+  preparation: 'Mixer les lentilles cuites et égouttées avec la coriandre, le jus de citron et l\'huile d\'olive. Ajouter un peu d\'eau si la texture est trop épaisse. Rectifier l\'assaisonnement.',
+  apports: 'Lentille : protéines végétales, fer, fibres, index glycémique bas. Coriandre : antioxydants. Citron : vitamine C (aide l\'absorption du fer).',
+  budget: '≈ 2 à 4 €'
+}, {
+  id: 'r30',
+  nom: 'Houmous Paprika Fumé',
+  categorie: 'Tartinades',
+  tags: ['vegan', 'sans-gluten', 'houmous'],
+  ingredients: ['250 g de pois chiches', '1 c. à café de paprika fumé', 'Jus de 1 citron', '2 c. à soupe d\'huile d\'olive', 'Sel et poivre', 'Topping : betterave rouge', 'Estragon'],
+  preparation: 'Mixer les pois chiches avec le paprika fumé, le jus de citron et l\'huile d\'olive. Assaisonner. Garnir de dés de betterave rouge et de feuilles d\'estragon avant de servir.',
+  apports: 'Pois chiche : protéines, fibres, fer. Paprika fumé : caroténoïdes, antioxydants. Huile d\'olive : oméga-9, vitamine E.',
+  budget: '≈ 3 à 5 €'
+}, {
+  id: 'r31',
+  nom: 'Houmous Poivron Jaune Rôti',
+  categorie: 'Tartinades',
+  tags: ['vegan', 'sans-gluten', 'houmous'],
+  ingredients: ['250 g de pois chiches', '1 poivron jaune rôti', '2 c. à soupe d\'huile de colza', 'Piment d\'Espelette', 'Feuilles d\'épinard', 'Jus de 1 citron', 'Sel et poivre au goût'],
+  preparation: 'Rôtir le poivron jaune puis le peler. Mixer avec les pois chiches, l\'huile de colza, le jus de citron et quelques feuilles d\'épinard. Saupoudrer de piment d\'Espelette avant de servir.',
+  apports: 'Poivron jaune : vitamine C, caroténoïdes. Huile de colza : oméga-3 végétaux. Épinard : fer, folates, chlorophylle.',
+  budget: '≈ 3 à 5 €'
+}, {
+  id: 'r32',
+  nom: 'Houmous Courgette-Piment',
+  categorie: 'Tartinades',
+  tags: ['vegan', 'sans-gluten', 'houmous'],
+  ingredients: ['250 g de pois chiches', '1 courgette râpée', '1 c. à café de piment en poudre', 'Jus de citron', '2 c. à soupe d\'huile d\'olive', 'Sel et poivre au goût'],
+  preparation: 'Râper la courgette (crue ou légèrement revenue) et l\'égoutter. Mixer avec les pois chiches, le piment, le jus de citron et l\'huile d\'olive jusqu\'à texture lisse et verte. Rectifier l\'assaisonnement.',
+  apports: 'Courgette : eau, potassium, fibres douces. Pois chiche : protéines, fer. Piment : capsaïcine, circulation.',
+  budget: '≈ 3 à 4 €'
+}, {
+  id: 'r33',
+  nom: 'Houmous Aubergine Grillée',
+  categorie: 'Tartinades',
+  tags: ['vegan', 'sans-gluten', 'houmous'],
+  ingredients: ['250 g de pois chiches', '1 aubergine grillée, pelée', 'Jus de 1 citron', '2 c. à soupe d\'huile d\'olive', 'Sel et poivre', 'Jeunes oignons', 'Persil plat'],
+  preparation: 'Griller l\'aubergine jusqu\'à ce que la chair soit fondante, la peler. Mixer avec les pois chiches, le jus de citron et l\'huile d\'olive. Garnir de jeunes oignons émincés et de persil plat.',
+  apports: 'Aubergine : fibres, antioxydants (nasunine), potassium. Pois chiche : protéines, fer. Persil : vitamine K, vitamine C.',
+  budget: '≈ 3 à 5 €'
+}, {
+  // ─── 12 tartinades maison ───
+  id: 'r34',
+  nom: 'Tartinade Lentilles & Tomates Séchées',
+  categorie: 'Tartinades',
+  tags: ['vegan', 'sans-gluten'],
+  ingredients: ['150 g de lentilles rouges cuites', '50 g de tomates séchées', '1 c. à soupe d\'huile d\'olive', '1 c. à café de jus de citron', 'Sel, poivre'],
+  preparation: 'Mixer les lentilles rouges cuites avec les tomates séchées, l\'huile d\'olive et le jus de citron. Saler, poivrer. Ajouter un peu d\'eau pour ajuster la texture.',
+  apports: 'Lentille rouge : protéines, fer, fibres. Tomate séchée : lycopène, potassium. Huile d\'olive : oméga-9.',
+  budget: '≈ 2 à 4 €'
+}, {
+  id: 'r35',
+  nom: 'Tartinade Chèvre & Herbes',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'rapide'],
+  ingredients: ['200 g de fromage de chèvre frais', '1 c. à soupe de ciboulette', '1 c. à soupe de persil', 'Sel, poivre'],
+  preparation: 'Travailler le fromage de chèvre à la fourchette pour l\'assouplir. Incorporer la ciboulette et le persil finement ciselés. Saler, poivrer. Réserver au frais 30 min.',
+  apports: 'Chèvre frais : protéines, calcium, plus digeste que le lait de vache. Herbes fraîches : antioxydants, vitamine K.',
+  budget: '≈ 3 à 5 €'
+}, {
+  id: 'r36',
+  nom: 'Tartinade Pois Chiches & Ail',
+  categorie: 'Tartinades',
+  tags: ['vegan', 'sans-gluten'],
+  ingredients: ['200 g de pois chiches cuits', '1 gousse d\'ail', '1 c. à soupe de tahini', '1 c. à soupe de jus de citron', '1 à 2 c. à soupe d\'eau'],
+  preparation: 'Mixer les pois chiches avec l\'ail, le tahini et le jus de citron. Ajouter l\'eau cuillère par cuillère jusqu\'à obtenir une texture souple et tartinable.',
+  apports: 'Pois chiche : protéines, fibres, fer. Tahini : calcium, magnésium, bons lipides. Ail : allicine, immunité.',
+  budget: '≈ 2 à 4 €'
+}, {
+  id: 'r37',
+  nom: 'Tartinade Fromage Frais & Concombre',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'rapide'],
+  ingredients: ['2 concombres râpés', '100 g de fromage frais', '1 c. à soupe d\'aneth', 'Sel, poivre'],
+  preparation: 'Râper les concombres et bien les presser pour retirer l\'eau. Mélanger avec le fromage frais et l\'aneth ciselé. Saler, poivrer. Servir bien frais.',
+  apports: 'Concombre : hydratation, potassium, très peu calorique. Fromage frais : protéines, calcium. Aneth : digestion.',
+  budget: '≈ 2 à 4 €'
+}, {
+  id: 'r38',
+  nom: 'Tartinade Fraîche à la Cacahuète',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'rapide'],
+  ingredients: ['2 c. à soupe de beurre de cacahuète', '1 c. à café de miel', '1 c. à soupe de jus de citron', 'Pincée de sel'],
+  preparation: 'Mélanger le beurre de cacahuète avec le miel et le jus de citron jusqu\'à texture homogène. Ajouter une pincée de sel. Détendre avec un peu d\'eau tiède si nécessaire.',
+  apports: 'Cacahuète : protéines, magnésium, bons lipides. Miel : glucides, énergie rapide. Citron : vitamine C.',
+  budget: '≈ 1 à 3 €'
+}, {
+  id: 'r39',
+  nom: 'Crème de Thon',
+  categorie: 'Tartinades',
+  tags: ['sans-gluten', 'protéiné'],
+  ingredients: ['1 boîte de thon', '1 c. à soupe de yaourt nature', '100 g de fromage frais type Skyr', '1 c. à soupe de jus de citron', 'Poivre'],
+  preparation: 'Égoutter le thon et l\'émietter. Mélanger avec le yaourt, le Skyr et le jus de citron jusqu\'à obtenir une crème lisse. Poivrer. Réserver au frais avant de servir.',
+  apports: 'Thon : protéines complètes, oméga-3, sélénium. Skyr : protéines, calcium, peu de lipides. Citron : vitamine C.',
+  budget: '≈ 3 à 5 €'
+}, {
+  id: 'r40',
+  nom: 'Tartinade Protéinée à l\'Avocat',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'protéiné'],
+  ingredients: ['1 avocat mûr', '100 g de fromage frais type Skyr', '1 c. à soupe de jus de citron', 'Sel, poivre'],
+  preparation: 'Écraser l\'avocat mûr et le mixer avec le Skyr et le jus de citron. Saler, poivrer. Consommer rapidement pour éviter l\'oxydation.',
+  apports: 'Avocat : bons lipides, potassium, fibres. Skyr : protéines élevées, peu de matières grasses. Citron : vitamine C.',
+  budget: '≈ 3 à 5 €'
+}, {
+  id: 'r41',
+  nom: 'Tartinade Yaourt & Feta',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'rapide'],
+  ingredients: ['100 g de feta', '100 g de yaourt grec', '1 c. à soupe d\'huile d\'olive', 'Poivre'],
+  preparation: 'Écraser la feta à la fourchette puis la mixer avec le yaourt grec et l\'huile d\'olive. Poivrer généreusement (le sel de la feta suffit). Servir frais.',
+  apports: 'Feta : protéines, calcium. Yaourt grec : probiotiques, protéines. Huile d\'olive : oméga-9, vitamine E.',
+  budget: '≈ 3 à 5 €'
+}, {
+  id: 'r42',
+  nom: 'Tartinade de Poulet',
+  categorie: 'Tartinades',
+  tags: ['sans-gluten', 'protéiné'],
+  ingredients: ['150 g de poulet cuit', '100 g de fromage frais', '1 c. à soupe d\'aneth', 'Sel, poivre'],
+  preparation: 'Effilocher ou hacher finement le poulet cuit. Mélanger avec le fromage frais et l\'aneth ciselé. Saler, poivrer. Idéal pour recycler un reste de volaille.',
+  apports: 'Poulet : protéines maigres, vitamines B, phosphore. Fromage frais : calcium, protéines. Aneth : digestion.',
+  budget: '≈ 4 à 6 €'
+}, {
+  id: 'r43',
+  nom: 'Tartinade de Haricots Blancs',
+  categorie: 'Tartinades',
+  tags: ['vegan', 'sans-gluten'],
+  ingredients: ['200 g de haricots blancs cuits', '1 c. à soupe d\'huile d\'olive', '1 c. à soupe de jus de citron', 'Ail', 'Sel'],
+  preparation: 'Mixer les haricots blancs cuits et égouttés avec l\'huile d\'olive, le jus de citron et l\'ail. Saler. Ajouter un peu d\'eau de cuisson pour une texture bien crémeuse.',
+  apports: 'Haricot blanc : protéines végétales, fibres solubles, fer, potassium. Huile d\'olive : oméga-9. Ail : allicine.',
+  budget: '≈ 2 à 4 €'
+}, {
+  id: 'r44',
+  nom: 'Tartinade Poivrons & Skyr',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'protéiné'],
+  ingredients: ['150 g de Skyr', '1 poivron rouge', '1 c. à café de paprika', 'Sel, poivre'],
+  preparation: 'Rôtir le poivron rouge, le peler et l\'épépiner. Le mixer avec le Skyr et le paprika. Saler, poivrer. Réserver 1 h au frais pour que les saveurs se développent.',
+  apports: 'Poivron rouge : vitamine C (très riche), bêta-carotène. Skyr : protéines, calcium. Paprika : antioxydants.',
+  budget: '≈ 3 à 5 €'
+}, {
+  id: 'r45',
+  nom: 'Tartinade Curry aux Noix de Cajou',
+  categorie: 'Tartinades',
+  tags: ['vegan', 'sans-gluten'],
+  ingredients: ['100 g de noix de cajou (trempées)', '50 ml d\'eau', '1 c. à café de curry', '1 c. à soupe de jus de citron', 'Sel'],
+  preparation: 'Faire tremper les noix de cajou 4 h minimum, puis les rincer. Mixer avec l\'eau, le curry et le jus de citron jusqu\'à texture bien lisse. Saler. Se conserve 3-4 jours au frais.',
+  apports: 'Noix de cajou : magnésium, fer, protéines végétales, bons lipides. Curry (curcuma) : curcumine, anti-inflammatoire. Citron : vitamine C.',
+  budget: '≈ 3 à 6 €'
+}, {
+  // ─── 6 beurres maison ───
+  id: 'r46',
+  nom: 'Beurre Ail-Persil (Escargot)',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'beurre'],
+  ingredients: ['100 g de beurre mou', '2 gousses d\'ail', '1 cuillère à soupe de persil', 'Sel', 'Poivre'],
+  preparation: 'Travailler le beurre mou à la fourchette. Incorporer l\'ail écrasé et le persil finement ciselé. Saler, poivrer. Rouler en boudin dans du film alimentaire et réfrigérer 2 h avant de trancher.',
+  apports: 'Beurre : vitamines A et D, lipides. Ail : allicine, immunité. Persil : vitamine K, vitamine C, fer.',
+  budget: '≈ 2 à 3 €'
+}, {
+  id: 'r47',
+  nom: 'Beurre Café de Paris',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'beurre'],
+  ingredients: ['100 g de beurre mou', '1 cuillère à café de moutarde', '1 cuillère à café de curry', '1 cuillère à café de paprika', '1 cuillère à café de jus de citron', 'Sel', 'Poivre'],
+  preparation: 'Assouplir le beurre à la fourchette. Incorporer la moutarde, le curry, le paprika et le jus de citron. Saler, poivrer. Rouler en boudin, réfrigérer 2 h. Parfait sur une viande grillée.',
+  apports: 'Beurre : vitamines A et D. Curry (curcuma) : curcumine, anti-inflammatoire. Paprika : caroténoïdes. Moutarde : sélénium.',
+  budget: '≈ 2 à 4 €'
+}, {
+  id: 'r48',
+  nom: 'Beurre Citron-Aneth',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'beurre'],
+  ingredients: ['100 g de beurre mou', '1 cuillère à soupe de jus de citron', '1 cuillère à soupe d\'aneth', 'Sel', 'Poivre'],
+  preparation: 'Travailler le beurre mou, incorporer le jus de citron petit à petit puis l\'aneth ciselé. Saler, poivrer. Rouler en boudin dans du film et réfrigérer 2 h. Idéal sur poisson et légumes vapeur.',
+  apports: 'Beurre : vitamines A et D. Citron : vitamine C. Aneth : huiles essentielles, digestion.',
+  budget: '≈ 2 à 3 €'
+}, {
+  id: 'r49',
+  nom: 'Beurre à l\'Échalote',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'beurre'],
+  ingredients: ['100 g de beurre mou', '1 échalote', '1 cuillère à café de vinaigre', 'Sel', 'Poivre'],
+  preparation: 'Ciseler très finement l\'échalote et la faire dégorger quelques minutes dans le vinaigre. Incorporer au beurre mou, saler et poivrer. Rouler en boudin et réfrigérer 2 h.',
+  apports: 'Beurre : vitamines A et D. Échalote : quercétine, prébiotiques, antioxydants. Vinaigre : soutien digestif.',
+  budget: '≈ 2 à 3 €'
+}, {
+  id: 'r50',
+  nom: 'Beurre aux Herbes Fraîches',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'beurre'],
+  ingredients: ['100 g de beurre mou', '1 cuillère à soupe de persil', '1 cuillère à soupe de ciboulette', '1 cuillère à soupe de basilic', 'Sel', 'Poivre'],
+  preparation: 'Ciseler finement les herbes. Les incorporer au beurre mou travaillé à la fourchette. Saler, poivrer. Rouler en boudin dans du film alimentaire et réfrigérer 2 h.',
+  apports: 'Beurre : vitamines A et D. Persil : vitamine K et C. Ciboulette : antioxydants. Basilic : huiles essentielles.',
+  budget: '≈ 2 à 3 €'
+}, {
+  id: 'r51',
+  nom: 'Beurre au Piment d\'Espelette',
+  categorie: 'Tartinades',
+  tags: ['végétarien', 'sans-gluten', 'beurre'],
+  ingredients: ['100 g de beurre mou', '1 cuillère à café de piment d\'Espelette', 'Sel'],
+  preparation: 'Travailler le beurre mou à la fourchette, incorporer le piment d\'Espelette et le sel. Mélanger jusqu\'à répartition homogène. Rouler en boudin et réfrigérer 2 h.',
+  apports: 'Beurre : vitamines A et D. Piment d\'Espelette : capsaïcine (douce), caroténoïdes, circulation.',
+  budget: '≈ 2 à 3 €'
+}];
+
+// ─── Tab Views (proper React components to allow local useState) ───
+const JOURS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+const TYPES = ['Matin', 'Midi', 'Soir'];
+const INTENSITES = ['Légère', 'Modérée', 'Intense'];
+const SPORT_CATS = ['Cardio', 'Muscu', 'Souplesse', 'Sport co', 'Plein air', 'Autre'];
+
+// ─── Plan de repas imprimable (PDF via fenêtre d'impression) ───
+// Génère un document HTML autonome au thème de l'app (bandeau vert profond,
+// or, couleur d'accent par personne) puis déclenche window.print() — l'utilisateur
+// enregistre en PDF. Pas de dépendance externe (CDN bloqués hors-ligne).
+function htmlEsc(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+const MEAL_TYPE_META = { Matin: { c: '#3f9e63', ic: '☀️' }, Midi: { c: '#c79a3e', ic: '🍽️' }, Soir: { c: '#8a63b0', ic: '🌙' } };
+const MEAL_PERSON_META = { dja: { get label(){ return yName('dja'); }, c: '#7c5cf0' }, liika: { get label(){ return yName('liika'); }, c: '#e0559b' }, couple: { label: 'Couple', c: '#c19a3d' } };
+function buildMealPlanHtml(who, meals) {
+  const days = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+  const types = ['Matin', 'Midi', 'Soir'];
+  const pm = MEAL_PERSON_META[who] || MEAL_PERSON_META.couple;
+  const get = (j, t) => (meals || []).find(m => m.jour === j && m.type === t);
+  const today = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const headRow = types.map(t => {
+    const mt = MEAL_TYPE_META[t];
+    return `<th class="th-type" style="border-bottom-color:${mt.c};color:${mt.c}"><span class="ic">${mt.ic}</span> ${t}</th>`;
+  }).join('');
+  const bodyRows = days.map((j, idx) => {
+    const cells = types.map(t => {
+      const m = get(j, t);
+      if (!m || !(m.plat || '').trim()) return '<td class="cell empty">—</td>';
+      const note = (m.note || '').trim();
+      return `<td class="cell"><div class="plat">${htmlEsc(m.plat)}</div>${note ? `<div class="note">${htmlEsc(note)}</div>` : ''}</td>`;
+    }).join('');
+    return `<tr class="${idx % 2 ? 'alt' : ''}"><td class="day" style="border-left-color:${pm.c};color:${pm.c}">${j}</td>${cells}</tr>`;
+  }).join('');
+  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Plan de repas — ${pm.label}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{font-family:'Helvetica Neue',Arial,sans-serif;color:#16261c;background:#fff;padding:34px 30px}
+.band{background:linear-gradient(135deg,#0c1f16,#122b1e 55%,#0a1a10);border-radius:16px;padding:22px 26px;color:#f3efe2;position:relative;overflow:hidden;border:1px solid rgba(217,183,95,.35)}
+.band:after{content:'';position:absolute;top:-50px;right:-30px;width:180px;height:180px;background:radial-gradient(circle,rgba(217,183,95,.18),transparent 70%)}
+.eyebrow{font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:#d9b75f;font-weight:700;margin-bottom:8px}
+.title{font-size:27px;font-weight:700;letter-spacing:.5px}
+.title b{color:${pm.c}}
+.sub{font-size:12px;color:#c2c9b6;margin-top:5px;font-style:italic}
+table{width:100%;border-collapse:collapse;margin-top:22px}
+th,td{text-align:left;vertical-align:top}
+.th-day{padding:0 10px 10px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#6b7d70;font-weight:600}
+.th-type{padding:0 12px 9px;font-size:13px;font-weight:700;border-bottom:2px solid}
+.th-type .ic{font-size:13px}
+.day{padding:12px 10px;font-weight:700;font-size:13.5px;border-left:3px solid;white-space:nowrap;width:108px}
+.cell{padding:11px 12px;font-size:12.5px;border-bottom:1px solid #ece7d6}
+.plat{font-weight:600;color:#1d3326;line-height:1.3}
+.note{font-size:10.5px;color:#7d8a7f;font-style:italic;margin-top:3px}
+.empty{color:#cbd3c4}
+tr.alt .cell{background:#faf8f0}
+.foot{margin-top:22px;display:flex;justify-content:space-between;align-items:center;font-size:10.5px;color:#86a08f;border-top:1px solid #ece7d6;padding-top:12px}
+.foot .heart{color:${pm.c}}
+@page{size:A4 portrait;margin:14mm}
+@media print{body{padding:0}}
+</style></head>
+<body>
+<div class="band">
+  <div class="eyebrow">🍃 ${BRAND} — ${BRAND_TAG}</div>
+  <div class="title">Plan de repas — <b>${pm.label}</b></div>
+  <div class="sub">Planning alimentaire de la semaine</div>
+</div>
+<table>
+<thead><tr><th class="th-day">Jour</th>${headRow}</tr></thead>
+<tbody>${bodyRows}</tbody>
+</table>
+<div class="foot"><span><span class="heart">♡</span> Préparé ensemble · Guadeloupe</span><span>Généré le ${today}</span></div>
+</body></html>`;
+}
+function printMealPlan(who, meals) {
+  const html = buildMealPlanHtml(who, meals);
+  const w = window.open('', '_blank');
+  if (!w) { alert('Autorise les fenêtres pop-up pour imprimer / exporter le plan de repas en PDF.'); return; }
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+  setTimeout(() => { try { w.print(); } catch (_) {} }, 350);
+}
+function MealsView({
+  data,
+  upsertMeal,
+  deleteMeal
+}) {
+  const [who, setWho] = useState(personKeys()[0]);
+  const meals = (who === 'couple' ? data.couple.meals : data[who].meals) || [];
+  const getMeal = (jour, type) => meals.find(m => m.jour === jour && m.type === type);
+  const [editId, setEditId] = useState(null);
+  const [editVal, setEditVal] = useState('');
+  const av = accent[who];
+  const save = (jour, type, meal) => {
+    if (editVal.trim()) {
+      upsertMeal(who, {
+        id: meal?.id || Date.now().toString(),
+        jour,
+        type,
+        plat: editVal.trim(),
+        note: meal?.note || ''
+      });
+    } else if (meal) {
+      deleteMeal(who, meal.id);
+    }
+    setEditId(null);
+  };
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 24,
+      flexWrap: 'wrap',
+      gap: 12
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
+    className: "eyebrow",
+    style: {
+      marginBottom: 6
+    }
+  }, "\uD83C\uDF43 Semaine en assiette"), /*#__PURE__*/React.createElement("h2", {
+    style: {
+      fontSize: 24,
+      fontWeight: 600,
+      fontFamily: "'Cormorant Garamond',serif",
+      marginBottom: 4,
+      color: 'var(--text)'
+    }
+  }, "Plans de repas"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 13,
+      color: 'var(--text3)'
+    }
+  }, "Planning alimentaire de la semaine")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 6
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => printMealPlan(who, meals),
+    title: 'Imprimer / exporter le plan de repas en PDF',
+    style: {
+      padding: '5px 14px',
+      borderRadius: 20,
+      border: '1px solid var(--gold-border)',
+      background: 'var(--gold-bg)',
+      color: 'var(--gold)',
+      fontSize: 12,
+      cursor: 'pointer',
+      transition: 'all .15s'
+    }
+  }, "⎙ Imprimer / PDF"), personKeys().map(w => /*#__PURE__*/React.createElement("button", {
+    key: w,
+    onClick: () => setWho(w),
+    style: {
+      padding: '5px 14px',
+      borderRadius: 20,
+      border: who === w ? `1px solid ${accent[w]}` : '1px solid var(--border)',
+      background: who === w ? accentBg[w] : 'transparent',
+      color: who === w ? accent[w] : 'var(--text3)',
+      fontSize: 12,
+      cursor: 'pointer',
+      transition: 'all .15s'
+    }
+  }, w === 'dja' ? yName('dja') : w === 'liika' ? yName('liika') : 'Couple')))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      overflowX: 'auto'
+    }
+  }, /*#__PURE__*/React.createElement("table", {
+    style: {
+      width: '100%',
+      borderCollapse: 'collapse',
+      fontSize: 13
+    }
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", {
+    style: {
+      padding: '8px 12px',
+      textAlign: 'left',
+      color: 'var(--text3)',
+      fontWeight: 500,
+      borderBottom: '1px solid var(--border)',
+      whiteSpace: 'nowrap'
+    }
+  }, "Jour"), TYPES.map(t => /*#__PURE__*/React.createElement("th", {
+    key: t,
+    style: {
+      padding: '8px 12px',
+      textAlign: 'left',
+      color: 'var(--text3)',
+      fontWeight: 500,
+      borderBottom: '1px solid var(--border)',
+      minWidth: 180
+    }
+  }, t)))), /*#__PURE__*/React.createElement("tbody", null, JOURS.map(jour => /*#__PURE__*/React.createElement("tr", {
+    key: jour,
+    style: {
+      borderBottom: '1px solid var(--border)'
+    }
+  }, /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: '10px 12px',
+      fontWeight: 600,
+      color: av,
+      whiteSpace: 'nowrap',
+      width: 100
+    }
+  }, jour), TYPES.map(type => {
+    const meal = getMeal(jour, type);
+    const cid = meal?.id || `${jour}-${type}`;
+    return /*#__PURE__*/React.createElement("td", {
+      key: type,
+      style: {
+        padding: '4px 6px'
+      }
+    }, editId === cid ? /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        gap: 4
+      }
+    }, /*#__PURE__*/React.createElement("input", {
+      autoFocus: true,
+      value: editVal,
+      onChange: e => setEditVal(e.target.value),
+      onKeyDown: e => {
+        if (e.key === 'Enter') save(jour, type, meal);
+        if (e.key === 'Escape') setEditId(null);
+      },
+      style: {
+        flex: 1,
+        background: 'var(--bg4)',
+        border: `1px solid ${av}`,
+        borderRadius: 'var(--radius-xs)',
+        padding: '4px 8px',
+        color: 'var(--text)',
+        fontSize: 12,
+        outline: 'none'
+      }
+    }), /*#__PURE__*/React.createElement("button", {
+      onClick: () => save(jour, type, meal),
+      style: {
+        padding: '4px 8px',
+        borderRadius: 'var(--radius-xs)',
+        border: 'none',
+        background: av,
+        color: '#fff',
+        cursor: 'pointer',
+        fontSize: 11
+      }
+    }, "\u2713"), /*#__PURE__*/React.createElement("button", {
+      onClick: () => setEditId(null),
+      style: {
+        padding: '4px 6px',
+        borderRadius: 'var(--radius-xs)',
+        border: '1px solid var(--border2)',
+        background: 'transparent',
+        color: 'var(--text3)',
+        cursor: 'pointer',
+        fontSize: 11
+      }
+    }, "\u2715")) : /*#__PURE__*/React.createElement("div", {
+      onClick: () => {
+        setEditId(cid);
+        setEditVal(meal?.plat || '');
+      },
+      style: {
+        padding: '6px 8px',
+        borderRadius: 'var(--radius-xs)',
+        background: meal ? 'var(--bg3)' : 'transparent',
+        border: `1px dashed ${meal ? 'transparent' : 'var(--border)'}`,
+        cursor: 'text',
+        color: meal ? 'var(--text)' : 'var(--text3)',
+        minHeight: 34,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6
+      }
+    }, meal ? meal.plat : /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 11,
+        opacity: .6
+      }
+    }, "+ Ajouter")));
+  })))))), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 11,
+      color: 'var(--text3)',
+      marginTop: 10
+    }
+  }, "Cliquer pour modifier \xB7 Entr\xE9e pour valider \xB7 \xC9chap pour annuler \xB7 Vider pour supprimer"));
+}
+function BudgetView({
+  data,
+  upsertBudgetLine,
+  deleteBudgetLine
+}) {
+  const [who, setWho] = useState(personKeys()[0]);
+  const budget = (who === 'couple' ? data.couple.budget : data[who].budget) || {
+    revenus: [],
+    depenses: []
+  };
+  const revenus = budget.revenus || [];
+  const depenses = budget.depenses || [];
+  const totRev = revenus.reduce((s, r) => s + Number(r.montant), 0);
+  const totDep = depenses.reduce((s, d) => s + Number(d.montant), 0);
+  const balance = totRev - totDep;
+  const av = accent[who];
+  const CATS = ['Logement', 'Vie', 'Transport', 'Tech', 'Pro', 'Projets', 'Épargne', 'Autre'];
+  function LineRow({
+    line,
+    type
+  }) {
+    return /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: '8px 0',
+        borderBottom: '1px solid var(--border)'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        flex: 1
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 13
+      }
+    }, line.label), line.cat && /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 11,
+        color: 'var(--text3)'
+      }
+    }, line.cat)), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 14,
+        fontWeight: 600,
+        color: type === 'revenus' ? 'var(--success)' : '#f87171',
+        minWidth: 90,
+        textAlign: 'right'
+      }
+    }, type === 'revenus' ? '+' : '-', Number(line.montant).toLocaleString('fr-FR'), " \u20AC"), /*#__PURE__*/React.createElement("button", {
+      onClick: () => deleteBudgetLine(who, type, line.id),
+      style: {
+        background: 'none',
+        border: 'none',
+        color: 'var(--text3)',
+        cursor: 'pointer',
+        fontSize: 16,
+        padding: '0 4px'
+      }
+    }, "\xD7"));
+  }
+  function AddRow({
+    type
+  }) {
+    const [open, setOpen] = useState(false);
+    const [f, setF] = useState({
+      label: '',
+      montant: '',
+      cat: 'Autre'
+    });
+    if (!open) return /*#__PURE__*/React.createElement("button", {
+      onClick: () => setOpen(true),
+      style: {
+        marginTop: 8,
+        width: '100%',
+        padding: '6px',
+        borderRadius: 'var(--radius-xs)',
+        border: `1px dashed ${av}`,
+        background: 'transparent',
+        color: av,
+        cursor: 'pointer',
+        fontSize: 12
+      }
+    }, "+ Ajouter");
+    return /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginTop: 8,
+        display: 'flex',
+        gap: 6,
+        flexWrap: 'wrap'
+      }
+    }, /*#__PURE__*/React.createElement("input", {
+      placeholder: "Libell\xE9",
+      value: f.label,
+      onChange: e => setF(p => ({
+        ...p,
+        label: e.target.value
+      })),
+      style: {
+        flex: 2,
+        minWidth: 100,
+        padding: '5px 8px',
+        borderRadius: 'var(--radius-xs)',
+        border: '1px solid var(--border2)',
+        background: 'var(--bg4)',
+        color: 'var(--text)',
+        fontSize: 12,
+        outline: 'none'
+      }
+    }), /*#__PURE__*/React.createElement("input", {
+      type: "number",
+      placeholder: "Montant \u20AC",
+      value: f.montant,
+      onChange: e => setF(p => ({
+        ...p,
+        montant: e.target.value
+      })),
+      style: {
+        width: 90,
+        padding: '5px 8px',
+        borderRadius: 'var(--radius-xs)',
+        border: '1px solid var(--border2)',
+        background: 'var(--bg4)',
+        color: 'var(--text)',
+        fontSize: 12,
+        outline: 'none'
+      }
+    }), type === 'depenses' && /*#__PURE__*/React.createElement("select", {
+      value: f.cat,
+      onChange: e => setF(p => ({
+        ...p,
+        cat: e.target.value
+      })),
+      style: {
+        padding: '5px 8px',
+        borderRadius: 'var(--radius-xs)',
+        border: '1px solid var(--border2)',
+        background: 'var(--bg4)',
+        color: 'var(--text)',
+        fontSize: 12,
+        outline: 'none'
+      }
+    }, CATS.map(c => /*#__PURE__*/React.createElement("option", {
+      key: c
+    }, c))), /*#__PURE__*/React.createElement("button", {
+      onClick: () => {
+        if (f.label && f.montant) {
+          upsertBudgetLine(who, type, {
+            id: Date.now().toString(),
+            label: f.label,
+            montant: Number(f.montant),
+            cat: f.cat
+          });
+          setOpen(false);
+          setF({
+            label: '',
+            montant: '',
+            cat: 'Autre'
+          });
+        }
+      },
+      style: {
+        padding: '5px 10px',
+        borderRadius: 'var(--radius-xs)',
+        border: 'none',
+        background: av,
+        color: '#fff',
+        cursor: 'pointer',
+        fontSize: 12
+      }
+    }, "\u2713"), /*#__PURE__*/React.createElement("button", {
+      onClick: () => setOpen(false),
+      style: {
+        padding: '5px 10px',
+        borderRadius: 'var(--radius-xs)',
+        border: '1px solid var(--border2)',
+        background: 'transparent',
+        color: 'var(--text3)',
+        cursor: 'pointer',
+        fontSize: 12
+      }
+    }, "\u2715"));
+  }
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 24,
+      flexWrap: 'wrap',
+      gap: 12
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
+    className: "eyebrow",
+    style: {
+      marginBottom: 6
+    }
+  }, "\uD83D\uDCB0 Finances"), /*#__PURE__*/React.createElement("h2", {
+    style: {
+      fontSize: 24,
+      fontWeight: 600,
+      fontFamily: "'Cormorant Garamond',serif",
+      marginBottom: 4,
+      color: 'var(--text)'
+    }
+  }, "Budget"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 13,
+      color: 'var(--text3)'
+    }
+  }, "Revenus, d\xE9penses et balance mensuelle")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 6
+    }
+  }, personKeys().map(w => /*#__PURE__*/React.createElement("button", {
+    key: w,
+    onClick: () => setWho(w),
+    style: {
+      padding: '5px 14px',
+      borderRadius: 20,
+      border: who === w ? `1px solid ${accent[w]}` : '1px solid var(--border)',
+      background: who === w ? accentBg[w] : 'transparent',
+      color: who === w ? accent[w] : 'var(--text3)',
+      fontSize: 12,
+      cursor: 'pointer',
+      transition: 'all .15s'
+    }
+  }, w === 'dja' ? yName('dja') : w === 'liika' ? yName('liika') : 'Couple')))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))',
+      gap: 12,
+      marginBottom: 24
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: 'linear-gradient(160deg,var(--bg3),var(--bg2))',
+      borderRadius: 'var(--radius)',
+      padding: 16,
+      textAlign: 'center',
+      border: '1px solid var(--border)',
+      boxShadow: 'var(--shadow)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: 'var(--text3)',
+      marginBottom: 5,
+      letterSpacing: '.06em',
+      textTransform: 'uppercase'
+    }
+  }, "Revenus"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 22,
+      fontWeight: 700,
+      color: 'var(--success)'
+    }
+  }, "+", totRev.toLocaleString('fr-FR'), " \u20AC")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: 'linear-gradient(160deg,var(--bg3),var(--bg2))',
+      borderRadius: 'var(--radius)',
+      padding: 16,
+      textAlign: 'center',
+      border: '1px solid var(--border)',
+      boxShadow: 'var(--shadow)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: 'var(--text3)',
+      marginBottom: 5,
+      letterSpacing: '.06em',
+      textTransform: 'uppercase'
+    }
+  }, "D\xE9penses"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 22,
+      fontWeight: 700,
+      color: '#f87171'
+    }
+  }, "-", totDep.toLocaleString('fr-FR'), " \u20AC")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: 'linear-gradient(160deg,var(--bg3),var(--bg2))',
+      borderRadius: 'var(--radius)',
+      padding: 16,
+      textAlign: 'center',
+      border: `1px solid ${balance >= 0 ? 'var(--gold-border)' : 'rgba(248,113,113,.3)'}`,
+      boxShadow: 'var(--shadow)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: 'var(--text3)',
+      marginBottom: 5,
+      letterSpacing: '.06em',
+      textTransform: 'uppercase'
+    }
+  }, "Balance"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 22,
+      fontWeight: 700,
+      color: balance >= 0 ? 'var(--gold)' : '#f87171'
+    }
+  }, balance >= 0 ? '+' : '', balance.toLocaleString('fr-FR'), " \u20AC"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))',
+      gap: 20
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: 'linear-gradient(160deg,var(--bg3),var(--bg2))',
+      borderRadius: 'var(--radius)',
+      padding: 20,
+      border: '1px solid var(--border)',
+      boxShadow: 'var(--shadow)'
+    }
+  }, /*#__PURE__*/React.createElement("h3", {
+    style: {
+      fontSize: 11,
+      fontWeight: 600,
+      marginBottom: 12,
+      color: 'var(--success)',
+      letterSpacing: '.04em',
+      textTransform: 'uppercase'
+    }
+  }, "Revenus"), revenus.map(r => /*#__PURE__*/React.createElement(LineRow, {
+    key: r.id,
+    line: r,
+    type: "revenus"
+  })), /*#__PURE__*/React.createElement(AddRow, {
+    type: "revenus"
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: 'linear-gradient(160deg,var(--bg3),var(--bg2))',
+      borderRadius: 'var(--radius)',
+      padding: 20,
+      border: '1px solid var(--border)',
+      boxShadow: 'var(--shadow)'
+    }
+  }, /*#__PURE__*/React.createElement("h3", {
+    style: {
+      fontWeight: 600,
+      marginBottom: 12,
+      color: '#f87171',
+      letterSpacing: '.04em',
+      textTransform: 'uppercase',
+      fontSize: 11
+    }
+  }, "D\xE9penses"), depenses.map(d => /*#__PURE__*/React.createElement(LineRow, {
+    key: d.id,
+    line: d,
+    type: "depenses"
+  })), /*#__PURE__*/React.createElement(AddRow, {
+    type: "depenses"
+  }))));
+}
+function VisionView({
+  data,
+  updateVision
+}) {
+  const [who, setWho] = useState(personKeys()[0]);
+  const vision = (who === 'couple' ? data.couple.vision : data[who]?.vision) || '';
+  const name = who === 'dja' ? data.dja.name : who === 'liika' ? data.liika.name : COUPLE_NAME;
+  const av = accent[who];
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 24,
+      flexWrap: 'wrap',
+      gap: 12
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
+    className: "eyebrow",
+    style: {
+      marginBottom: 6
+    }
+  }, "\u2726 Long terme"), /*#__PURE__*/React.createElement("h2", {
+    style: {
+      fontSize: 24,
+      fontWeight: 600,
+      fontFamily: "'Cormorant Garamond',serif",
+      marginBottom: 4,
+      color: 'var(--text)'
+    }
+  }, "Vision"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 13,
+      color: 'var(--text3)'
+    }
+  }, "Qui tu veux devenir \u2014 horizon 2027-2036")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 6
+    }
+  }, personKeys().map(w => /*#__PURE__*/React.createElement("button", {
+    key: w,
+    onClick: () => setWho(w),
+    style: {
+      padding: '5px 14px',
+      borderRadius: 20,
+      border: who === w ? `1px solid ${accent[w]}` : '1px solid var(--border)',
+      background: who === w ? accentBg[w] : 'transparent',
+      color: who === w ? accent[w] : 'var(--text3)',
+      fontSize: 12,
+      cursor: 'pointer',
+      transition: 'all .15s'
+    }
+  }, w === 'dja' ? yName('dja') : w === 'liika' ? yName('liika') : 'Couple')))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: `linear-gradient(135deg,${accentBg[who]},var(--bg2))`,
+      borderRadius: 'var(--radius)',
+      padding: 28,
+      border: `1px solid ${accentBorder[who]}`,
+      marginBottom: 20,
+      boxShadow: 'var(--shadow)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "eyebrow",
+    style: {
+      marginBottom: 14
+    }
+  }, "\u2726 Vision de ", name), /*#__PURE__*/React.createElement("textarea", {
+    value: vision,
+    onChange: e => updateVision(who, e.target.value),
+    placeholder: "\xC9cris ta vision long-terme \u2014 qui tu veux \xEAtre, ce que tu veux construire, o\xF9 tu veux aller\u2026",
+    rows: 7,
+    style: {
+      width: '100%',
+      background: 'transparent',
+      border: 'none',
+      outline: 'none',
+      color: 'var(--text)',
+      fontSize: 17,
+      lineHeight: 1.95,
+      resize: 'none',
+      fontFamily: "'Cormorant Garamond',serif",
+      fontStyle: 'italic',
+      fontWeight: 400
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))',
+      gap: 12
+    }
+  }, [{
+    icon: '🎯',
+    label: 'Objectifs actifs',
+    value: ((who === 'couple' ? data.couple.objectives : data[who]?.objectives) || []).filter(o => !o.done).length
+  }, {
+    icon: '✅',
+    label: 'Terminés',
+    value: ((who === 'couple' ? data.couple.objectives : data[who]?.objectives) || []).filter(o => o.done).length
+  }, {
+    icon: '💪',
+    label: 'Séances sport',
+    value: (() => {
+      const sp = (who === 'couple' ? data.couple.sport : data[who]?.sport) || [];
+      return sp.filter(s => s.fait).length + ' / ' + sp.length;
+    })()
+  }, {
+    icon: '📝',
+    label: 'Notes',
+    value: ((who === 'couple' ? data.couple.notes : data[who]?.notes) || []).length
+  }].map(({
+    icon,
+    label,
+    value
+  }) => /*#__PURE__*/React.createElement("div", {
+    key: label,
+    style: {
+      background: 'linear-gradient(160deg,var(--bg3),var(--bg2))',
+      borderRadius: 'var(--radius-sm)',
+      padding: '14px 16px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 10,
+      border: '1px solid var(--border)',
+      boxShadow: 'var(--shadow)'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 20
+    }
+  }, icon), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: 'var(--text3)',
+      marginBottom: 3,
+      letterSpacing: '.04em'
+    }
+  }, label), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 16,
+      fontWeight: 600,
+      color: 'var(--text)'
+    }
+  }, value))))));
+}
+function SportView({
+  data,
+  upsertSport,
+  deleteSport
+}) {
+  const [who, setWho] = useState(personKeys()[0]);
+  const sport = (who === 'couple' ? data.couple.sport : data[who]?.sport) || [];
+  const av = accent[who];
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({
+    jour: 'Lundi',
+    activite: '',
+    duree: 30,
+    intensite: 'Modérée',
+    cat: 'Cardio'
+  });
+  const done = sport.filter(s => s.fait).length;
+  const total = sport.length;
+  const pctWeek = total ? Math.round(done / total * 100) : 0;
+  const colorIntens = {
+    Légère: 'var(--success)',
+    Modérée: 'var(--accent-couple)',
+    Intense: '#f87171'
+  };
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 24,
+      flexWrap: 'wrap',
+      gap: 12
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
+    className: "eyebrow",
+    style: {
+      marginBottom: 6
+    }
+  }, "\uD83D\uDCAA Corps en mouvement"), /*#__PURE__*/React.createElement("h2", {
+    style: {
+      fontSize: 24,
+      fontWeight: 600,
+      fontFamily: "'Cormorant Garamond',serif",
+      marginBottom: 4,
+      color: 'var(--text)'
+    }
+  }, "Planning sportif"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 13,
+      color: 'var(--text3)'
+    }
+  }, "Activit\xE9s physiques de la semaine")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 6
+    }
+  }, personKeys().map(w => /*#__PURE__*/React.createElement("button", {
+    key: w,
+    onClick: () => setWho(w),
+    style: {
+      padding: '5px 14px',
+      borderRadius: 20,
+      border: who === w ? `1px solid ${accent[w]}` : '1px solid var(--border)',
+      background: who === w ? accentBg[w] : 'transparent',
+      color: who === w ? accent[w] : 'var(--text3)',
+      fontSize: 12,
+      cursor: 'pointer',
+      transition: 'all .15s'
+    }
+  }, w === 'dja' ? yName('dja') : w === 'liika' ? yName('liika') : 'Couple')))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: 'linear-gradient(160deg,var(--bg3),var(--bg2))',
+      borderRadius: 'var(--radius)',
+      padding: 20,
+      marginBottom: 20,
+      border: `1px solid ${accentBorder[who]}`,
+      boxShadow: 'var(--shadow)',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 20,
+      flexWrap: 'wrap'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'relative',
+      flexShrink: 0
+    }
+  }, /*#__PURE__*/React.createElement(ProgressRing, {
+    pct: pctWeek,
+    size: 72,
+    stroke: 6,
+    color: av
+  }), /*#__PURE__*/React.createElement("span", {
+    style: {
+      position: 'absolute',
+      inset: 0,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontSize: 14,
+      fontWeight: 700
+    }
+  }, pctWeek, "%")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 15,
+      fontWeight: 600,
+      marginBottom: 4
+    }
+  }, done, " / ", total, " s\xE9ances cette semaine"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      height: 6,
+      background: 'var(--border2)',
+      borderRadius: 3,
+      overflow: 'hidden'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      height: 6,
+      width: `${pctWeek}%`,
+      background: av,
+      borderRadius: 3,
+      transition: 'width .4s'
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 16,
+      marginTop: 10,
+      fontSize: 12,
+      color: 'var(--text3)'
+    }
+  }, /*#__PURE__*/React.createElement("span", null, "\uD83D\uDFE2 L\xE9g\xE8re : ", sport.filter(s => s.intensite === 'Légère').length), /*#__PURE__*/React.createElement("span", null, "\uD83D\uDFE1 Mod\xE9r\xE9e : ", sport.filter(s => s.intensite === 'Modérée').length), /*#__PURE__*/React.createElement("span", null, "\uD83D\uDD34 Intense : ", sport.filter(s => s.intensite === 'Intense').length))), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShowForm(p => !p),
+    style: {
+      padding: '8px 16px',
+      borderRadius: 'var(--radius-sm)',
+      border: 'none',
+      background: av,
+      color: '#fff',
+      cursor: 'pointer',
+      fontSize: 13,
+      fontWeight: 500,
+      whiteSpace: 'nowrap'
+    }
+  }, "+ S\xE9ance")), showForm && /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: 'var(--bg3)',
+      borderRadius: 'var(--radius)',
+      padding: 20,
+      marginBottom: 20,
+      border: `1px solid ${accentBorder[who]}`,
+      display: 'flex',
+      gap: 10,
+      flexWrap: 'wrap',
+      alignItems: 'flex-end'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 2,
+      minWidth: 140
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: 'var(--text3)',
+      marginBottom: 4
+    }
+  }, "Activit\xE9"), /*#__PURE__*/React.createElement("input", {
+    value: form.activite,
+    onChange: e => setForm(p => ({
+      ...p,
+      activite: e.target.value
+    })),
+    placeholder: "Course, yoga, natation\u2026",
+    style: {
+      width: '100%',
+      padding: '7px 10px',
+      borderRadius: 'var(--radius-xs)',
+      border: '1px solid var(--border2)',
+      background: 'var(--bg4)',
+      color: 'var(--text)',
+      fontSize: 13,
+      outline: 'none'
+    }
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: 'var(--text3)',
+      marginBottom: 4
+    }
+  }, "Jour"), /*#__PURE__*/React.createElement("select", {
+    value: form.jour,
+    onChange: e => setForm(p => ({
+      ...p,
+      jour: e.target.value
+    })),
+    style: {
+      padding: '7px 10px',
+      borderRadius: 'var(--radius-xs)',
+      border: '1px solid var(--border2)',
+      background: 'var(--bg4)',
+      color: 'var(--text)',
+      fontSize: 13,
+      outline: 'none'
+    }
+  }, JOURS.map(j => /*#__PURE__*/React.createElement("option", {
+    key: j
+  }, j)))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: 'var(--text3)',
+      marginBottom: 4
+    }
+  }, "Dur\xE9e (min)"), /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    value: form.duree,
+    onChange: e => setForm(p => ({
+      ...p,
+      duree: Number(e.target.value)
+    })),
+    min: 5,
+    max: 180,
+    style: {
+      width: 80,
+      padding: '7px 10px',
+      borderRadius: 'var(--radius-xs)',
+      border: '1px solid var(--border2)',
+      background: 'var(--bg4)',
+      color: 'var(--text)',
+      fontSize: 13,
+      outline: 'none'
+    }
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: 'var(--text3)',
+      marginBottom: 4
+    }
+  }, "Intensit\xE9"), /*#__PURE__*/React.createElement("select", {
+    value: form.intensite,
+    onChange: e => setForm(p => ({
+      ...p,
+      intensite: e.target.value
+    })),
+    style: {
+      padding: '7px 10px',
+      borderRadius: 'var(--radius-xs)',
+      border: '1px solid var(--border2)',
+      background: 'var(--bg4)',
+      color: 'var(--text)',
+      fontSize: 13,
+      outline: 'none'
+    }
+  }, INTENSITES.map(i => /*#__PURE__*/React.createElement("option", {
+    key: i
+  }, i)))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 6
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      if (form.activite.trim()) {
+        upsertSport(who, {
+          id: Date.now().toString(),
+          ...form,
+          fait: false
+        });
+        setShowForm(false);
+        setForm({
+          jour: 'Lundi',
+          activite: '',
+          duree: 30,
+          intensite: 'Modérée',
+          cat: 'Cardio'
+        });
+      }
+    },
+    style: {
+      padding: '7px 14px',
+      borderRadius: 'var(--radius-xs)',
+      border: 'none',
+      background: av,
+      color: '#fff',
+      cursor: 'pointer',
+      fontSize: 13,
+      fontWeight: 500
+    }
+  }, "Ajouter"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShowForm(false),
+    style: {
+      padding: '7px 10px',
+      borderRadius: 'var(--radius-xs)',
+      border: '1px solid var(--border2)',
+      background: 'transparent',
+      color: 'var(--text3)',
+      cursor: 'pointer',
+      fontSize: 13
+    }
+  }, "\u2715"))), JOURS.map(jour => {
+    const seances = sport.filter(s => s.jour === jour);
+    if (!seances.length) return null;
+    return /*#__PURE__*/React.createElement("div", {
+      key: jour,
+      style: {
+        marginBottom: 16
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 13,
+        fontWeight: 600,
+        color: av,
+        marginBottom: 8,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8
+      }
+    }, /*#__PURE__*/React.createElement("span", null, jour), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 11,
+        color: 'var(--text3)',
+        fontWeight: 400
+      }
+    }, seances.filter(s => s.fait).length, "/", seances.length, " faites")), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'grid',
+        gap: 8
+      }
+    }, seances.map(s => /*#__PURE__*/React.createElement("div", {
+      key: s.id,
+      style: {
+        background: 'var(--bg3)',
+        borderRadius: 'var(--radius-sm)',
+        padding: '12px 16px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        opacity: s.fait ? .7 : 1,
+        transition: 'opacity .2s'
+      }
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: () => upsertSport(who, {
+        ...s,
+        fait: !s.fait
+      }),
+      style: {
+        width: 24,
+        height: 24,
+        minWidth: 24,
+        borderRadius: 6,
+        border: s.fait ? 'none' : '2px solid var(--border2)',
+        background: s.fait ? 'var(--success)' : 'transparent',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: 'pointer',
+        transition: 'all .2s'
+      }
+    }, s.fait && /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: 'var(--bg)',
+        fontSize: 13,
+        fontWeight: 700
+      }
+    }, "\u2713")), /*#__PURE__*/React.createElement("div", {
+      style: {
+        flex: 1
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 14,
+        fontWeight: 500,
+        textDecoration: s.fait ? 'line-through' : 'none',
+        color: s.fait ? 'var(--text3)' : 'var(--text)'
+      }
+    }, s.activite), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 12,
+        color: 'var(--text3)',
+        marginTop: 2
+      }
+    }, s.duree, " min")), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 11,
+        padding: '2px 8px',
+        borderRadius: 20,
+        background: 'var(--bg4)',
+        color: colorIntens[s.intensite],
+        fontWeight: 500
+      }
+    }, s.intensite), /*#__PURE__*/React.createElement("button", {
+      onClick: () => deleteSport(who, s.id),
+      style: {
+        background: 'none',
+        border: 'none',
+        color: 'var(--text3)',
+        cursor: 'pointer',
+        fontSize: 16,
+        padding: '0 2px'
+      }
+    }, "\xD7")))));
+  }), !sport.length && /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: 'center',
+      padding: 40,
+      color: 'var(--text3)',
+      fontSize: 14
+    }
+  }, "Aucune s\xE9ance planifi\xE9e \u2014 clique sur \"+ S\xE9ance\" pour commencer"));
+}
+
+// ─── Planning View ───
+const PLAN_DAYS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+const PLAN_DAYS_FULL = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+const PLAN_CATEGORIES = {
+  sport: {
+    label: 'Sport',
+    color: '#4ade80',
+    icon: '💪'
+  },
+  pro: {
+    label: 'Pro',
+    color: '#60a5fa',
+    icon: '💼'
+  },
+  famille: {
+    label: 'Famille / Couple',
+    color: '#f472b6',
+    icon: '❤️'
+  },
+  nature: {
+    label: 'Nature & Sorties',
+    color: '#facc15',
+    icon: '🌿'
+  },
+  culture: {
+    label: 'Culture',
+    color: '#c084fc',
+    icon: '📚'
+  },
+  repos: {
+    label: 'Récup & Bien-être',
+    color: '#fb923c',
+    icon: '🌙'
+  }
+};
+// Yife : aucun emploi du temps imposé — chaque journée démarre vide.
+const INITIAL_PLANNING = {};
+const PLAN_WHO = {
+  both: {
+    label: 'Tous les deux',
+    color: '#f472b6'
+  },
+  dja: {
+    get label() { return yName('dja'); },
+    color: '#60a5fa'
+  },
+  liika: {
+    get label() { return yName('liika'); },
+    color: '#4ade80'
+  }
+};
+// ─── Emploi du temps : lecture d'une journée ───
+// Une journée jamais modifiée est rendue depuis le modèle INITIAL_PLANNING (plus
+// les créneaux ajoutés par l'ancienne version dans `custom`). Dès la première
+// modification la journée est « adoptée » : ses créneaux sont recopiés dans
+// `items`, qui devient seul maître à bord. C'est ce qui permet de modifier,
+// déplacer ou supprimer même un créneau venu du modèle.
+//   planning[jour] = { checked:{id:true}, items:[…] }   ← journée adoptée
+//   planning[jour] = { checked:{id:true}, custom:[…] }  ← ancienne forme, toujours lue
+// '06:00' → '060000'. Renvoie null si l'heure est illisible (créneau ignoré).
+function planIcsTime(t) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(t == null ? '' : t).trim());
+  if (!m) return null;
+  const hh = Number(m[1]), mn = Number(m[2]);
+  if (hh > 23 || mn > 59) return null;
+  return String(hh).padStart(2, '0') + String(mn).padStart(2, '0') + '00';
+}
+function planIcsMinutes(hhmmss) { return Number(hhmmss.slice(0, 2)) * 60 + Number(hhmmss.slice(2, 4)); }
+function planObjet(v) { return (v && typeof v === 'object' && !Array.isArray(v)) ? v : null; }
+function planJourBrut(planning, day) { return planObjet(planObjet(planning) ? planning[day] : null) || {}; }
+function planItemValide(it) { return !!(it && typeof it === 'object' && it.id != null && String(it.title || '').trim()); }
+// Créneaux du modèle pour une journée, avec leurs identifiants stables.
+function planItemsModele(day) {
+  return (INITIAL_PLANNING[day] || []).map((it, i) => ({ ...it, id: 'i' + day + '-' + i }));
+}
+// Créneaux d'une journée, TOUJOURS triés par heure : sans ça un créneau ajouté à
+// 07:00 s'affichait après celui de 21:00.
+function planDayItems(planning, day) {
+  const d = planJourBrut(planning, day);
+  const src = Array.isArray(d.items)
+    ? d.items
+    : planItemsModele(day).concat(Array.isArray(d.custom) ? d.custom : []);
+  return src
+    .filter(planItemValide)
+    .map(it => ({ ...it, id: String(it.id), title: String(it.title).trim() }))
+    .sort((a, b) => {
+      const ta = planIcsTime(a.time) || '999999';
+      const tb = planIcsTime(b.time) || '999999';
+      return ta < tb ? -1 : ta > tb ? 1 : 0;
+    });
+}
+// Vrai si la journée a déjà été reprise en main (donc plus liée au modèle).
+function planJourAdopte(planning, day) { return Array.isArray(planJourBrut(planning, day).items); }
+
+// Lien Google Maps : requête nommée complète (nom du lieu + commune + Guadeloupe)
+// -> Maps épingle le POI officiel, pas de coordonnées inventées.
+const mapsUrl = q => 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q);
+// Carte affichée DANS l'app (iframe) — mode embed sans clé API.
+const mapEmbedUrl = q => 'https://www.google.com/maps?q=' + encodeURIComponent(q) + '&output=embed';
+// Agenda Bizouk (Guadeloupe) : on se contente de LIER vers eux. Leur robots.txt
+// autorise `use=reference` (lien + court extrait) mais interdit le crawl
+// automatisé (ClaudeBot Disallow, /api/ bloqué, honeypot anti-scraping).
+// -> aucune récupération auto : les soirées sont saisies à la main dans l'app.
+const BIZOUK_AGENDA = 'https://www.bizouk.com/soirees/agenda/region/guadeloupe';
+const pad2 = n => String(n).padStart(2, '0');
+const bizoukDayUrl = d => BIZOUK_AGENDA + '/' + d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate());
+const next7Days = () => Array.from({ length: 7 }, (_, i) => {
+  const d = new Date();
+  d.setDate(d.getDate() + i);
+  return {
+    i,
+    label: i === 0 ? "Auj." : d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' }),
+    url: bizoukDayUrl(d)
+  };
+});
+// Jours écoulés depuis un ISO (null si absent/invalide) -> badge de fraîcheur.
+const daysSince = iso => {
+  const t = Date.parse(iso || '');
+  return t ? Math.floor((Date.now() - t) / 86400000) : null;
+};
+const OUTINGS = [{
+  icon: '🏖️',
+  title: 'Plages',
+  places: [{
+    n: 'Caravelle (Sainte-Anne)',
+    q: 'Plage de la Caravelle, Sainte-Anne, Guadeloupe'
+  }, {
+    n: 'Plage de la Perle (Deshaies)',
+    q: 'Plage de la Perle, Deshaies, Guadeloupe'
+  }, {
+    n: 'Petit-Havre (Le Gosier)',
+    q: 'Plage de Petit-Havre, Le Gosier, Guadeloupe'
+  }, {
+    n: 'Anse Laborde (Anse-Bertrand)',
+    q: 'Plage d\'Anse Laborde, Anse-Bertrand, Guadeloupe'
+  }, {
+    n: 'Malendure (Bouillante)',
+    q: 'Plage de Malendure, Bouillante, Guadeloupe'
+  }]
+}, {
+  icon: '🌊',
+  title: 'Rivières & Cascades',
+  places: [{
+    n: 'Bras-David',
+    q: 'Maison de la Forêt, Bras-David, Petit-Bourg, Guadeloupe'
+  }, {
+    n: 'Chutes du Carbet',
+    q: 'Chutes du Carbet, Capesterre-Belle-Eau, Guadeloupe'
+  }, {
+    n: 'Dolé-les-Bains',
+    q: 'Dolé-les-Bains, Gourbeyre, Guadeloupe'
+  }, {
+    n: 'Saut de la Lézarde',
+    q: 'Saut de la Lézarde, Petit-Bourg, Guadeloupe'
+  }, {
+    n: 'Cascade aux Écrevisses',
+    q: 'Cascade aux Écrevisses, Petit-Bourg, Guadeloupe'
+  }]
+}, {
+  icon: '🏔️',
+  title: 'Randonnées',
+  places: [{
+    n: 'La Soufrière (sommet)',
+    q: 'Volcan La Soufrière, Saint-Claude, Guadeloupe'
+  }, {
+    n: 'Forêt de Sofaïa',
+    q: 'Sofaïa, Sainte-Rose, Guadeloupe'
+  }, {
+    n: 'Trace des Crêtes',
+    q: 'Trace des Crêtes, Terre-de-Haut, Les Saintes, Guadeloupe'
+  }, {
+    n: 'Morne à Louis',
+    q: 'Morne à Louis, Route de la Traversée, Guadeloupe'
+  }, {
+    n: 'Allée Dumanoir',
+    q: 'Allée Dumanoir, Capesterre-Belle-Eau, Guadeloupe'
+  }]
+}, {
+  icon: '🌅',
+  title: 'Couchers de soleil',
+  places: [{
+    n: 'Pointe des Châteaux',
+    q: 'Pointe des Châteaux, Saint-François, Guadeloupe'
+  }, {
+    n: 'Vieux-Fort',
+    q: 'Phare de Vieux-Fort, Vieux-Fort, Guadeloupe'
+  }, {
+    n: 'Désirade (vue)',
+    q: 'La Désirade, Guadeloupe'
+  }, {
+    n: 'Pointe-Noire',
+    q: 'Pointe-Noire, Guadeloupe'
+  }, {
+    n: 'Anse à la Barque',
+    q: 'Anse à la Barque, Vieux-Habitants, Guadeloupe'
+  }]
+}, {
+  icon: '🎭',
+  title: 'Sorties culturelles',
+  places: [{
+    n: 'Marché de Saint-François',
+    q: 'Marché de Saint-François, Saint-François, Guadeloupe'
+  }, {
+    n: 'Mémorial ACTe (Pointe-à-Pitre)',
+    q: 'Mémorial ACTe, Pointe-à-Pitre, Guadeloupe'
+  }, {
+    n: 'Festival Gwoka (Sainte-Anne)',
+    q: 'Sainte-Anne, Guadeloupe'
+  }, {
+    n: 'Concerts locaux'
+  }, {
+    n: 'Galeries Basse-Terre',
+    q: 'Basse-Terre, Guadeloupe'
+  }]
+}];
+const BOOKS = [{
+  title: 'La Nourriture végétaliste créole',
+  author: 'Collectif antillais',
+  cat: 'cuisine'
+}, {
+  title: 'Atomic Habits',
+  author: 'James Clear',
+  cat: 'développement'
+}, {
+  title: 'Moi, Tituba…',
+  author: 'Maryse Condé',
+  cat: 'littérature'
+}, {
+  title: "The Artist's Way",
+  author: 'Julia Cameron',
+  cat: 'créativité'
+}, {
+  title: 'Daring Greatly',
+  author: 'Brené Brown',
+  cat: 'couple & croissance'
+}];
+const FILMS = [{
+  title: 'Kirikou et la Sorcière',
+  genre: 'Animation africaine — magie & origines'
+}, {
+  title: 'The Big Sick',
+  genre: 'Romance — couple & différences culturelles'
+}, {
+  title: 'Seaspiracy',
+  genre: 'Documentaire — océan & écologie'
+}, {
+  title: 'Klaus',
+  genre: 'Animation — générosité & lien humain'
+}, {
+  title: 'Okja',
+  genre: 'Drame végane — sensibilisation animale'
+}, {
+  title: 'Marriage Story',
+  genre: 'Drame — communication & amour profond'
+}];
+
+// ─── Culture Guadeloupe ───
+const CULTURE_EVENTS = [{
+  id: 'ce1',
+  titre: 'Carnaval de Guadeloupe',
+  periode: 'Février — Mars',
+  mois: 2,
+  lieu: 'Pointe-à-Pitre & communes',
+  desc: 'Le plus grand carnaval des Antilles françaises : défilés de chars, groupes à pied, masques traditionnels et musique Gwo Ka.',
+  cat: 'Festivals',
+  icon: '🎭',
+  annuel: true
+}, {
+  id: 'ce2',
+  titre: 'Festival Gwoka',
+  periode: 'Juillet',
+  mois: 7,
+  lieu: 'Sainte-Anne',
+  desc: 'Célébration du patrimoine immatériel de l\'UNESCO : tambours ka, chants lewòz et danses traditionnelles pendant 5 jours.',
+  cat: 'Musique',
+  icon: '🥁',
+  annuel: true
+}, {
+  id: 'ce3',
+  titre: 'Fête de la Musique',
+  periode: '21 Juin',
+  mois: 6,
+  lieu: 'Guadeloupe entière',
+  desc: 'Scènes ouvertes dans toutes les communes : zouk, gwo ka, reggae, jazz créole et musiques du monde au cœur de la Guadeloupe.',
+  cat: 'Musique',
+  icon: '🎶',
+  annuel: true
+}, {
+  id: 'ce4',
+  titre: 'Fête des Cuisinières',
+  periode: 'Août',
+  mois: 8,
+  lieu: 'Pointe-à-Pitre',
+  desc: 'Tradition séculaire : les cuisinières en tenue créole défilent vers la cathédrale, puis grand festin de cuisine créole traditionnelle.',
+  cat: 'Gastronomie',
+  icon: '👩‍🍳',
+  annuel: true
+}, {
+  id: 'ce5',
+  titre: 'Course de yoles traditionnelles',
+  periode: 'Juillet — Août',
+  mois: 7,
+  lieu: 'Communes côtières',
+  desc: 'Les embarcations de pêcheurs artisanaux en régate, symbole de la culture maritime guadeloupéenne.',
+  cat: 'Sport & Mer',
+  icon: '⛵',
+  annuel: true
+}, {
+  id: 'ce6',
+  titre: 'Festival Jazz aux Antilles',
+  periode: 'Décembre',
+  mois: 12,
+  lieu: 'Pointe-à-Pitre',
+  desc: 'Figures internationales et artistes locaux se retrouvent pour une semaine de jazz, blues et soul sur fond de Caraïbe.',
+  cat: 'Musique',
+  icon: '🎷',
+  annuel: true
+}, {
+  id: 'ce7',
+  titre: 'Festival International du Film de Guadeloupe',
+  periode: 'Novembre',
+  mois: 11,
+  lieu: 'Basse-Terre & Pointe-à-Pitre',
+  desc: 'Cinéma caribéen et francophone : films, courts-métrages, rencontres avec réalisateurs et projections en plein air.',
+  cat: 'Art & Cinéma',
+  icon: '🎬',
+  annuel: true
+}, {
+  id: 'ce8',
+  titre: 'Semaine Créole',
+  periode: 'Octobre',
+  mois: 10,
+  lieu: 'Guadeloupe entière',
+  desc: 'Valorisation de la langue et de la culture créole : contes, lectures, spectacles et gastronomie pendant une semaine.',
+  cat: 'Patrimoine',
+  icon: '📚',
+  annuel: true
+}, {
+  id: 'ce9',
+  titre: 'Mémorial ACTe — Expositions',
+  periode: 'Toute l\'année',
+  mois: 0,
+  lieu: 'Pointe-à-Pitre',
+  desc: 'Le plus grand centre caribéen de mémoire des traites et de l\'esclavage. Expositions immersives, ateliers pédagogiques.',
+  cat: 'Art & Cinéma',
+  icon: '🏛️',
+  annuel: false
+}, {
+  id: 'ce10',
+  titre: 'Toussaint créole',
+  periode: 'Novembre',
+  mois: 11,
+  lieu: 'Cimetières de Guadeloupe',
+  desc: 'Tradition unique : illumination nocturne des cimetières avec des milliers de bougies, veillée familiale et recueillement.',
+  cat: 'Patrimoine',
+  icon: '🕯️',
+  annuel: true
+}, {
+  id: 'ce11',
+  titre: 'Salon du Livre Guadeloupéen',
+  periode: 'Avril',
+  mois: 4,
+  lieu: 'Pointe-à-Pitre',
+  desc: 'Rencontre avec les auteurs antillais et caribéens : dédicaces, conférences et débats autour de la littérature créole.',
+  cat: 'Art & Cinéma',
+  icon: '📖',
+  annuel: true
+}, {
+  id: 'ce12',
+  titre: 'Grand Prix automobile de Guadeloupe',
+  periode: 'Juin',
+  mois: 6,
+  lieu: 'Circuit du Lamentin',
+  desc: 'Compétition de rallye et de circuit réunissant pilotes locaux et continentaux, ambiance festive garantie.',
+  cat: 'Sport & Mer',
+  icon: '🏎️',
+  annuel: true
+}, {
+  id: 'ce13',
+  titre: 'Fête de Marie-Galante — La Jeannette',
+  periode: 'Juin',
+  mois: 6,
+  lieu: 'Grand-Bourg, Marie-Galante',
+  desc: 'Festival de musique traditionnelle : gwo ka, biguine et quadrille sur l\'île aux cent moulins.',
+  cat: 'Musique',
+  icon: '🌴',
+  annuel: true
+}, {
+  id: 'ce14',
+  titre: 'Festival Couleurs Caraïbe',
+  periode: 'Mai',
+  mois: 5,
+  lieu: 'Basse-Terre',
+  desc: 'Rencontre des arts visuels caribéens : peinture, sculpture, photographie et street art dans les rues de Basse-Terre.',
+  cat: 'Art & Cinéma',
+  icon: '🎨',
+  annuel: true
+}, {
+  id: 'ce15',
+  titre: 'Fête Patronale de Sainte-Anne',
+  periode: 'Juillet',
+  mois: 7,
+  lieu: 'Sainte-Anne',
+  desc: 'Procession, messe en créole, exposition artisanale, marché nocturne et feux d\'artifice sur la plage.',
+  cat: 'Patrimoine',
+  icon: '✨',
+  annuel: true
+}, {
+  id: 'ce16',
+  titre: 'Rando Nocturne de la Soufrière',
+  periode: 'Mai — Juin',
+  mois: 5,
+  lieu: 'La Soufrière, Basse-Terre',
+  desc: 'Randonnée nocturne organisée vers le sommet du volcan, lever du soleil spectaculaire sur l\'archipel.',
+  cat: 'Sport & Mer',
+  icon: '🌋',
+  annuel: true
+}, {
+  id: 'ce17',
+  titre: 'Marché de Noël créole',
+  periode: 'Décembre',
+  mois: 12,
+  lieu: 'Saint-François & communes',
+  desc: 'Marchés artisanaux, spécialités locales (boudins, charandon, féroce), musique de Noël antillais.',
+  cat: 'Gastronomie',
+  icon: '🎄',
+  annuel: true
+}, {
+  id: 'ce18',
+  titre: 'Festival du Bœuf de Marie-Galante',
+  periode: 'Août',
+  mois: 8,
+  lieu: 'Marie-Galante',
+  desc: 'Fête de l\'élevage bovin traditionnel sur l\'île : concours, défilé de bœufs décorés et gastronomie locale.',
+  cat: 'Gastronomie',
+  icon: '🐂',
+  annuel: true
+}];
+function CultureGwadView() {
+  const CATS = ['Tous', 'Festivals', 'Musique', 'Gastronomie', 'Art & Cinéma', 'Patrimoine', 'Sport & Mer'];
+  const CAT_COLORS = {
+    Festivals: 'var(--accent-liika)',
+    Musique: 'var(--gold)',
+    Gastronomie: 'var(--success)',
+    'Art & Cinéma': 'var(--accent-dja)',
+    Patrimoine: '#fb923c',
+    'Sport & Mer': '#38bdf8'
+  };
+  const [filterCat, setFilterCat] = useState('Tous');
+  const today = new Date();
+  const currentMonth = today.getMonth() + 1;
+  const filtered = filterCat === 'Tous' ? CULTURE_EVENTS : CULTURE_EVENTS.filter(e => e.cat === filterCat);
+  const isCurrent = e => e.mois === currentMonth || e.mois === 0;
+  const isSoon = e => !isCurrent(e) && (e.mois === currentMonth + 1 || currentMonth === 12 && e.mois === 1);
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: 'linear-gradient(135deg,rgba(217,183,95,.09),rgba(74,222,128,.06))',
+      borderRadius: 'var(--radius)',
+      padding: '24px',
+      marginBottom: 20,
+      border: '1px solid var(--gold-border)',
+      position: 'relative',
+      overflow: 'hidden'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'absolute',
+      top: -50,
+      right: -50,
+      width: 200,
+      height: 200,
+      background: 'radial-gradient(circle,rgba(217,183,95,.08),transparent 70%)',
+      borderRadius: '50%',
+      pointerEvents: 'none'
+    }
+  }), /*#__PURE__*/React.createElement("p", {
+    className: "eyebrow",
+    style: {
+      marginBottom: 8
+    }
+  }, "\uD83C\uDFAD Agenda culturel"), /*#__PURE__*/React.createElement("h2", {
+    style: {
+      fontSize: 26,
+      fontFamily: "'Cormorant Garamond',serif",
+      fontWeight: 600,
+      color: 'var(--text)',
+      marginBottom: 4,
+      lineHeight: 1.2
+    }
+  }, "Culture Guadeloupe"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 13,
+      color: 'var(--text3)',
+      fontStyle: 'italic',
+      fontFamily: "'Cormorant Garamond',serif"
+    }
+  }, "Festivals, musique, art et patrimoine de l'archipel \uD83C\uDF34")), /*#__PURE__*/React.createElement("div", {
+    className: "scroll-x",
+    style: {
+      display: 'flex',
+      gap: 8,
+      marginBottom: 20,
+      paddingBottom: 4
+    }
+  }, CATS.map(c => {
+    const active = filterCat === c;
+    const col = CAT_COLORS[c] || 'var(--text3)';
+    return /*#__PURE__*/React.createElement("button", {
+      key: c,
+      onClick: () => setFilterCat(c),
+      style: {
+        flexShrink: 0,
+        padding: '6px 14px',
+        borderRadius: 20,
+        border: `1px solid ${active ? col : 'var(--border)'}`,
+        background: active ? col + '22' : 'transparent',
+        color: active ? col : 'var(--text3)',
+        fontSize: 11,
+        cursor: 'pointer',
+        fontFamily: "'Space Mono',monospace",
+        whiteSpace: 'nowrap',
+        transition: 'all .2s',
+        fontWeight: active ? 700 : 400
+      }
+    }, c);
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gap: 12
+    }
+  }, filtered.map((e, i) => {
+    const col = CAT_COLORS[e.cat] || 'var(--text3)';
+    const current = isCurrent(e);
+    const soon = isSoon(e);
+    return /*#__PURE__*/React.createElement("div", {
+      key: e.id,
+      style: {
+        background: 'linear-gradient(160deg,var(--bg3),var(--bg2))',
+        borderRadius: 'var(--radius)',
+        padding: '16px 18px',
+        border: `1px solid ${current ? col + '44' : 'var(--border)'}`,
+        borderLeft: `3px solid ${col}`,
+        boxShadow: current ? `0 4px 20px ${col}18` : 'var(--shadow)',
+        animation: `fadeUp .35s ease ${i * .06}s both`,
+        position: 'relative',
+        overflow: 'hidden'
+      }
+    }, current && /*#__PURE__*/React.createElement("div", {
+      style: {
+        position: 'absolute',
+        top: 12,
+        right: 12,
+        fontSize: 9,
+        fontFamily: "'Space Mono',monospace",
+        background: col + '22',
+        color: col,
+        padding: '2px 8px',
+        borderRadius: 10,
+        letterSpacing: '.1em'
+      }
+    }, "\u25CF CE MOIS"), !current && soon && /*#__PURE__*/React.createElement("div", {
+      style: {
+        position: 'absolute',
+        top: 12,
+        right: 12,
+        fontSize: 9,
+        fontFamily: "'Space Mono',monospace",
+        background: 'var(--gold-bg)',
+        color: 'var(--gold)',
+        padding: '2px 8px',
+        borderRadius: 10,
+        letterSpacing: '.1em'
+      }
+    }, "\xC0 VENIR"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        gap: 12,
+        alignItems: 'flex-start'
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 24,
+        lineHeight: 1,
+        flexShrink: 0,
+        marginTop: 2
+      }
+    }, e.icon), /*#__PURE__*/React.createElement("div", {
+      style: {
+        flex: 1
+      }
+    }, /*#__PURE__*/React.createElement("h3", {
+      style: {
+        fontSize: 15,
+        fontWeight: 600,
+        color: 'var(--text)',
+        fontFamily: "'Playfair Display',serif",
+        lineHeight: 1.2,
+        marginBottom: 6,
+        paddingRight: current || soon ? 60 : 0
+      }
+    }, e.titre), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        gap: 12,
+        marginBottom: 8,
+        flexWrap: 'wrap'
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 11,
+        color: 'var(--gold)',
+        fontFamily: "'Space Mono',monospace"
+      }
+    }, "\uD83D\uDCC5 ", e.periode), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 11,
+        color: 'var(--text3)',
+        fontFamily: "'Space Mono',monospace"
+      }
+    }, "\uD83D\uDCCD ", e.lieu)), /*#__PURE__*/React.createElement("p", {
+      style: {
+        fontSize: 12,
+        color: 'var(--text2)',
+        lineHeight: 1.65,
+        marginBottom: 8
+      }
+    }, e.desc), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        gap: 6,
+        alignItems: 'center',
+        flexWrap: 'wrap'
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 9,
+        fontFamily: "'Space Mono',monospace",
+        color: col,
+        background: col + '15',
+        padding: '2px 8px',
+        borderRadius: 8,
+        border: `1px solid ${col}30`
+      }
+    }, e.cat), e.annuel && /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 9,
+        fontFamily: "'Space Mono',monospace",
+        color: 'var(--text3)',
+        background: 'var(--bg4)',
+        padding: '2px 8px',
+        borderRadius: 8
+      }
+    }, "Annuel")))));
+  }), filtered.length === 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: 'center',
+      padding: 40,
+      color: 'var(--text3)',
+      fontFamily: "'Cormorant Garamond',serif",
+      fontStyle: 'italic',
+      fontSize: 16
+    }
+  }, "Aucun \xE9v\xE9nement dans cette cat\xE9gorie.")));
+}
+
+// ─── Objectifs mensuels ───
+const MOIS_LABELS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+const CATS_OBJ_MENSUEL = ['Nature', 'Cuisine', 'Culture', 'Finances', 'Sport', 'Voyage', 'Couple', 'Famille'];
+
+// ─── Maison ───
+const DEFAULT_MAISON_TASKS = [
+// ── Quotidiennement ──
+{
+  id: 'ht1',
+  titre: 'Faire son lit',
+  icon: '🛏️',
+  heure: '08:00',
+  freq: 'Quotidien',
+  who: 'both'
+}, {
+  id: 'ht2',
+  titre: 'Ranger, ramasser, trier, jeter ce qui traîne (sols & tables)',
+  icon: '🧹',
+  heure: '08:15',
+  freq: 'Quotidien',
+  who: 'both'
+}, {
+  id: 'ht3',
+  titre: 'Nettoyer la salle de bain (éponge dédiée)',
+  icon: '🚿',
+  heure: '08:30',
+  freq: 'Quotidien',
+  who: 'both'
+}, {
+  id: 'ht4',
+  titre: 'Nettoyer les toilettes (éponge dédiée)',
+  icon: '🚽',
+  heure: '08:45',
+  freq: 'Quotidien',
+  who: 'both'
+}, {
+  id: 'ht5',
+  titre: 'Faire la vaisselle',
+  icon: '🍽️',
+  heure: '09:00',
+  freq: 'Quotidien',
+  who: 'both'
+}, {
+  id: 'ht6',
+  titre: 'Ranger la vaisselle',
+  icon: '🍴',
+  heure: '09:15',
+  freq: 'Quotidien',
+  who: 'both'
+}, {
+  id: 'ht7',
+  titre: 'Nettoyer les sols : couloir → salon → cuisine',
+  icon: '🧽',
+  heure: '09:30',
+  freq: 'Quotidien',
+  who: 'both'
+}, {
+  id: 'ht8',
+  titre: 'Balayer l\'extérieur (cuisine, fenêtre, chambre, devant la porte)',
+  icon: '🧺',
+  heure: '10:00',
+  freq: 'Quotidien',
+  who: 'both'
+},
+// ── Début de soirée ──
+{
+  id: 'ht9',
+  titre: 'Sortir la poubelle orange (lun. & ven. soir)',
+  icon: '🗑️',
+  heure: '19:00',
+  freq: 'Quotidien',
+  who: 'both'
+}, {
+  id: 'ht10',
+  titre: 'Sortir la poubelle jaune (mer. soir)',
+  icon: '♻️',
+  heure: '19:00',
+  freq: 'Quotidien',
+  who: 'both'
+}, {
+  id: 'ht11',
+  titre: 'Tri du linge sale — lessive dès 20h (heures creuses)',
+  icon: '👕',
+  heure: '20:00',
+  freq: 'Quotidien',
+  who: 'both'
+},
+// ── Tous les 2 jours (sauf s'il a plu) ──
+{
+  id: 'ht12',
+  titre: 'Arroser les plantes (sauf s\'il a plu)',
+  icon: '🪴',
+  heure: '09:00',
+  freq: 'Tous les 2 jours',
+  who: 'both'
+},
+// ── 1 fois par semaine ──
+{
+  id: 'ht13',
+  titre: 'Nettoyer les gouttières',
+  icon: '🪣',
+  heure: '10:00',
+  freq: 'Hebdomadaire',
+  who: 'both'
+}, {
+  id: 'ht14',
+  titre: 'Retirer les toiles d\'araignées',
+  icon: '🕸️',
+  heure: '10:30',
+  freq: 'Hebdomadaire',
+  who: 'both'
+}, {
+  id: 'ht15',
+  titre: 'Nettoyer le réfrigérateur',
+  icon: '🧊',
+  heure: '11:00',
+  freq: 'Hebdomadaire',
+  who: 'both'
+}];
+function MaisonView({
+  maison,
+  toggleMaisonTask,
+  addMaisonTask,
+  deleteMaisonTask,
+  resetMaisonChecked
+}) {
+  const [activeFreq, setActiveFreq] = useState('Quotidien');
+  const [addingTask, setAddingTask] = useState(false);
+  const [addForm, setAddForm] = useState({
+    titre: '',
+    icon: '🏠',
+    heure: '09:00',
+    freq: 'Quotidien',
+    who: 'both'
+  });
+  const [notifPerm, setNotifPerm] = useState(() => typeof Notification !== 'undefined' ? Notification.permission : 'default');
+  const maison_ = maison || {};
+  const checked = maison_.checked || {};
+  const custom = maison_.custom || [];
+  const allTasks = [...DEFAULT_MAISON_TASKS, ...custom.filter(c => !DEFAULT_MAISON_TASKS.some(d => d.id === c.id))];
+
+  // Ref always up-to-date for the interval (avoids stale closures)
+  const stateRef = useRef({
+    checked,
+    allTasks
+  });
+  useEffect(() => {
+    stateRef.current = {
+      checked,
+      allTasks
+    };
+  });
+
+  // Daily auto-reset
+  useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    if ((maison_.lastReset || '') !== today) resetMaisonChecked(today);
+  }, []);
+
+  // Notification interval — runs once, reads fresh values via stateRef
+  useEffect(() => {
+    if (typeof Notification === 'undefined') return;
+    const iv = setInterval(() => {
+      if (Notification.permission !== 'granted') return;
+      const {
+        checked: chk,
+        allTasks: tasks
+      } = stateRef.current;
+      const now = new Date();
+      const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      tasks.filter(t => t.heure === hhmm && !chk[t.id]).forEach(t => {
+        try {
+          new Notification(`🏠 ${t.titre}`, {
+            body: `Rappel ${t.freq.toLowerCase()} · ${BRAND}`
+          });
+        } catch (_) {}
+      });
+    }, 60000);
+    return () => clearInterval(iv);
+  }, []);
+  const requestNotif = async () => {
+    if (typeof Notification === 'undefined') return;
+    const p = await Notification.requestPermission();
+    setNotifPerm(p);
+  };
+  const FREQS = ['Quotidien', 'Tous les 2 jours', 'Hebdomadaire', 'Mensuel'];
+  const filtered = allTasks.filter(t => t.freq === activeFreq);
+  const doneCount = filtered.filter(t => !!checked[t.id]).length;
+  const pct = filtered.length ? Math.round(doneCount / filtered.length * 100) : 0;
+  const WHO_LABELS = {
+    dja: yName('dja'),
+    liika: yName('liika'),
+    both: 'Ensemble'
+  };
+  const WHO_COLORS = {
+    dja: 'var(--accent-dja)',
+    liika: 'var(--accent-liika)',
+    both: 'var(--gold)'
+  };
+  const FREQ_COLORS = {
+    'Quotidien': 'var(--success)',
+    'Tous les 2 jours': 'var(--warn)',
+    'Hebdomadaire': 'var(--gold)',
+    'Mensuel': 'var(--accent-dja)'
+  };
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: 'linear-gradient(135deg,rgba(74,222,128,.08),rgba(217,183,95,.06))',
+      borderRadius: 'var(--radius)',
+      padding: '22px 24px',
+      marginBottom: 20,
+      border: '1px solid rgba(74,222,128,.22)',
+      position: 'relative',
+      overflow: 'hidden'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'absolute',
+      top: -40,
+      right: -40,
+      width: 180,
+      height: 180,
+      background: 'radial-gradient(circle,rgba(74,222,128,.08),transparent 70%)',
+      borderRadius: '50%',
+      pointerEvents: 'none'
+    }
+  }), /*#__PURE__*/React.createElement("p", {
+    className: "eyebrow",
+    style: {
+      marginBottom: 8,
+      color: 'var(--success)'
+    }
+  }, "\uD83C\uDFE0 Organisation"), /*#__PURE__*/React.createElement("h2", {
+    style: {
+      fontSize: 26,
+      fontFamily: "'Cormorant Garamond',serif",
+      fontWeight: 600,
+      color: 'var(--text)',
+      marginBottom: 4,
+      lineHeight: 1.2
+    }
+  }, "T\xE2ches de la maison"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 13,
+      color: 'var(--text3)',
+      fontStyle: 'italic',
+      fontFamily: "'Cormorant Garamond',serif",
+      marginBottom: 14
+    }
+  }, "Votre foyer, organis\xE9 ensemble \u2661"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 8,
+      alignItems: 'center',
+      flexWrap: 'wrap'
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: requestNotif,
+    style: {
+      padding: '6px 14px',
+      borderRadius: 20,
+      border: `1px solid ${notifPerm === 'granted' ? 'var(--success)' : 'var(--border2)'}`,
+      background: notifPerm === 'granted' ? 'var(--success-bg)' : 'transparent',
+      color: notifPerm === 'granted' ? 'var(--success)' : 'var(--text3)',
+      fontSize: 11,
+      cursor: 'pointer',
+      fontFamily: "'Space Mono',monospace",
+      transition: 'all .2s'
+    }
+  }, notifPerm === 'granted' ? '🔔 Rappels actifs' : '🔕 Activer les rappels'), notifPerm === 'denied' && /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 10,
+      color: '#e05050',
+      fontFamily: "'Space Mono',monospace"
+    }
+  }, "Autoriser dans les param\xE8tres du navigateur"))), /*#__PURE__*/React.createElement("div", {
+    className: "scroll-x",
+    style: {
+      display: 'flex',
+      gap: 8,
+      marginBottom: 18
+    }
+  }, FREQS.map(f => {
+    const active = activeFreq === f;
+    const col = FREQ_COLORS[f];
+    return /*#__PURE__*/React.createElement("button", {
+      key: f,
+      onClick: () => setActiveFreq(f),
+      style: {
+        flexShrink: 0,
+        padding: '7px 16px',
+        borderRadius: 20,
+        border: `1px solid ${active ? col : 'var(--border)'}`,
+        background: active ? col + '22' : 'transparent',
+        color: active ? col : 'var(--text3)',
+        fontSize: 11,
+        cursor: 'pointer',
+        fontFamily: "'Space Mono',monospace",
+        fontWeight: active ? 700 : 400,
+        transition: 'all .2s'
+      }
+    }, f);
+  })), filtered.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: 'var(--bg3)',
+      borderRadius: 'var(--radius-sm)',
+      padding: '14px 18px',
+      marginBottom: 18,
+      border: '1px solid var(--border)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 8
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      color: 'var(--text3)',
+      fontFamily: "'Space Mono',monospace"
+    }
+  }, doneCount, "/", filtered.length, " t\xE2ches ", activeFreq.toLowerCase(), "s"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 14,
+      fontWeight: 700,
+      color: pct === 100 ? 'var(--success)' : 'var(--gold)',
+      fontFamily: "'Space Mono',monospace"
+    }
+  }, pct, "%", pct === 100 ? ' 🎉' : '')), /*#__PURE__*/React.createElement("div", {
+    style: {
+      height: 5,
+      background: 'var(--bg4)',
+      borderRadius: 4,
+      overflow: 'hidden'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      height: '100%',
+      width: `${pct}%`,
+      background: pct === 100 ? 'linear-gradient(90deg,var(--success),#22c55e)' : 'linear-gradient(90deg,var(--gold),var(--gold2))',
+      borderRadius: 4,
+      transition: 'width .45s ease'
+    }
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gap: 10,
+      marginBottom: 20
+    }
+  }, filtered.map((task, i) => {
+    const done = !!checked[task.id];
+    const isCustom = !task.id.startsWith('ht');
+    const wCol = WHO_COLORS[task.who || 'both'];
+    return /*#__PURE__*/React.createElement("div", {
+      key: task.id,
+      onClick: () => toggleMaisonTask(task.id),
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        background: done ? 'rgba(74,222,128,.05)' : 'linear-gradient(160deg,var(--bg3),var(--bg2))',
+        borderRadius: 'var(--radius-sm)',
+        padding: '12px 16px',
+        border: `1px solid ${done ? 'rgba(74,222,128,.25)' : 'var(--border)'}`,
+        borderLeft: `3px solid ${done ? 'var(--success)' : FREQ_COLORS[task.freq]}`,
+        cursor: 'pointer',
+        transition: 'all .2s',
+        animation: `fadeUp .3s ease ${i * .05}s both`,
+        opacity: done ? .65 : 1
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 22,
+        flexShrink: 0
+      }
+    }, task.icon), /*#__PURE__*/React.createElement("div", {
+      style: {
+        flex: 1,
+        minWidth: 0
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 13,
+        fontWeight: 600,
+        color: done ? 'var(--text3)' : 'var(--text)',
+        textDecoration: done ? 'line-through' : 'none',
+        marginBottom: 4,
+        transition: 'all .2s'
+      }
+    }, task.titre), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        gap: 8,
+        alignItems: 'center',
+        flexWrap: 'wrap'
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 10,
+        color: 'var(--gold)',
+        fontFamily: "'Space Mono',monospace"
+      }
+    }, "\u23F0 ", task.heure), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 9,
+        color: wCol,
+        background: wCol + '18',
+        padding: '1px 8px',
+        borderRadius: 8,
+        fontFamily: "'Space Mono',monospace"
+      }
+    }, WHO_LABELS[task.who || 'both']))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        flexShrink: 0
+      }
+    }, done ? /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 18
+      }
+    }, "\u2705") : /*#__PURE__*/React.createElement("div", {
+      style: {
+        width: 20,
+        height: 20,
+        borderRadius: '50%',
+        border: '2px solid var(--border2)',
+        flexShrink: 0
+      }
+    }), isCustom && /*#__PURE__*/React.createElement("button", {
+      onClick: e => {
+        e.stopPropagation();
+        deleteMaisonTask(task.id);
+      },
+      style: {
+        background: 'none',
+        border: 'none',
+        color: 'var(--text3)',
+        cursor: 'pointer',
+        fontSize: 16,
+        padding: '0 2px',
+        lineHeight: 1
+      }
+    }, "\xD7")));
+  }), filtered.length === 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: 'center',
+      padding: 32,
+      color: 'var(--text3)',
+      fontFamily: "'Cormorant Garamond',serif",
+      fontStyle: 'italic',
+      fontSize: 15
+    }
+  }, "Aucune t\xE2che ", activeFreq.toLowerCase(), ".")), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setAddingTask(p => !p),
+    style: {
+      padding: '8px 18px',
+      borderRadius: 'var(--radius-sm)',
+      border: '1px solid var(--gold-border)',
+      background: 'transparent',
+      color: 'var(--gold)',
+      cursor: 'pointer',
+      fontSize: 12,
+      fontFamily: "'Space Mono',monospace",
+      letterSpacing: '.04em',
+      marginBottom: addingTask ? 12 : 0,
+      transition: 'all .2s'
+    }
+  }, "+ Ajouter une t\xE2che"), addingTask && /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: 'rgba(217,183,95,.05)',
+      borderRadius: 'var(--radius)',
+      padding: 16,
+      border: '1px solid var(--gold-border)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: '44px 1fr',
+      gap: 8,
+      marginBottom: 8
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    value: addForm.icon,
+    onChange: e => setAddForm(p => ({
+      ...p,
+      icon: e.target.value
+    })),
+    style: {
+      padding: '6px',
+      borderRadius: 'var(--radius-xs)',
+      border: '1px solid var(--border2)',
+      background: 'var(--bg3)',
+      color: 'var(--text)',
+      fontSize: 18,
+      outline: 'none',
+      textAlign: 'center'
+    }
+  }), /*#__PURE__*/React.createElement("input", {
+    value: addForm.titre,
+    onChange: e => setAddForm(p => ({
+      ...p,
+      titre: e.target.value
+    })),
+    placeholder: "Nom de la t\xE2che",
+    style: {
+      padding: '7px 10px',
+      borderRadius: 'var(--radius-xs)',
+      border: '1px solid var(--border2)',
+      background: 'var(--bg3)',
+      color: 'var(--text)',
+      fontSize: 13,
+      outline: 'none'
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr 1fr',
+      gap: 8,
+      marginBottom: 12
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    value: addForm.heure,
+    onChange: e => setAddForm(p => ({
+      ...p,
+      heure: e.target.value
+    })),
+    type: "time",
+    style: {
+      padding: '6px 8px',
+      borderRadius: 'var(--radius-xs)',
+      border: '1px solid var(--border2)',
+      background: 'var(--bg3)',
+      color: 'var(--text)',
+      fontSize: 12,
+      outline: 'none',
+      fontFamily: "'Space Mono',monospace"
+    }
+  }), /*#__PURE__*/React.createElement("select", {
+    value: addForm.freq,
+    onChange: e => setAddForm(p => ({
+      ...p,
+      freq: e.target.value
+    })),
+    style: {
+      padding: '6px 8px',
+      borderRadius: 'var(--radius-xs)',
+      border: '1px solid var(--border2)',
+      background: 'var(--bg3)',
+      color: 'var(--text)',
+      fontSize: 12,
+      outline: 'none'
+    }
+  }, FREQS.map(f => /*#__PURE__*/React.createElement("option", {
+    key: f,
+    value: f
+  }, f))), /*#__PURE__*/React.createElement("select", {
+    value: addForm.who,
+    onChange: e => setAddForm(p => ({
+      ...p,
+      who: e.target.value
+    })),
+    style: {
+      padding: '6px 8px',
+      borderRadius: 'var(--radius-xs)',
+      border: '1px solid var(--border2)',
+      background: 'var(--bg3)',
+      color: 'var(--text)',
+      fontSize: 12,
+      outline: 'none'
+    }
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "both"
+  }, "Ensemble"), /*#__PURE__*/React.createElement("option", {
+    value: "dja"
+  }, yName('dja')), /*#__PURE__*/React.createElement("option", {
+    value: "liika"
+  }, yName('liika')))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      if (!addForm.titre.trim()) return;
+      addMaisonTask({
+        ...addForm,
+        id: Date.now().toString()
+      });
+      setAddForm({
+        titre: '',
+        icon: '🏠',
+        heure: '09:00',
+        freq: 'Quotidien',
+        who: 'both'
+      });
+      setAddingTask(false);
+    },
+    style: {
+      flex: 1,
+      padding: '8px',
+      borderRadius: 'var(--radius-xs)',
+      border: 'none',
+      background: 'linear-gradient(135deg,var(--gold),var(--gold2))',
+      color: '#06120d',
+      cursor: 'pointer',
+      fontSize: 12,
+      fontWeight: 700
+    }
+  }, "\u2713 Ajouter"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setAddingTask(false),
+    style: {
+      padding: '8px 14px',
+      borderRadius: 'var(--radius-xs)',
+      border: '1px solid var(--border)',
+      background: 'transparent',
+      color: 'var(--text3)',
+      cursor: 'pointer',
+      fontSize: 12
+    }
+  }, "\u2715"))));
+}
+function PlanningView({
+  planning,
+  togglePlanningCheck,
+  addPlanningItem,
+  updatePlanningItem,
+  deletePlanningItem,
+  movePlanningItem,
+  resetPlanningDay,
+  soirees,
+  addSoiree,
+  deleteSoiree
+}) {
+  const [activeDay, setActiveDay] = useState(0);
+  const [activeTab, setActiveTab] = useState('planning');
+  const [openMap, setOpenMap] = useState(null);
+  const [showSoiree, setShowSoiree] = useState(false);
+  const [soireeForm, setSoireeForm] = useState({
+    titre: '',
+    date: '',
+    lieu: '',
+    url: ''
+  });
+  const [addingItem, setAddingItem] = useState(false);
+  const [addForm, setAddForm] = useState({
+    time: '09:00',
+    cat: 'repos',
+    title: '',
+    detail: '',
+    who: 'both',
+    jour: 0
+  });
+  // Créneau en cours de modification (null = le formulaire sert à en ajouter un).
+  const [editingId, setEditingId] = useState(null);
+  const planDay = planJourBrut(planning, activeDay);
+  const checked = planDay.checked || {};
+  const dayItems = planDayItems(planning, activeDay);
+  const doneCount = dayItems.filter(it => !!checked[it.id]).length;
+  const jourAdopte = planJourAdopte(planning, activeDay);
+  // Jour visé par le formulaire, toujours ramené à un index de jour valide : une
+  // valeur absente ou aberrante retomberait sinon sur PLAN_DAYS_FULL[undefined].
+  // Attention : Number(null) vaut 0, donc un jour absent atterrirait sur lundi
+  // au lieu du jour affiché. On n'accepte qu'un vrai nombre ou une chaîne chiffrée.
+  const jourCible = (() => {
+    const v = addForm.jour;
+    const n = typeof v === 'number' ? v
+      : (typeof v === 'string' && v.trim() !== '' ? Number(v) : NaN);
+    return Number.isInteger(n) && n >= 0 && n <= 6 ? n : activeDay;
+  })();
+  const formVide = {
+    time: '09:00',
+    cat: 'repos',
+    title: '',
+    detail: '',
+    who: 'both',
+    jour: activeDay
+  };
+  const fermerForm = () => {
+    setAddForm(formVide);
+    setEditingId(null);
+    setAddingItem(false);
+  };
+  const ouvrirAjout = () => {
+    if (addingItem && !editingId) return fermerForm();
+    setAddForm(formVide);
+    setEditingId(null);
+    setAddingItem(true);
+  };
+  // Un clic sur ✎ recharge le créneau dans le même formulaire que l'ajout.
+  const ouvrirEdition = item => {
+    setAddForm({
+      time: item.time || '09:00',
+      cat: PLAN_CATEGORIES[item.cat] ? item.cat : 'repos',
+      title: item.title || '',
+      detail: item.detail || '',
+      who: PLAN_WHO[item.who] ? item.who : 'both',
+      jour: activeDay
+    });
+    setEditingId(item.id);
+    setAddingItem(true);
+  };
+  const handleAdd = () => {
+    if (!addForm.title.trim()) return;
+    const { jour, ...champs } = addForm;
+    const versAutreJour = jourCible !== activeDay;
+    if (editingId) {
+      updatePlanningItem(activeDay, editingId, champs);
+      if (versAutreJour) movePlanningItem(activeDay, jourCible, editingId);
+    } else {
+      addPlanningItem(jourCible, { ...champs, id: Date.now().toString() });
+    }
+    fermerForm();
+  };
+  const dupliquerItem = item => {
+    const { id, ...champs } = item;
+    addPlanningItem(activeDay, { ...champs, title: champs.title + ' (copie)', id: Date.now().toString() });
+  };
+  const supprimerItem = item => {
+    if (confirm('Supprimer « ' + item.title + ' » du ' + PLAN_DAYS_FULL[activeDay].toLowerCase() + ' ?')) {
+      deletePlanningItem(activeDay, item.id);
+      if (editingId === item.id) fermerForm();
+    }
+  };
+  const reinitialiserJour = () => {
+    if (confirm('Remettre le ' + PLAN_DAYS_FULL[activeDay].toLowerCase() + ' tel qu\'il était au départ ? Tes ajouts et modifications de cette journée seront perdus.')) {
+      resetPlanningDay(activeDay);
+      fermerForm();
+    }
+  };
+  // Toute la semaine (pas seulement le jour affiché) en fichier .ics, importable
+  // dans le calendrier d'un iPhone ou d'un Samsung.
+  const exportEmploiDuTemps = () => {
+    const evs = planningToIcsEvents(planning);
+    if (!evs.length) {
+      alert("Aucun créneau à exporter pour l'instant.");
+      return;
+    }
+    downloadIcs(evs, 'emploi-du-temps.ics');
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'Playfair Display','Georgia',serif",
+      color: '#e8f5e0',
+      overflowX: 'hidden'
+    }
+  }, /*#__PURE__*/React.createElement("style", null, `
+.plan-tab-btn{transition:all .25s ease;cursor:pointer;border:none;}
+.plan-tab-btn:hover{transform:translateY(-2px);}
+.plan-day-btn{transition:all .2s ease;cursor:pointer;}
+.plan-day-btn:hover{transform:scale(1.05);}
+.plan-item-card{transition:all .2s ease;cursor:pointer;}
+.plan-item-card:hover{transform:translateX(4px);}
+.plan-outing-card{transition:all .25s ease;cursor:pointer;}
+.plan-outing-card:hover{transform:translateY(-3px);}
+@keyframes planFadeIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+.plan-fade{animation:planFadeIn .4s ease forwards;}
+@keyframes planPulse{0%,100%{opacity:1;}50%{opacity:.6;}}
+.plan-heartbeat{animation:planPulse 2s infinite;}
+`), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '24px 20px 16px',
+      borderBottom: '1px solid #1e3a2a',
+      background: 'linear-gradient(180deg,#0a150e 0%,transparent 100%)',
+      position: 'relative',
+      overflow: 'hidden',
+      borderRadius: 'var(--radius) var(--radius) 0 0',
+      marginBottom: 0
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'absolute',
+      top: -40,
+      right: -30,
+      width: 180,
+      height: 180,
+      background: 'radial-gradient(circle,rgba(74,222,128,.08) 0%,transparent 70%)',
+      borderRadius: '50%'
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'flex-end',
+      gap: 10,
+      marginBottom: 4
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 24
+    },
+    className: "plan-heartbeat"
+  }, "\u2764\uFE0F"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'Space Mono',monospace",
+      fontSize: 9,
+      color: '#4ade80',
+      letterSpacing: 4,
+      textTransform: 'uppercase',
+      marginBottom: 2
+    }
+  }, BRAND), /*#__PURE__*/React.createElement("h1", {
+    style: {
+      margin: 0,
+      fontSize: 22,
+      fontWeight: 700,
+      color: '#f0faf0',
+      lineHeight: 1
+    }
+  }, COUPLE_NAME))), /*#__PURE__*/React.createElement("p", {
+    style: {
+      margin: '6px 0 0',
+      fontSize: 12,
+      color: '#6b9e7a',
+      fontStyle: 'italic'
+    }
+  }, "Planning de la semaine \u2014 solo ou \u00E0 deux"), /*#__PURE__*/React.createElement("div", {
+    className: "scroll-x",
+    style: {
+      display: 'flex',
+      gap: 8,
+      marginTop: 16,
+      paddingBottom: 4
+    }
+  }, [{
+    id: 'planning',
+    label: '📅 Semaine'
+  }, {
+    id: 'sorties',
+    label: '🌿 Sorties GWA'
+  }, {
+    id: 'culture',
+    label: '📚 Culture'
+  }].map(t => /*#__PURE__*/React.createElement("button", {
+    key: t.id,
+    className: "plan-tab-btn",
+    onClick: () => setActiveTab(t.id),
+    style: {
+      flexShrink: 0,
+      padding: '7px 14px',
+      borderRadius: 20,
+      fontSize: 11,
+      fontFamily: "'Space Mono',monospace",
+      whiteSpace: 'nowrap',
+      background: activeTab === t.id ? '#4ade80' : 'rgba(255,255,255,.05)',
+      color: activeTab === t.id ? '#0a0f0d' : '#8bb89a',
+      fontWeight: activeTab === t.id ? 700 : 400,
+      border: activeTab === t.id ? 'none' : '1px solid #1e3a2a'
+    }
+  }, t.label)))), activeTab === 'planning' && /*#__PURE__*/React.createElement("div", {
+    className: "plan-fade"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "scroll-x",
+    style: {
+      padding: '14px 16px 8px',
+      display: 'flex',
+      gap: 6
+    }
+  }, PLAN_DAYS.map((d, i) => /*#__PURE__*/React.createElement("button", {
+    key: i,
+    className: "plan-day-btn",
+    onClick: () => {
+      setActiveDay(i);
+      setAddingItem(false);
+      setEditingId(null);
+    },
+    style: {
+      minWidth: 44,
+      padding: '9px 5px',
+      borderRadius: 10,
+      border: 'none',
+      background: activeDay === i ? 'linear-gradient(135deg,#4ade80,#22c55e)' : 'rgba(255,255,255,.04)',
+      color: activeDay === i ? '#0a0f0d' : '#6b9e7a',
+      fontFamily: "'Space Mono',monospace",
+      fontSize: 10,
+      fontWeight: 700,
+      textAlign: 'center',
+      boxShadow: activeDay === i ? '0 4px 14px rgba(74,222,128,.3)' : 'none',
+      outline: 'none'
+    }
+  }, /*#__PURE__*/React.createElement("div", null, d), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 7,
+      marginTop: 2,
+      opacity: .7
+    }
+  }, activeDay === i ? '●' : '○')))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '0 16px 6px',
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center'
+    }
+  }, /*#__PURE__*/React.createElement("h2", {
+    style: {
+      margin: 0,
+      fontSize: 18,
+      color: '#b7f7c8',
+      fontWeight: 700
+    }
+  }, PLAN_DAYS_FULL[activeDay]), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 8,
+      flexShrink: 0
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: exportEmploiDuTemps,
+    title: "Télécharger toute la semaine au format .ics (iPhone, Samsung, Google…)",
+    style: {
+      padding: '5px 12px',
+      borderRadius: 20,
+      border: '1px solid #2d5a3d',
+      background: 'transparent',
+      color: '#8bb89a',
+      cursor: 'pointer',
+      fontSize: 11,
+      fontFamily: "'Space Mono',monospace",
+      whiteSpace: 'nowrap'
+    }
+  }, "📅 .ics"), jourAdopte && /*#__PURE__*/React.createElement("button", {
+    onClick: reinitialiserJour,
+    title: "Remettre cette journée telle qu'elle était au départ",
+    style: {
+      padding: '5px 10px',
+      borderRadius: 20,
+      border: '1px solid #2d5a3d',
+      background: 'transparent',
+      color: '#8bb89a',
+      cursor: 'pointer',
+      fontSize: 11,
+      fontFamily: "'Space Mono',monospace",
+      whiteSpace: 'nowrap'
+    }
+  }, "↺"), /*#__PURE__*/React.createElement("button", {
+    onClick: ouvrirAjout,
+    style: {
+      padding: '5px 12px',
+      borderRadius: 20,
+      border: '1px solid #4ade80',
+      background: 'transparent',
+      color: '#4ade80',
+      cursor: 'pointer',
+      fontSize: 11,
+      fontFamily: "'Space Mono',monospace",
+      whiteSpace: 'nowrap'
+    }
+  }, "+ Ajouter"))), addingItem && /*#__PURE__*/React.createElement("div", {
+    style: {
+      margin: '0 16px 12px',
+      background: 'rgba(74,222,128,.06)',
+      borderRadius: 12,
+      padding: 14,
+      border: '1px solid #2d5a3d'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gap: 8,
+      marginBottom: 8
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    value: addForm.time,
+    onChange: e => setAddForm(p => ({
+      ...p,
+      time: e.target.value
+    })),
+    type: "time",
+    style: {
+      padding: '6px 10px',
+      borderRadius: 8,
+      border: '1px solid #2d5a3d',
+      background: 'rgba(0,0,0,.3)',
+      color: '#e8f5e0',
+      fontSize: 12,
+      outline: 'none',
+      fontFamily: "'Space Mono',monospace"
+    }
+  }), /*#__PURE__*/React.createElement("select", {
+    value: addForm.cat,
+    onChange: e => setAddForm(p => ({
+      ...p,
+      cat: e.target.value
+    })),
+    style: {
+      padding: '6px 10px',
+      borderRadius: 8,
+      border: '1px solid #2d5a3d',
+      background: 'rgba(10,20,14,.9)',
+      color: '#e8f5e0',
+      fontSize: 12,
+      outline: 'none'
+    }
+  }, Object.entries(PLAN_CATEGORIES).map(([k, v]) => /*#__PURE__*/React.createElement("option", {
+    key: k,
+    value: k
+  }, v.icon, " ", v.label))), /*#__PURE__*/React.createElement("input", {
+    value: addForm.title,
+    onChange: e => setAddForm(p => ({
+      ...p,
+      title: e.target.value
+    })),
+    placeholder: "Titre de l'activit\xE9",
+    style: {
+      gridColumn: '1/-1',
+      padding: '6px 10px',
+      borderRadius: 8,
+      border: '1px solid #2d5a3d',
+      background: 'rgba(0,0,0,.3)',
+      color: '#e8f5e0',
+      fontSize: 12,
+      outline: 'none'
+    }
+  }), /*#__PURE__*/React.createElement("input", {
+    value: addForm.detail,
+    onChange: e => setAddForm(p => ({
+      ...p,
+      detail: e.target.value
+    })),
+    placeholder: "D\xE9tails (optionnel)",
+    style: {
+      gridColumn: '1/-1',
+      padding: '6px 10px',
+      borderRadius: 8,
+      border: '1px solid #2d5a3d',
+      background: 'rgba(0,0,0,.3)',
+      color: '#e8f5e0',
+      fontSize: 12,
+      outline: 'none'
+    }
+  }), /*#__PURE__*/React.createElement("select", {
+    value: addForm.who,
+    onChange: e => setAddForm(p => ({
+      ...p,
+      who: e.target.value
+    })),
+    style: {
+      padding: '6px 10px',
+      borderRadius: 8,
+      border: '1px solid #2d5a3d',
+      background: 'rgba(10,20,14,.9)',
+      color: '#e8f5e0',
+      fontSize: 12,
+      outline: 'none'
+    }
+  }, Object.entries(PLAN_WHO).map(([k, v]) => /*#__PURE__*/React.createElement("option", {
+    key: k,
+    value: k
+  }, v.label))), /*#__PURE__*/React.createElement("select", {
+    value: jourCible,
+    onChange: e => setAddForm(p => ({
+      ...p,
+      jour: Number(e.target.value)
+    })),
+    title: "Jour du cr\u00e9neau",
+    style: {
+      padding: '6px 10px',
+      borderRadius: 8,
+      border: '1px solid ' + (jourCible === activeDay ? '#2d5a3d' : '#4ade80'),
+      background: 'rgba(10,20,14,.9)',
+      color: '#e8f5e0',
+      fontSize: 12,
+      outline: 'none'
+    }
+  }, PLAN_DAYS_FULL.map((j, i) => /*#__PURE__*/React.createElement("option", {
+    key: i,
+    value: i
+  }, j))), jourCible !== activeDay && /*#__PURE__*/React.createElement("div", {
+    style: {
+      gridColumn: '1/-1',
+      fontSize: 10,
+      color: '#4ade80',
+      fontFamily: "'Space Mono',monospace"
+    }
+  }, (editingId ? "\u2192 sera d\u00e9plac\u00e9 vers " : "\u2192 sera ajout\u00e9 au ") + PLAN_DAYS_FULL[jourCible].toLowerCase()), /*#__PURE__*/React.createElement("div", {
+    style: {
+      gridColumn: '1/-1',
+      display: 'flex',
+      gap: 6
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: handleAdd,
+    disabled: !addForm.title.trim(),
+    style: {
+      flex: 1,
+      padding: '7px',
+      borderRadius: 8,
+      border: 'none',
+      background: addForm.title.trim() ? '#4ade80' : '#1e3a2a',
+      color: addForm.title.trim() ? '#0a0f0d' : '#4b7a5c',
+      cursor: addForm.title.trim() ? 'pointer' : 'not-allowed',
+      fontSize: 12,
+      fontWeight: 700
+    }
+  }, editingId ? "\u2713 Enregistrer" : "\u2713 Ajouter"), /*#__PURE__*/React.createElement("button", {
+    onClick: fermerForm,
+    style: {
+      padding: '7px 12px',
+      borderRadius: 8,
+      border: '1px solid #2d5a3d',
+      background: 'transparent',
+      color: '#6b9e7a',
+      cursor: 'pointer',
+      fontSize: 12
+    }
+  }, "\u2715")))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '0 16px 20px'
+    }
+  }, dayItems.map((item, idx) => {
+    const cat = PLAN_CATEGORIES[item.cat] || PLAN_CATEGORIES.repos;
+    const who = PLAN_WHO[item.who] || PLAN_WHO.both;
+    const isDone = !!checked[item.id];
+    return /*#__PURE__*/React.createElement("div", {
+      key: item.id,
+      className: "plan-item-card plan-fade",
+      style: {
+        display: 'flex',
+        gap: 12,
+        marginBottom: 12,
+        animationDelay: `${idx * .06}s`
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        minWidth: 40
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontFamily: "'Space Mono',monospace",
+        fontSize: 9,
+        color: '#4b7a5c',
+        marginBottom: 3,
+        whiteSpace: 'nowrap'
+      }
+    }, item.time), /*#__PURE__*/React.createElement("div", {
+      style: {
+        width: 9,
+        height: 9,
+        borderRadius: '50%',
+        background: isDone ? cat.color : 'transparent',
+        border: `2px solid ${cat.color}`,
+        flexShrink: 0,
+        boxShadow: isDone ? `0 0 7px ${cat.color}60` : 'none',
+        transition: 'all .2s'
+      }
+    }), idx < dayItems.length - 1 && /*#__PURE__*/React.createElement("div", {
+      style: {
+        width: 1,
+        flex: 1,
+        minHeight: 16,
+        background: '#1e3a2a',
+        marginTop: 3
+      }
+    })), /*#__PURE__*/React.createElement("div", {
+      onClick: () => togglePlanningCheck(activeDay, item.id),
+      style: {
+        flex: 1,
+        background: isDone ? 'rgba(74,222,128,.05)' : 'rgba(255,255,255,.03)',
+        border: `1px solid ${isDone ? cat.color + '40' : '#1a3028'}`,
+        borderLeft: `3px solid ${cat.color}`,
+        borderRadius: 10,
+        padding: '10px 12px',
+        opacity: isDone ? .65 : 1,
+        transition: 'all .2s',
+        cursor: 'pointer'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 7,
+        flex: 1
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 14
+      }
+    }, cat.icon), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 13,
+        fontWeight: 700,
+        color: isDone ? '#4b7a5c' : '#d4f5df',
+        textDecoration: isDone ? 'line-through' : 'none',
+        fontFamily: "'Playfair Display',serif"
+      }
+    }, item.title)), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 5
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 8,
+        fontFamily: "'Space Mono',monospace",
+        color: who.color,
+        background: who.color + '18',
+        padding: '2px 7px',
+        borderRadius: 10,
+        flexShrink: 0
+      }
+    }, who.label), [
+      { k: 'edit', t: "Modifier ce créneau", l: "✎", f: () => ouvrirEdition(item), c: editingId === item.id ? '#4ade80' : '#4b7a5c' },
+      { k: 'copy', t: "Dupliquer ce créneau", l: "⧉", f: () => dupliquerItem(item), c: '#4b7a5c' },
+      { k: 'del', t: "Supprimer ce créneau", l: "\xD7", f: () => supprimerItem(item), c: '#4b7a5c' }
+    ].map(b => /*#__PURE__*/React.createElement("button", {
+      key: b.k,
+      title: b.t,
+      'aria-label': b.t,
+      onClick: e => {
+        e.stopPropagation();
+        b.f();
+      },
+      style: {
+        background: 'none',
+        border: 'none',
+        color: b.c,
+        cursor: 'pointer',
+        fontSize: b.k === 'del' ? 14 : 12,
+        padding: '0 3px',
+        lineHeight: 1
+      }
+    }, b.l)))), item.detail && /*#__PURE__*/React.createElement("p", {
+      style: {
+        margin: '5px 0 0 21px',
+        fontSize: 11,
+        color: '#5c8a6e',
+        lineHeight: 1.5,
+        fontStyle: 'italic'
+      }
+    }, item.detail), /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginTop: 7,
+        marginLeft: 21,
+        display: 'inline-block',
+        fontSize: 8,
+        fontFamily: "'Space Mono',monospace",
+        color: cat.color,
+        background: cat.color + '15',
+        padding: '2px 7px',
+        borderRadius: 7
+      }
+    }, cat.label)));
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: 'rgba(255,255,255,.03)',
+      border: '1px solid #1e3a2a',
+      borderRadius: 12,
+      padding: 14,
+      marginTop: 4
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'Space Mono',monospace",
+      fontSize: 9,
+      color: '#4ade80',
+      marginBottom: 8,
+      letterSpacing: 2
+    }
+  }, "PROGRESSION DU JOUR"), (() => {
+    const total = dayItems.length;
+    const pct = total > 0 ? Math.round(doneCount / total * 100) : 0;
+    return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        marginBottom: 6
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 11,
+        color: '#6b9e7a'
+      }
+    }, doneCount, "/", total, " activit\xE9s"), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontFamily: "'Space Mono',monospace",
+        fontSize: 13,
+        color: '#4ade80',
+        fontWeight: 700
+      }
+    }, pct, "%")), /*#__PURE__*/React.createElement("div", {
+      style: {
+        height: 5,
+        background: '#1a3028',
+        borderRadius: 4,
+        overflow: 'hidden'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        height: '100%',
+        width: `${pct}%`,
+        background: 'linear-gradient(90deg,#4ade80,#22c55e)',
+        borderRadius: 4,
+        transition: 'width .4s ease',
+        boxShadow: '0 0 10px rgba(74,222,128,.45)'
+      }
+    })));
+  })()))), activeTab === 'sorties' && /*#__PURE__*/React.createElement("div", {
+    className: "plan-fade",
+    style: {
+      padding: '18px 16px 20px'
+    }
+  }, /*#__PURE__*/React.createElement("h2", {
+    style: {
+      margin: '0 0 5px',
+      fontSize: 18,
+      color: '#b7f7c8'
+    }
+  }, "Sorties Guadeloupe"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      margin: '0 0 16px',
+      fontSize: 12,
+      color: '#5c8a6e',
+      fontStyle: 'italic'
+    }
+  }, "Vos spots favoris pour explorer l'archipel ensemble \uD83C\uDF0A"), OUTINGS.map((o, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    className: "plan-outing-card",
+    style: {
+      background: 'rgba(255,255,255,.03)',
+      border: '1px solid #1a3028',
+      borderRadius: 14,
+      padding: 14,
+      marginBottom: 12
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 8,
+      marginBottom: 8
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 20
+    }
+  }, o.icon), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 14,
+      fontWeight: 700,
+      color: '#d4f5df'
+    }
+  }, o.title)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      flexWrap: 'wrap',
+      gap: 7
+    }
+  }, o.places.map((p, j) => {
+    const mapKey = i + '-' + j;
+    const isOpen = openMap === mapKey;
+    const chipStyle = {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 4,
+      minHeight: 32,
+      fontSize: 11,
+      fontFamily: "'Space Mono',monospace",
+      background: isOpen ? 'rgba(74,222,128,.22)' : 'rgba(74,222,128,.1)',
+      color: '#4ade80',
+      padding: '6px 11px',
+      borderRadius: 18,
+      border: '1px solid ' + (isOpen ? '#4ade80' : '#2d5a3d')
+    };
+    return p.q ? /*#__PURE__*/React.createElement("button", {
+      key: j,
+      type: "button",
+      onClick: () => setOpenMap(isOpen ? null : mapKey),
+      "aria-expanded": isOpen,
+      "aria-controls": 'map-' + mapKey,
+      title: (isOpen ? 'Masquer' : 'Voir') + ' la carte : ' + p.q,
+      style: {
+        ...chipStyle,
+        cursor: 'pointer'
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      "aria-hidden": "true"
+    }, "📍"), p.n) : /*#__PURE__*/React.createElement("span", {
+      key: j,
+      style: chipStyle
+    }, p.n);
+  })), (() => {
+    const j = openMap && openMap.slice(0, openMap.indexOf('-')) === String(i) ? Number(openMap.slice(openMap.indexOf('-') + 1)) : -1;
+    const p = j >= 0 ? o.places[j] : null;
+    if (!p) return null;
+    return /*#__PURE__*/React.createElement("div", {
+      id: 'map-' + openMap,
+      style: {
+        marginTop: 10
+      }
+    }, /*#__PURE__*/React.createElement("iframe", {
+      title: 'Carte Google Maps — ' + p.q,
+      src: mapEmbedUrl(p.q),
+      loading: "lazy",
+      referrerPolicy: "no-referrer-when-downgrade",
+      sandbox: "allow-scripts allow-same-origin allow-popups",
+      style: {
+        display: 'block',
+        width: '100%',
+        height: 220,
+        border: '1px solid #2d5a3d',
+        borderRadius: 12
+      }
+    }), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: 8,
+        marginTop: 6
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 10,
+        fontFamily: "'Space Mono',monospace",
+        color: '#7fb894'
+      }
+    }, p.q), /*#__PURE__*/React.createElement("a", {
+      href: mapsUrl(p.q),
+      target: "_blank",
+      rel: "noopener noreferrer",
+      style: {
+        fontSize: 10,
+        fontFamily: "'Space Mono',monospace",
+        color: '#4ade80',
+        minHeight: 32,
+        display: 'inline-flex',
+        alignItems: 'center'
+      }
+    }, "Itin\xE9raire ↗")));
+  })())), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: 'linear-gradient(135deg,rgba(244,114,182,.08),rgba(74,222,128,.05))',
+      border: '1px solid #3a1a2a',
+      borderRadius: 14,
+      padding: 14,
+      marginTop: 4
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 14,
+      marginBottom: 7
+    }
+  }, "\uD83C\uDF89 ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontWeight: 700,
+      color: '#f9c8e0'
+    }
+  }, "Sorties entre amis")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      flexWrap: 'wrap',
+      gap: 7
+    }
+  }, ['Barbecue plage', 'Soirée dominos', 'Rando groupe', 'Pique-nique rivière', 'Karaoké zouk', 'Resto vegan friendly', 'Sortie kayak collectif'].map((s, i) => /*#__PURE__*/React.createElement("span", {
+    key: i,
+    style: {
+      fontSize: 10,
+      background: 'rgba(244,114,182,.12)',
+      color: '#f472b6',
+      padding: '3px 10px',
+      borderRadius: 18,
+      fontFamily: "'Space Mono',monospace",
+      border: '1px solid #6b1e4a'
+    }
+  }, s))))), activeTab === 'culture' && /*#__PURE__*/React.createElement("div", {
+    className: "plan-fade",
+    style: {
+      padding: '18px 16px 20px'
+    }
+  }, /*#__PURE__*/React.createElement("h2", {
+    style: {
+      margin: '0 0 5px',
+      fontSize: 18,
+      color: '#b7f7c8'
+    }
+  }, "Espace Culture"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      margin: '0 0 16px',
+      fontSize: 12,
+      color: '#5c8a6e',
+      fontStyle: 'italic'
+    }
+  }, "Livres & films \xE0 partager ensemble \uD83C\uDF19"), (() => {
+    const list = soirees || [];
+    const lastAdd = list.reduce((m, s) => s.addedAt && s.addedAt > m ? s.addedAt : m, '');
+    const age = daysSince(lastAdd);
+    const stale = age === null || age > 7;
+    const isPast = s => s.date && s.date < new Date().toISOString().slice(0, 10);
+    const fmtFr = iso => {
+      const d = new Date(iso + 'T00:00:00');
+      return isNaN(d.getTime()) ? iso : d.toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: 'short' });
+    };
+    const safeUrl = u => /^https?:\/\//i.test(u || '') ? u : null;
+    const sorted = [...list].sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999'));
+    const inp = {
+      background: '#0d1a12',
+      border: '1px solid #2d5a3d',
+      color: '#e8f5ec',
+      borderRadius: 8,
+      padding: '9px 11px',
+      fontSize: 13,
+      width: '100%',
+      boxSizing: 'border-box'
+    };
+    const submit = () => {
+      if (!soireeForm.titre.trim()) return;
+      addSoiree({
+        id: Date.now().toString(),
+        titre: soireeForm.titre.trim(),
+        date: soireeForm.date,
+        lieu: soireeForm.lieu.trim(),
+        url: soireeForm.url.trim(),
+        addedAt: new Date().toISOString()
+      });
+      setSoireeForm({
+        titre: '',
+        date: '',
+        lieu: '',
+        url: ''
+      });
+      setShowSoiree(false);
+    };
+    return /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginBottom: 22
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 10,
+        flexWrap: 'wrap'
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontFamily: "'Space Mono',monospace",
+        fontSize: 10,
+        color: '#f472b6',
+        letterSpacing: 2
+      }
+    }, "\uD83C\uDF89 SOIR\xC9ES & CONCERTS"), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontFamily: "'Space Mono',monospace",
+        fontSize: 9,
+        padding: '2px 8px',
+        borderRadius: 10,
+        background: stale ? 'rgba(251,146,60,.15)' : 'rgba(74,222,128,.12)',
+        color: stale ? '#fb923c' : '#4ade80',
+        border: '1px solid ' + (stale ? '#7c3a12' : '#2d5a3d')
+      }
+    }, age === null ? 'jamais mis \xE0 jour' : age === 0 ? 'mis \xE0 jour aujourd\'hui' : 'mis \xE0 jour il y a ' + age + ' j')), /*#__PURE__*/React.createElement("p", {
+      style: {
+        margin: '0 0 10px',
+        fontSize: 11,
+        color: '#5c8a6e',
+        lineHeight: 1.5
+      }
+    }, "Ouvre l'agenda Bizouk, rep\xE8re ce qui vous tente, ajoute-le ici. \xC0 refaire chaque semaine \u2014 le badge passe \xE0 l'orange au bout de 7 jours."), /*#__PURE__*/React.createElement("div", {
+      className: "scroll-x",
+      style: {
+        display: 'flex',
+        gap: 6,
+        marginBottom: 12,
+        paddingBottom: 4
+      }
+    }, /*#__PURE__*/React.createElement("a", {
+      href: BIZOUK_AGENDA,
+      target: "_blank",
+      rel: "noopener noreferrer",
+      style: {
+        flexShrink: 0,
+        minHeight: 32,
+        display: 'inline-flex',
+        alignItems: 'center',
+        padding: '6px 12px',
+        borderRadius: 18,
+        fontSize: 11,
+        fontFamily: "'Space Mono',monospace",
+        background: 'rgba(244,114,182,.15)',
+        color: '#f9a8d4',
+        border: '1px solid #6b1e4a',
+        textDecoration: 'none',
+        whiteSpace: 'nowrap'
+      }
+    }, "Agenda GWA \u2197"), next7Days().map(d => /*#__PURE__*/React.createElement("a", {
+      key: d.i,
+      href: d.url,
+      target: "_blank",
+      rel: "noopener noreferrer",
+      title: 'Soir\xE9es Bizouk Guadeloupe \u2014 ' + d.label,
+      style: {
+        flexShrink: 0,
+        minHeight: 32,
+        display: 'inline-flex',
+        alignItems: 'center',
+        padding: '6px 11px',
+        borderRadius: 18,
+        fontSize: 11,
+        fontFamily: "'Space Mono',monospace",
+        background: 'rgba(255,255,255,.04)',
+        color: '#8bb89a',
+        border: '1px solid #1e3a2a',
+        textDecoration: 'none',
+        whiteSpace: 'nowrap'
+      }
+    }, d.label))), /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      onClick: () => setShowSoiree(!showSoiree),
+      "aria-expanded": showSoiree,
+      style: {
+        minHeight: 36,
+        width: '100%',
+        marginBottom: showSoiree ? 10 : 12,
+        padding: '8px 12px',
+        borderRadius: 10,
+        fontSize: 12,
+        fontFamily: "'Space Mono',monospace",
+        background: 'transparent',
+        color: '#f472b6',
+        border: '1px dashed #6b1e4a',
+        cursor: 'pointer'
+      }
+    }, showSoiree ? '\u00D7 Annuler' : '+ Ajouter une soir\xE9e'), showSoiree && /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'grid',
+        gap: 8,
+        marginBottom: 12,
+        padding: 12,
+        borderRadius: 12,
+        background: 'rgba(244,114,182,.05)',
+        border: '1px solid #3a1a2a'
+      }
+    }, /*#__PURE__*/React.createElement("input", {
+      "aria-label": "Nom de la soir\xE9e",
+      placeholder: "Nom de la soir\xE9e *",
+      value: soireeForm.titre,
+      onChange: e => setSoireeForm({ ...soireeForm, titre: e.target.value }),
+      style: inp
+    }), /*#__PURE__*/React.createElement("input", {
+      "aria-label": "Date",
+      type: "date",
+      value: soireeForm.date,
+      onChange: e => setSoireeForm({ ...soireeForm, date: e.target.value }),
+      style: inp
+    }), /*#__PURE__*/React.createElement("input", {
+      "aria-label": "Lieu",
+      placeholder: "Lieu (ex. Le Gosier)",
+      value: soireeForm.lieu,
+      onChange: e => setSoireeForm({ ...soireeForm, lieu: e.target.value }),
+      style: inp
+    }), /*#__PURE__*/React.createElement("input", {
+      "aria-label": "Lien Bizouk",
+      type: "url",
+      placeholder: "Lien Bizouk (https://\u2026)",
+      value: soireeForm.url,
+      onChange: e => setSoireeForm({ ...soireeForm, url: e.target.value }),
+      style: inp
+    }), /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      onClick: submit,
+      disabled: !soireeForm.titre.trim(),
+      style: {
+        minHeight: 38,
+        borderRadius: 8,
+        border: 'none',
+        background: soireeForm.titre.trim() ? '#f472b6' : '#3a1a2a',
+        color: soireeForm.titre.trim() ? '#1a0a12' : '#7a5a6a',
+        fontWeight: 800,
+        fontSize: 13,
+        cursor: soireeForm.titre.trim() ? 'pointer' : 'not-allowed'
+      }
+    }, "Ajouter")), sorted.length === 0 && !showSoiree && /*#__PURE__*/React.createElement("div", {
+      style: {
+        textAlign: 'center',
+        padding: '18px 0',
+        color: '#5c8a6e',
+        fontSize: 12,
+        fontStyle: 'italic'
+      }
+    }, "\uD83C\uDFB6 Aucune soir\xE9e pour l'instant"), sorted.map(s => /*#__PURE__*/React.createElement("div", {
+      key: s.id,
+      className: "plan-item-card",
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        background: 'rgba(244,114,182,.05)',
+        border: '1px solid #3a1a2a',
+        borderLeft: '3px solid #f472b6',
+        borderRadius: 10,
+        padding: '11px 12px',
+        marginBottom: 9,
+        opacity: isPast(s) ? .5 : 1
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        flex: 1,
+        minWidth: 0
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 12,
+        fontWeight: 700,
+        color: '#f9c8e0'
+      }
+    }, s.titre), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 10,
+        color: '#8bb89a',
+        fontFamily: "'Space Mono',monospace",
+        marginTop: 3
+      }
+    }, [s.date && fmtFr(s.date), s.lieu].filter(Boolean).join(' \u00B7 ') || '\u2014')), safeUrl(s.url) && /*#__PURE__*/React.createElement("a", {
+      href: safeUrl(s.url),
+      target: "_blank",
+      rel: "noopener noreferrer",
+      title: 'Ouvrir la page de \u00AB ' + s.titre + ' \u00BB',
+      style: {
+        minHeight: 32,
+        display: 'inline-flex',
+        alignItems: 'center',
+        fontSize: 10,
+        fontFamily: "'Space Mono',monospace",
+        color: '#f472b6',
+        whiteSpace: 'nowrap'
+      }
+    }, "Billetterie \u2197"), /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      onClick: () => deleteSoiree(s.id),
+      "aria-label": 'Supprimer ' + s.titre,
+      style: {
+        minWidth: 32,
+        minHeight: 32,
+        background: 'none',
+        border: 'none',
+        color: '#ef4444',
+        cursor: 'pointer',
+        fontSize: 16
+      }
+    }, "\u00D7"))));
+  })(), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 20
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 7,
+      marginBottom: 12,
+      fontFamily: "'Space Mono',monospace",
+      fontSize: 10,
+      color: '#c084fc',
+      letterSpacing: 2
+    }
+  }, /*#__PURE__*/React.createElement("span", null, "\uD83D\uDCD6"), " LISTE DE LECTURE"), BOOKS.map((b, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    className: "plan-item-card",
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 10,
+      background: 'rgba(192,132,252,.05)',
+      border: '1px solid #2a1a3a',
+      borderLeft: '3px solid #c084fc',
+      borderRadius: 10,
+      padding: '11px 12px',
+      marginBottom: 9
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 700,
+      color: '#e8d5ff',
+      marginBottom: 2
+    }
+  }, b.title), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: '#7a5a9a',
+      fontStyle: 'italic'
+    }
+  }, b.author)), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 8,
+      fontFamily: "'Space Mono',monospace",
+      color: '#c084fc',
+      background: 'rgba(192,132,252,.12)',
+      padding: '2px 7px',
+      borderRadius: 9
+    }
+  }, b.cat)))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 7,
+      marginBottom: 12,
+      fontFamily: "'Space Mono',monospace",
+      fontSize: 10,
+      color: '#facc15',
+      letterSpacing: 2
+    }
+  }, /*#__PURE__*/React.createElement("span", null, "\uD83C\uDFAC"), " S\xC9LECTION FILMS"), FILMS.map((f, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    className: "plan-item-card",
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 10,
+      background: 'rgba(250,204,21,.04)',
+      border: '1px solid #2a2010',
+      borderLeft: '3px solid #facc15',
+      borderRadius: 10,
+      padding: '11px 12px',
+      marginBottom: 9
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 16,
+      minWidth: 24
+    }
+  }, "\uD83C\uDF9E\uFE0F"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 700,
+      color: '#fef9e0',
+      marginBottom: 2
+    }
+  }, f.title), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: '#7a6a3a',
+      fontStyle: 'italic'
+    }
+  }, f.genre)))))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      borderTop: '1px solid #1a3028',
+      padding: '10px 16px',
+      display: 'flex',
+      justifyContent: 'center',
+      gap: 14,
+      flexWrap: 'wrap'
+    }
+  }, Object.entries(PLAN_WHO).map(([k, v]) => /*#__PURE__*/React.createElement("div", {
+    key: k,
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 4
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 6,
+      height: 6,
+      borderRadius: '50%',
+      background: v.color
+    }
+  }), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 9,
+      fontFamily: "'Space Mono',monospace",
+      color: '#4b6a55'
+    }
+  }, v.label)))));
+}
+
+// ─── DrevmCook View ───
+// ─── CSV recettes (export / import) ───
+// Colonnes : id, nom, categorie, tags, ingredients, preparation, apports, budget
+// tags séparés par ";"  ·  ingredients séparés par " | "
+const RECIPE_CSV_COLS = ['id', 'nom', 'categorie', 'tags', 'ingredients', 'preparation', 'apports', 'budget'];
+function csvCell(v) { const s = String(v == null ? '' : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+function recipesToCsv(list) {
+  const rows = (list || []).map(r => [r.id, r.nom, r.categorie, (r.tags || []).join('; '), (r.ingredients || []).join(' | '), r.preparation, r.apports, r.budget].map(csvCell).join(','));
+  return [RECIPE_CSV_COLS.join(','), ...rows].join('\r\n');
+}
+function parseCsv(text) {
+  const rows = []; let row = [], cell = '', q = false;
+  text = String(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += c; }
+    else { if (c === '"') q = true; else if (c === ',') { row.push(cell); cell = ''; } else if (c === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; } else cell += c; }
+  }
+  if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+  return rows;
+}
+function csvToRecipes(text) {
+  const rows = parseCsv(text).filter(r => r.some(c => (c || '').trim() !== ''));
+  if (rows.length < 1) return [];
+  const head = rows[0].map(c => c.trim().toLowerCase());
+  const at = (cols, name) => { const i = head.indexOf(name); return i >= 0 ? (cols[i] || '').trim() : ''; };
+  return rows.slice(1).map(cols => {
+    const nom = at(cols, 'nom'); if (!nom) return null;
+    return {
+      id: at(cols, 'id') || ('csv_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7)),
+      nom,
+      categorie: at(cols, 'categorie') || 'Salés',
+      tags: at(cols, 'tags').split(';').map(t => t.trim()).filter(Boolean),
+      ingredients: at(cols, 'ingredients').split(/[|\n]/).map(t => t.trim()).filter(Boolean),
+      preparation: at(cols, 'preparation'),
+      apports: at(cols, 'apports'),
+      budget: at(cols, 'budget')
+    };
+  }).filter(Boolean);
+}
+
+// ─── Export ICS (calendrier) ───
+// Rassemble les données datées (ferments, objectifs mensuels, repas & sport hebdo)
+// dans un fichier .ics standard importable dans Google/Apple/Outlook Calendar.
+const ICS_DAY_CODE = { Lundi: 'MO', Mardi: 'TU', Mercredi: 'WE', Jeudi: 'TH', Vendredi: 'FR', Samedi: 'SA', Dimanche: 'SU' };
+const ICS_DAY_INDEX = { Dimanche: 0, Lundi: 1, Mardi: 2, Mercredi: 3, Jeudi: 4, Vendredi: 5, Samedi: 6 };
+const ICS_MEAL_TIME = { Matin: '080000', Midi: '120000', Soir: '193000' };
+function icsEscape(v) {
+  return String(v == null ? '' : v).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+}
+// Pliage des lignes (RFC 5545) : 75 OCTETS maximum, pas 75 caractères. On compte
+// donc en UTF-8 et on avance point de code par point de code — couper au milieu
+// d'un « é » ou d'un emoji produit un fichier que le calendrier refuse ou affiche
+// en charabia. Les lignes de suite commencent par une espace, qui compte aussi.
+function icsOctets(cp) { return cp < 0x80 ? 1 : cp < 0x800 ? 2 : cp < 0x10000 ? 3 : 4; }
+function icsFold(line) {
+  const s = String(line == null ? '' : line);
+  const MAX = 75;
+  let out = '', courant = '', taille = 0;
+  for (const ch of s) {
+    const n = icsOctets(ch.codePointAt(0));
+    if (taille + n > MAX) {
+      out += (out ? '\r\n ' : '') + courant;
+      courant = '';
+      taille = 1; // l'espace de continuation
+    }
+    courant += ch;
+    taille += n;
+  }
+  return out + (out ? '\r\n ' : '') + courant;
+}
+function icsDate(iso) { return String(iso || '').slice(0, 10).replace(/-/g, ''); }
+function icsDateAddDays(iso, n) {
+  const d = new Date(`${String(iso).slice(0, 10)}T00:00:00`);
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10).replace(/-/g, '');
+}
+function icsStamp() { return new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, ''); }
+function icsNextWeekdayIso(dayName) {
+  const target = ICS_DAY_INDEX[dayName];
+  if (target == null) return null;
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + ((target - d.getDay() + 7) % 7));
+  return d.toISOString().slice(0, 10);
+}
+function buildIcsEvents(data, opts) {
+  const o = opts || {};
+  const data2 = data || {};
+  const ev = [];
+  const dayMs = 86400000;
+  if (o.ferments) {
+    (data2.ferments || []).forEach(f => {
+      if (!f.startDate) return;
+      const start = new Date(`${f.startDate}T00:00:00`);
+      if (isNaN(start.getTime())) return;
+      const dur = Math.max(1, Number(f.durationDays) || 1);
+      const targetIso = new Date(start.getTime() + dur * dayMs).toISOString().slice(0, 10);
+      ev.push({ uid: 'ferment-' + f.id + '@yife', startIso: targetIso, summary: (germIsType(f.type) ? '🌱 ' : '🫙 ') + (f.nom || 'Ferment') + ' prêt', description: (f.type ? f.type + '. ' : '') + (f.notes || '') });
+    });
+  }
+  if (o.objMensuels) {
+    ((data2.couple || {}).objMensuels || []).forEach(m => {
+      if (m.mois == null || m.annee == null) return;
+      const startIso = `${m.annee}-${String(m.mois + 1).padStart(2, '0')}-01`;
+      ev.push({ uid: 'objm-' + m.id + '@yife', startIso, summary: '🎯 ' + (m.titre || 'Objectif'), description: (m.categorie ? m.categorie + '. ' : '') + (m.detail || '') });
+    });
+  }
+  if (o.meals) {
+    ['dja', 'liika'].forEach(who => {
+      ((data2[who] || {}).meals || []).forEach(m => {
+        if (!ICS_DAY_CODE[m.jour]) return;
+        ev.push({ uid: 'meal-' + who + '-' + m.id + '@yife', recurDay: m.jour, time: ICS_MEAL_TIME[m.type] || '120000', durationMin: 45, summary: '🍽 ' + yName(who) + ' · ' + (m.plat || 'Repas'), description: (m.type || '') + (m.note ? ' — ' + m.note : '') });
+      });
+    });
+  }
+  if (o.sport) {
+    ['dja', 'liika'].forEach(who => {
+      ((data2[who] || {}).sport || []).forEach(s => {
+        if (!ICS_DAY_CODE[s.jour]) return;
+        ev.push({ uid: 'sport-' + who + '-' + s.id + '@yife', recurDay: s.jour, time: '180000', durationMin: Math.max(15, Number(s.duree) || 30), summary: '💪 ' + yName(who) + ' · ' + (s.activite || 'Sport'), description: (s.intensite || '') + (s.duree ? ' · ' + s.duree + ' min' : '') });
+      });
+    });
+  }
+  if (o.planning) {
+    planningToIcsEvents((data2.couple || {}).planning).forEach(e => ev.push(e));
+  }
+  if (o.medical) {
+    ((data2.couple || {}).medical || []).forEach(m => {
+      ev.push(medicalToIcsEvent(m));
+    });
+  }
+  if (o.potager) {
+    const todayIso = new Date().toISOString().slice(0, 10);
+    ((data2.couple || {}).potager || []).forEach(p => {
+      potagerIcsEvents(p, todayIso).forEach(e => ev.push(e));
+    });
+  }
+  return ev.filter(Boolean);
+}
+// Événements ICS pour une plante : rappel d'arrosage récurrent + récolte prévue.
+function potagerIcsEvents(p, todayIso) {
+  if (!p) return [];
+  const out = [];
+  const nom = p.nom || 'plante';
+  if (p.dateRecolte) {
+    out.push({ uid: 'potager-harvest-' + p.id + '@yife', startIso: p.dateRecolte, summary: '🧺 Récolte : ' + nom, description: (p.variete ? p.variete + '. ' : '') + 'Récolte prévue.' });
+  }
+  const rrule = POTAGER_ARROSAGE_RRULE[p.arrosage];
+  if (rrule) {
+    out.push({ uid: 'potager-water-' + p.id + '@yife', rrule: rrule, startIso: todayIso, time: '080000', durationMin: 15, summary: '💧 Arroser ' + nom, description: 'Arrosage : ' + p.arrosage });
+  }
+  return out;
+}
+// Convertit un RDV médical en événement ICS (journée entière). Renvoie null si pas de date.
+function medicalToIcsEvent(m) {
+  if (!m || !m.date) return null;
+  const who = m.qui && m.qui !== 'Couple' ? quiLabel(m.qui) + ' · ' : '';
+  return {
+    uid: 'medical-' + m.id + '@yife',
+    startIso: m.date,
+    summary: '🩺 ' + who + (m.titre || 'RDV médical'),
+    description: [m.medecin, m.notes].filter(Boolean).join(' — ')
+  };
+}
+// Marche à suivre côté téléphone, une fois le .ics téléchargé.
+const ICS_AIDE_TEL = [
+  {
+    titre: '🍏 iPhone (Calendrier Apple)',
+    etapes: [
+      'Touche « Exporter .ics » : Safari propose de télécharger le fichier.',
+      'Ouvre l\'app Fichiers → Téléchargements, puis touche le fichier .ics.',
+      'iOS propose « Ajouter tout » — choisis le calendrier de destination et valide.',
+      'Astuce : crée d\'abord un calendrier dédié (Calendrier → Calendriers → Ajouter) pour pouvoir tout masquer ou supprimer d\'un coup.'
+    ]
+  },
+  {
+    titre: '📱 Samsung / Android',
+    etapes: [
+      'Touche « Exporter .ics » : le fichier part dans Téléchargements.',
+      'Ouvre l\'app Mes fichiers → Téléchargements et touche le fichier .ics.',
+      'Choisis Calendrier (ou Agenda Google) dans la liste des applis proposées.',
+      'Si rien ne s\'ouvre : va sur calendar.google.com depuis un ordinateur → Paramètres → Importer, sélectionne le fichier. Les événements redescendent sur le téléphone à la synchro suivante.'
+    ]
+  }
+];
+
+// ─── Emploi du temps hebdo → événements récurrents ───
+// Le planning de la semaine (créneaux d'origine + ceux ajoutés à la main) devient
+// une série d'événements « chaque lundi à 06:00 », etc. — la forme que tous les
+// calendriers (iPhone, Samsung, Google, Outlook) savent lire.
+const PLAN_ICS_JOURS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+function planningToIcsEvents(planning) {
+  const out = [];
+  // En solo, on n'emporte que ses propres créneaux (+ ceux marqués « à deux ».)
+  const moi = ACTIVE_MODE === 'solo' ? ACTIVE_SOLO : null;
+  PLAN_ICS_JOURS.forEach((jour, day) => {
+    // Même source que la vue Planning : ce qui est affiché est ce qui est exporté.
+    const items = planDayItems(planning, day)
+      .map(it => ({ ...it, t: planIcsTime(it.time) }))
+      .filter(it => it.t)
+      .filter(it => !moi || !it.who || it.who === 'both' || it.who === moi);
+    items.forEach((it, i) => {
+      // Durée : jusqu'au créneau suivant, 1 h par défaut, bornée à 15 min–1 h 30
+      // pour qu'une longue plage vide ne bloque pas toute la journée.
+      const suivant = items[i + 1];
+      const ecart = suivant ? planIcsMinutes(suivant.t) - planIcsMinutes(it.t) : 60;
+      const cat = PLAN_CATEGORIES[it.cat];
+      const qui = it.who === 'dja' ? NAME_DJA : it.who === 'liika' ? NAME_LIIKA : '';
+      out.push({
+        uid: 'plan-' + day + '-' + (it.id || i) + '@yife',
+        recurDay: jour,
+        time: it.t,
+        durationMin: Math.max(15, Math.min(90, ecart > 0 ? ecart : 60)),
+        summary: (cat ? cat.icon + ' ' : '') + (qui ? qui + ' · ' : '') + String(it.title).trim(),
+        description: [cat && cat.label, it.detail].filter(Boolean).join(' — ')
+      });
+    });
+  });
+  return out;
+}
+// Télécharge un tableau d'événements sous forme de fichier .ics.
+// Le lien est réellement inséré dans la page et l'URL libérée en différé : sans
+// ça, Safari iOS et certains navigateurs Android annulent le téléchargement.
+function downloadIcs(events, filename) {
+  const blob = new Blob([eventsToIcs(events)], { type: 'text/calendar;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename || 'lanmou-douvan.ics';
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { try { document.body.removeChild(a); } catch (e) {} URL.revokeObjectURL(url); }, 4000);
+}
+function eventsToIcs(events) {
+  const stamp = icsStamp();
+  const pad = n => String(n).padStart(2, '0');
+  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//' + BRAND + '//' + BRAND_TAG + '//FR', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:' + BRAND + ' — ' + BRAND_TAG];
+  (events || []).forEach((evnt, idx) => {
+    lines.push('BEGIN:VEVENT');
+    lines.push('UID:' + (evnt.uid || stamp + '-' + idx + '@yife'));
+    lines.push('DTSTAMP:' + stamp);
+    if (evnt.recurDay) {
+      const startIso = icsNextWeekdayIso(evnt.recurDay);
+      const time = evnt.time || '090000';
+      const startD = new Date(`${startIso}T${time.slice(0, 2)}:${time.slice(2, 4)}:${time.slice(4, 6)}`);
+      const endD = new Date(startD.getTime() + Math.max(5, evnt.durationMin || 30) * 60000);
+      const endStr = `${endD.getFullYear()}${pad(endD.getMonth() + 1)}${pad(endD.getDate())}T${pad(endD.getHours())}${pad(endD.getMinutes())}00`;
+      lines.push('DTSTART:' + startIso.replace(/-/g, '') + 'T' + time);
+      lines.push('DTEND:' + endStr);
+      lines.push('RRULE:FREQ=WEEKLY;BYDAY=' + ICS_DAY_CODE[evnt.recurDay]);
+    } else if (evnt.rrule) {
+      const startIso = String(evnt.startIso || '').slice(0, 10);
+      const time = evnt.time || '080000';
+      const startD = new Date(`${startIso}T${time.slice(0, 2)}:${time.slice(2, 4)}:${time.slice(4, 6)}`);
+      const endD = new Date(startD.getTime() + Math.max(5, evnt.durationMin || 15) * 60000);
+      const endStr = `${endD.getFullYear()}${pad(endD.getMonth() + 1)}${pad(endD.getDate())}T${pad(endD.getHours())}${pad(endD.getMinutes())}00`;
+      lines.push('DTSTART:' + startIso.replace(/-/g, '') + 'T' + time);
+      lines.push('DTEND:' + endStr);
+      lines.push('RRULE:' + evnt.rrule);
+    } else {
+      lines.push('DTSTART;VALUE=DATE:' + icsDate(evnt.startIso));
+      lines.push('DTEND;VALUE=DATE:' + icsDateAddDays(evnt.startIso, 1));
+    }
+    lines.push('SUMMARY:' + icsEscape(evnt.summary));
+    if (evnt.description && evnt.description.trim()) lines.push('DESCRIPTION:' + icsEscape(evnt.description.trim()));
+    lines.push('END:VEVENT');
+  });
+  lines.push('END:VCALENDAR');
+  return lines.map(icsFold).join('\r\n');
+}
+
+function CalendarView({ data }) {
+  const h = React.createElement;
+  const [opts, setOpts] = useState({ planning: true, ferments: true, objMensuels: true, meals: false, sport: false, medical: true, potager: true });
+  const [aide, setAide] = useState(false);
+  const sources = [
+    { key: 'planning', label: 'Emploi du temps de la semaine (récurrent)', icon: '🗓' },
+    { key: 'ferments', label: 'Ferments (date « prêt »)', icon: '🫙' },
+    { key: 'objMensuels', label: 'Objectifs du mois', icon: '🎯' },
+    { key: 'medical', label: 'Suivi médical (RDV)', icon: '🩺' },
+    { key: 'potager', label: 'Potager (arrosage · récolte)', icon: '🌱' },
+    { key: 'meals', label: 'Repas hebdo (récurrent)', icon: '🍽' },
+    { key: 'sport', label: 'Sport hebdo (récurrent)', icon: '💪' }
+  ];
+  const events = useMemo(() => buildIcsEvents(data, opts), [data, opts]);
+  const toggle = key => setOpts(prev => ({ ...prev, [key]: !prev[key] }));
+  const exportIcs = () => {
+    if (!events.length) { alert('Aucun événement à exporter. Active au moins une source avec des données datées.'); return; }
+    downloadIcs(events, 'lanmou-douvan.ics');
+  };
+  const fmtFr = iso => {
+    const d = new Date(`${String(iso).slice(0, 10)}T00:00:00`);
+    return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+  return h('div', null,
+    h('div', { style: { marginBottom: 24 } },
+      h('div', { className: 'eyebrow', style: { marginBottom: 8 } }, 'Calendrier'),
+      h('h2', { style: { fontFamily: "'Playfair Display', serif", fontSize: 28, fontWeight: 500, marginBottom: 6 } }, '📅 Calendrier exportable'),
+      h('p', { style: { color: 'var(--text3)', fontSize: 14, maxWidth: 560 } }, 'Génère un fichier .ics importable dans Google Agenda, Apple Calendrier ou Outlook. Choisis les sources puis exporte.')
+    ),
+    h('div', { className: 'lx-card', style: { padding: 20, marginBottom: 20 } },
+      h('div', { style: { fontFamily: "'Space Mono', monospace", fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--text3)', marginBottom: 14 } }, 'Sources à inclure'),
+      h('div', { style: { display: 'grid', gap: 10 } },
+        sources.map(s => h('label', {
+          key: s.key,
+          style: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', background: opts[s.key] ? 'var(--gold-bg)' : 'transparent', border: `1px solid ${opts[s.key] ? 'var(--gold-border)' : 'var(--border)'}`, transition: 'background .15s, border .15s' }
+        },
+          h('input', { type: 'checkbox', checked: opts[s.key], onChange: () => toggle(s.key), style: { width: 18, height: 18, accentColor: 'var(--gold)', cursor: 'pointer' } }),
+          h('span', { style: { fontSize: 18 } }, s.icon),
+          h('span', { style: { fontSize: 14, color: opts[s.key] ? 'var(--text)' : 'var(--text2)' } }, s.label)
+        ))
+      )
+    ),
+    h('div', { className: 'lx-card', style: { padding: 20, marginBottom: 20 } },
+      h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 } },
+        h('div', { style: { fontFamily: "'Space Mono', monospace", fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--text3)' } }, 'Aperçu · ' + events.length + ' événement' + (events.length > 1 ? 's' : '')),
+        h('button', {
+          onClick: exportIcs,
+          disabled: !events.length,
+          style: { fontFamily: "'Outfit', sans-serif", fontSize: 14, fontWeight: 600, padding: '10px 20px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--gold-border)', background: events.length ? 'var(--gold)' : 'var(--bg3)', color: events.length ? '#06120d' : 'var(--text3)', cursor: events.length ? 'pointer' : 'not-allowed' }
+        }, '⬇ Exporter .ics')
+      ),
+      events.length
+        ? h('div', { style: { display: 'grid', gap: 8 } },
+            events.slice(0, 40).map((evnt, i) => h('div', {
+              key: evnt.uid || i,
+              style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 'var(--radius-xs)', background: 'var(--bg2)', border: '1px solid var(--border)' }
+            },
+              h('span', { style: { fontSize: 14, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, evnt.summary),
+              h('span', { style: { fontFamily: "'Space Mono', monospace", fontSize: 12, color: 'var(--gold)', flexShrink: 0 } }, evnt.recurDay ? 'Chaque ' + evnt.recurDay.toLowerCase() : fmtFr(evnt.startIso))
+            ))
+          )
+        : h('div', { style: { padding: '20px 0', textAlign: 'center', color: 'var(--text3)', fontSize: 14 } }, 'Aucun événement. Active une source ou ajoute des données datées.'),
+      events.length > 40 ? h('div', { style: { marginTop: 10, fontSize: 12, color: 'var(--text3)', textAlign: 'center' } }, '… et ' + (events.length - 40) + ' de plus dans le fichier.') : null
+    ),
+    // Mode d'emploi téléphone : sans ça, le fichier atterrit dans « Téléchargements »
+    // et personne ne sait quoi en faire — surtout sur Android.
+    h('div', { className: 'lx-card', style: { padding: 20 } },
+      h('button', {
+        onClick: () => setAide(a => !a),
+        style: { width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text)', fontSize: 14, fontWeight: 600, fontFamily: "'Outfit', sans-serif", textAlign: 'left' }
+      },
+        h('span', null, '📱 Comment l\'ajouter sur iPhone ou Samsung'),
+        h('span', { style: { color: 'var(--text3)', fontSize: 12 } }, aide ? '▲' : '▼')
+      ),
+      aide && h('div', { style: { marginTop: 16, display: 'grid', gap: 16 } },
+        ICS_AIDE_TEL.map(bloc => h('div', { key: bloc.titre },
+          h('div', { style: { fontFamily: "'Space Mono', monospace", fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: 8 } }, bloc.titre),
+          h('ol', { style: { margin: 0, paddingLeft: 20, display: 'grid', gap: 6 } },
+            bloc.etapes.map((e, i) => h('li', { key: i, style: { fontSize: 13, color: 'var(--text2)', lineHeight: 1.5 } }, e))
+          )
+        )),
+        h('p', { style: { margin: 0, fontSize: 12, color: 'var(--text3)', lineHeight: 1.6 } },
+          'Les créneaux de l\'emploi du temps arrivent en événements qui se répètent chaque semaine. Chaque événement garde le même identifiant d\'un export à l\'autre : la plupart des calendriers mettent alors à jour l\'existant plutôt que de le dupliquer — mais vérifie après un deuxième import, tous ne se comportent pas pareil.')
+      )
+    )
+  );
+}
+
+// ─── Module Courses ───
+const COURSE_RAYONS = ['Fruits & Légumes', 'Boucherie & Poisson', 'Crèmerie & Frais', 'Épicerie salée', 'Épicerie sucrée', 'Boissons', 'Surgelés', 'Boulangerie', 'Hygiène & Maison', 'Autre'];
+const COURSE_RAYON_ICON = { 'Fruits & Légumes': '🥬', 'Boucherie & Poisson': '🥩', 'Crèmerie & Frais': '🧀', 'Épicerie salée': '🥫', 'Épicerie sucrée': '🍫', 'Boissons': '🧃', 'Surgelés': '🧊', 'Boulangerie': '🥖', 'Hygiène & Maison': '🧼', 'Autre': '🛒' };
+const COURSE_UNITES = ['', 'u', 'g', 'kg', 'mL', 'L', 'pq', 'boîte', 'botte'];
+const RAYON_KEYWORDS = [
+  ['Fruits & Légumes', ['tomate', 'salade', 'carotte', 'oignon', 'ail', 'citron', 'pomme', 'banane', 'mangue', 'courgette', 'poivron', 'épinard', 'chou', 'brocoli', 'patate', 'pomme de terre', 'avocat', 'concombre', 'persil', 'coriandre', 'gingembre', 'légume', 'fruit', 'champignon', 'betterave', 'radis', 'céleri', 'poireau', 'piment']],
+  ['Boucherie & Poisson', ['poulet', 'boeuf', 'bœuf', 'porc', 'agneau', 'dinde', 'viande', 'steak', 'poisson', 'saumon', 'thon', 'crevette', 'jambon', 'lardon', 'saucisse', 'escalope']],
+  ['Crèmerie & Frais', ['lait', 'yaourt', 'fromage', 'beurre', 'crème', 'oeuf', 'œuf', 'tofu', 'mozzarella', 'feta', 'parmesan']],
+  ['Épicerie salée', ['riz', 'pâte', 'pates', 'farine', 'huile', 'sel', 'poivre', 'épice', 'conserve', 'haricot', 'lentille', 'pois chiche', 'quinoa', 'semoule', 'bouillon', 'soja', 'vinaigre', 'moutarde', 'olive']],
+  ['Épicerie sucrée', ['sucre', 'chocolat', 'miel', 'confiture', 'biscuit', 'gâteau', 'céréale', 'levure', 'vanille', 'cacao', 'compote', 'cannelle']],
+  ['Boissons', ['eau', 'jus', 'café', 'thé', 'vin', 'bière', 'soda', 'sirop', 'boisson']],
+  ['Surgelés', ['surgelé', 'glace', 'congelé']],
+  ['Boulangerie', ['pain', 'baguette', 'focaccia', 'viennoiserie', 'croissant', 'brioche']],
+  ['Hygiène & Maison', ['savon', 'shampoing', 'dentifrice', 'éponge', 'papier', 'lessive', 'vaisselle', 'poubelle', 'nettoyant']]
+];
+function rayonForItem(name) {
+  const s = String(name || '').toLowerCase();
+  for (const [rayon, kws] of RAYON_KEYWORDS) if (kws.some(k => s.includes(k))) return rayon;
+  return 'Autre';
+}
+const normName = s => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+// Prix canonique : nombre valide, sinon '' (jamais une chaîne « en cours de frappe » ou NaN).
+const numOrEmpty = v => (v === '' || v == null || isNaN(Number(v))) ? '' : Number(v);
+
+function CoursesView({ courses, addCourse, upsertCourse, deleteCourse, toggleCourse, clearChecked, generateFromMeals, mergeDuplicates }) {
+  const h = React.createElement;
+  const [form, setForm] = useState({ nom: '', qte: '1', unite: '', rayon: 'Autre', prix: '' });
+  const list = Array.isArray(courses) ? courses : [];
+  const total = list.reduce((s, c) => s + (Number(c.prix) || 0) * (Number(c.qte) || 1), 0);
+  const doneCount = list.filter(c => c.done).length;
+  const groups = COURSE_RAYONS.map(r => ({ rayon: r, items: list.filter(c => c.rayon === r) })).filter(g => g.items.length);
+
+  const submit = () => {
+    const nom = form.nom.trim();
+    if (!nom) return;
+    addCourse({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      nom, qte: Math.max(0, Number(form.qte) || 1), unite: form.unite,
+      rayon: form.rayon !== 'Autre' ? form.rayon : rayonForItem(nom),
+      prix: form.prix, done: false
+    });
+    setForm({ nom: '', qte: '1', unite: '', rayon: 'Autre', prix: '' });
+  };
+  const inputStyle = { padding: '8px 10px', borderRadius: 'var(--radius-xs)', border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)', fontSize: 13 };
+  const barBtn = (bg, col, bd) => ({ padding: '8px 12px', borderRadius: 'var(--radius-sm)', border: `1px solid ${bd}`, background: bg, color: col, fontSize: 12.5, cursor: 'pointer', fontWeight: 600 });
+
+  return h('div', null,
+    // En-tête
+    h('div', { style: { marginBottom: 18 } },
+      h('div', { className: 'eyebrow', style: { marginBottom: 8 } }, '🛒 Provisions'),
+      h('h2', { style: { fontFamily: "'Playfair Display',serif", fontSize: 28, fontWeight: 500, marginBottom: 6 } }, 'Liste de courses'),
+      h('p', { style: { color: 'var(--text3)', fontSize: 14, maxWidth: 560 } }, 'Partagée et synchronisée — triée par rayon pour faire les courses dans l\'ordre.')
+    ),
+    // Barre d'actions + total
+    h('div', { className: 'lx-card', style: { padding: 16, marginBottom: 16 } },
+      h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between' } },
+        h('div', { style: { display: 'flex', gap: 8, flexWrap: 'wrap' } },
+          h('button', { onClick: generateFromMeals, style: barBtn('var(--gold-bg)', 'var(--gold)', 'var(--gold-border)') }, '🍽 Générer depuis les repas'),
+          h('button', { onClick: mergeDuplicates, style: barBtn('transparent', 'var(--text2)', 'var(--border2)') }, '⊕ Regrouper doublons'),
+          h('button', { onClick: () => { if (doneCount && confirm('Retirer les ' + doneCount + ' article(s) coché(s) ?')) clearChecked(); }, style: barBtn('transparent', doneCount ? 'var(--danger)' : 'var(--text3)', doneCount ? 'var(--danger-border)' : 'var(--border)') }, '🗑 Effacer cochés' + (doneCount ? ' (' + doneCount + ')' : ''))
+        ),
+        h('div', { style: { textAlign: 'right' } },
+          h('div', { style: { fontFamily: "'Space Mono',monospace", fontSize: 11, color: 'var(--text3)' } }, list.length + ' article' + (list.length > 1 ? 's' : '') + ' · ' + doneCount + ' ✓'),
+          total > 0 ? h('div', { style: { fontFamily: "'Cormorant Garamond',serif", fontSize: 22, fontWeight: 700, color: 'var(--gold2)' } }, '≈ ' + total.toFixed(2) + ' €') : null
+        )
+      )
+    ),
+    // Formulaire d'ajout
+    h('div', { className: 'lx-card', style: { padding: 14, marginBottom: 18 } },
+      h('div', { style: { display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' } },
+        h('input', { value: form.nom, placeholder: 'Article (ex: tomates)', onChange: e => setForm(p => ({ ...p, nom: e.target.value })), onKeyDown: e => { if (e.key === 'Enter') submit(); }, style: { ...inputStyle, flex: '2 1 160px' } }),
+        h('input', { type: 'number', min: 0, step: 'any', value: form.qte, onChange: e => setForm(p => ({ ...p, qte: e.target.value })), style: { ...inputStyle, width: 64 } }),
+        h('select', { value: form.unite, onChange: e => setForm(p => ({ ...p, unite: e.target.value })), style: { ...inputStyle, width: 80 } }, COURSE_UNITES.map(u => h('option', { key: u, value: u }, u || 'unité'))),
+        h('select', { value: form.rayon, onChange: e => setForm(p => ({ ...p, rayon: e.target.value })), style: { ...inputStyle, flex: '1 1 130px' } }, COURSE_RAYONS.map(r => h('option', { key: r, value: r }, r))),
+        h('input', { type: 'number', min: 0, step: 'any', value: form.prix, placeholder: '€', onChange: e => setForm(p => ({ ...p, prix: e.target.value })), style: { ...inputStyle, width: 70 } }),
+        h('button', { onClick: submit, style: { ...barBtn('var(--gold)', '#06120d', 'var(--gold)'), padding: '9px 16px' } }, '+ Ajouter')
+      )
+    ),
+    // Liste groupée par rayon
+    groups.length === 0
+      ? h('div', { className: 'lx-card', style: { padding: '28px 20px', textAlign: 'center', color: 'var(--text3)', fontSize: 14 } }, 'Liste vide. Ajoute un article ou génère-la depuis tes repas de la semaine.')
+      : groups.map(g => h('div', { key: g.rayon, style: { marginBottom: 16 } },
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 } },
+            h('span', { style: { fontSize: 16 } }, COURSE_RAYON_ICON[g.rayon] || '🛒'),
+            h('span', { style: { fontFamily: "'Space Mono',monospace", fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--gold)' } }, g.rayon + ' · ' + g.items.length)
+          ),
+          h('div', { className: 'lx-card', style: { padding: 6 } },
+            g.items.map(c => h('div', {
+              key: c.id,
+              style: { display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 'var(--radius-xs)', opacity: c.done ? 0.5 : 1 }
+            },
+              h('input', { type: 'checkbox', checked: !!c.done, onChange: () => toggleCourse(c.id), style: { width: 18, height: 18, accentColor: 'var(--success)', cursor: 'pointer', flexShrink: 0 } }),
+              h('span', { style: { flex: 1, fontSize: 14, color: 'var(--text)', textDecoration: c.done ? 'line-through' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, c.nom),
+              h('input', { type: 'number', min: 0, step: 'any', value: c.qte, onChange: e => upsertCourse({ ...c, qte: Math.max(0, Number(e.target.value) || 0) }), title: 'Quantité', style: { width: 52, padding: '4px 6px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text2)', fontSize: 12, textAlign: 'right' } }),
+              c.unite ? h('span', { style: { fontSize: 11, color: 'var(--text3)', width: 28 } }, c.unite) : h('span', { style: { width: 28 } }),
+              h('input', { type: 'number', min: 0, step: 'any', value: c.prix === '' || c.prix == null ? '' : c.prix, placeholder: '€', onChange: e => upsertCourse({ ...c, prix: e.target.value }), title: 'Prix unitaire', style: { width: 56, padding: '4px 6px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--gold2)', fontSize: 12, textAlign: 'right' } }),
+              h('button', { onClick: () => deleteCourse(c.id), title: 'Supprimer', style: { background: 'transparent', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 16, flexShrink: 0, padding: '0 4px' } }, '×')
+            ))
+          )
+        ))
+  );
+}
+
+// ─── Helper : extrait l'ID YouTube d'une URL quelconque ──────────────────────
+function ytIdFromUrl(url) {
+  if (!url) return null;
+  try {
+    const u = new URL(url.trim());
+    if (u.hostname.includes('youtu.be')) return u.pathname.slice(1).split('?')[0];
+    if (u.searchParams.get('v')) return u.searchParams.get('v');
+    const listId = u.searchParams.get('list');
+    if (listId) return listId; // playlist
+  } catch (_) {}
+  // fallback regex
+  const m = url.match(/(?:v=|youtu\.be\/|list=)([\w-]{11,})/);
+  return m ? m[1] : null;
+}
+function isPlaylistId(id) { return id && id.startsWith('PL'); }
+
+function MediaView({ media, addMedia, deleteMedia }) {
+  const [form, setForm] = React.useState('');
+  const [loading, setLoading] = React.useState(false);
+  const [playing, setPlaying] = React.useState(null); // id de la carte en lecture
+
+  async function handleAdd() {
+    const url = form.trim();
+    if (!url) return;
+    const ytId = ytIdFromUrl(url);
+    if (!ytId) { alert('Lien YouTube invalide'); return; }
+    const kind = isPlaylistId(ytId) ? 'playlist' : 'video';
+    setLoading(true);
+    // oEmbed ne gère PAS les playlists → titre par défaut ; pour une vidéo on récupère le vrai titre.
+    let title = kind === 'playlist' ? 'Playlist YouTube' : url;
+    if (kind === 'video') {
+      try {
+        const oembed = await fetch(
+          'https://www.youtube.com/oembed?url=' + encodeURIComponent(url) + '&format=json'
+        ).then(r => r.ok ? r.json() : null);
+        if (oembed && oembed.title) title = oembed.title;
+      } catch (_) {}
+    }
+    const thumb = kind === 'video' ? 'https://img.youtube.com/vi/' + ytId + '/mqdefault.jpg' : '';
+    addMedia({ id: 'yt-' + Date.now(), kind, ytId, title, thumb });
+    setForm('');
+    setLoading(false);
+  }
+
+  function embedSrc(item) {
+    if (item.kind === 'playlist')
+      return 'https://www.youtube.com/embed/videoseries?list=' + item.ytId + '&autoplay=1';
+    return 'https://www.youtube.com/embed/' + item.ytId + '?autoplay=1';
+  }
+  // Miniature : thumb stockée, sinon img.youtube.com pour une vidéo, sinon null (playlist → placeholder).
+  function thumbUrl(item) {
+    if (item.thumb) return item.thumb;
+    if (item.kind !== 'playlist') return 'https://img.youtube.com/vi/' + item.ytId + '/mqdefault.jpg';
+    return null;
+  }
+
+  return React.createElement('div', { style: { maxWidth: 900, margin: '0 auto' } },
+    React.createElement('h2', { style: { color: 'var(--gold)', marginBottom: 20 } }, '🎬 Médias'),
+
+    // Formulaire ajout
+    React.createElement('div', {
+      style: { display: 'flex', gap: 10, marginBottom: 28, flexWrap: 'wrap' }
+    },
+      React.createElement('input', {
+        type: 'text',
+        placeholder: 'Coller un lien YouTube (vidéo ou playlist)…',
+        value: form,
+        onChange: e => setForm(e.target.value),
+        onKeyDown: e => e.key === 'Enter' && handleAdd(),
+        style: { flex: 1, minWidth: 240, padding: '10px 14px', borderRadius: 8,
+          border: '1px solid var(--border)', background: 'rgba(255,255,255,.07)', color: 'var(--text)' }
+      }),
+      React.createElement('button', {
+        onClick: handleAdd,
+        disabled: loading,
+        style: { padding: '10px 20px', borderRadius: 8, cursor: loading ? 'default' : 'pointer',
+          border: '1px solid var(--accent-couple)', background: 'var(--accent-couple)',
+          color: '#1a1208', fontWeight: 600, opacity: loading ? .6 : 1 }
+      }, loading ? '…' : '+ Ajouter')
+    ),
+
+    // Grille de miniatures
+    React.createElement('div', {
+      style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: 16 }
+    },
+      (media || []).map(item =>
+        React.createElement('div', {
+          key: item.id,
+          style: { background: 'rgba(255,255,255,.06)', borderRadius: 12,
+            overflow: 'hidden', border: '1px solid var(--border)' }
+        },
+          // Player intégré ou miniature cliquable
+          playing === item.id
+            ? React.createElement('iframe', {
+                src: embedSrc(item),
+                width: '100%',
+                height: 180,
+                frameBorder: '0',
+                allow: 'autoplay; encrypted-media',
+                allowFullScreen: true,
+                style: { display: 'block' }
+              })
+            : React.createElement('div', {
+                onClick: () => setPlaying(item.id),
+                style: { position: 'relative', cursor: 'pointer', height: 180,
+                  background: '#000', overflow: 'hidden' }
+              },
+                thumbUrl(item)
+                  ? React.createElement('img', {
+                      src: thumbUrl(item),
+                      alt: item.title,
+                      style: { width: '100%', height: '100%', objectFit: 'cover', opacity: .85 }
+                    })
+                  : React.createElement('div', {
+                      style: { width: '100%', height: '100%',
+                        background: 'linear-gradient(135deg,#7a1f3d,#2a0d18)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 44 }
+                    }, '🎵'),
+                React.createElement('div', {
+                  style: { position: 'absolute', inset: 0, display: 'flex',
+                    alignItems: 'center', justifyContent: 'center' }
+                },
+                  React.createElement('div', {
+                    style: { width: 52, height: 52, borderRadius: '50%',
+                      background: 'rgba(255,0,0,.85)', display: 'flex',
+                      alignItems: 'center', justifyContent: 'center', fontSize: 22 }
+                  }, '▶')
+                ),
+                item.kind === 'playlist' && React.createElement('div', {
+                  style: { position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,.7)',
+                    color: '#fff', fontSize: 10, padding: '2px 6px', borderRadius: 4 }
+                }, 'PLAYLIST')
+              ),
+
+          // Titre + bouton supprimer
+          React.createElement('div', {
+            style: { padding: '10px 12px', display: 'flex', justifyContent: 'space-between',
+              alignItems: 'flex-start', gap: 8 }
+          },
+            React.createElement('span', {
+              style: { fontSize: 13, color: 'var(--text)', flex: 1,
+                display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }
+            }, item.title),
+            React.createElement('button', {
+              onClick: () => { if (playing === item.id) setPlaying(null); deleteMedia(item.id); },
+              title: 'Supprimer',
+              style: { background: 'none', border: 'none', color: 'var(--text)', opacity: .55,
+                cursor: 'pointer', fontSize: 18, lineHeight: 1, flexShrink: 0 }
+            }, '×')
+          )
+        )
+      )
+    )
+  );
+}
+
+// ─── Module Survie / post-apo — cadre militaire « Purple Moon » (Liika) ───
+const SURVIE_CATS = ['Eau', 'Nourriture', 'Médical', 'Énergie', 'Outils', 'Hygiène', 'Autre'];
+const SURVIE_CAT_ICON = { Eau: '💧', Nourriture: '🥫', 'Médical': '⚕️', 'Énergie': '🔋', Outils: '🔧', 'Hygiène': '🧼', Autre: '📦' };
+const SURVIE_UNITES = ['L', 'kg', 'g', 'u', 'boîtes', 'kit', 'paquet', 'sachet'];
+
+function survieDaysLeft(iso) {
+  if (!iso) return null;
+  const d = new Date(iso + 'T00:00:00');
+  if (isNaN(d)) return null;
+  return Math.round((d - new Date(new Date().toDateString())) / 86400000);
+}
+
+function SurvieView({ survie, updateSurvie, ferments, addCourse }) {
+  const h = React.createElement;
+  const sv = survie || {};
+  const foyer = Number(sv.foyer) > 0 ? Number(sv.foyer) : 2;
+  const stocks = Array.isArray(sv.stocks) ? sv.stocks : [];
+  const bob = sv.bob || { dja: [], liika: [], commun: [] };
+  const plan = sv.plan || { ralliement: [], contacts: [], protocoles: [] };
+  const fermentsCount = Array.isArray(ferments) ? ferments.filter(f => !f.done).length : 0;
+
+  const [nf, setNf] = useState({ nom: '', cat: 'Nourriture', qte: '1', unite: 'u', parJour: '', peremption: '' });
+
+  // ── Calculs : autonomie & niveau de préparation ──
+  const calc = useMemo(() => {
+    // parJour = conso PAR PERSONNE et PAR JOUR → conso foyer = parJour × foyer.
+    const autoCat = cat => stocks
+      .filter(s => s.cat === cat && Number(s.parJour) > 0)
+      .reduce((sum, s) => sum + (Number(s.qte) || 0) / ((Number(s.parJour) || 1) * foyer), 0);
+    const autonomieEau = autoCat('Eau');
+    const autonomieNour = autoCat('Nourriture');
+    const aMedical = stocks.some(s => s.cat === 'Médical' && (Number(s.qte) || 0) > 0);
+    const allBob = [...(bob.dja || []), ...(bob.liika || []), ...(bob.commun || [])];
+    const bobDone = allBob.filter(b => b.done).length;
+    const pBob = allBob.length ? bobDone / allBob.length : 0;
+    const expired = stocks.filter(s => { const d = survieDaysLeft(s.peremption); return d != null && d < 0; });
+    const bientot = stocks.filter(s => { const d = survieDaysLeft(s.peremption); return d != null && d >= 0 && d <= 30; });
+    const pEau = Math.min(1, autonomieEau / 14);
+    const pNour = Math.min(1, autonomieNour / 14);
+    const pMed = aMedical ? 1 : 0;
+    let score = Math.round(100 * (0.3 * pEau + 0.3 * pNour + 0.15 * pMed + 0.25 * pBob));
+    if (expired.length) score = Math.max(0, score - 15);
+    const condition = score >= 75 ? { label: 'CONDITION VERTE', color: '#22c55e' }
+      : score >= 45 ? { label: 'CONDITION ORANGE', color: '#f59e0b' }
+        : { label: 'CONDITION ROUGE', color: '#ef4444' };
+    return { autonomieEau, autonomieNour, aMedical, bobDone, bobTotal: allBob.length, pBob, expired, bientot, score, condition };
+  }, [stocks, bob]);
+
+  const inp = { padding: '8px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'rgba(255,255,255,.07)', color: 'var(--text)', fontSize: 13 };
+  const card = { background: 'rgba(255,255,255,.05)', border: '1px solid var(--border)', borderRadius: 12, padding: 16 };
+
+  // ── Mutations ──
+  const addStock = () => {
+    const nom = nf.nom.trim();
+    if (!nom) return;
+    const item = { id: 'sv-' + Date.now(), nom, cat: nf.cat, qte: Number(nf.qte) || 1, unite: nf.unite, parJour: Number(nf.parJour) || 0, peremption: nf.peremption || '', note: '' };
+    updateSurvie(s => { (s.stocks = s.stocks || []).push(item); });
+    setNf({ nom: '', cat: nf.cat, qte: '1', unite: nf.unite, parJour: '', peremption: '' });
+  };
+  const setStock = (id, field, val) => updateSurvie(s => { const i = s.stocks.findIndex(x => x.id === id); if (i >= 0) s.stocks[i][field] = val; });
+  const delStock = id => updateSurvie(s => { s.stocks = s.stocks.filter(x => x.id !== id); });
+  const reappro = it => addCourse && addCourse({ id: 'c-' + Date.now(), nom: it.nom, qte: 1, unite: it.unite || '', rayon: rayonForItem(it.nom), prix: '', done: false });
+
+  const toggleBob = (who, id) => updateSurvie(s => { const a = (s.bob[who] || []); const i = a.findIndex(x => x.id === id); if (i >= 0) a[i].done = !a[i].done; });
+  const addBob = (who, label) => { const l = (label || '').trim(); if (!l) return; updateSurvie(s => { (s.bob[who] = s.bob[who] || []).push({ id: 'b-' + Date.now(), label: l, done: false }); }); };
+  const delBob = (who, id) => updateSurvie(s => { s.bob[who] = (s.bob[who] || []).filter(x => x.id !== id); });
+
+  const addPlan = (key, obj) => updateSurvie(s => { (s.plan[key] = s.plan[key] || []).push(obj); });
+  const setPlan = (key, id, field, val) => updateSurvie(s => { const i = s.plan[key].findIndex(x => x.id === id); if (i >= 0) s.plan[key][i][field] = val; });
+  const delPlan = (key, id) => updateSurvie(s => { s.plan[key] = (s.plan[key] || []).filter(x => x.id !== id); });
+
+  const fmtJours = n => n >= 1 ? Math.floor(n) + ' j' : (n > 0 ? '<1 j' : '0 j');
+
+  // ── Rendu ──
+  return h('div', { style: { maxWidth: 1000, margin: '0 auto' } },
+    // En-tête + condition
+    h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 18 } },
+      h('div', null,
+        h('h2', { style: { color: 'var(--gold)', margin: 0 } }, '🪖 Base ' + CALLSIGN),
+        h('div', { style: { fontSize: 12, color: 'var(--text2)', fontFamily: "'Space Mono',monospace", marginTop: 2 } }, 'Protocole survie — foyer ' + foyer + ' pers.')
+      ),
+      h('div', { style: { textAlign: 'right' } },
+        h('div', { style: { display: 'inline-block', padding: '6px 14px', borderRadius: 8, fontWeight: 700, letterSpacing: '.08em', fontSize: 13, color: '#0b0b0b', background: calc.condition.color, fontFamily: "'Space Mono',monospace" } }, calc.condition.label),
+        h('div', { style: { fontSize: 11, color: 'var(--text2)', marginTop: 4 } }, 'Préparation : ' + calc.score + '%')
+      )
+    ),
+
+    // Tableau de bord (cartes)
+    h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 12, marginBottom: 22 } },
+      h('div', { style: card },
+        h('div', { style: { fontSize: 11, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '.05em' } }, '💧 Autonomie eau'),
+        h('div', { style: { fontSize: 26, fontWeight: 700, color: calc.autonomieEau >= 14 ? '#22c55e' : calc.autonomieEau >= 7 ? '#f59e0b' : '#ef4444' } }, fmtJours(calc.autonomieEau)),
+        h('div', { style: { fontSize: 10, color: 'var(--text2)' } }, 'objectif ≥ 14 j')
+      ),
+      h('div', { style: card },
+        h('div', { style: { fontSize: 11, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '.05em' } }, '🥫 Autonomie vivres'),
+        h('div', { style: { fontSize: 26, fontWeight: 700, color: calc.autonomieNour >= 14 ? '#22c55e' : calc.autonomieNour >= 7 ? '#f59e0b' : '#ef4444' } }, fmtJours(calc.autonomieNour)),
+        h('div', { style: { fontSize: 10, color: 'var(--text2)' } }, 'objectif ≥ 14 j')
+      ),
+      h('div', { style: card },
+        h('div', { style: { fontSize: 11, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '.05em' } }, '🎒 Sacs prêts'),
+        h('div', { style: { fontSize: 26, fontWeight: 700, color: 'var(--gold)' } }, calc.bobDone + '/' + calc.bobTotal),
+        h('div', { style: { fontSize: 10, color: 'var(--text2)' } }, Math.round(calc.pBob * 100) + '% opérationnel')
+      ),
+      h('div', { style: card },
+        h('div', { style: { fontSize: 11, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '.05em' } }, '🌿 Réserves ferments'),
+        h('div', { style: { fontSize: 26, fontWeight: 700, color: 'var(--gold)' } }, fermentsCount),
+        h('div', { style: { fontSize: 10, color: 'var(--text2)' } }, 'bocaux en cours (DrevmCook)')
+      )
+    ),
+
+    // Alertes péremption
+    (calc.expired.length || calc.bientot.length)
+      ? h('div', { style: { ...card, borderColor: '#ef4444', marginBottom: 22, background: 'rgba(239,68,68,.08)' } },
+          h('div', { style: { fontWeight: 700, color: '#ef4444', marginBottom: 6, fontSize: 13 } }, '⚠ Alertes péremption'),
+          calc.expired.map(s => h('div', { key: s.id, style: { fontSize: 12, color: 'var(--text)' } }, '• ' + s.nom + ' — PÉRIMÉ')),
+          calc.bientot.map(s => h('div', { key: s.id, style: { fontSize: 12, color: 'var(--text2)' } }, '• ' + s.nom + ' — expire dans ' + survieDaysLeft(s.peremption) + ' j'))
+        )
+      : null,
+
+    // ── STOCKS ──
+    h('h3', { style: { color: 'var(--gold)', fontSize: 15, marginBottom: 10 } }, '📦 Stocks & autonomie'),
+    h('div', { style: { ...card, marginBottom: 12 } },
+      h('div', { style: { display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' } },
+        h('input', { style: { ...inp, flex: 2, minWidth: 140 }, placeholder: 'Article…', value: nf.nom, onChange: e => setNf({ ...nf, nom: e.target.value }), onKeyDown: e => e.key === 'Enter' && addStock() }),
+        h('select', { style: inp, value: nf.cat, onChange: e => setNf({ ...nf, cat: e.target.value }) }, SURVIE_CATS.map(c => h('option', { key: c, value: c }, c))),
+        h('input', { style: { ...inp, width: 60 }, type: 'number', placeholder: 'Qté', value: nf.qte, onChange: e => setNf({ ...nf, qte: e.target.value }) }),
+        h('select', { style: inp, value: nf.unite, onChange: e => setNf({ ...nf, unite: e.target.value }) }, SURVIE_UNITES.map(u => h('option', { key: u, value: u }, u))),
+        h('input', { style: { ...inp, width: 90 }, type: 'number', step: 'any', placeholder: '/j/pers', title: 'Conso par jour et par personne (×' + foyer + ' = foyer)', value: nf.parJour, onChange: e => setNf({ ...nf, parJour: e.target.value }) }),
+        h('input', { style: { ...inp, width: 140 }, type: 'date', title: 'Péremption', value: nf.peremption, onChange: e => setNf({ ...nf, peremption: e.target.value }) }),
+        h('button', { onClick: addStock, style: { padding: '8px 16px', borderRadius: 7, border: 'none', background: 'var(--gold)', color: '#1a1208', fontWeight: 600, cursor: 'pointer' } }, '+ Ajouter')
+      )
+    ),
+    h('div', { style: { display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 26 } },
+      SURVIE_CATS.filter(c => stocks.some(s => s.cat === c)).map(cat =>
+        h('div', { key: cat },
+          h('div', { style: { fontSize: 12, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '.05em', margin: '6px 0 4px' } }, (SURVIE_CAT_ICON[cat] || '📦') + ' ' + cat),
+          stocks.filter(s => s.cat === cat).map(s => {
+            const dl = survieDaysLeft(s.peremption);
+            const auto = Number(s.parJour) > 0 ? (Number(s.qte) || 0) / (Number(s.parJour) * foyer) : null;
+            return h('div', { key: s.id, style: { ...card, padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' } },
+              h('span', { style: { flex: 2, minWidth: 120, fontSize: 13, color: 'var(--text)' } }, s.nom),
+              h('input', { style: { ...inp, width: 60 }, type: 'number', value: s.qte, onChange: e => setStock(s.id, 'qte', Number(e.target.value) || 0) }),
+              h('span', { style: { fontSize: 12, color: 'var(--text2)', width: 50 } }, s.unite),
+              auto != null ? h('span', { style: { fontSize: 11, color: 'var(--text2)', width: 70 } }, '≈ ' + fmtJours(auto)) : h('span', { style: { width: 70 } }),
+              dl != null ? h('span', { style: { fontSize: 11, fontWeight: 600, color: dl < 0 ? '#ef4444' : dl <= 30 ? '#f59e0b' : 'var(--text2)' } }, dl < 0 ? 'périmé' : dl + ' j') : h('span', null),
+              h('button', { onClick: () => reappro(s), title: 'Ajouter aux courses', style: { background: 'none', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text2)', cursor: 'pointer', fontSize: 11, padding: '3px 8px' } }, '🛒 Réappro'),
+              h('button', { onClick: () => delStock(s.id), title: 'Supprimer', style: { background: 'none', border: 'none', color: 'var(--text)', opacity: .5, cursor: 'pointer', fontSize: 16 } }, '×')
+            );
+          })
+        )
+      )
+    ),
+
+    // ── BOB ──
+    h('h3', { style: { color: 'var(--gold)', fontSize: 15, marginBottom: 10 } }, '🎒 Sacs d\'évacuation (BOB)'),
+    h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', gap: 12, marginBottom: 26 } },
+      [['dja', NAME_DJA], ['liika', NAME_LIIKA + ' (' + CALLSIGN + ')'], ['commun', 'Commun']].map(([key, label]) =>
+        h('div', { key: key, style: card },
+          h('div', { style: { fontWeight: 700, color: 'var(--gold)', marginBottom: 8, fontSize: 13 } }, label),
+          (bob[key] || []).map(b =>
+            h('div', { key: b.id, style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 } },
+              h('input', { type: 'checkbox', checked: !!b.done, onChange: () => toggleBob(key, b.id), style: { width: 16, height: 16, accentColor: 'var(--gold)', cursor: 'pointer' } }),
+              h('span', { style: { flex: 1, fontSize: 13, color: 'var(--text)', textDecoration: b.done ? 'line-through' : 'none', opacity: b.done ? .6 : 1 } }, b.label),
+              h('button', { onClick: () => delBob(key, b.id), style: { background: 'none', border: 'none', color: 'var(--text)', opacity: .4, cursor: 'pointer' } }, '×')
+            )
+          ),
+          h('form', { onSubmit: e => { e.preventDefault(); const v = e.target.elements.l.value; addBob(key, v); e.target.reset(); }, style: { marginTop: 6, display: 'flex', gap: 6 } },
+            h('input', { name: 'l', style: { ...inp, flex: 1 }, placeholder: '+ élément…' }),
+            h('button', { type: 'submit', style: { padding: '0 12px', borderRadius: 7, border: '1px solid var(--border)', background: 'rgba(255,255,255,.08)', color: 'var(--gold)', cursor: 'pointer', fontSize: 16, fontWeight: 700 } }, '+')
+          )
+        )
+      )
+    ),
+
+    // ── PLAN D'URGENCE ──
+    h('h3', { style: { color: 'var(--gold)', fontSize: 15, marginBottom: 10 } }, '🧭 Plan d\'urgence'),
+    h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 12 } },
+      // Points de ralliement
+      h('div', { style: card },
+        h('div', { style: { fontWeight: 700, color: 'var(--gold)', marginBottom: 8, fontSize: 13 } }, '📍 Points de ralliement'),
+        (plan.ralliement || []).map(p =>
+          h('div', { key: p.id, style: { marginBottom: 8 } },
+            h('div', { style: { display: 'flex', gap: 6 } },
+              h('input', { style: { ...inp, flex: 1 }, value: p.nom, placeholder: 'Nom', onChange: e => setPlan('ralliement', p.id, 'nom', e.target.value) }),
+              h('button', { onClick: () => delPlan('ralliement', p.id), style: { background: 'none', border: 'none', color: 'var(--text)', opacity: .4, cursor: 'pointer' } }, '×')
+            ),
+            h('input', { style: { ...inp, width: '100%', marginTop: 4 }, value: p.adresse || '', placeholder: 'Adresse / repère', onChange: e => setPlan('ralliement', p.id, 'adresse', e.target.value) })
+          )
+        ),
+        h('button', { onClick: () => addPlan('ralliement', { id: 'rp-' + Date.now(), nom: '', adresse: '', note: '' }), style: { background: 'none', border: '1px dashed var(--border)', borderRadius: 7, color: 'var(--text2)', cursor: 'pointer', fontSize: 12, padding: '6px 10px', marginTop: 4 } }, '+ Point')
+      ),
+      // Contacts
+      h('div', { style: card },
+        h('div', { style: { fontWeight: 700, color: 'var(--gold)', marginBottom: 8, fontSize: 13 } }, '📞 Contacts'),
+        (plan.contacts || []).map(c =>
+          h('div', { key: c.id, style: { display: 'flex', gap: 6, marginBottom: 6 } },
+            h('input', { style: { ...inp, flex: 1 }, value: c.nom, placeholder: 'Nom', onChange: e => setPlan('contacts', c.id, 'nom', e.target.value) }),
+            h('input', { style: { ...inp, width: 110 }, value: c.tel || '', placeholder: 'Tél', onChange: e => setPlan('contacts', c.id, 'tel', e.target.value) }),
+            h('button', { onClick: () => delPlan('contacts', c.id), style: { background: 'none', border: 'none', color: 'var(--text)', opacity: .4, cursor: 'pointer' } }, '×')
+          )
+        ),
+        h('button', { onClick: () => addPlan('contacts', { id: 'pc-' + Date.now(), nom: '', role: '', tel: '' }), style: { background: 'none', border: '1px dashed var(--border)', borderRadius: 7, color: 'var(--text2)', cursor: 'pointer', fontSize: 12, padding: '6px 10px', marginTop: 4 } }, '+ Contact')
+      ),
+      // Protocoles
+      h('div', { style: card },
+        h('div', { style: { fontWeight: 700, color: 'var(--gold)', marginBottom: 8, fontSize: 13 } }, '📋 Protocoles'),
+        (plan.protocoles || []).map(p =>
+          h('div', { key: p.id, style: { marginBottom: 8 } },
+            h('div', { style: { display: 'flex', gap: 6 } },
+              h('input', { style: { ...inp, flex: 1 }, value: p.scenario, placeholder: 'Scénario', onChange: e => setPlan('protocoles', p.id, 'scenario', e.target.value) }),
+              h('button', { onClick: () => delPlan('protocoles', p.id), style: { background: 'none', border: 'none', color: 'var(--text)', opacity: .4, cursor: 'pointer' } }, '×')
+            ),
+            h('textarea', { style: { ...inp, width: '100%', marginTop: 4, minHeight: 50, resize: 'vertical' }, value: p.texte || '', placeholder: 'Conduite à tenir…', onChange: e => setPlan('protocoles', p.id, 'texte', e.target.value) })
+          )
+        ),
+        h('button', { onClick: () => addPlan('protocoles', { id: 'pr-' + Date.now(), scenario: '', texte: '' }), style: { background: 'none', border: '1px dashed var(--border)', borderRadius: 7, color: 'var(--text2)', cursor: 'pointer', fontSize: 12, padding: '6px 10px', marginTop: 4 } }, '+ Protocole')
+      )
+    )
+  );
+}
+
+// ─── Graines germées (lentilles, pois chiches…) ───
+// Réutilise la mécanique des ferments (date de départ + durée + statut « Prêt »).
+// Le seul ajout est le suivi des rinçages : sans 2 rinçages par jour, les graines
+// moisissent au lieu de germer. Les rinçages sont stockés dans le champ `journal`
+// (JSONB déjà existant) sous la forme {id, k:'rincage', date, moment} — aucune
+// modification du schéma Supabase n'est donc nécessaire. Les relevés classiques
+// (pH/odeur/couleur) n'ont pas de `k` et cohabitent sans conflit.
+const GERM_TYPE = 'Graines germées';
+const GERM_SLOTS = ['matin', 'soir'];
+const GERM_MAX_JOURS = 10; // garde-fou d'affichage : une germination dépasse rarement 7 jours
+const GERM_CONSEIL = 'Tremper 8 à 12 h, puis égoutter. Rincer matin et soir à l\'eau claire, bocal incliné pour que l\'eau s\'écoule. Prêtes quand le germe fait 1 à 2 cm. Ensuite au frigo, à manger sous 3 à 5 jours.';
+
+const germIsType = t => t === GERM_TYPE;
+function germIsoPlus(iso, n) {
+  const d = new Date(`${String(iso || '').slice(0, 10)}T00:00:00`);
+  if (isNaN(d.getTime())) return '';
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+// Avant 14 h on considère qu'on est sur le rinçage du matin, ensuite sur celui du soir.
+function germSlotNow() { return new Date().getHours() < 14 ? 'matin' : 'soir'; }
+function germRincages(item) {
+  const j = Array.isArray(item && item.journal) ? item.journal : [];
+  return j.filter(e => e && e.k === 'rincage' && e.date && GERM_SLOTS.indexOf(e.moment) >= 0);
+}
+// Les relevés pH/odeur/couleur sont les entrées SANS marqueur `k` — on les sépare
+// des rinçages pour que chaque liste n'affiche que ce qui la concerne.
+function germReleves(item) {
+  const j = Array.isArray(item && item.journal) ? item.journal : [];
+  return j.filter(e => e && typeof e === 'object' && e.k !== 'rincage');
+}
+function germFait(item, date, moment) {
+  return germRincages(item).some(r => r.date === date && r.moment === moment);
+}
+// Coche ou décoche un rinçage et renvoie le nouveau journal (immuable).
+function germToggleJournal(item, date, moment) {
+  const j = Array.isArray(item && item.journal) ? item.journal : [];
+  const match = e => e && e.k === 'rincage' && e.date === date && e.moment === moment;
+  if (j.some(match)) return j.filter(e => !match(e));
+  return [{ id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, k: 'rincage', date, moment }, ...j];
+}
+// Grille jour par jour depuis la date de départ, pour cocher les rinçages passés.
+function germGrille(item) {
+  const dur = Math.max(1, Math.min(GERM_MAX_JOURS, Number(item && item.durationDays) || 1));
+  const out = [];
+  for (let i = 0; i < dur; i++) {
+    const date = germIsoPlus(item && item.startDate, i);
+    if (!date) break;
+    out.push({ jour: i + 1, date, slots: GERM_SLOTS.map(m => ({ moment: m, fait: germFait(item, date, m) })) });
+  }
+  return out;
+}
+
+// ─── Boissons & ferments : recette → préparation → conditionnement → conservation ───
+// Les recettes DrevmCook disent quoi mettre dedans ; ici on suit la boisson
+// jusqu'au bocal et jusqu'à la date où il faut la jeter. Le `conditionnement`
+// n'est pas un détail : sur un kombucha, un mauvais contenant explose, et sur
+// l'ail, le mauvais liquide tue.
+const BOISSONS = [
+  {
+    id: 'b-fap', nom: 'Jus de feuilles de fruit à pain', emoji: '🍃', famille: 'Jus & infusions',
+    resume: 'Décoction traditionnelle caribéenne, bue en cure courte.',
+    ingredients: ['3 à 5 feuilles de fruit à pain bien fraîches', '1 L d\'eau', 'Citron vert (optionnel)', 'Gingembre ou menthe (optionnel)'],
+    preparation: [
+      'Laver soigneusement les feuilles à l\'eau claire.',
+      'Porter le litre d\'eau à ébullition, y plonger les feuilles.',
+      'Laisser bouillir 15 à 20 min : le liquide vire au vert foncé.',
+      'Filtrer et laisser refroidir à découvert.',
+      'Boire nature, ou avec un trait de citron vert ou de gingembre.'
+    ],
+    conditionnement: 'Bouteille en verre propre, remplie à ras bord et fermée — moins d\'air, moins d\'oxydation. Éviter le plastique tant que le liquide est chaud.',
+    conservation: '48 h au réfrigérateur, pas plus. À température ambiante, quelques heures seulement. Une odeur aigre ou un dépôt trouble = à jeter.',
+    dose: 'Usage traditionnel : 1 verre de 150 à 250 ml par jour, le matin de préférence.',
+    garde: 'Usage traditionnel des Antilles : les vertus qu\'on lui prête (tension, glycémie, reins) ne sont pas démontrées cliniquement. Si tu es traité pour la tension ou le diabète, parles-en au médecin avant d\'en boire tous les jours — une plante qui agirait vraiment s\'additionnerait au traitement. Par prudence, s\'abstenir pendant la grossesse et l\'allaitement, faute de données.'
+  },
+  {
+    id: 'b-kombucha1', nom: 'Kombucha — 1ʳᵉ fermentation', emoji: '🫖', famille: 'Kombucha',
+    resume: 'Le thé sucré devient kombucha sous l\'action du SCOBY. 7 à 10 jours.',
+    ingredients: ['1 SCOBY', '1 L de thé noir ou vert infusé', '70 à 100 g de sucre', '100 ml de starter (kombucha déjà fermenté)'],
+    preparation: [
+      'Infuser le thé, y dissoudre le sucre tant que c\'est chaud.',
+      'Laisser refroidir complètement — un liquide tiède tue le SCOBY.',
+      'Verser dans le bocal, ajouter le SCOBY et les 100 ml de starter.',
+      'Couvrir d\'un linge tenu par un élastique. Jamais de couvercle fermé.',
+      'Laisser 7 à 10 jours à l\'abri du soleil, puis goûter : sucré au début, vinaigré à la fin.'
+    ],
+    conditionnement: 'Bocal large en verre, ouverture couverte d\'un linge serré — la culture a besoin d\'oxygène et d\'être protégée des mouches. Jamais de métal ni de céramique vernissée : l\'acidité attaque et peut libérer du plomb.',
+    conservation: 'Une fois à ton goût, mettre en bouteille. Garder le SCOBY à part dans 100 ml de son liquide pour la fournée suivante.',
+    dose: 'Commencer par un petit verre : c\'est acide et vivant, l\'estomac s\'habitue.',
+    garde: 'Une pellicule beige, filandreuse ou brune est normale : c\'est le SCOBY qui se forme. Une moisissure sèche, poilue, bleue/verte/noire posée EN SURFACE n\'est pas récupérable : jeter le liquide ET le SCOBY, sans tenter de gratter. Le sucre n\'est pas négociable — c\'est lui que la culture mange, il ne reste presque rien à la fin.'
+  },
+  {
+    id: 'b-kombucha2', nom: 'Kombucha — 2ᵉ fermentation', emoji: '🍾', famille: 'Kombucha',
+    resume: 'Mise en bouteille avec des fruits : c\'est là que les bulles se font.',
+    ingredients: ['Kombucha de 1ʳᵉ fermentation', 'Fruits frais, purée ou jus de fruits (environ 10 % du volume)', 'Gingembre, hibiscus ou épices (optionnel)'],
+    preparation: [
+      'Retirer le SCOBY : il n\'intervient pas dans cette étape.',
+      'Répartir fruits ou jus dans les bouteilles, compléter avec le kombucha.',
+      'Fermer hermétiquement, laisser 2 à 4 jours à température ambiante.',
+      'Ouvrir chaque jour pour laisser sortir le gaz, puis refermer.',
+      'Réfrigérer dès que la gazéification convient : le froid arrête la fermentation.'
+    ],
+    conditionnement: 'Bouteilles en verre épais à bouchon mécanique, conçues pour la pression (type limonade). Remplir en laissant 4 à 5 cm de vide sous le bouchon. Une bouteille de jus recyclée n\'est pas faite pour ça.',
+    conservation: 'Au réfrigérateur une fois pétillante. Se boit dans le mois ; au-delà elle continue lentement d\'acidifier.',
+    dose: 'Ouvrir au-dessus de l\'évier, doucement, bouteille droite.',
+    garde: 'Risque réel d\'explosion : le sucre des fruits relance la production de gaz en vase clos. Dégazer TOUS les jours, et ne jamais oublier une bouteille à température ambiante. En cas de doute, une bouteille froide et une ouverture lente évitent l\'accident.'
+  },
+  {
+    id: 'b-scoby', nom: 'SCOBY — entretenir la culture', emoji: '🧫', famille: 'Kombucha',
+    resume: 'Culture symbiotique de bactéries et de levures : le moteur du kombucha.',
+    ingredients: ['Le SCOBY (biofilm de cellulose, souple et caoutchouteux)', 'Son liquide acide (le starter)', 'Un bocal dédié'],
+    preparation: [
+      'Manipuler avec des mains propres, ou une cuillère en bois — jamais de métal.',
+      'Le SCOBY s\'épaissit à chaque fournée : décoller et retirer les couches du bas quand il devient trop épais.',
+      'Une couche détachée peut lancer un second bocal ou se donner.',
+      'Conditions favorables : 25 à 30 °C, pH entre 4 et 4,5, de l\'oxygène, à l\'abri de la poussière et des mouches.'
+    ],
+    conditionnement: '« Hôtel à SCOBY » : un bocal en verre où il baigne dans du kombucha bien acide, couvert d\'un linge. Il ne doit jamais sécher.',
+    conservation: 'Plusieurs mois au frais dans son liquide, sans rien faire. Jamais au congélateur : le froid extrême détruit la culture.',
+    dose: '—',
+    garde: 'Un SCOBY qui sent le vinaigre franc va bien. Une odeur de moisi, de fromage ou de pourri, ou des taches poilues en surface, signent une contamination : tout jeter et repartir d\'une culture saine.'
+  },
+  {
+    id: 'b-ail', nom: 'Ail lactofermenté (ail confit par fermentation)', emoji: '🧄', famille: 'Ferments',
+    resume: 'Gousses entières en saumure : doux, digeste, et l\'haleine bien plus discrète.',
+    ingredients: ['6 à 8 têtes d\'ail', '15 g de sel de mer', '500 ml d\'eau (soit une saumure à 3 %)', 'Thym, sarriette ou laurier (optionnel)'],
+    preparation: [
+      'Éplucher les gousses en les gardant entières.',
+      'Dissoudre les 15 g de sel dans les 500 ml d\'eau.',
+      'Ranger les gousses dans le bocal avec les herbes.',
+      'Couvrir entièrement d\'eau salée : rien ne doit dépasser.',
+      'Fermer, puis 1 semaine à 20 °C, puis 1 mois à moins de 18 °C.'
+    ],
+    conditionnement: 'Un bocal de 750 g ou plusieurs petits, avec ou sans joint. Le poser sur une petite assiette : la saumure déborde pendant la phase active.',
+    conservation: 'Une fois ouvert, au frais, les gousses toujours immergées. Le brunissement signale un contact avec l\'air : retirer ce qui est abîmé et remettre sous liquide.',
+    dose: 'S\'utilise partout : houmous, dips, pestos, plats cuits, en tout genre.',
+    garde: 'C\'est de l\'ail en SAUMURE, pas de l\'ail dans l\'huile. L\'ail conservé dans l\'huile à température ambiante est une cause classique de botulisme : le sel et l\'acidification de la lactofermentation protègent, l\'huile non. Si tu veux de l\'ail à l\'huile, il se garde au réfrigérateur et se consomme dans la semaine.'
+  }
+];
+BOISSONS.push(
+  {
+    id: 'b-gingerbug', nom: 'Ginger bug — levain de gingembre', emoji: '🫚', famille: 'Ginger beer',
+    resume: 'La culture vivante qui fait pétiller les boissons. 3 à 7 jours.',
+    ingredients: ['20 g de gingembre frais avec sa peau, puis 10 g par jour', '20 g de sucre de canne, puis 10 g par jour', '250 ml d\'eau potable non chlorée'],
+    preparation: [
+      'Jour 1 : mélanger 250 ml d\'eau, 20 g de gingembre finement haché et 20 g de sucre dans un bocal propre d\'au moins 500 ml.',
+      'Couvrir d\'un tissu bien fixé, ou d\'un couvercle simplement posé — jamais fermé.',
+      'Jours 2 à 7 : ajouter chaque jour 10 g de gingembre et 10 g de sucre, remuer avec un ustensile propre.',
+      'C\'est prêt quand ça pétille nettement après avoir remué, que ça sent le gingembre fermenté, et qu\'aucune moisissure n\'apparaît.',
+      'Après prélèvement, compléter avec de l\'eau et renourrir gingembre + sucre pour garder la culture en vie.'
+    ],
+    conditionnement: 'Bocal en verre d\'au moins 500 ml, ouverture couverte d\'un tissu — la culture a besoin de respirer. À l\'abri du soleil direct.',
+    conservation: 'Au réfrigérateur entre deux usages, à réactiver à température ambiante avant de s\'en servir. Nourrir régulièrement, sinon la culture s\'épuise.',
+    dose: '120 ml de ginger bug filtré suffisent pour 1,5 L de ginger beer.',
+    garde: 'En Guadeloupe la chaleur accélère tout : surveiller dès le deuxième jour. Odeur putride, moisissure colorée ou duveteuse, aspect douteux → jeter la culture entière, sans tenter de récupérer. Les bulles seules ne garantissent rien sur le plan sanitaire.'
+  },
+  {
+    id: 'b-gingerbeer', nom: 'Ginger beer péyi au citron vert', emoji: '🍋', famille: 'Ginger beer',
+    resume: 'Boisson gazeuse fermentée, ≈ 1,5 L. 25 min de travail, 1 à 3 jours de fermentation.',
+    ingredients: ['120 g de gingembre frais', '1,5 L d\'eau potable', '100 à 120 g de sucre de canne', '2 citrons verts', '120 ml de ginger bug actif filtré', 'Curcuma frais (15 g) ou menthe — facultatif'],
+    preparation: [
+      'Laver et râper le gingembre. Le faire frémir 5 min dans 500 ml d\'eau, puis infuser 15 à 20 min hors du feu.',
+      'Filtrer si tu veux, dissoudre le sucre, puis compléter avec le reste d\'eau froide.',
+      'Attendre le retour à température ambiante — sinon le ginger bug meurt. Ajouter le jus des citrons verts et les 120 ml de ginger bug.',
+      'Mettre en bouteille en laissant un espace libre sous le bouchon.',
+      'Laisser fermenter à l\'abri du soleil en tâtant souvent la bouteille. Réfrigérer DÈS qu\'elle est ferme — ne pas attendre trois jours par principe.',
+      'Refroidir complètement, ouvrir lentement au-dessus de l\'évier, servir frais.'
+    ],
+    conditionnement: 'Bouteille PET alimentaire prévue pour les boissons gazeuses, propre. Éviter le verre le temps d\'apprendre à sentir la pression : une bouteille en verre surpressurisée éclate.',
+    conservation: 'Au réfrigérateur, quelques jours de préférence. La fermentation et la pression continuent doucement même au froid : ouvrir avec prudence, jeter au moindre doute.',
+    dose: '≈ 17 à 20 g de sucre ajouté par verre de 250 ml avant fermentation ; la teneur finale baisse, sans qu\'on puisse la calculer.',
+    garde: 'Une fermentation spontanée produit de l\'alcool en quantité imprévisible : cette boisson ne peut PAS être présentée comme sans alcool, et ne convient pas si l\'absence totale d\'alcool est requise (grossesse, enfants, traitement, abstinence). Ne jamais laisser une bouteille sous pression au chaud. Pour une version sans alcool ni pression : infusion gingembre-citron refroidie, allongée d\'eau gazeuse du commerce juste avant de servir.'
+  }
+);
+const BOISSONS_FAMILLES = ['Jus & infusions', 'Kombucha', 'Ginger beer', 'Ferments'];
+
+// ─── Pharmacopée alimentaire — §13 et §16 du document maître DrevmCook ───
+// Le principe : distinguer l'usage alimentaire, l'usage traditionnel et l'usage
+// thérapeutique. Une plante peut soutenir une fonction sans « guérir » quoi que
+// ce soit. Les fiches botaniques détaillées vivent dans Potager → Médicinales ;
+// ici on ne porte QUE le niveau de lecture et le cadre de sécurité.
+const PHARMA_NIVEAUX = [
+  { id: 'vert',  l: 'VERT',  t: 'Aliment courant', d: 'Usage culinaire raisonnable.', c: 'var(--success)' },
+  { id: 'jaune', l: 'JAUNE', t: 'Plante active', d: 'Interactions, contre-indications, ou données humaines limitées.', c: 'var(--warn)' },
+  { id: 'rouge', l: 'ROUGE', t: 'Usage thérapeutique ou toxicité potentielle', d: 'Pas de protocole maison — avis professionnel nécessaire.', c: 'var(--danger)' }
+];
+const PHARMA_GLANDES = [
+  { nom: 'Surrénales', icon: '🫘', plantes: [
+      { n: 'Tulsi', niv: 'jaune', d: 'Polyphénols et composés aromatiques ; infusion traditionnelle.' },
+      { n: 'Maca', niv: 'jaune', d: 'Poudre alimentaire, usage traditionnel de vitalité.' },
+      { n: 'Cordyceps', niv: 'jaune', d: 'Champignon de complément — pas un aliment local courant.' },
+      { n: 'Jujube', niv: 'vert', d: 'Glucides, fibres, vitamine C variable selon le produit.' },
+      { n: 'Graines d\'ortie', niv: 'jaune', d: 'Lipides et protéines ; données nutritionnelles variables.' }
+    ],
+    budget: '8 à 25 € selon les produits importés.',
+    alt: 'Alternative péyi : moringa + gingembre + citron vert — sans prétendre agir spécifiquement sur les surrénales.' },
+  { nom: 'Thymus', icon: '🛡️', plantes: [
+      { n: 'Moringa', niv: 'vert', d: 'Protéines partielles, fer, calcium, caroténoïdes, polyphénols.' },
+      { n: 'Trèfle rouge', niv: 'jaune', d: 'Isoflavones : prudence en contexte hormonal ou sous traitement.' },
+      { n: 'Griffe du chat', niv: 'jaune', d: 'Plante traditionnelle ; interactions possibles.' },
+      { n: 'Pau d\'arco', niv: 'jaune', d: 'Plante traditionnelle ; interactions possibles.' },
+      { n: 'Chaparral', niv: 'rouge', d: 'À ne pas intégrer à un protocole alimentaire maison.' }
+    ],
+    budget: 'Moringa ≈ 2 à 8 € selon feuilles fraîches ou poudre.' },
+  { nom: 'Hypophyse', icon: '🧠', plantes: [
+      { n: 'Bacopa', niv: 'jaune', d: '' },
+      { n: 'Ginkgo biloba', niv: 'jaune', d: '' },
+      { n: 'Shatavari', niv: 'jaune', d: '' },
+      { n: 'Muira puama', niv: 'jaune', d: '' },
+      { n: 'Fo-ti (He Shou Wu)', niv: 'rouge', d: 'Usage interne à ne pas banaliser.' }
+    ],
+    regle: 'Conservées à l\'index ethnobotanique, sans aucune allégation de stimulation ou de régénération de l\'hypophyse.' },
+  { nom: 'Thyroïde', icon: '🦋', plantes: [
+      { n: 'Bladderwrack', niv: 'jaune', d: 'Minéraux, mais teneur en iode très variable.' },
+      { n: 'Irish moss', niv: 'jaune', d: 'Même réserve sur l\'iode.' },
+      { n: 'Mélisse', niv: 'vert', d: 'Polyphénols et huiles essentielles ; infusion.' },
+      { n: 'Bugleweed', niv: 'jaune', d: 'Plante active — pas une tisane quotidienne générique.' },
+      { n: 'Paille d\'avoine', niv: 'jaune', d: 'Vérifier l\'absence de contamination au gluten si nécessaire.' }
+    ],
+    regle: 'Ne pas chercher à corriger une thyroïde par supplémentation sauvage en iode.' },
+  { nom: 'Pinéale', icon: '🌙', plantes: [
+      { n: 'Coriandre', niv: 'vert', d: 'Vitamine K, composés aromatiques, antioxydants.' },
+      { n: 'Armoise', niv: 'jaune', d: '' },
+      { n: 'Skullcap', niv: 'jaune', d: '' },
+      { n: 'Racine de berbéris', niv: 'jaune', d: '' },
+      { n: 'Encens', niv: 'jaune', d: 'Une résine ne se traite pas automatiquement comme un aliment.' }
+    ],
+    regle: 'Association issue de la planche d\'origine — elle ne démontre aucune action spécifique sur la glande pinéale.' },
+  { nom: 'Pancréas & glucose', icon: '🩸', plantes: [
+      { n: 'Melon amer', niv: 'vert', d: 'Fibres, vitamine C, composés amers ; étudié pour le métabolisme glucidique.' },
+      { n: 'Fenugrec', niv: 'vert', d: 'Protéines, fibres solubles, fer, composés aromatiques.' },
+      { n: 'Gymnema sylvestre', niv: 'jaune', d: 'Plante active étudiée pour le métabolisme du glucose.' },
+      { n: 'Feuille de myrtille', niv: 'jaune', d: '' },
+      { n: 'Hydraste', niv: 'rouge', d: 'Pas de protocole maison.' }
+    ],
+    budget: 'Fenugrec ≈ 2 à 5 € · melon amer ≈ 3 à 8 € selon disponibilité locale.' }
+];
+const PHARMA_CADRES = [
+  { id: 'c-senescence', titre: 'Sénescence cellulaire & antioxydants', icon: '🧬',
+    principe: 'Les « cellules zombies » des planches virales sont les cellules sénescentes. DrevmCook ne promet pas de les éliminer avec des aliments.',
+    items: [
+      'Quercétine — oignon, câpres, pommes, thé : flavonoïde antioxydant.',
+      'Fisétine — fraises, pommes, concombre, kaki : étudiée en recherche ; l\'alimentation n\'équivaut pas à un traitement sénolytique.',
+      'Curcuma — curcuminoïdes, à associer au poivre et à une matière grasse.',
+      'Thé vert — EGCG ; la boisson et les extraits concentrés n\'exposent pas de la même façon.',
+      'Moringa, oignon péyi, cacao brut — polyphénols, quercétine, flavanols.'
+    ] },
+  { id: 'c-foie', titre: 'Soutien du foie & de la digestion', icon: '🌿',
+    principe: '« Détox » n\'est employé ici que dans un sens : une alimentation qui soutient les fonctions normales du foie et de l\'intestin.',
+    items: [
+      'Gingembre — gingérols, usage digestif culinaire.',
+      'Curcuma — curcuminoïdes, épice anti-inflammatoire.',
+      'Ail — composés organosulfurés, précurseurs de l\'allicine.',
+      'Crucifères (chou, chou-fleur) — fibres, vitamine C, glucosinolates.',
+      'Lactofermentations — conservation, acidité, diversité alimentaire ; hygiène et immersion obligatoires.'
+    ] },
+  { id: 'c-parasites', titre: 'Parasites — cadre de sécurité', icon: '⚠️',
+    principe: 'À NE PAS REPRODUIRE : la combinaison maison d\'ivermectine, mébendazole, praziquantel, TUDCA et charbon actif. Une parasitose suspectée demande l\'identification du parasite et un traitement adapté.',
+    items: [
+      'Papaye — vitamine C, caroténoïdes, fibres, papaïne.',
+      'Graines de courge — protéines, magnésium, zinc, acides gras insaturés.',
+      'Ail — composés soufrés, condiment traditionnel.',
+      'Gingembre — gingérols, digestion.',
+      'Fermentations maison — légumes lactofermentés, kombucha, kéfir, en bonnes conditions d\'hygiène.'
+    ],
+    fin: 'Ces aliments restent des aliments : ils ne remplacent pas un antiparasitaire.' },
+  { id: 'c-cancer', titre: 'Plantes à ne pas transformer en « remède cancer »', icon: '🚫',
+    principe: 'Aucune plante n\'est présentée ici comme traitement ou prévention garantie du cancer.',
+    items: [
+      'À valoriser comme aliments ou condiments : chou, pourpier, romarin, curcuma, origan, mélisse, sureau.',
+      'Prudence élevée : chaparral, bloodroot, consoude en usage interne, mayapple.',
+      'Une image ou un usage traditionnel ne suffit pas à faire d\'une plante toxique un ingrédient.'
+    ] }
+];
+// §16 — la règle qui produit toutes les fiches ci-dessus.
+const PHARMA_REGLE = [
+  'Nom commun + nom botanique dès qu\'une plante médicinale est citée.',
+  'Partie utilisée : feuille, racine, graine, fruit, écorce…',
+  'Apports nutritifs de chaque ingrédient.',
+  'Composés bioactifs connus, quand ils sont pertinents.',
+  'Usage culinaire ou traditionnel clairement identifié comme tel.',
+  'Niveau VERT / JAUNE / ROUGE.',
+  'Interactions et contre-indications importantes.',
+  'Budget Guadeloupe.',
+  'Alternative locale quand l\'ingrédient est importé.',
+  'Ne jamais écrire qu\'un aliment « guérit » ou « détoxifie » une maladie, ni qu\'il remplace un traitement.'
+];
+
+function DrevmCookView({
+  ferments,
+  upsertFerment,
+  deleteFerment,
+  recipes,
+  upsertRecipe,
+  deleteRecipe,
+  importRecipes
+}) {
+  const h = React.createElement;
+  const allRecipes = [...DEFAULT_RECIPES, ...(recipes || []).filter(r => !DEFAULT_RECIPES.some(dr => dr.id === r.id))];
+  const exportCsv = () => {
+    const blob = new Blob(['﻿' + recipesToCsv(recipes || [])], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'recettes-drevmcook.csv'; a.click();
+    URL.revokeObjectURL(url);
+  };
+  const onImportClick = () => {
+    const input = document.createElement('input');
+    input.type = 'file'; input.accept = '.csv,text/csv';
+    input.onchange = e => {
+      const f = e.target.files && e.target.files[0]; if (!f) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const list = csvToRecipes(reader.result);
+          if (!list.length) { alert('Aucune recette valide trouvée dans le CSV.\nColonnes attendues : ' + RECIPE_CSV_COLS.join(', ')); return; }
+          importRecipes(list);
+          alert(list.length + ' recette(s) importée(s).');
+        } catch (err) { alert('Erreur de lecture du CSV : ' + err.message); }
+      };
+      reader.readAsText(f);
+    };
+    input.click();
+  };
+  const [filterCat, setFilterCat] = useState('Tout');
+  const [selected, setSelected] = useState(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [showAddFerment, setShowAddFerment] = useState(false);
+  const [fermentStatusFilter, setFermentStatusFilter] = useState('Tous');
+  const [newReadyAlerts, setNewReadyAlerts] = useState([]);
+  const [journalOpenId, setJournalOpenId] = useState(null);
+  const [journalDrafts, setJournalDrafts] = useState({});
+  const [boissonOuverte, setBoissonOuverte] = useState(null);
+  // Sous-onglet affiché. Les recettes en premier : c'est la partie la plus
+  // consultée, et elle était jusqu'ici reléguée sous tout le reste.
+  const [tab, setTab] = useState('recettes');
+  const alertedReadyRef = useRef(new Set());
+  const [fermentForm, setFermentForm] = useState({
+    nom: '',
+    type: 'Légumes',
+    startDate: new Date().toISOString().slice(0, 10),
+    durationDays: 14,
+    notes: ''
+  });
+  const [addForm, setAddForm] = useState({
+    nom: '',
+    categorie: 'Salés',
+    tags: '',
+    ingredients: '',
+    preparation: '',
+    apports: '',
+    budget: ''
+  });
+
+  const cats = ['Tout', 'Salés', 'Tartinades', 'Boulangerie', 'Fermentés', 'Desserts', 'Boissons', 'Référence'];
+  const fermentStatusFilters = ['Tous', 'En cours', 'Prêts', 'Terminés'];
+  const fermentTypes = ['Légumes', 'Sauce', 'Boisson', 'Levain', GERM_TYPE, 'Autre'];
+  const filtered = useMemo(() => filterCat === 'Tout' ? allRecipes : allRecipes.filter(r => r.categorie === filterCat), [allRecipes, filterCat]);
+  const fermentList = useMemo(() => (ferments || []).slice().sort((a, b) => String(b.startDate || '').localeCompare(String(a.startDate || ''))), [ferments]);
+
+  const fmtDate = iso => {
+    if (!iso) return '—';
+    const d = new Date(`${iso}T00:00:00`);
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+  };
+
+  const fermentMetaById = useMemo(() => {
+    const dayMs = 86400000;
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const map = new Map();
+
+    fermentList.forEach(item => {
+      const duration = Math.max(1, Number(item.durationDays) || 1);
+      const start = new Date(`${item.startDate || ''}T00:00:00`);
+      const startValid = !isNaN(start.getTime());
+      const target = startValid ? new Date(start.getTime() + duration * dayMs) : null;
+      const targetValid = !!target && !isNaN(target.getTime());
+      const targetIso = targetValid ? target.toISOString().slice(0, 10) : '';
+      const elapsed = startValid ? Math.max(0, Math.floor((startOfToday.getTime() - start.getTime()) / dayMs)) : 0;
+      const left = targetValid ? Math.ceil((target.getTime() - startOfToday.getTime()) / dayMs) : duration;
+      const progress = Math.max(0, Math.min(100, Math.round(elapsed / duration * 100)));
+
+      let status = 'En cours';
+      let statusColor = 'var(--gold)';
+      if (item.done) {
+        status = 'Terminé';
+        statusColor = 'var(--text3)';
+      } else if (targetValid && left <= 0) {
+        status = 'Prêt';
+        statusColor = 'var(--success)';
+      } else if (targetValid && left <= 2) {
+        status = 'Bientôt prêt';
+        statusColor = 'var(--warn)';
+      }
+
+      map.set(item.id, { left, progress, status, statusColor, targetIso });
+    });
+
+    return map;
+  }, [fermentList]);
+
+  useEffect(() => {
+    try {
+      const raw = LS.getItem('ld-ferment-ready-alerted');
+      const ids = raw ? JSON.parse(raw) : [];
+      alertedReadyRef.current = new Set(Array.isArray(ids) ? ids : []);
+    } catch (_) {
+      alertedReadyRef.current = new Set();
+    }
+  }, []);
+
+  useEffect(() => {
+    const alerted = alertedReadyRef.current;
+    const fresh = [];
+    fermentList.forEach(item => {
+      const meta = fermentMetaById.get(item.id);
+      const isReady = !item.done && meta && meta.status === 'Prêt';
+      if (isReady && !alerted.has(item.id)) {
+        alerted.add(item.id);
+        fresh.push({ id: item.id, nom: item.nom, type: item.type });
+      }
+    });
+    if (fresh.length) {
+      setNewReadyAlerts(prev => [...fresh, ...prev].slice(0, 6));
+      try {
+        LS.setItem('ld-ferment-ready-alerted', JSON.stringify([...alerted]));
+      } catch (_) {}
+    }
+  }, [fermentList, fermentMetaById]);
+
+  const filteredFerments = useMemo(() => fermentList.filter(item => {
+    const s = (fermentMetaById.get(item.id) || {}).status;
+    if (fermentStatusFilter === 'En cours') return s === 'En cours' || s === 'Bientôt prêt';
+    if (fermentStatusFilter === 'Prêts') return s === 'Prêt';
+    if (fermentStatusFilter === 'Terminés') return s === 'Terminé';
+    return true;
+  }), [fermentList, fermentStatusFilter, fermentMetaById]);
+
+  const fermentStats = useMemo(() => ({
+    total: fermentList.length,
+    enCours: fermentList.filter(f => {
+      const s = (fermentMetaById.get(f.id) || {}).status;
+      return s === 'En cours' || s === 'Bientôt prêt';
+    }).length,
+    pret: fermentList.filter(f => (fermentMetaById.get(f.id) || {}).status === 'Prêt').length
+  }), [fermentList, fermentMetaById]);
+  // Ce qui réclame une action AUJOURD'HUI : bocaux prêts + rinçages de graines
+  // germées pas encore faits sur le créneau en cours. Sert à badger l'onglet
+  // Ferments — un rinçage quotidien ne doit pas disparaître derrière un onglet
+  // fermé (cf. lessons.md L01).
+  const fermentsAFaire = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const slot = germSlotNow();
+    const rincages = fermentList.filter(f =>
+      !f.done && germIsType(f.type) &&
+      germGrille(f).some(g => g.date === today) &&
+      !germFait(f, today, slot)).length;
+    return fermentStats.pret + rincages;
+  }, [fermentList, fermentStats.pret]);
+
+  if (selected) {
+    const r = allRecipes.find(x => x.id === selected);
+    if (!r) return h('div', null, h('button', { onClick: () => setSelected(null) }, '← Retour'));
+    return h('div', null,
+      h('button', { onClick: () => setSelected(null), style: { marginBottom: 12, background: 'none', border: 'none', color: 'var(--gold)', cursor: 'pointer' } }, '← Retour aux recettes'),
+      h('h2', { style: { marginBottom: 8 } }, r.nom),
+      h('p', { style: { color: 'var(--text3)', marginBottom: 8 } }, r.categorie),
+      h('p', { style: { whiteSpace: 'pre-wrap', color: 'var(--text2)', marginBottom: 10 } }, r.preparation || '—'),
+      h('p', { style: { color: 'var(--text2)', marginBottom: 10 } }, r.apports || '—'),
+      h('ul', { style: { paddingLeft: 18 } }, (r.ingredients || []).map((x, i) => h('li', { key: i, style: { color: 'var(--text2)' } }, x)))
+    );
+  }
+
+  return h('div', null,
+    h('div', { style: { marginBottom: 16 } },
+      h('p', { className: 'eyebrow' }, '🌿 Cuisine végétale & tropicale'),
+      h('h2', null, 'DrevmCook')
+    ),
+    newReadyAlerts.length > 0 && h('div', { style: { display: 'grid', gap: 6, marginBottom: 12 } },
+      newReadyAlerts.map(al => h('div', {
+        key: `a-${al.id}`,
+        style: {
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          background: 'rgba(74,222,128,.1)',
+          border: '1px solid rgba(74,222,128,.28)',
+          borderRadius: 'var(--radius-sm)',
+          padding: '8px 10px'
+        }
+      },
+      h('span', null, '✅'),
+      h('span', { style: { flex: 1, color: 'var(--text2)', fontSize: 12 } }, `${al.nom} (${al.type}) est prêt.`),
+      h('button', {
+        onClick: () => setNewReadyAlerts(prev => prev.filter(x => x.id !== al.id)),
+        style: { border: '1px solid rgba(74,222,128,.3)', background: 'transparent', color: 'var(--success)', borderRadius: 8, fontSize: 11, cursor: 'pointer' }
+      }, 'OK')))
+    ),
+
+    // ── Sous-onglets : Recettes / Ferments / Boissons ──
+    h('div', { className: 'scroll-x', style: { display: 'flex', gap: 8, marginBottom: 16 } },
+      [{ id: 'recettes', l: '🍳 Recettes', n: allRecipes.length },
+       { id: 'ferments', l: '🫙 Ferments', n: fermentList.length, alerte: fermentsAFaire },
+       { id: 'boissons', l: '🥤 Boissons', n: BOISSONS.length },
+       { id: 'pharma', l: '📖 Pharmacopée' }].map(t =>
+        h('button', { key: t.id, onClick: () => setTab(t.id), style: {
+          flexShrink: 0, padding: '7px 15px', borderRadius: 20, cursor: 'pointer', fontSize: 12.5, whiteSpace: 'nowrap',
+          border: '1px solid ' + (tab === t.id ? 'var(--gold)' : 'var(--border)'),
+          background: tab === t.id ? 'var(--gold-bg)' : 'transparent',
+          color: tab === t.id ? 'var(--gold)' : 'var(--text3)',
+          fontWeight: tab === t.id ? 700 : 400 } },
+          t.l + (t.n ? ' (' + t.n + ')' : ''),
+          // Un bocal prêt ne doit pas disparaître derrière un onglet fermé.
+          t.alerte ? h('span', { style: { marginLeft: 6, background: 'var(--success)', color: '#06120d', borderRadius: 10, padding: '1px 6px', fontSize: 10, fontWeight: 700 } }, t.alerte) : null))
+    ),
+
+    tab === 'ferments' && h('div', {
+      style: {
+        background: 'linear-gradient(160deg,var(--bg3),var(--bg2))',
+        borderRadius: 'var(--radius)',
+        padding: '16px 18px',
+        marginBottom: 20,
+        border: '1px solid var(--warn-border)'
+      }
+    },
+    h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 8, flexWrap: 'wrap' } },
+      h('h3', { style: { margin: 0 } }, '🫙 Trackeur de lactofermentation'),
+      h('button', {
+        onClick: () => setShowAddFerment(v => !v),
+        style: { padding: '5px 10px', borderRadius: 20, border: '1px solid var(--warn-border)', background: 'transparent', color: 'var(--warn)', cursor: 'pointer', fontSize: 12 }
+      }, showAddFerment ? 'Fermer' : '+ Bocal')
+    ),
+    h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 8, marginBottom: 10 } },
+      h('div', { style: { background: 'var(--bg4)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '8px 10px' } }, h('small', { style: { color: 'var(--text3)' } }, 'Total'), h('div', { style: { color: 'var(--text2)', fontWeight: 700 } }, fermentStats.total)),
+      h('div', { style: { background: 'var(--bg4)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '8px 10px' } }, h('small', { style: { color: 'var(--text3)' } }, 'En cours'), h('div', { style: { color: 'var(--warn)', fontWeight: 700 } }, fermentStats.enCours)),
+      h('div', { style: { background: 'var(--bg4)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '8px 10px' } }, h('small', { style: { color: 'var(--text3)' } }, 'Prêts'), h('div', { style: { color: 'var(--success)', fontWeight: 700 } }, fermentStats.pret))
+    ),
+    h('div', { className: 'scroll-x', style: { display: 'flex', gap: 6, marginBottom: 10 } },
+      fermentStatusFilters.map(s => h('button', {
+        key: s,
+        onClick: () => setFermentStatusFilter(s),
+        style: {
+          flexShrink: 0,
+          padding: '4px 9px',
+          borderRadius: 999,
+          border: fermentStatusFilter === s ? '1px solid var(--warn)' : '1px solid var(--border)',
+          background: fermentStatusFilter === s ? 'rgba(251,146,60,.12)' : 'transparent',
+          color: fermentStatusFilter === s ? 'var(--warn)' : 'var(--text3)',
+          fontSize: 10,
+          cursor: 'pointer'
+        }
+      }, s))
+    ),
+    showAddFerment && h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 8, marginBottom: 10 } },
+      h('input', { value: fermentForm.nom, onChange: e => setFermentForm(p => ({ ...p, nom: e.target.value })), placeholder: 'Nom du bocal', style: { padding: '7px 9px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)' } }),
+      h('select', { value: fermentForm.type, onChange: e => setFermentForm(p => {
+        // Bascule la durée par défaut (14 j pour un ferment, 3 j pour une germination)
+        // sans écraser une durée que l'utilisateur a saisie lui-même.
+        const t = e.target.value;
+        const cur = Number(p.durationDays);
+        let dur = p.durationDays;
+        if (germIsType(t) && cur === 14) dur = 3;
+        else if (!germIsType(t) && cur === 3) dur = 14;
+        return { ...p, type: t, durationDays: dur };
+      }), style: { padding: '7px 9px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)' } }, fermentTypes.map(t => h('option', { key: t }, t))),
+      h('input', { type: 'date', value: fermentForm.startDate, onChange: e => setFermentForm(p => ({ ...p, startDate: e.target.value })), style: { padding: '7px 9px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)' } }),
+      h('input', { type: 'number', min: 1, max: 120, value: fermentForm.durationDays, onChange: e => setFermentForm(p => ({ ...p, durationDays: e.target.value })), placeholder: 'Jours', style: { padding: '7px 9px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)' } }),
+      h('input', { value: fermentForm.notes, onChange: e => setFermentForm(p => ({ ...p, notes: e.target.value })), placeholder: 'Notes', style: { gridColumn: '1/-1', padding: '7px 9px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)' } }),
+      h('div', { style: { gridColumn: '1/-1', display: 'flex', justifyContent: 'flex-end', gap: 8 } },
+        h('button', { onClick: () => setShowAddFerment(false), style: { padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text3)', cursor: 'pointer' } }, 'Annuler'),
+        h('button', {
+          onClick: () => {
+            if (!fermentForm.nom.trim() || !fermentForm.startDate) return;
+            upsertFerment({
+              id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+              nom: fermentForm.nom.trim(),
+              type: fermentForm.type,
+              startDate: fermentForm.startDate,
+              durationDays: Math.max(1, Number(fermentForm.durationDays) || 1),
+              notes: fermentForm.notes.trim(),
+              journal: [],
+              done: false
+            });
+            setShowAddFerment(false);
+            setFermentForm({ nom: '', type: 'Légumes', startDate: new Date().toISOString().slice(0, 10), durationDays: 14, notes: '' });
+          },
+          style: { padding: '6px 10px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,var(--warn),#fdba74)', color: '#06120d', cursor: 'pointer', fontWeight: 700 }
+        }, 'Ajouter')
+      )
+    ),
+    filteredFerments.length === 0 ? h('p', { style: { color: 'var(--text3)', fontStyle: 'italic', fontSize: 12 } }, fermentList.length ? 'Aucun bocal pour ce filtre.' : 'Aucun bocal suivi pour l’instant.') : h('div', { style: { display: 'grid', gap: 8 } },
+      filteredFerments.map(item => {
+        const meta = fermentMetaById.get(item.id) || { left: 0, progress: 0, status: 'En cours', statusColor: 'var(--gold)', targetIso: '' };
+        const estGerm = germIsType(item.type);
+        // On n'affiche dans les relevés que les entrées pH/odeur/couleur : les
+        // rinçages vivent dans le même journal mais ont leur propre bloc.
+        const logs = germReleves(item);
+        const latestLog = logs[0] || null;
+        const jd = journalDrafts[item.id] || { date: new Date().toISOString().slice(0, 10), ph: '', odeur: '', couleur: '', note: '' };
+        return h('div', { key: item.id, style: { background: 'var(--bg4)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', padding: '10px 12px' } },
+          h('div', { style: { display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginBottom: 8 } },
+            h('div', { style: { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' } },
+              h('strong', { style: { fontSize: 13 } }, item.nom),
+              h('span', { style: { fontSize: 10, color: 'var(--text3)' } }, item.type),
+              h('span', { style: { fontSize: 10, color: meta.statusColor, background: `${meta.statusColor}20`, borderRadius: 999, padding: '2px 8px' } }, meta.status)
+            ),
+            h('div', { style: { display: 'flex', gap: 6 } },
+              h('button', { onClick: () => upsertFerment({ ...item, done: !item.done }), style: { padding: '4px 8px', borderRadius: 8, border: '1px solid var(--border2)', background: 'transparent', color: 'var(--text2)', cursor: 'pointer', fontSize: 11 } }, item.done ? 'Réactiver' : 'Terminer'),
+              h('button', { onClick: () => confirm('Supprimer ce bocal ?') && deleteFerment(item.id), style: { padding: '4px 8px', borderRadius: 8, border: '1px solid var(--danger-border)', background: 'transparent', color: 'var(--danger)', cursor: 'pointer', fontSize: 11 } }, 'Supprimer')
+            )
+          ),
+          h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 8, fontSize: 11, color: 'var(--text3)', marginBottom: 8 } },
+            h('span', null, `Départ: ${fmtDate(item.startDate)}`),
+            h('span', null, `Prêt le: ${fmtDate(meta.targetIso)}`),
+            h('span', null, meta.left > 0 ? `J-${meta.left}` : 'À maturité')
+          ),
+          h('div', { style: { height: 6, borderRadius: 6, overflow: 'hidden', background: 'rgba(255,255,255,.06)', marginBottom: 8 } }, h('div', { style: { width: `${meta.progress}%`, height: '100%', background: 'linear-gradient(90deg,var(--warn),#fdba74)' } })),
+          item.notes && h('p', { style: { fontSize: 12, color: 'var(--text2)', marginBottom: 8 } }, item.notes),
+
+          // ── Suivi des rinçages (graines germées uniquement) ──
+          estGerm && (() => {
+            const grille = germGrille(item);
+            const today = new Date().toISOString().slice(0, 10);
+            const slot = germSlotNow();
+            const dansFenetre = grille.some(g => g.date === today);
+            const faitMaintenant = germFait(item, today, slot);
+            const total = grille.length * GERM_SLOTS.length;
+            const faits = grille.reduce((n, g) => n + g.slots.filter(s => s.fait).length, 0);
+            const aFaire = !item.done && dansFenetre && !faitMaintenant;
+            return h('div', {
+              style: { marginBottom: 8, padding: 10, borderRadius: 8,
+                border: `1px solid ${aFaire ? 'var(--warn-border)' : 'var(--border)'}`,
+                background: aFaire ? 'rgba(251,146,60,.08)' : 'rgba(0,0,0,.12)' }
+            },
+              h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 } },
+                h('span', { style: { fontSize: 11, fontWeight: 700, color: aFaire ? 'var(--warn)' : 'var(--text2)' } },
+                  aFaire ? `💧 Rinçage du ${slot} à faire` : (item.done ? '💧 Rinçages' : (dansFenetre ? `✓ Rinçage du ${slot} fait` : '💧 Rinçages'))),
+                h('span', { style: { fontSize: 10, color: 'var(--text3)', fontFamily: "'Space Mono',monospace" } }, `${faits}/${total}`)
+              ),
+              // Grille jour par jour : chaque case se coche à la main (rattrapage possible).
+              h('div', { style: { display: 'grid', gap: 4, marginBottom: 8 } },
+                grille.map(g => h('div', { key: g.date, style: { display: 'flex', alignItems: 'center', gap: 8 } },
+                  h('span', { style: { fontSize: 10, color: g.date === today ? 'var(--gold)' : 'var(--text3)', fontFamily: "'Space Mono',monospace", minWidth: 58, fontWeight: g.date === today ? 700 : 400 } },
+                    `J${g.jour} ${fmtDate(g.date)}`),
+                  g.slots.map(s => h('button', {
+                    key: s.moment,
+                    'aria-label': `Rinçage ${s.moment} du jour ${g.jour}`,
+                    onClick: () => upsertFerment({ ...item, journal: germToggleJournal(item, g.date, s.moment) }),
+                    style: { padding: '3px 10px', borderRadius: 999, cursor: 'pointer', fontSize: 10,
+                      border: `1px solid ${s.fait ? 'var(--success)' : 'var(--border2)'}`,
+                      background: s.fait ? 'rgba(74,222,128,.14)' : 'transparent',
+                      color: s.fait ? 'var(--success)' : 'var(--text3)',
+                      fontWeight: s.fait ? 700 : 400 }
+                  }, `${s.fait ? '✓' : '○'} ${s.moment}`))
+                ))
+              ),
+              !item.done && dansFenetre && h('button', {
+                onClick: () => upsertFerment({ ...item, journal: germToggleJournal(item, today, slot) }),
+                style: { padding: '5px 10px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700,
+                  background: faitMaintenant ? 'transparent' : 'linear-gradient(135deg,var(--warn),#fdba74)',
+                  color: faitMaintenant ? 'var(--text3)' : '#06120d',
+                  boxShadow: faitMaintenant ? 'inset 0 0 0 1px var(--border)' : 'none' }
+              }, faitMaintenant ? 'Annuler ce rinçage' : `Rincé maintenant (${slot})`),
+              h('p', { style: { margin: '8px 0 0', fontSize: 10.5, color: 'var(--text3)', lineHeight: 1.5, fontStyle: 'italic' } }, GERM_CONSEIL)
+            );
+          })(),
+
+          h('div', { style: { display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 6 } },
+            latestLog ? h('div', { style: { fontSize: 11, color: 'var(--text3)', display: 'flex', gap: 8, flexWrap: 'wrap' } }, h('span', null, `pH: ${latestLog.ph || '—'}`), h('span', null, `Odeur: ${latestLog.odeur || '—'}`), h('span', null, `Couleur: ${latestLog.couleur || '—'}`)) : h('span', { style: { fontSize: 11, color: 'var(--text3)', fontStyle: 'italic' } }, estGerm ? 'Aucune note' : 'Aucun relevé pH/odeur/couleur'),
+            h('button', {
+              onClick: () => {
+                if (journalOpenId === item.id) {
+                  setJournalOpenId(null);
+                  return;
+                }
+                setJournalOpenId(item.id);
+                setJournalDrafts(prev => ({ ...prev, [item.id]: prev[item.id] || { date: new Date().toISOString().slice(0, 10), ph: '', odeur: '', couleur: '', note: '' } }));
+              },
+              style: { padding: '4px 8px', borderRadius: 8, border: '1px solid var(--warn-border)', background: 'transparent', color: 'var(--warn)', cursor: 'pointer', fontSize: 11 }
+            }, journalOpenId === item.id ? 'Fermer suivi' : '+ Relevé')
+          ),
+          journalOpenId === item.id && h('div', { style: { marginTop: 8, padding: 10, borderRadius: 8, border: '1px solid var(--border)', background: 'rgba(0,0,0,.12)' } },
+            h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(110px,1fr))', gap: 8, marginBottom: 8 } },
+              h('input', { type: 'date', value: jd.date, onChange: e => setJournalDrafts(prev => ({ ...prev, [item.id]: { ...jd, date: e.target.value } })), style: { padding: '6px 8px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)', fontSize: 11 } }),
+              h('input', { value: jd.ph, onChange: e => setJournalDrafts(prev => ({ ...prev, [item.id]: { ...jd, ph: e.target.value } })), placeholder: 'pH', style: { padding: '6px 8px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)', fontSize: 11 } }),
+              h('input', { value: jd.odeur, onChange: e => setJournalDrafts(prev => ({ ...prev, [item.id]: { ...jd, odeur: e.target.value } })), placeholder: 'Odeur', style: { padding: '6px 8px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)', fontSize: 11 } }),
+              h('input', { value: jd.couleur, onChange: e => setJournalDrafts(prev => ({ ...prev, [item.id]: { ...jd, couleur: e.target.value } })), placeholder: 'Couleur', style: { padding: '6px 8px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)', fontSize: 11 } }),
+              h('input', { value: jd.note, onChange: e => setJournalDrafts(prev => ({ ...prev, [item.id]: { ...jd, note: e.target.value } })), placeholder: 'Note (optionnel)', style: { gridColumn: '1/-1', padding: '6px 8px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)', fontSize: 11 } })
+            ),
+            h('div', { style: { display: 'flex', justifyContent: 'flex-end', marginBottom: logs.length ? 8 : 0 } },
+              h('button', {
+                onClick: () => {
+                  if (!jd.ph && !jd.odeur && !jd.couleur) return;
+                  const entry = {
+                    id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                    date: jd.date || new Date().toISOString().slice(0, 10),
+                    ph: (jd.ph || '').trim(),
+                    odeur: (jd.odeur || '').trim(),
+                    couleur: (jd.couleur || '').trim(),
+                    note: (jd.note || '').trim()
+                  };
+                  upsertFerment({ ...item, journal: [entry, ...(Array.isArray(item.journal) ? item.journal : [])] });
+                  setJournalDrafts(prev => ({ ...prev, [item.id]: { date: new Date().toISOString().slice(0, 10), ph: '', odeur: '', couleur: '', note: '' } }));
+                },
+                style: { padding: '5px 10px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,var(--warn),#fdba74)', color: '#06120d', cursor: 'pointer', fontSize: 11, fontWeight: 700 }
+              }, 'Enregistrer relevé')
+            ),
+            logs.length > 0 && h('div', { style: { display: 'grid', gap: 6 } }, logs.slice(0, 4).map(log => h('div', {
+              key: log.id,
+              style: { border: '1px solid var(--border)', borderRadius: 8, padding: '6px 8px', fontSize: 11, color: 'var(--text3)', background: 'rgba(0,0,0,.08)' }
+            },
+            h('div', { style: { marginBottom: 4 } }, `${fmtDate(log.date)} · pH ${log.ph || '—'} · Odeur ${log.odeur || '—'} · Couleur ${log.couleur || '—'}`),
+            log.note && h('div', null, log.note)
+            )))
+          )
+        );
+      })
+    )
+    ),
+
+    // ── Onglet Pharmacopée : §13 et §16 du document maître ──
+    tab === 'pharma' && h('div', null,
+      h('div', { className: 'lx-card', style: { padding: 16, marginBottom: 14 } },
+        h('h3', { style: { margin: '0 0 6px', fontSize: 16 } }, '📖 Pharmacopée alimentaire'),
+        h('p', { style: { margin: '0 0 12px', fontSize: 12.5, color: 'var(--text3)', lineHeight: 1.55, fontStyle: 'italic' } },
+          'Distinguer l\'usage alimentaire, l\'usage traditionnel et l\'usage thérapeutique. Une plante ou un nutriment peut soutenir une fonction du corps sans « guérir » une maladie ni « régénérer » un organe.'),
+        h('div', { style: { display: 'grid', gap: 7 } },
+          PHARMA_NIVEAUX.map(n => h('div', { key: n.id, style: { display: 'flex', gap: 10, alignItems: 'flex-start', background: 'var(--bg2)', border: '1px solid ' + n.c, borderRadius: 8, padding: '8px 11px' } },
+            h('span', { style: { fontFamily: "'Space Mono',monospace", fontSize: 11, fontWeight: 700, color: n.c, flexShrink: 0, minWidth: 48 } }, n.l),
+            h('span', { style: { fontSize: 12, color: 'var(--text2)', lineHeight: 1.45 } },
+              h('strong', { style: { color: 'var(--text)' } }, n.t), ' — ' + n.d)
+          ))
+        )
+      ),
+
+      h('div', { className: 'lx-card', style: { padding: 16, marginBottom: 14 } },
+        h('h3', { style: { margin: '0 0 4px', fontSize: 15 } }, 'Glandes & fonctions'),
+        h('p', { style: { margin: '0 0 12px', fontSize: 11.5, color: 'var(--text3)', lineHeight: 1.5 } },
+          'Les listes proviennent des planches d\'herboristerie qui circulent. Le niveau de lecture, lui, est ajouté ici. Fiches botaniques détaillées : Potager → Médicinales.'),
+        h('div', { style: { display: 'grid', gap: 12 } },
+          PHARMA_GLANDES.map(g => h('div', { key: g.nom, style: { background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px' } },
+            h('div', { style: { display: 'flex', alignItems: 'center', gap: 7, marginBottom: 7 } },
+              h('span', { style: { fontSize: 14 } }, g.icon),
+              h('span', { style: { fontSize: 13, fontWeight: 700, color: 'var(--text)' } }, g.nom)),
+            h('div', { style: { display: 'grid', gap: 4 } },
+              g.plantes.map(p => {
+                const niv = PHARMA_NIVEAUX.find(n => n.id === p.niv) || PHARMA_NIVEAUX[1];
+                return h('div', { key: p.n, style: { display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12, lineHeight: 1.45 } },
+                  h('span', { style: { width: 9, height: 9, borderRadius: '50%', background: niv.c, flexShrink: 0, marginTop: 4 } }),
+                  h('span', null,
+                    h('span', { style: { color: 'var(--text)', fontWeight: 600 } }, p.n),
+                    p.d ? h('span', { style: { color: 'var(--text3)' } }, ' — ' + p.d) : null)
+                );
+              })),
+            g.regle && h('div', { style: { marginTop: 7, fontSize: 11.5, color: 'var(--warn)', lineHeight: 1.45 } }, '⚠ ' + g.regle),
+            g.alt && h('div', { style: { marginTop: 5, fontSize: 11.5, color: 'var(--text3)', lineHeight: 1.45 } }, '🌴 ' + g.alt),
+            g.budget && h('div', { style: { marginTop: 5, fontSize: 11.5, color: 'var(--gold)' } }, '💰 ' + g.budget)
+          ))
+        )
+      ),
+
+      h('div', { style: { display: 'grid', gap: 12, marginBottom: 14 } },
+        PHARMA_CADRES.map(c => h('div', { key: c.id, className: 'lx-card', style: { padding: 16 } },
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 } },
+            h('span', { style: { fontSize: 15 } }, c.icon),
+            h('span', { style: { fontSize: 14, fontWeight: 700, color: 'var(--text)' } }, c.titre)),
+          h('p', { style: { margin: '0 0 9px', fontSize: 12, color: c.id === 'c-parasites' ? 'var(--danger)' : 'var(--text3)', lineHeight: 1.55 } }, c.principe),
+          h('div', { style: { display: 'grid', gap: 4 } },
+            c.items.map((it, i) => h('div', { key: i, style: { display: 'flex', gap: 7, fontSize: 12, color: 'var(--text2)', lineHeight: 1.5 } },
+              h('span', { style: { color: 'var(--text3)', flexShrink: 0 } }, '·'), h('span', null, it)))),
+          c.fin && h('div', { style: { marginTop: 8, fontSize: 12, color: 'var(--warn)', lineHeight: 1.5 } }, '⚠ ' + c.fin)
+        ))
+      ),
+
+      h('div', { className: 'lx-card', style: { padding: 16, marginBottom: 20 } },
+        h('h3', { style: { margin: '0 0 4px', fontSize: 15 } }, '✍️ Règle éditoriale santé'),
+        h('p', { style: { margin: '0 0 10px', fontSize: 11.5, color: 'var(--text3)', lineHeight: 1.5 } },
+          'Ce que doit contenir toute fiche DrevmCook qui touche à une plante ou à un nutriment.'),
+        h('div', { style: { display: 'grid', gap: 5 } },
+          PHARMA_REGLE.map((r, i) => h('div', { key: i, style: { display: 'flex', gap: 9, fontSize: 12.5, color: 'var(--text2)', lineHeight: 1.5 } },
+            h('span', { style: { fontFamily: "'Space Mono',monospace", fontSize: 11, color: 'var(--gold)', flexShrink: 0, minWidth: 18 } }, (i + 1) + '.'),
+            h('span', { style: i === PHARMA_REGLE.length - 1 ? { color: 'var(--warn)' } : null }, r)))),
+        h('p', { style: { margin: '12px 0 0', fontSize: 11.5, color: 'var(--text3)', fontStyle: 'italic', lineHeight: 1.55 } },
+          'DrevmCook transforme la pharmacopée populaire en culture alimentaire documentée : produit péyi, nutrition, tradition, prudence et autonomie.')
+      ),
+
+      h('p', { style: { fontSize: 11.5, color: 'var(--text3)', lineHeight: 1.55, margin: 0 } },
+        'Les nutriments (magnésium, fer, zinc, oméga-3, vitamines B et C) ont leur fiche détaillée dans ',
+        h('strong', { style: { color: 'var(--text2)' } }, 'Suivi médical → Nutriments'),
+        ' — avec les apports de référence et les contre-indications de supplémentation.')
+    ),
+
+    // ── Boissons : de la recette au bocal, jusqu'à la date de péremption ──
+    tab === 'boissons' && h('div', { className: 'lx-card', style: { padding: 16, marginBottom: 20 } },
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 } },
+        h('h3', { style: { margin: 0, fontSize: 16 } }, '🥤 Boissons & ferments'),
+        h('span', { style: { fontFamily: "'Space Mono',monospace", fontSize: 11, color: 'var(--text3)' } }, BOISSONS.length + ' fiches')
+      ),
+      h('p', { style: { margin: '0 0 12px', fontSize: 12, color: 'var(--text3)', fontStyle: 'italic', lineHeight: 1.5 } },
+        'Recette, préparation, conditionnement et conservation — le contenant et la date de péremption comptent autant que la recette.'),
+      BOISSONS_FAMILLES.map(fam => {
+        const liste = BOISSONS.filter(b => b.famille === fam);
+        if (!liste.length) return null;
+        return h('div', { key: fam, style: { marginBottom: 12 } },
+          h('div', { style: { fontSize: 11, fontWeight: 700, color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 } }, fam),
+          h('div', { style: { display: 'grid', gap: 7 } },
+            liste.map(b => {
+              const open = boissonOuverte === b.id;
+              return h('div', { key: b.id, style: { background: 'var(--bg4)', border: `1px solid ${open ? 'var(--gold)' : 'var(--border)'}`, borderRadius: 'var(--radius-sm)', overflow: 'hidden' } },
+                h('button', {
+                  onClick: () => setBoissonOuverte(open ? null : b.id),
+                  style: { width: '100%', display: 'flex', alignItems: 'flex-start', gap: 9, padding: '10px 12px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', color: 'var(--text)' }
+                },
+                  h('span', { style: { fontSize: 16, flexShrink: 0 } }, b.emoji),
+                  h('span', { style: { flex: 1, minWidth: 0 } },
+                    h('span', { style: { display: 'block', fontSize: 13, fontWeight: 700 } }, b.nom),
+                    h('span', { style: { display: 'block', fontSize: 11.5, color: 'var(--text3)', marginTop: 2, lineHeight: 1.4 } }, b.resume)
+                  ),
+                  h('span', { style: { color: 'var(--text3)', fontSize: 11, flexShrink: 0 } }, open ? '▲' : '▼')
+                ),
+                open && h('div', { style: { padding: '0 12px 12px', display: 'grid', gap: 10 } },
+                  h('div', null,
+                    h('div', { style: { fontSize: 10, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text3)', marginBottom: 4 } }, 'Il te faut'),
+                    h('div', { style: { display: 'grid', gap: 3 } },
+                      b.ingredients.map((it, i) => h('div', { key: i, style: { fontSize: 12.5, color: 'var(--text2)', lineHeight: 1.45 } }, '· ' + it))
+                    )
+                  ),
+                  h('div', null,
+                    h('div', { style: { fontSize: 10, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text3)', marginBottom: 4 } }, 'Préparation'),
+                    h('div', { style: { display: 'grid', gap: 4 } },
+                      b.preparation.map((p, i) => h('div', { key: i, style: { display: 'flex', gap: 7, fontSize: 12.5, color: 'var(--text2)', lineHeight: 1.45 } },
+                        h('span', { style: { fontFamily: "'Space Mono',monospace", fontSize: 11, color: 'var(--gold)', flexShrink: 0 } }, (i + 1) + '.'),
+                        h('span', null, p)
+                      ))
+                    )
+                  ),
+                  [['📦 Conditionnement', b.conditionnement], ['🧊 Conservation', b.conservation]].map(([t, v]) =>
+                    h('div', { key: t, style: { background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px' } },
+                      h('div', { style: { fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 3 } }, t),
+                      h('div', { style: { fontSize: 12, color: 'var(--text3)', lineHeight: 1.5 } }, v)
+                    )),
+                  b.dose && b.dose !== '—' && h('div', { style: { display: 'flex', gap: 6, alignItems: 'flex-start', fontSize: 12, color: 'var(--text3)', lineHeight: 1.5 } },
+                    h('span', { style: { flexShrink: 0 } }, '🥄'), h('span', null, b.dose)),
+                  h('div', { style: { display: 'flex', gap: 6, alignItems: 'flex-start', fontSize: 12, color: 'var(--warn)', lineHeight: 1.5, background: 'rgba(245,158,11,.08)', borderRadius: 8, padding: '8px 10px' } },
+                    h('span', { style: { flexShrink: 0 } }, '⚠'), h('span', null, b.garde))
+                )
+              );
+            })
+          )
+        );
+      })
+    ),
+
+    // ── Onglet Recettes : filtre, ajout, grille ──
+    tab === 'recettes' && h(React.Fragment, null,
+    h('div', { style: { display: 'flex', gap: 8, marginBottom: 20, alignItems: 'center' } },
+      h('div', { className: 'scroll-x', style: { display: 'flex', gap: 6, flex: 1 } },
+        cats.map(c => h('button', {
+          key: c,
+          onClick: () => setFilterCat(c),
+          style: {
+            flexShrink: 0,
+            padding: '5px 14px',
+            borderRadius: 20,
+            border: filterCat === c ? '1px solid var(--gold)' : '1px solid var(--border)',
+            background: filterCat === c ? 'rgba(0,0,0,.15)' : 'transparent',
+            color: filterCat === c ? 'var(--gold)' : 'var(--text3)',
+            fontSize: 12,
+            cursor: 'pointer'
+          }
+        }, c))
+      ),
+      h('button', {
+        onClick: () => setShowAdd(v => !v),
+        style: { flexShrink: 0, padding: '5px 14px', borderRadius: 20, border: '1px solid var(--border2)', background: 'transparent', color: 'var(--text2)', fontSize: 12, cursor: 'pointer' }
+      }, '+ Recette'),
+      h('button', {
+        onClick: exportCsv,
+        title: 'Exporter tes recettes en CSV',
+        style: { flexShrink: 0, padding: '5px 12px', borderRadius: 20, border: '1px solid var(--border2)', background: 'transparent', color: 'var(--text2)', fontSize: 12, cursor: 'pointer' }
+      }, '⬇ CSV'),
+      h('button', {
+        onClick: onImportClick,
+        title: 'Importer des recettes depuis un CSV',
+        style: { flexShrink: 0, padding: '5px 12px', borderRadius: 20, border: '1px solid var(--border2)', background: 'transparent', color: 'var(--text2)', fontSize: 12, cursor: 'pointer' }
+      }, '⬆ CSV')
+    ),
+
+    showAdd && h('div', {
+      style: {
+        background: 'linear-gradient(160deg,var(--bg3),var(--bg2))',
+        borderRadius: 'var(--radius)',
+        padding: 20,
+        marginBottom: 20,
+        border: '1px solid var(--gold-border)'
+      }
+    },
+    h('h3', { style: { marginBottom: 8 } }, 'Nouvelle recette'),
+    h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 10, marginBottom: 12 } },
+      h('input', { value: addForm.nom, onChange: e => setAddForm(p => ({ ...p, nom: e.target.value })), placeholder: 'Nom', style: { gridColumn: '1/-1', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)' } }),
+      h('select', { value: addForm.categorie, onChange: e => setAddForm(p => ({ ...p, categorie: e.target.value })), style: { padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)' } }, cats.filter(c => c !== 'Tout').map(c => h('option', { key: c }, c))),
+      h('input', { value: addForm.tags, onChange: e => setAddForm(p => ({ ...p, tags: e.target.value })), placeholder: 'Tags', style: { padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)' } }),
+      h('textarea', { value: addForm.ingredients, onChange: e => setAddForm(p => ({ ...p, ingredients: e.target.value })), rows: 4, placeholder: 'Ingrédients (un par ligne)', style: { padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)', resize: 'vertical', fontFamily: 'inherit' } }),
+      h('textarea', { value: addForm.preparation, onChange: e => setAddForm(p => ({ ...p, preparation: e.target.value })), rows: 4, placeholder: 'Préparation', style: { padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)', resize: 'vertical', fontFamily: 'inherit' } }),
+      h('input', { value: addForm.apports, onChange: e => setAddForm(p => ({ ...p, apports: e.target.value })), placeholder: 'Apports', style: { padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)' } }),
+      h('input', { value: addForm.budget, onChange: e => setAddForm(p => ({ ...p, budget: e.target.value })), placeholder: 'Budget', style: { padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg4)', color: 'var(--text)' } })
+    ),
+    h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end' } },
+      h('button', { onClick: () => setShowAdd(false), style: { padding: '8px 18px', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text3)', cursor: 'pointer' } }, 'Annuler'),
+      h('button', {
+        onClick: () => {
+          if (!addForm.nom.trim()) return;
+          upsertRecipe({
+            id: Date.now().toString(),
+            nom: addForm.nom,
+            categorie: addForm.categorie,
+            tags: addForm.tags.split(',').map(t => t.trim()).filter(Boolean),
+            ingredients: addForm.ingredients.split('\n').filter(Boolean),
+            preparation: addForm.preparation,
+            apports: addForm.apports,
+            budget: addForm.budget
+          });
+          setShowAdd(false);
+          setAddForm({ nom: '', categorie: 'Salés', tags: '', ingredients: '', preparation: '', apports: '', budget: '' });
+        },
+        style: { padding: '8px 18px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,var(--gold),var(--gold2))', color: '#06120d', cursor: 'pointer', fontWeight: 700 }
+      }, 'Sauvegarder')
+    )
+    ),
+
+    h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: 14 } },
+      filtered.map(r => {
+        const isDefault = DEFAULT_RECIPES.some(dr => dr.id === r.id);
+        return h('div', {
+          key: r.id,
+          onClick: () => setSelected(r.id),
+          style: { background: 'linear-gradient(160deg,var(--bg3),var(--bg2))', borderRadius: 'var(--radius)', padding: '16px 18px', border: '1px solid var(--border)', cursor: 'pointer' }
+        },
+        h('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 8 } },
+          h('span', { style: { fontSize: 10, color: 'var(--gold)' } }, r.categorie),
+          !isDefault && h('button', {
+            onClick: e => {
+              e.stopPropagation();
+              if (confirm('Supprimer cette recette ?')) deleteRecipe(r.id);
+            },
+            style: { background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 16, lineHeight: 1 }
+          }, '×')
+        ),
+        h('h3', { style: { fontSize: 17, marginBottom: 8 } }, r.nom),
+        h('div', { style: { display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 8 } }, (r.tags || []).slice(0, 3).map(t => h('span', { key: t, style: { fontSize: 9, padding: '1px 6px', borderRadius: 20, background: 'var(--gold-bg)', color: 'var(--gold)', border: '1px solid var(--gold-border)' } }, t))),
+        h('div', { style: { fontSize: 11, color: 'var(--text3)', display: 'flex', justifyContent: 'space-between' } }, h('span', null, `${(r.ingredients || []).length} ingrédients`), h('span', { style: { color: 'var(--gold)' } }, r.budget))
+        );
+      })
+    )
+    )
+  );
+}
+
+
+// ─── Jeux (vue pilote gamifiée) ───
+const CHESS_START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+const GLYPH = { wp:'♙', wn:'♘', wb:'♗', wr:'♖', wq:'♕', wk:'♔',
+                bp:'♟', bn:'♞', bb:'♝', br:'♜', bq:'♛', bk:'♚' };
+const BADGES = [
+  { id:'first_move',     icon:'♟', label:'Premier coup',  desc:'Jouer ton 1er coup aux échecs' },
+  { id:'checkmate',      icon:'♚', label:'Échec et mat', desc:'Gagner une partie d’échecs' },
+  { id:'crossword_done', icon:'🧩', label:'Grille bouclée', desc:'Compléter les mots fléchés' },
+  { id:'streak3',        icon:'🔥', label:'Série de 3',  desc:'Jouer 3 jours d’affilée' }
+];
+// Mini grille de mots croisés gwada/couple — les mots se croisent sur AMOUR (vertical)
+const CW_WORDS = [
+  { num:1, dir:'across', r:0, c:0, answer:'DJA',   clue: 'Mot de 3 lettres (exemple)' },
+  { num:2, dir:'down',   r:0, c:2, answer:'AMOUR', clue:'Ce qui vous lie ♡' },
+  { num:3, dir:'across', r:2, c:0, answer:'GWO',   clue:'« Gros » en créole' },
+  { num:4, dir:'across', r:4, c:2, answer:'RIVYE', clue:'« Rivière » en créole' }
+];
+const CW_SOL = {}, CW_START = {}, CW_ROWS = 5, CW_COLS = 7;
+CW_WORDS.forEach(w => {
+  CW_START[w.r + '-' + w.c] = w.num;
+  for (let i = 0; i < w.answer.length; i++) {
+    const r = w.dir === 'down' ? w.r + i : w.r;
+    const c = w.dir === 'across' ? w.c + i : w.c;
+    CW_SOL[r + '-' + c] = w.answer[i];
+  }
+});
+const todayStr = () => new Date().toISOString().slice(0, 10);
+const awardBadge = (g, id) => { if (!g.badges.includes(id)) g.badges = [...g.badges, id]; };
+const touchStreak = g => {
+  const t = todayStr();
+  if (g.streak.lastDay === t) return;
+  const y = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  g.streak = { count: g.streak.lastDay === y ? (g.streak.count || 0) + 1 : 1, lastDay: t };
+  if (g.streak.count >= 3) awardBadge(g, 'streak3');
+};
+
+function JeuxView({ games, updateGames }) {
+  const h = React.createElement;
+  const [tab, setTab] = useState('chess');
+  const [sel, setSel] = useState(null);
+  const me = LS.getItem('ld-username') || 'Joueur';
+  const hasChess = typeof window.Chess === 'function';
+
+  // Reconstruit la partie depuis le FEN stocké (sync via Supabase)
+  const chess = useMemo(() => {
+    if (!hasChess) return null;
+    const c = new window.Chess();
+    try { c.load(games.chess.fen || CHESS_START); } catch (_) { c.reset(); }
+    return c;
+  }, [games.chess.fen, hasChess]);
+
+  const turn = chess ? chess.turn() : 'w';
+  const legal = chess && sel ? chess.moves({ square: sel, verbose: true }) : [];
+  const targets = new Set(legal.map(m => m.to));
+
+  const doMove = (from, to) => {
+    const c = new window.Chess();
+    try { c.load(games.chess.fen || CHESS_START); } catch (_) {}
+    const mv = c.move({ from, to, promotion: 'q' });
+    if (!mv) return;
+    updateGames(g => {
+      const ng = clone(g);
+      ng.chess.fen = c.fen();
+      ng.chess.lastBy = me;
+      awardBadge(ng, 'first_move');
+      if (c.in_checkmate()) { ng.chess.result = (c.turn() === 'w' ? 'Noirs' : 'Blancs') + ' gagnent — échec et mat'; awardBadge(ng, 'checkmate'); }
+      else if (c.in_draw()) ng.chess.result = 'Partie nulle';
+      else ng.chess.result = '';
+      touchStreak(ng);
+      return ng;
+    });
+    setSel(null);
+  };
+
+  const clickSquare = (sq, piece) => {
+    if (games.chess.result) return;
+    if (sel && targets.has(sq)) { doMove(sel, sq); return; }
+    if (piece && piece.color === turn) { setSel(sq === sel ? null : sq); return; }
+    setSel(null);
+  };
+
+  const resetChess = () => updateGames(g => {
+    const ng = clone(g);
+    ng.chess = { fen: CHESS_START, lastBy: me, result: '' };
+    return ng;
+  });
+
+  const setCell = (key, val) => updateGames(g => {
+    const ng = clone(g);
+    const f = { ...ng.crossword.filled };
+    if (val) f[key] = val; else delete f[key];
+    ng.crossword.filled = f;
+    const done = Object.keys(CW_SOL).every(k => (f[k] || '') === CW_SOL[k]);
+    ng.crossword.done = done;
+    if (done) awardBadge(ng, 'crossword_done');
+    touchStreak(ng);
+    return ng;
+  });
+
+  // ── Sous-onglets ──
+  const subTabs = [{ id:'chess', label:'♞ Échecs' }, { id:'crossword', label:'🧩 Mots fléchés' }, { id:'rewards', label:'🏆 Récompenses' }];
+  const tabBar = h('div', { style:{ display:'flex', gap:8, marginBottom:20, flexWrap:'wrap' } },
+    subTabs.map(t => h('button', {
+      key:t.id, onClick:() => setSel(null) || setTab(t.id),
+      style:{ padding:'10px 16px', minHeight:44, borderRadius:'var(--radius-sm)', cursor:'pointer',
+        fontFamily:"'Space Mono',monospace", fontSize:12, letterSpacing:'.04em',
+        background: tab === t.id ? 'var(--gold-bg)' : 'rgba(255,255,255,.04)',
+        color: tab === t.id ? 'var(--gold2)' : 'var(--text3)',
+        border: '1px solid ' + (tab === t.id ? 'var(--gold-border)' : 'var(--border)') }
+    }, t.label)));
+
+  // ── Échiquier ──
+  const renderChess = () => {
+    if (!hasChess) return h('div', { className:'lx-card', style:{ padding:20, color:'var(--text2)' } },
+      'Le moteur d’échecs n’a pas pu se charger (connexion ?). Réessaie en rechargeant la page.');
+    const board = chess.board();
+    const status = games.chess.result
+      ? games.chess.result
+      : (chess.in_check() ? 'Échec — ' : '') + 'Au tour des ' + (turn === 'w' ? 'Blancs ◆ (' + yName('dja') + ')' : 'Noirs ◇ (' + yName('liika') + ')');
+    const cells = [];
+    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+      const sq = 'abcdefgh'[c] + (8 - r);
+      const p = board[r][c];
+      const dark = (r + c) % 2 === 1;
+      const isSel = sel === sq;
+      const isTarget = targets.has(sq);
+      cells.push(h('button', {
+        key:sq, onClick:() => clickSquare(sq, p),
+        style:{ aspectRatio:'1', border:'none', cursor:'pointer', position:'relative',
+          display:'flex', alignItems:'center', justifyContent:'center',
+          fontSize:'clamp(20px,7vw,34px)', lineHeight:1,
+          background: isSel ? 'var(--gold-border)' : dark ? '#2c5740' : '#e7e2cf',
+          color: p && p.color === 'b' ? '#1a1a1a' : '#3a3a3a',
+          boxShadow: isSel ? 'inset 0 0 0 3px var(--gold2)' : 'none' }
+      },
+        p ? GLYPH[p.color + p.type] : '',
+        isTarget ? h('span', { style:{ position:'absolute', width:p ? '100%' : 14, height:p ? '100%' : 14,
+          borderRadius: p ? '0' : '50%',
+          background: p ? 'rgba(217,183,95,.30)' : 'rgba(217,183,95,.55)',
+          boxShadow: p ? 'inset 0 0 0 3px var(--gold)' : 'none', pointerEvents:'none' } }) : null
+      ));
+    }
+    return h('div', null,
+      h('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, marginBottom:12, flexWrap:'wrap' } },
+        h('span', { style:{ fontFamily:"'Space Mono',monospace", fontSize:13, color: games.chess.result ? 'var(--gold2)' : 'var(--text)', fontWeight:700 } }, status),
+        h('button', { onClick:resetChess, style:{ padding:'8px 14px', minHeight:40, borderRadius:'var(--radius-xs)', cursor:'pointer',
+          background:'rgba(255,255,255,.05)', color:'var(--text2)', border:'1px solid var(--border2)', fontSize:12 } }, 'Nouvelle partie')),
+      h('div', { style:{ display:'grid', gridTemplateColumns:'repeat(8,1fr)', maxWidth:440, width:'100%',
+        borderRadius:'var(--radius-xs)', overflow:'hidden', border:'1px solid var(--border2)', boxShadow:'var(--shadow)' } }, cells),
+      games.chess.lastBy ? h('div', { style:{ marginTop:10, fontSize:11, color:'var(--text3)', fontFamily:"'Space Mono',monospace" } }, 'Dernier coup : ' + games.chess.lastBy) : null);
+  };
+
+  // ── Mots fléchés ──
+  const renderCrossword = () => {
+    const filled = games.crossword.filled || {};
+    const rows = [];
+    for (let r = 0; r < CW_ROWS; r++) {
+      const row = [];
+      for (let c = 0; c < CW_COLS; c++) {
+        const key = r + '-' + c;
+        const active = CW_SOL[key] !== undefined;
+        if (!active) { row.push(h('div', { key:c, style:{ aspectRatio:'1', background:'transparent' } })); continue; }
+        const num = CW_START[key];
+        const val = filled[key] || '';
+        const ok = games.crossword.done;
+        row.push(h('div', { key:c, style:{ position:'relative', aspectRatio:'1' } },
+          num ? h('span', { style:{ position:'absolute', top:2, left:3, fontSize:9, color:'var(--gold)', fontFamily:"'Space Mono',monospace", pointerEvents:'none' } }, num) : null,
+          h('input', { value:val, maxLength:1, inputMode:'text',
+            onChange:e => setCell(key, (e.target.value || '').toUpperCase().replace(/[^A-Z]/g, '')),
+            style:{ width:'100%', height:'100%', textAlign:'center', textTransform:'uppercase',
+              fontFamily:"'Cormorant Garamond',serif", fontSize:'clamp(16px,5vw,24px)', fontWeight:700,
+              border:'1px solid var(--border2)', borderRadius:4, outline:'none',
+              background: ok ? 'var(--success-bg)' : 'rgba(243,239,226,.06)',
+              color: ok ? 'var(--success)' : 'var(--text)' } })));
+      }
+      rows.push(h('div', { key:r, style:{ display:'grid', gridTemplateColumns:'repeat(' + CW_COLS + ',1fr)', gap:3 } }, row));
+    }
+    const clue = (dir) => CW_WORDS.filter(w => w.dir === dir).map(w =>
+      h('li', { key:w.num, style:{ marginBottom:6, fontSize:13, color:'var(--text2)' } },
+        h('b', { style:{ color:'var(--gold)' } }, w.num + '. '), w.clue));
+    return h('div', null,
+      games.crossword.done ? h('div', { style:{ marginBottom:14, padding:'10px 14px', borderRadius:'var(--radius-sm)', background:'var(--success-bg)', color:'var(--success)', fontWeight:700, fontSize:13 } }, '✓ Grille complétée ensemble !') : null,
+      h('div', { style:{ display:'grid', gap:3, maxWidth:360, width:'100%', marginBottom:20 } }, rows),
+      h('div', { style:{ display:'flex', gap:28, flexWrap:'wrap' } },
+        h('div', null, h('div', { className:'eyebrow', style:{ marginBottom:8 } }, 'Horizontal'), h('ul', { style:{ listStyle:'none' } }, clue('across'))),
+        h('div', null, h('div', { className:'eyebrow', style:{ marginBottom:8 } }, 'Vertical'), h('ul', { style:{ listStyle:'none' } }, clue('down')))));
+  };
+
+  // ── Récompenses (streak + badges) ──
+  const renderRewards = () => {
+    const unlocked = games.badges || [];
+    return h('div', null,
+      h('div', { className:'lx-card', style:{ padding:'20px 22px', marginBottom:20, display:'flex', alignItems:'center', gap:18 } },
+        h('div', { style:{ fontSize:44, lineHeight:1, filter: games.streak.count > 0 ? 'none' : 'grayscale(1) opacity(.4)' } }, '🔥'),
+        h('div', null,
+          h('div', { style:{ fontFamily:"'Cormorant Garamond',serif", fontSize:32, fontWeight:700, color:'var(--gold2)' } }, (games.streak.count || 0) + (games.streak.count > 1 ? ' jours' : ' jour')),
+          h('div', { className:'eyebrow' }, 'Série de jeu à deux'))),
+      h('div', { className:'eyebrow', style:{ marginBottom:12 } }, 'Badges — ' + unlocked.length + ' / ' + BADGES.length),
+      h('div', { style:{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))', gap:12 } },
+        BADGES.map(b => {
+          const got = unlocked.includes(b.id);
+          return h('div', { key:b.id, className:'lx-card', style:{ padding:'16px 14px', textAlign:'center', opacity: got ? 1 : .45,
+            border: '1px solid ' + (got ? 'var(--gold-border)' : 'var(--border)') } },
+            h('div', { style:{ fontSize:34, marginBottom:8, filter: got ? 'none' : 'grayscale(1)' } }, b.icon),
+            h('div', { style:{ fontSize:13, fontWeight:700, color: got ? 'var(--gold2)' : 'var(--text3)', marginBottom:4 } }, b.label),
+            h('div', { style:{ fontSize:11, color:'var(--text3)' } }, got ? '✓ Débloqué' : b.desc));
+        })));
+  };
+
+  return h('div', null,
+    h('div', { className:'dash-hero lx-card', style:{ padding:'22px 24px', marginBottom:22 } },
+      h('div', { className:'eyebrow', style:{ marginBottom:8 } }, 'Espace jeu — à deux'),
+      h('h2', { style:{ fontFamily:"'Playfair Display',serif", fontSize:28, fontWeight:700, margin:0 } }, 'Jeux 🎮'),
+      h('p', { style:{ color:'var(--text2)', marginTop:8, fontSize:14, maxWidth:560 } },
+        'Jouez ensemble, chacun de son côté : chaque coup se synchronise en direct. Gagnez des badges et tenez votre série 🔥.')),
+    tabBar,
+    tab === 'chess' && renderChess(),
+    tab === 'crossword' && renderCrossword(),
+    tab === 'rewards' && renderRewards());
+}
+
+// ─── Guide Formateur Code Rousseau REMC ───
+const REMC_DOMAINES = [
+  { id:'d1', icon:'🔧', titre:'D1 — Maîtrise du véhicule', competences:[
+    { id:'c11', code:'C1.1', titre:'Prise en main du véhicule', detail:'Réglages poste, vérifications ext./int., sécurité des passagers, signaux d\'urgence.' },
+    { id:'c12', code:'C1.2', titre:'Direction et vitesse', detail:'Trajectoires en courbe, freinages progressif et d\'urgence, régulation de l\'allure.' },
+    { id:'c13', code:'C1.3', titre:'Manœuvres', detail:'Créneaux, demi-tour, marche arrière, stationnement en côte.' },
+  ]},
+  { id:'d2', icon:'👁', titre:'D2 — Circulation réelle', competences:[
+    { id:'c21', code:'C2.1', titre:'Percevoir et analyser', detail:'Balayage visuel, angles morts, anticipation des situations à risque, carrefours.' },
+    { id:'c22', code:'C2.2', titre:'Règles de circulation', detail:'Signalisation, priorités, vitesses, distances de sécurité, dépassements.' },
+    { id:'c23', code:'C2.3', titre:'Situations particulières', detail:'Nuit, pluie, autoroute, zone urbaine dense, travaux, conditions dégradées.' },
+  ]},
+  { id:'d3', icon:'🧠', titre:'D3 — Comportements responsables', competences:[
+    { id:'c31', code:'C3.1', titre:'Attitude coopérative', detail:'Respect des autres usagers, communication gestuelle et lumineuse, partage de la route.' },
+    { id:'c32', code:'C3.2', titre:'États internes', detail:'Fatigue, stress, émotions, alcool/stupéfiants, téléphone — reconnaître et gérer.' },
+    { id:'c33', code:'C3.3', titre:'Éco-conduite', detail:'Anticipation, montée en régime économique, rétrogradation douce, réduction des émissions.' },
+  ]},
+];
+const REMC_NIV_LABEL = ['Non évalué','En cours','Acquis (guidé)','Autonome'];
+const REMC_NIV_COLOR = ['var(--text-muted)','var(--accent-liika)','var(--gold)','#4ade80'];
+const REMC_ETAPES = [
+  { id:'pt', label:'PT — Présentation de la tâche', desc:'L\'élève observe et comprend la tâche avant de l\'exécuter.' },
+  { id:'et', label:'ET — Exécution de la tâche', desc:'L\'élève s\'exerce sous guidage du formateur.' },
+  { id:'ev', label:'EV — Évaluation', desc:'Le formateur évalue l\'acquisition, donne le bilan et fixe les objectifs suivants.' },
+];
+const REMC_FICHES_REVISION = [
+  {
+    id:'fr11', code:'C1.1', domaine:'🔧 D1', titre:'Prise en main du véhicule',
+    pointsCles:[
+      'Réglages poste : siège (bras légèrement fléchis sur le volant), dossier incliné, appuie-tête au niveau des yeux, ceinture',
+      'Rétroviseurs : intérieur (cadre complet de la lunette arrière), extérieurs (flancs visibles sur 1/4)',
+      'Vérifications extérieures : état des pneus (sculpture ≥ 1,6 mm, pression), éclairages, niveaux (huile, liquide de frein, lave-glace, refroidissement)',
+      'Voyants tableau de bord : moteur (orange), batterie (rouge), température (rouge), préchauffage diesel (serpentin orange)',
+      'Position de conduite : mains à 9h15, dos appuyé, cuisses légèrement inclinées vers le bas',
+    ],
+    erreursFrequentes:[
+      'Oublier les pneus arrière lors des vérifications extérieures',
+      'Rétroviseurs mal réglés → angles morts élargis',
+      'Démarrer avec un voyant rouge allumé (batterie, température, pression huile)',
+      'Siège trop proche ou trop loin → gêne sur pédale de frein d\'urgence',
+    ],
+    questionsExamen:[
+      'Que signifie le voyant moteur orange allumé en roulant ?',
+      'À quelle fréquence vérifier la pression des pneus ?',
+      'Quelle est la profondeur de sculpture minimale légale des pneus ?',
+      'Comment régler correctement les rétroviseurs extérieurs ?',
+    ],
+  },
+  {
+    id:'fr12', code:'C1.2', domaine:'🔧 D1', titre:'Direction et vitesse',
+    pointsCles:[
+      'Technique de direction : mains en couronne (9h15), pas de croisement des bras, technique shuffle au-dessous de 40 km/h',
+      'Trajectoire en courbe : regard loin (point de sortie), décélérer AVANT la courbe, maintenir l\'allure dans la courbe',
+      'Freinage progressif : appui ferme et croissant, relâchement doux avant l\'arrêt complet',
+      'Freinage d\'urgence : pied fort et maintenu (confier à l\'ABS), garder les roues droites, regarder la sortie',
+      'Distances de sécurité : règle des 2 secondes (chronomètre sur repère fixe), × 2 sur route mouillée, × 3 sur verglas',
+    ],
+    erreursFrequentes:[
+      'Accélérer en courbe → sous-virage (sortie de route)',
+      'Freiner en courbe → transfert de charge, perte d\'adhérence',
+      'Regard fixé devant le capot au lieu de loin (15-20 m minimum)',
+      'Relâcher le frein trop tôt en freinage d\'urgence → allongement de la distance d\'arrêt',
+    ],
+    questionsExamen:[
+      'Comment réagir en cas d\'aquaplaning ?',
+      'Quelle distance de sécurité en ville à 50 km/h (temps de réaction de 1s) ?',
+      'Pourquoi ne pas freiner en courbe avec un véhicule sans ABS ?',
+      'Qu\'est-ce que la distance d\'arrêt (réaction + freinage) à 90 km/h ?',
+    ],
+  },
+  {
+    id:'fr13', code:'C1.3', domaine:'🔧 D1', titre:'Manœuvres',
+    pointsCles:[
+      'Créneau : vérification rétros + angle mort, 45° puis braquage opposé, trottoir visible dans le rétro bas',
+      'Demi-tour : évaluer la largeur, clignotant gauche, 3 à 5 points si nécessaire, priorité aux piétons',
+      'Marche arrière droite : regard par la lunette et les rétros, tête tournée, allure lente (inférieure au pas)',
+      'Stationnement en côte : frein à main serré, 1ère (montée) ou marche arrière (descente), roues braquées vers le trottoir',
+      'Créneau en bataille : angle 90°, utiliser les lignes peintes comme repères',
+    ],
+    erreursFrequentes:[
+      'Heurter le trottoir lors de la rentrée en créneau (pas assez de braquage)',
+      'Oublier l\'angle mort avant de reculer',
+      'Repartir sans desserrer le frein à main → surchauffe des garnitures',
+      'Trop grande vitesse en marche arrière → réaction tardive',
+    ],
+    questionsExamen:[
+      'Quand le demi-tour est-il interdit ?',
+      'Comment stationner en côte montante côté droit ?',
+      'Comment vérifier que le créneau est réussi sans descendre du véhicule ?',
+    ],
+  },
+  {
+    id:'fr21', code:'C2.1', domaine:'👁 D2', titre:'Percevoir et analyser',
+    pointsCles:[
+      'Balayage visuel : miroir intérieur toutes les 5-8 secondes, rétros extérieurs à chaque changement de situation',
+      'Angle mort : vérification tête (regard par-dessus l\'épaule) avant tout changement de direction ou de voie',
+      'Anticipation : lire la route 12 s devant en rase campagne, 4-6 s en ville',
+      'Zones à risque : sorties de parking, entrées d\'immeubles, arrêts de bus, arrêts de tramway',
+      'Cyclistes et piétons : 1 m d\'écart latéral en agglomération, 1,5 m hors agglomération',
+    ],
+    erreursFrequentes:[
+      'Fixation du regard (regarder uniquement droit devant)',
+      'Négliger l\'angle mort lors des insertions sur voie rapide',
+      'Sous-estimer la vitesse d\'un cycliste ou d\'un piéton qui traverse',
+      'Réagir trop tard à un obstacle lointain (manque d\'anticipation)',
+    ],
+    questionsExamen:[
+      'Qu\'est-ce que l\'angle mort et comment le supprimer ?',
+      'Pourquoi regarder loin devant améliore-t-il la conduite ?',
+      'Quelle distance latérale respecter lors du dépassement d\'un cycliste ?',
+    ],
+  },
+  {
+    id:'fr22', code:'C2.2', domaine:'👁 D2', titre:'Règles de circulation',
+    pointsCles:[
+      'Priorité à droite : s\'applique sauf signalisation contraire (cédez-le-passage, STOP, voie prioritaire)',
+      'Feux tricolores : rouge = arrêt obligatoire, orange = arrêt si possible (pas d\'accélération), vert = passage si sûr',
+      'Vitesses max : 50 km/h en agglomération, 80 km/h route, 110 km/h voie express (pluie), 130 km/h autoroute (pluie : 110)',
+      'Dépassement interdit : ligne continue, en haut de côte, en courbe, à une intersection, sur passage piéton',
+      'Ceinture : obligatoire pour conducteur et tous passagers, enfant < 10 ans = siège homologué',
+    ],
+    erreursFrequentes:[
+      'Confondre une route prioritaire avec une voie prioritaire — la signalisation prime toujours',
+      'Passer à l\'orange en accélérant au lieu de s\'arrêter',
+      'Dépasser sur ligne discontinue mais dans une zone interdite (virage)',
+      'Oublier de baisser la vitesse en cas de pluie sur autoroute (130 → 110)',
+    ],
+    questionsExamen:[
+      'Quelle est la vitesse maximale sur route en France hors agglomération ?',
+      'Peut-on dépasser à droite sur autoroute ?',
+      'À quelle distance d\'un passage piéton le dépassement est-il interdit ?',
+      'Quelle règle s\'applique lorsque deux véhicules arrivent simultanément à une intersection non signalisée ?',
+    ],
+  },
+  {
+    id:'fr23', code:'C2.3', domaine:'👁 D2', titre:'Situations particulières',
+    pointsCles:[
+      'Nuit : feux de croisement dès le coucher du soleil, feux de route dès que route libre, croiser = codes immédiats',
+      'Pluie : distances × 2, vitesse adaptée, en cas d\'aquaplaning relâcher l\'accélérateur sans freiner ni braquer brusquement',
+      'Verglas / neige : distances × 3, douceur sur tous les organes (gazole, frein, volant), chaînes ou pneus hiver',
+      'Autoroute : insertion par accélération sur la bretelle + clignotant, sortie par clignotant précoce + décélération sur bretelle',
+      'Zones de travaux : réduire la vitesse (panneau obligatoire), respecter les déviations et la signalétique temporaire',
+    ],
+    erreursFrequentes:[
+      'Freiner brusquement en aquaplaning → aggravation de la perte de contrôle',
+      'Garder les feux de route face à un véhicule qui arrive (éblouissement)',
+      'Accélérer pour s\'insérer trop tard sur autoroute',
+      'Sous-estimer le sol humide après une longue période sèche (premier quart d\'heure de pluie = très glissant)',
+    ],
+    questionsExamen:[
+      'Que faire si votre véhicule part en aquaplaning ?',
+      'Quand allumer les feux de brouillard arrière ?',
+      'Comment s\'insérer correctement sur autoroute ?',
+      'Quelle est la distance de freinage sur verglas à 50 km/h ?',
+    ],
+  },
+  {
+    id:'fr31', code:'C3.1', domaine:'🧠 D3', titre:'Attitude coopérative',
+    pointsCles:[
+      'Clignotants : anticiper ≥ 3 secondes avant la manœuvre, les désactiver après',
+      'Piétons : prioritaires sur passage piéton, même si feu vert pour le conducteur',
+      'Cyclistes : ne pas les coller, anticiper leur trajectoire (portes, nids-de-poule), les dépasser avec 1,5 m',
+      'Klaxon : avertissement uniquement, interdit en agglomération (sauf danger immédiat)',
+      'Communication lumineuse : appel de phares = « attention » ou « merci », jamais pour intimider',
+    ],
+    erreursFrequentes:[
+      'Oublier de désactiver le clignotant après un changement de voie',
+      'Forcer le passage devant un piéton engagé sur un passage piéton',
+      'Intimider un cycliste avec l\'avertisseur sonore',
+      'Prendre la priorité sur un piéton au feu vert (manœuvre de tourne-à-droite)',
+    ],
+    questionsExamen:[
+      'Un piéton est sur le passage piéton, votre feu passe au vert. Que faites-vous ?',
+      'Un cycliste est devant vous sur une route étroite. Comment le dépasser ?',
+      'L\'utilisation du klaxon est-elle toujours autorisée ?',
+    ],
+  },
+  {
+    id:'fr32', code:'C3.2', domaine:'🧠 D3', titre:'États internes',
+    pointsCles:[
+      'Fatigue : pause ≥ 20 min toutes les 2h, signes précurseurs (clignements, dérivées, rêveries)',
+      'Alcool : taux légal ≤ 0,5 g/L sang (0,2 g/L jeune conducteur < 3 ans de permis), effet × 2 sur temps de réaction',
+      'Téléphone : tenu en main = interdit, kit mains-libres autorisé mais divise l\'attention par 2',
+      'Médicaments : vignette 1 (jaune) = prudence, 2 (orange) = ne pas conduire seul, 3 (rouge) = interdiction, 4 (noir) = absolument interdit',
+      'Substances : tolérance zéro pour les stupéfiants (infraction pénale)',
+    ],
+    erreursFrequentes:[
+      'Poursuivre la route en cas de somnolence (ouvrir les vitres ne suffit pas)',
+      'Croire que le café ou la douche froide élimine les effets de l\'alcool',
+      'Utiliser le GPS sur le téléphone en main pendant la conduite',
+      'Ne pas lire la notice des médicaments avant de conduire',
+    ],
+    questionsExamen:[
+      'Quelle est la différence de taux d\'alcool autorisé entre un conducteur confirmé et un jeune conducteur ?',
+      'À partir de quelle vignette médicament ne doit-on pas conduire ?',
+      'La fatigue peut-elle provoquer des réflexes similaires à l\'alcoolémie ?',
+      'Quels sont les signes qui indiquent que l\'on doit s\'arrêter pour se reposer ?',
+    ],
+  },
+  {
+    id:'fr33', code:'C3.3', domaine:'🧠 D3', titre:'Éco-conduite',
+    pointsCles:[
+      'Anticipation : lever le pied tôt, laisser le moteur décélérer (frein moteur = 0 carburant avec injection),  éviter les à-coups',
+      'Passage des vitesses : monter en vitesse tôt (2 000 tr/min essence, 1 500 tr/min diesel)',
+      'Pneus : sous-gonflage de 0,5 bar = +2 % de consommation et usure accélérée',
+      'Vitesse : 110 km/h au lieu de 130 km/h → économie de 20 % de carburant',
+      'Climatisation : +0,5 à 1 L/100 km, privilégier l\'aération à moins de 80 km/h',
+    ],
+    erreursFrequentes:[
+      'Rouler en sous-régime (moteur « pousse » = consommation excessive et risque de casse)',
+      'Laisser chauffer le moteur à l\'arrêt (inutile sur les véhicules modernes)',
+      'Garder la climatisation allumée en ville à basse vitesse sans nécessité',
+      'Freiner trop tard et rattraper la vitesse perdue — cycle stop-and-go énergivore',
+    ],
+    questionsExamen:[
+      'Pourquoi l\'anticipation est-elle le premier levier de l\'éco-conduite ?',
+      'Quelle différence de consommation entre 130 et 110 km/h en autoroute ?',
+      'L\'éco-conduite affecte-t-elle la sécurité ? Pourquoi ?',
+      'À partir de quelle vitesse fermer les fenêtres est-il préférable à la climatisation ?',
+    ],
+  },
+];
+
+const REMC_FICHES_SECURITE = [
+  {
+    id:'sec1', icon:'🍺', titre:'Alcool & stupéfiants',
+    pointsCles:[
+      'Taux légal : 0,5 g/L de sang (0,2 g/L pour les conducteurs novices < 3 ans de permis et les professionnels du transport)',
+      'Effets : réduction du champ visuel, allongement du temps de réaction (× 2 à 0,5 g/L), fausse sensation de maîtrise',
+      'Élimination : environ 0,10 à 0,15 g/L/h — ni café, ni douche ne l\'accélèrent',
+      'Stupéfiants : tolérance zéro (dépistage salivaire ou sanguin), cumul alcool + drogue = circonstance aggravante',
+      'Médicaments : pictogramme 3 losanges rouges ou 4 losanges noirs → interdiction de conduire',
+    ],
+    sanctions:[
+      '≥ 0,5 g/L et < 0,8 g/L : contravention de 4ᵉ classe, 6 pts retirés, 750 € d\'amende, suspension jusqu\'à 3 ans',
+      '≥ 0,8 g/L : délit pénal, 6 pts, 4 500 € d\'amende, 2 ans d\'emprisonnement, suspension 3 ans',
+      'Refus de dépistage : mêmes peines que ≥ 0,8 g/L',
+      'Récidive : doublement des peines, annulation possible du permis',
+      'Stupéfiants seuls : 2 ans d\'emprisonnement, 4 500 €, 6 pts, suspension 3 ans',
+    ],
+    conseilsFormateur:[
+      'Illustrer l\'effet avec le test du pendule ou la simulation de temps de réaction',
+      'Insister sur la fausse lucidité : l\'élève doit comprendre qu\'on ne ressent pas toujours son ivresse',
+      'Aborder le lendemain matin (« sleep and sober » est un mythe)',
+      'Rappeler que le passager qui laisse conduire un conducteur alcoolisé est en faute également',
+    ],
+  },
+  {
+    id:'sec2', icon:'⚡', titre:'Vitesse — risques et limites',
+    pointsCles:[
+      'Limites légales : 50 km/h agglomération, 80 km/h route (hors voie rapide), 110 km/h voie express (pluie : 100), 130 km/h autoroute (pluie : 110)',
+      'Distance d\'arrêt à 50 km/h : ≈ 28 m (réaction 14 m + freinage 14 m) — soit la longueur de 2 bus',
+      'Distance d\'arrêt à 90 km/h : ≈ 75 m ; à 130 km/h : ≈ 160 m (× 5,7 vs 50 km/h)',
+      'Sur route mouillée : × 1,5 à 2 sur la distance de freinage ; verglas : × 3 à 5',
+      'La vitesse est impliquée dans 1 accident mortel sur 3 en France',
+    ],
+    sanctions:[
+      'Excès < 20 km/h hors agglomération : amende 68 €, 1 pt',
+      'Excès ≥ 20 et < 30 km/h : amende 135 €, 2 pts',
+      'Excès ≥ 30 et < 40 km/h : amende 135 €, 3 pts, suspension possible',
+      'Excès ≥ 40 et < 50 km/h : amende 135 €, 4 pts, suspension jusqu\'à 3 ans',
+      'Excès ≥ 50 km/h : délit pénal, 6 pts, jusqu\'à 3 750 €, suspension 3 ans, immobilisation possible',
+    ],
+    conseilsFormateur:[
+      'Utiliser l\'exercice des « 3 secondes » pour matérialiser la distance d\'arrêt',
+      'Faire calculer à l\'élève le nombre de mètres parcourus pendant 1 seconde à 90 km/h (25 m)',
+      'Rappeler que le radar ne sanctionne pas les comportements, mais que la vitesse tue même sans radar',
+      'Montrer des clichés d\'accidentologie pour ancrer l\'information émotionnellement',
+    ],
+  },
+  {
+    id:'sec3', icon:'😴', titre:'Fatigue & somnolence',
+    pointsCles:[
+      'La fatigue est impliquée dans 1 accident mortel sur 3 sur autoroute',
+      'Micro-sommeil : perte de conscience de 0,5 à 4 secondes — à 130 km/h = 36 à 145 m parcourus les yeux fermés',
+      'Signes précurseurs : clignements fréquents, dérivées de trajectoire, yeux qui brûlent, pensées qui s\'égarent',
+      'Pause obligatoire : au moins 20 minutes toutes les 2 heures, en s\'arrêtant sur une aire de repos',
+      'Faux remèdes : café (15 min d\'effet), ouvrir les vitres, la radio — ne suppriment pas la somnolence',
+    ],
+    sanctions:[
+      'Somnolence caractérisée engageant un accident : mise en danger d\'autrui (1 an, 15 000 €)',
+      'Refus de s\'arrêter malgré les signaux → responsabilité pénale en cas d\'accident',
+      'Accident mortel lié à la fatigue : homicide involontaire aggravé (5 ans, 75 000 €)',
+    ],
+    conseilsFormateur:[
+      'Rappeler que la sensation de fatigue disparaît parfois lors de longs trajets — c\'est un piège',
+      'Enseigner le « power nap » : 20 min de sieste avant de reprendre la route',
+      'Mentionner les risques spécifiques aux professionnels du transport (règlementation temps de conduite)',
+      'Aborder le syndrome de l\'autoroute (hypnose de la route) et les solutions préventives',
+    ],
+  },
+  {
+    id:'sec4', icon:'📱', titre:'Téléphone & distracteurs',
+    pointsCles:[
+      'Téléphone tenu en main : interdit pendant la conduite (même à l\'arrêt au feu rouge)',
+      'Kit mains-libres légal mais divise l\'attention par 2 — conversation téléphonique ≠ conversation passager',
+      'Regard détourné 2 secondes à 50 km/h = 28 m parcourus sans regarder la route',
+      'Autres distracteurs : GPS mal fixé, enfants, repas, maquillage, radio à fort volume',
+      'Effet tunnel : la distraction rétrécit le champ visuel et retarde la détection des dangers',
+    ],
+    sanctions:[
+      'Téléphone tenu en main : contravention de 4ᵉ classe, 135 €, 3 pts retirés',
+      'Rétention immédiate du permis si contravention + autre infraction (vitesse, alcool...)',
+      'En cas d\'accident causé par l\'usage du téléphone : circonstance aggravante, peines doublées',
+    ],
+    conseilsFormateur:[
+      'Faire mettre le téléphone en mode « conduite » ou dans le vide-poche avant de démarrer — en prendre l\'habitude en leçon',
+      'Parler des notifications : chaque buzz génère une tentation, même sans regarder l\'écran',
+      'Mentionner les applications de détection de conduite (assurances) comme outil pédagogique',
+    ],
+  },
+  {
+    id:'sec5', icon:'🔒', titre:'Ceinture de sécurité & retenue enfant',
+    pointsCles:[
+      'Ceinture obligatoire : conducteur + tous les passagers, à l\'avant comme à l\'arrière',
+      'Efficacité : divise par 4 le risque de décès en cas de choc frontal',
+      'Enfant < 10 ans : siège auto homologué obligatoire (groupe selon poids/taille)',
+      'Enfant < 10 kg : siège dos à la route obligatoire (même à l\'avant — désactiver l\'airbag passager)',
+      'Airbag + passager sans ceinture = risque de décès par projection contre le coussin gonflant',
+    ],
+    sanctions:[
+      'Ceinture non bouclée (conducteur) : contravention de 4ᵉ classe, 135 €, 3 pts',
+      'Passager sans ceinture à l\'avant : contravention 4ᵉ classe, amende conducteur',
+      'Enfant non attaché < 13 ans : amende 135 €, 3 pts',
+      'Non-respect de la réglementation siège enfant : amende 135 €',
+    ],
+    conseilsFormateur:[
+      'Vérifier systématiquement la ceinture de l\'élève avant le démarrage — en faire un réflexe de départ',
+      'Montrer les statistiques : 20 % des décès sur la route concernent des occupants non ceinturés',
+      'Expliquer le principe de la « seconde collision » (corps qui continue après l\'arrêt du véhicule)',
+    ],
+  },
+  {
+    id:'sec6', icon:'🚲', titre:'Usagers vulnérables — piétons, cyclistes, deux-roues',
+    pointsCles:[
+      'Piétons : prioritaires sur passage piéton, même sans feu. En agglomération, le piéton qui s\'engage doit être laissé passer',
+      'Cyclistes : 1 m d\'écart latéral en ville, 1,5 m hors agglomération. Zone de danger à droite : portières, caniveaux',
+      'Deux-roues motorisés : filtrage autorisé en expérimentation (2022+), angles morts importants pour les PL',
+      'Zone 30 / zone de rencontre : piétons et cyclistes prioritaires, vitesse max 20 km/h (zone de rencontre)',
+      'La nuit : 50 % des accidents piétons mortels — éclairage et gilet jaune recommandés pour les piétons',
+    ],
+    sanctions:[
+      'Non-respect de la priorité piéton sur passage : 4ᵉ classe, 135 €, 6 pts',
+      'Distance latérale insuffisante lors du dépassement d\'un cycliste : amende 135 €, 3 pts',
+      'Renversement piéton avec blessure : mise en danger, voire homicide involontaire selon les circonstances',
+    ],
+    conseilsFormateur:[
+      'Sensibiliser à la « mort subite du cycliste » (choc de portière) : regarder le rétroviseur ET faire les tours de bras',
+      'Rappeler que les deux-roues sont surreprésentés dans les accidents mortels (28 % des tués pour 2 % des km)',
+      'Exercice : estimer la vitesse d\'un cycliste électrique (peut atteindre 25 km/h silencieusement)',
+    ],
+  },
+  {
+    id:'sec7', icon:'🌧', titre:'Conditions météo & environnement',
+    pointsCles:[
+      'Pluie légère : premier quart d\'heure le plus dangereux (hydrocarbures + eau = surface savonneuse)',
+      'Aquaplaning : se produit à partir de 80 km/h sur 3 mm d\'eau — relâcher l\'accélérateur, ne pas braquer',
+      'Brouillard : feux de brouillard AVT et ARR si visibilité < 50 m, sinon uniquement ARR si < 150 m',
+      'Vent violent : sur autoroute, tenir le volant ferme, ralentir, distance accrue',
+      'Soleil rasant : visière ou lunettes, ralentir, se méfier des zones d\'ombre-lumière (sorties de tunnel)',
+    ],
+    sanctions:[
+      'Vitesse inadaptée aux conditions météo (même sous la limite) : 4ᵉ classe si accident, mise en danger',
+      'Feux de brouillard allumés hors conditions réglementaires : amende 68 €',
+    ],
+    conseilsFormateur:[
+      'Toujours adapter la leçon aux conditions du jour — la pluie est une opportunité pédagogique, pas un obstacle',
+      'Faire ressentir à l\'élève la différence de distance de freinage sur sol mouillé vs sec',
+      'Apprendre à détecter l\'aquaplaning : vibration légère, direction qui « flotte »',
+    ],
+  },
+  {
+    id:'sec8', icon:'🚗', titre:'Angles morts & chargement',
+    pointsCles:[
+      'Angle mort latéral : zone non couverte par les rétroviseurs, variable selon le véhicule (1,5 m à 5 m pour un PL)',
+      'Chargement : ne pas dépasser le PTAC, arrimer tout objet (même léger — à 50 km/h un objet de 1 kg = 20 kg d\'impact)',
+      'Gabarit : hauteur max 4 m, largeur 2,55 m (3 m réfrigéré), longueur selon configuration',
+      'Roue de secours, triangle, gilet réfléchissant : obligatoires. Le gilet doit être accessible sans sortir du véhicule',
+      'Surcharge → surconsommation, usure des pneus, risque d\'éclatement, distance d\'arrêt allongée',
+    ],
+    sanctions:[
+      'Chargement non arrimé provoquant un danger : amende 135 €, 3 pts, immobilisation possible',
+      'PTAC dépassé : amende 1 500 € (PL : jusqu\'à 15 000 €)',
+      'Gilet réfléchissant absent : 11 €',
+      'Triangle non placé sur la voie lors d\'une panne : 35 € + risque pénal en cas d\'accident',
+    ],
+    conseilsFormateur:[
+      'Faire systématiquement le tour du véhicule avec l\'élève avant de partir (check-list)',
+      'Expliquer l\'angle mort PL avec des exemples concrets (accidents de camions en virage)',
+      'Pour les formateurs PL : démonstration de l\'angle mort depuis la cabine',
+    ],
+  },
+];
+
+const REMC_LOIS = [
+  {
+    id:'loi1', icon:'🎯', titre:'Permis à points — capital et récupération',
+    contenu:[
+      'Capital initial : 12 points (6 pour les conducteurs novices la 1ʳᵉ année)',
+      'Probatoire : 6 pts → 8 pts après 2 ans sans infraction, 12 pts après 2 ans supplémentaires (3 ans si stage suivi)',
+      'Récupération automatique : +1 pt/an sans infraction (dans la limite de 12 pts)',
+      'Stage de sensibilisation volontaire : +4 pts (max 1 fois tous les 2 ans, si capital < 12 pts)',
+      'Perte totale des points (0 pt) : invalidation du permis, délai de 6 mois avant repassage + examen médical et psychotechnique',
+    ],
+    references:['Articles L.223-1 à L.223-9 du Code de la route','Arrêté du 29 juin 1992 relatif au permis à points'],
+    notesPratiques:[
+      'Le solde de points est consultable sur le site masecuriteroute.gouv.fr avec FranceConnect',
+      'Certaines infractions retirent des points sans qu\'il y ait d\'accident : excès de vitesse, téléphone, ceinture...',
+      'Un élève peut rater l\'examen sans perdre de points — les points ne concernent que la conduite effective',
+    ],
+  },
+  {
+    id:'loi2', icon:'⚖️', titre:'Infractions, contraventions et délits',
+    contenu:[
+      'Contravention de 1ʳᵉ classe : 11 € (ex : triangle absent)',
+      'Contravention de 4ᵉ classe : 135 € minorée 90 €, majorée 375 € (ex : excès < 50 km/h, ceinture, téléphone)',
+      'Contravention de 5ᵉ classe : 1 500 € (ex : excès ≥ 40 km/h sur route)',
+      'Délit : alcool ≥ 0,8 g/L, excès ≥ 50 km/h, refus d\'obtempérer, délit de fuite — peine privative de liberté possible',
+      'Crime routier : homicide volontaire avec véhicule (violence avec arme) → réclusion criminelle',
+    ],
+    references:['Articles R.610 à R.639 du Code de la route (contraventions)','Articles L.221 à L.236 (délits et crimes)','Code pénal art. 221-6-1 (homicide involontaire aggravé)'],
+    notesPratiques:[
+      'Le paiement de l\'amende minorée (dans les 15 jours) vaut reconnaissance de l\'infraction',
+      'La récidive légale double les peines encourues pour les délits',
+      'Un stage de sensibilisation ne supprime pas les points déjà retirés — seule la récupération automatique ou volontaire les rend',
+    ],
+  },
+  {
+    id:'loi3', icon:'📜', titre:'Agrément enseignant — BEPECASER / TP ECSR',
+    contenu:[
+      'Ancien diplôme : BEPECASER (Brevet pour l\'Exercice de la Profession d\'Enseignant de la Conduite Automobile et de la Sécurité Routière) — fermé aux nouvelles inscriptions depuis 2016',
+      'Nouveau titre : TP ECSR (Titre Professionnel d\'Enseignant de la Conduite et de la Sécurité Routière) — délivré par le Ministère du Travail (DREETS)',
+      'Agrément préfectoral : obligatoire pour enseigner, renouvelable tous les 5 ans — lié à l\'établissement employeur',
+      'Formation continue : 14h/an minimum pour maintenir l\'agrément (depuis le décret 2019-1436)',
+      'Interdictions : antécédents pénaux (casier judiciaire), suspension > 6 mois du permis → perte d\'agrément',
+    ],
+    references:['Décret n° 2015-1754 du 23 décembre 2015 (TP ECSR)','Arrêté du 20 avril 2012 (BEPECASER)','Art. L.213-1 à L.213-7 du Code de la route'],
+    notesPratiques:[
+      'Un enseignant peut enseigner plusieurs catégories de permis s\'il possède les mentions correspondantes',
+      'La mention « deux-roues » ou « groupe lourd » nécessite une formation complémentaire',
+      'L\'agrément est nominatif et personnel — un auto-école ne peut pas le « prêter »',
+    ],
+  },
+  {
+    id:'loi4', icon:'🏫', titre:'Réglementation des établissements d\'enseignement',
+    contenu:[
+      'Label qualité : arrêté du 19 juillet 2010 — les auto-écoles labellisées doivent afficher les tarifs et résultats aux examens',
+      'Livret d\'apprentissage : obligatoire pour chaque élève — retrace les compétences acquises et les heures effectuées',
+      'Durée minimale de formation : 20h de conduite pour le permis B (possibilité de dispense partielle avec AAC)',
+      'Conduite accompagnée (AAC) : possible dès 15 ans, superviseur ≥ 3 pts, ≥ 5 ans de permis',
+      'Conduite supervisée (CS) : ex-conduite encadrée — après 18 ans, 1 an de permis probatoire',
+    ],
+    references:['Art. L.213-1 à L.213-7 du Code de la route','Arrêté du 22 décembre 2009 (organisation de l\'enseignement)','Décret n° 2014-1295 (formation initiale)'],
+    notesPratiques:[
+      'Le livret d\'apprentissage numérique (DPC) est désormais recommandé — certaines auto-écoles utilisent des applications dédiées',
+      'Le nombre d\'heures de conduite obligatoire ne s\'applique pas à la conduite accompagnée (AAC)',
+      'Un établissement peut être fermé administrativement en cas de fraude à l\'examen ou d\'absence de label',
+    ],
+  },
+  {
+    id:'loi5', icon:'🛡', titre:'Responsabilité du moniteur',
+    contenu:[
+      'Pendant la leçon : le moniteur est pénalement responsable si l\'élève commet une infraction (véhicule à double commande)',
+      'Assurance obligatoire : le véhicule école doit être assuré en responsabilité civile professionnelle, couvrant l\'élève',
+      'Obligation de sécurité : le moniteur doit intervenir si l\'élève met en danger (double commande, consigne verbale)',
+      'Secret professionnel : les informations sur l\'élève (état de santé, difficultés) ne peuvent être divulguées',
+      'Harcèlement et protection : l\'élève mineur bénéficie de la protection renforcée du Code pénal',
+    ],
+    references:['Art. L.121-3 du Code de la route (responsabilité du gardien)','Code pénal art. 121-3 (responsabilité pénale non-intentionnelle)','Code civil art. 1242 (responsabilité du fait d\'autrui)'],
+    notesPratiques:[
+      'En cas d\'accident en leçon avec élève mineur, le moniteur est présumé responsable sauf preuve contraire',
+      'Il est conseillé de noter dans le livret chaque séance (compétences abordées, incidents éventuels)',
+      'Un moniteur peut refuser de dispenser la leçon si l\'élève est en état apparent d\'ivresse ou de stupéfaction',
+    ],
+  },
+  {
+    id:'loi6', icon:'📋', titre:'Examen du permis de conduire',
+    contenu:[
+      'Code de la route (ETG) : QCM de 40 questions, 35 bonnes réponses requises, centres agréés ou en ligne',
+      'Épreuve de conduite (plateau + circulation) : 32 minutes, notation sur grilles REMC, 2 évaluateurs (IPCSR)',
+      'Délai entre deux présentations : 10 jours minimum — mais les places étant rares, délai réel souvent > 2 mois',
+      'Recours : en cas de désaccord sur les résultats, l\'élève peut demander une révision au CSSR (Comité de Sécurité Routière)',
+      'Validité du code : 5 ans à compter de la réussite — doit être valide le jour de l\'examen pratique',
+    ],
+    references:['Arrêté du 20 avril 2012 modifié (organisation de l\'épreuve)','Note de service DSR/SDE/N°2022 (grilles REMC)','Art. R.221-3 du Code de la route'],
+    notesPratiques:[
+      'Le moniteur ne peut pas être présent lors de l\'épreuve (sauf en AAC pour la partie accompagnée)',
+      'Les grilles REMC sont publiques — les partager avec l\'élève l\'aide à comprendre les critères d\'évaluation',
+      'Une erreur éliminatoire (faute grave) entraîne l\'échec immédiat, quelle que soit la qualité du reste de l\'épreuve',
+    ],
+  },
+];
+
+const EDPM_FICHES = [
+  {
+    id:'edpm1', icon:'🛴', titre:'Trottinette électrique',
+    definition:'Véhicule léger à deux roues en ligne, propulsé par un moteur électrique, sans selle. Usage individuel, usage partagé (free-floating) ou personnel.',
+    reglementation:[
+      'Vitesse maximale autorisée : 25 km/h (bridage constructeur imposé)',
+      'Interdit sur trottoirs (amende 135 €) — voie cyclable obligatoire ou chaussée si absente',
+      'Interdit sur voies rapides, autoroutes, routes à > 50 km/h sans piste cyclable',
+      'Port du casque obligatoire depuis le 01/01/2022 (EPI EN 1078 cycliste, ou moto)',
+      'Éclairage avant/arrière + équipement réfléchissant obligatoires de nuit',
+      'Gilet rétro-réfléchissant haute visibilité obligatoire de nuit et par mauvaise visibilité',
+      'Âge minimum : 12 ans pour espace public. Moins de 12 ans : usage privé uniquement',
+      'Assurance responsabilité civile obligatoire (couverte par contrat habitation multi-risques)',
+      'Alcool : même tolérance que les automobilistes (0,5 g/L), verbalisation possible',
+      'Téléphone en main : amende 135 €, retrait de 3 points si permis',
+    ],
+    risques:[
+      'Chute à l\'arrêt ou au démarrage (instabilité liée aux petites roues)',
+      'Perte d\'équilibre sur revêtements dégradés, pavés, rails de tramway',
+      'Invisibilité pour les automobilistes (gabarit très réduit, pas de rétroviseurs)',
+      'Absence de protection en cas de choc (pas de carrosserie, de ceinture)',
+      'Freinage insuffisant en cas de pluie (roues lisses) — distance de freinage × 2 à 3',
+      'Risque de conflit avec piétons lors de traversées ou carrefours mal gérés',
+      'Batteries lithium : risque d\'incendie en cas de charge inadaptée ou d\'accident',
+    ],
+    prevention:[
+      'Toujours porter le casque + gants + protège-coudes/genoux pour les débutants',
+      'Adopter une vitesse adaptée (< 15 km/h en zone dense) et anticiper les obstacles',
+      'Regarder loin devant : les ornières, grilles d\'égout et rails se voient à l\'avance',
+      'Signaler ses changements de direction à la main comme un cycliste',
+      'Éviter la conduite par pluie forte ou verglas — roues non crantées glissent vite',
+      'Vérifier la batterie avant chaque trajet (panne soudaine = danger)',
+      'Ne jamais dépasser 1 personne par engin — passager = risque de déséquilibre + illégal',
+      'Se ranger complètement sur le côté pour s\'arrêter, ne pas bloquer la piste cyclable',
+    ],
+    conseilsFormateur:[
+      'Montrer des statistiques locales d\'accidents EDPM pour ancrer la réalité du risque',
+      'Insister sur la règle de l\'anticipation : une trottinette ne protège pas ses occupants',
+      'Exercice pratique : faire calculer la distance de freinage à 25 km/h vs 50 km/h pour un vélo',
+      'Rappeler que l\'alcool au volant d\'une trottinette est verbalisable — souvent ignoré des élèves',
+      'Aborder le risque propre au free-floating : engins mal entretenus, freins usés',
+    ],
+  },
+  {
+    id:'edpm2', icon:'🔄', titre:'Monoroue électrique',
+    definition:'Engin à une seule roue centrale gyrostabilisée, conduit debout en maintenant l\'équilibre par le poids du corps. Apprentissage long (plusieurs heures).',
+    reglementation:[
+      'Statut légal identique aux autres EDPM depuis le décret du 25 octobre 2019',
+      'Vitesse maximale autorisée : 25 km/h (bridage requis, certains modèles atteignent 50+ km/h sans bridage — illégal)',
+      'Même règles de circulation que trottinette : pistes cyclables ou chaussée',
+      'Casque obligatoire, éclairage avant/arrière requis la nuit',
+      'Assurance RC obligatoire',
+      'Interdit sur trottoirs, voies rapides, autoroutes',
+      'Âge minimum : 12 ans sur voie publique',
+    ],
+    risques:[
+      'Chute frontale brutale en cas de dépassement de la vitesse limite de la roue (coupure de courant)',
+      'Apprentissage sans filet : les premières heures sont très accidentogènes',
+      'Absence totale de dispositif de freinage mécanique — freinage par déport du poids',
+      'Grande dépendance à l\'électronique embarquée (gyroscope) — panne = chute immédiate',
+      'Gabarit très discret — invisibilité forte en trafic dense',
+      'Risque de projection si la roue accroche un obstacle (bord de trottoir, caillou)',
+    ],
+    prevention:[
+      'Apprentissage impératif dans un espace fermé avant toute sortie sur voie publique',
+      'Équipement complet : casque intégral recommandé, protège-poignets obligatoires',
+      'Ne jamais dépasser la vitesse maximale autorisée par le firmware — régler l\'alarme à 20 km/h',
+      'Garder une batterie > 20 % : la gyrostabilisation se dégrade sous ce seuil',
+      'Éviter les zones à fort trafic les premiers mois',
+      'Toujours vérifier firmware et batterie avant chaque sortie longue',
+    ],
+    conseilsFormateur:[
+      'La monoroue est souvent sous-estimée par les élèves à l\'aise avec d\'autres EDPM',
+      'Illustrer le « cutoff » (coupure gyro à dépassement de vitesse) avec des vidéos réelles',
+      'Rappeler que certains modèles bridés en usine peuvent être dé-bridés — pratique illégale et dangereuse',
+    ],
+  },
+  {
+    id:'edpm3', icon:'🤖', titre:'Gyropode (Segway-type)',
+    definition:'Engin à deux roues parallèles gyrostabilisé, conduit debout ou assis selon le modèle, dirigé par le poids du corps. Premier EDPM populaire (années 2000).',
+    reglementation:[
+      'Cadre légal EDPM depuis 2019 : même réglementation que la trottinette électrique',
+      'Vitesse maximale : 25 km/h',
+      'Interdit sur trottoirs, voies rapides ; autorisé sur pistes cyclables et chaussée',
+      'Casque obligatoire, assurance RC obligatoire',
+      'Usage professionnel (police, sécurité) : règles spécifiques selon l\'employeur',
+      'Anciennement en zone d\'expérimentation jusqu\'au décret 2019 — maintenant intégré au Code de la route',
+    ],
+    risques:[
+      'Chute avant en cas de frein brusque ou obstacle (impossible d\'anticiper avec les mains)',
+      'Maniabilité réduite dans les espaces confinés par rapport à une trottinette',
+      'Poids élevé (10–15 kg) : difficile à relever ou à dégager rapidement en cas de chute',
+      'Rayon de braquage limité : virage serré difficile en intersection',
+      'Moins instinctif que la trottinette pour les usagers non initiés',
+    ],
+    prevention:[
+      'Toujours commencer par des exercices de braquage et d\'arrêt d\'urgence',
+      'Casque + protections latérales des genoux recommandées',
+      'Prévoir plus de place pour s\'arrêter : freinage par déport = distance plus longue',
+      'Adapter l\'allure à l\'encombrement de la voie cyclable ou de la chaussée',
+    ],
+    conseilsFormateur:[
+      'Le gyropode est souvent rencontré en contexte professionnel (tourisme, sécurité)',
+      'Discuter les cas d\'usage légitimes vs risques pour les élèves qui en ont ou envisagent d\'en avoir',
+    ],
+  },
+  {
+    id:'edpm4', icon:'🏄', titre:'Hoverboard',
+    definition:'Engin à deux roues parallèles sans guidon, conduit debout, équilibre géré uniquement par le poids du corps. Popularisé à partir de 2015.',
+    reglementation:[
+      'Statut EDPM depuis décret 2019 — même cadre que trottinette et gyropode',
+      'Vitesse maximale : 25 km/h',
+      'Interdit sur trottoirs, voies rapides, autoroutes',
+      'Casque obligatoire, assurance RC obligatoire, éclairage de nuit requis',
+      'Âge minimum : 12 ans pour usage voie publique',
+      'Attention : certains hoverboards vendus en France ne respectent pas la norme CE ou les limites de vitesse — illégaux sur voie publique',
+    ],
+    risques:[
+      'Chute fréquente pour les non-initiés : l\'équilibre s\'apprend en 20–60 min mais peut prendre plus',
+      'Batteries lithium de qualité variable : nombreux cas d\'incendie sur les premiers modèles bas de gamme',
+      'Absence totale de guidon → aucun contrôle de direction fine en urgence',
+      'Vitesse difficile à réguler précisément : risque de dépassement involontaire',
+      'Ruissellement et flaques : les roulements et circuits électroniques peu protégés sur certains modèles',
+    ],
+    prevention:[
+      'N\'acheter que des hoverboards certifiés UL 2272 (norme sécurité batteries USA) ou CE en Europe',
+      'Ne jamais laisser charger sans surveillance, ni sur moquette ou literie',
+      'Protections complètes obligatoires pour les débutants : casque, genoux, poignets, coudes',
+      'Interdire à l\'enfant de se mettre sur route ou piste cyclable tant que la maîtrise n\'est pas totale',
+      'Éviter la pluie : IP insuffisant sur la plupart des modèles grand public',
+    ],
+    conseilsFormateur:[
+      'L\'hoverboard est souvent le premier EDPM découvert par les jeunes → point d\'entrée pédagogique',
+      'Insister sur le risque incendie : les batteries bas de gamme sont un vrai danger',
+      'Rappeler que l\'engin sans casque en public est verbalizable même si l\'élève le voit comme un jouet',
+    ],
+  },
+  {
+    id:'edpm5', icon:'🛹', titre:'Skateboard & longboard électrique',
+    definition:'Planche à roulettes motorisée, dirigée par des déplacements du poids du corps sur la planche. Télécommande ou capteurs d\'équilibre selon le modèle.',
+    reglementation:[
+      'Statut EDPM depuis décret 2019 — même réglementation',
+      'Vitesse maximale : 25 km/h (certains modèles atteignent 45+ km/h — illégaux sur voie publique)',
+      'Interdit sur trottoirs, voies rapides, autoroutes',
+      'Casque obligatoire, assurance RC obligatoire',
+      'Télécommande : engin intégralement motorisé → distinction avec le skateboard classique non motorisé (pas soumis à la réglementation EDPM)',
+    ],
+    risques:[
+      'Roues très petites (50–70 mm) : sensibles aux cailloux, joints de dilatation, rails tramway',
+      'Fréquence élevée des « wheel bite » (roue bloquée par la planche en virage serré) à haute vitesse',
+      'Freinage moteur uniquement : absence de frein mécanique de secours',
+      'Chute avant brutale lors d\'obstacle imprévu : vitesse de réaction insuffisante à > 20 km/h',
+      'Batteries exposées sous la planche : vulnérables aux chocs et à l\'eau',
+      'Modèles « DIY » (bricolés) : fiabilité et bridage inconnus',
+    ],
+    prevention:[
+      'Port du casque + protège-poignets + genoux impératif, même pour les skateurs expérimentés',
+      'Vitesse < 20 km/h en zone mixte, < 25 km/h uniquement sur piste cyclable dégagée',
+      'Choisir un itinéraire avec revêtement lisse — éviter pavés, gravier, trottoirs abaissés',
+      'Vérifier les roues et courroies de transmission avant chaque sortie longue',
+      'Recharger sur surface dure et non inflammable, jamais pendant la nuit sans surveillance',
+    ],
+    conseilsFormateur:[
+      'Le skateboard électrique touche souvent un public jeune et sportif qui sous-estime le risque EDPM',
+      'Montrer la différence entre la planche classique (non réglementée) et la planche motorisée (EDPM)',
+      'Insister sur le fait que les modèles dé-bridés à > 25 km/h sont hors-la-loi et engagent la responsabilité du conducteur en cas d\'accident',
+      'Point commun à tous les EDPM : l\'assurance RC est obligatoire et souvent absente — sensibiliser',
+    ],
+  },
+];
+
+const EDPMS_ENTRETIEN = [
+  { id:'e1', categorie:'Expérience de conduite', questions:[
+    'Avez-vous déjà conduit un véhicule ? (AAC, conduite supervisée, pays étranger, véhicule agricole…)',
+    'Si oui, combien d\'heures approximativement ? Sur quel type de voies (ville, route, autoroute) ?',
+    'Avez-vous déjà eu un accident ou un incident de conduite ?',
+    'Avez-vous déjà passé ou tenté de passer le permis B ? Si oui, combien de fois ?',
+  ]},
+  { id:'e2', categorie:'Motivations et objectifs', questions:[
+    'Pour quelle raison principale souhaitez-vous obtenir le permis B ?',
+    'Avez-vous une contrainte de délai (emploi, études, déménagement) ?',
+    'Envisagez-vous de conduire régulièrement ? Sur quel type de trajet typiquement ?',
+    'Avez-vous un véhicule ou prévoir d\'en acquérir un rapidement ?',
+  ]},
+  { id:'e3', categorie:'Représentations et freins', questions:[
+    'Comment décrieriez-vous votre rapport à la conduite : confiant(e), appréhensif(ve), neutre ?',
+    'Avez-vous des appréhensions particulières (autoroute, nuit, parking, stationnement) ?',
+    'Avez-vous des contraintes médicales ou physiques à me signaler (vision, mobilité, traitement médicamenteux) ?',
+    'Avez-vous déjà ressenti de l\'anxiété au volant ou lors de trajets en tant que passager ?',
+  ]},
+  { id:'e4', categorie:'Disponibilité et rythme', questions:[
+    'Combien de leçons par semaine pensez-vous pouvoir effectuer ?',
+    'Avez-vous une préférence pour les horaires (matin, soir, week-end) ?',
+    'Quelqu\'un de votre entourage peut-il vous accompagner pour une conduite supervisée entre les leçons ?',
+  ]},
+];
+
+const EDPMS_AUTOEVAL = [
+  { id:'ae1', dom:'D1 — Maîtrise du véhicule',       items:[
+    { id:'ae11', label:'Je sais régler le véhicule et faire les vérifications avant départ' },
+    { id:'ae12', label:'Je me sens à l\'aise pour accélérer, freiner et diriger le véhicule' },
+    { id:'ae13', label:'Je peux effectuer les manœuvres (créneau, demi-tour, marche arrière)' },
+  ]},
+  { id:'ae2', dom:'D2 — Circulation réelle',          items:[
+    { id:'ae21', label:'Je sais observer et anticiper ce qui se passe autour de moi' },
+    { id:'ae22', label:'Je connais et respecte les règles de priorité et les limitations de vitesse' },
+    { id:'ae23', label:'Je me sens à l\'aise sur route, en ville, de nuit ou sous la pluie' },
+  ]},
+  { id:'ae3', dom:'D3 — Comportements responsables', items:[
+    { id:'ae31', label:'J\'ai une conduite respectueuse envers les autres usagers' },
+    { id:'ae32', label:'Je gère bien la fatigue, le stress et les distractions au volant' },
+    { id:'ae33', label:'Je conduis de façon économique et écologique' },
+  ]},
+];
+
+const EDPMS_OBS_FORMATEUR = [
+  { id:'of1', code:'C1.1', titre:'Prise en main & réglages', indicateurs:['Réglages siège/rétros corrects sans aide','Vérification avant départ effectuée spontanément','Ceinture bouclée sans rappel'] },
+  { id:'of2', code:'C1.2', titre:'Direction & vitesse',       indicateurs:['Trajectoire régulière en ligne droite','Entrée/sortie de courbe maîtrisée','Freinage progressif et anticipé'] },
+  { id:'of3', code:'C1.3', titre:'Manœuvres',                 indicateurs:['Créneau : vérification + braquage adapté','Marche arrière : regard et allure maîtrisés','Stationnement : frein à main + vitesse enclenchée'] },
+  { id:'of4', code:'C2.1', titre:'Observation & anticipation',indicateurs:['Balayage visuel régulier (≥ toutes les 8s)','Angle mort vérifié avant changement de direction','Réaction anticipée aux situations à risque'] },
+  { id:'of5', code:'C2.2', titre:'Règles de circulation',     indicateurs:['Priorités respectées','Limitations de vitesse respectées','Signalisation respectée (feux, stops, cédez)'] },
+  { id:'of6', code:'C2.3', titre:'Situations particulières',  indicateurs:['Comportement adapté si conditions dégradées','Distance de sécurité maintenue','Gestion de l\'insertion/sortie d\'axe rapide'] },
+  { id:'of7', code:'C3.1', titre:'Attitude coopérative',      indicateurs:['Clignotants anticipés et désactivés','Respect des piétons et cyclistes','Pas de pression sur les autres usagers'] },
+  { id:'of8', code:'C3.2', titre:'États internes',            indicateurs:['Calme apparent, sans tension excessive','Pas de distraction visible (téléphone, radio)','Réaction adaptée aux imprévus'] },
+  { id:'of9', code:'C3.3', titre:'Éco-conduite',              indicateurs:['Passages de vitesses anticipés','Pas de freinages inutiles','Allure régulière sans à-coups'] },
+];
+
+const EDPMS_NIVEAUX = [
+  { id:'A', label:'A — Débutant', color:'#f87171', desc:'Peu ou pas d\'expérience. Travail sur les fondamentaux D1 en priorité.' },
+  { id:'B', label:'B — En acquisition', color:'var(--gold)', desc:'Bases présentes mais inconstantes. Programme mixte D1/D2.' },
+  { id:'C', label:'C — Intermédiaire', color:'var(--accent-liika)', desc:'D1 globalement maîtrisé. Priorité à D2 puis D3.' },
+  { id:'D', label:'D — Avancé', color:'#4ade80', desc:'Bonne maîtrise globale. Affiner D3 et préparer l\'examen.' },
+];
+
+// ── CATEGORIES ───────────────────────────────────────────────────────────────
+const CATEGORIES = [
+  {
+    id:'lifestyle', label:'Lifestyle', emoji:'🌺',
+    color:'#e91e8c',
+    grad:'linear-gradient(135deg,#7c2257 0%,#c2185b 55%,#e91e8c 100%)',
+    desc:'Sorties · Photos · Idées · Maison · Culture',
+    views:[
+      { id:'sortie',  label:'Sorties',     icon:'🎉' },
+      { id:'album',   label:'Album photo', icon:'📸' },
+      { id:'idees',   label:'Idées',       icon:'💡' },
+      { id:'maison',  label:'Maison',      icon:'🏠' },
+      { id:'couple',  label:'Nous deux',   icon:'♡'  },
+      { id:'culture', label:'Culture GWA', icon:'🎭' },
+      { id:'paris',   label:'Agenda Paris', icon:'🗼' },
+      { id:'meteo',   label:'Météo',       icon:'🌦' },
+      { id:'vision',  label:'Vision',      icon:'✦'  },
+    ],
+  },
+  {
+    id:'sante', label:'Santé & Finance', emoji:'💚',
+    color:'#10b981',
+    grad:'linear-gradient(135deg,#064e3b 0%,#059669 55%,#10b981 100%)',
+    desc:'Sport · Budget · Repas · Médical · Voyages',
+    views:[
+      { id:'sport',    label:'Sport',         icon:'💪' },
+      { id:'programdja', label:'Program ' + NAME_DJA, icon:'🐆' },
+      { id:'budget',   label:'Budget',        icon:'💰' },
+      { id:'repas',    label:'Repas',         icon:'🍽'  },
+      { id:'courses',  label:'Courses',       icon:'🛒' },
+      { id:'medical',  label:'Suivi médical', icon:'🩺' },
+      { id:'drevmcook',label:'DrevmCook',     icon:'🌿' },
+      { id:'konsevasyon', label:'Konsèvasyon', icon:'🧺' },
+      { id:'potager',  label:'Potager GWA',   icon:'🌱' },
+      { id:'voyages',  label:'Voyages',       icon:'✈️' },
+      { id:'charts',   label:'Stats',         icon:'▤'  },
+    ],
+  },
+  {
+    id:'prolia', label:'Pro · ' + NAME_LIIKA, emoji:'🎖️',
+    color:'#f472b6',
+    grad:'linear-gradient(135deg,#831843 0%,#be185d 55%,#f472b6 100%)',
+    desc:'Planning · REMC · Survie',
+    views:[
+      { id:'planning',     label:'Planning',       icon:'🗓' },
+      { id:'objmensuel',   label:'Objectifs mois', icon:'🎯' },
+      { id:'coderousseau', label:'REMC',           icon:'🎓' },
+      { id:'survie',       label:'Survie',         icon:'🪖' },
+      { id:'calendar',     label:'Calendrier',     icon:'📅' },
+      { id:'liika',        label:'Profil Liika',   icon:'◇'  },
+    ],
+  },
+  {
+    id:'prodja', label:'Pro · ' + NAME_DJA, emoji:'🎨',
+    color:'#a78bfa',
+    grad:'linear-gradient(135deg,#2e1065 0%,#6d28d9 55%,#a78bfa 100%)',
+    desc:'Art · Création · Direction artistique',
+    views:[
+      { id:'artiste',      label:'Art & Projets',   icon:'🎨' },
+      { id:'entretien', label:'Entretien méca',  icon:'🔧' },
+      { id:'dja',          label:'Profil Dja',      icon:'◆'  },
+      { id:'youngboudha',label:'Young Boudha',   icon:'🧘' },
+      { id:'vision',       label:'Vision board',    icon:'✦'  },
+      { id:'calendar',     label:'Calendrier',      icon:'📅' },
+    ],
+  },
+  {
+    id:'media', label:'Multimédia', emoji:'🎬',
+    color:'#d9b75f',
+    grad:'linear-gradient(135deg,#78350f 0%,#b45309 55%,#d9b75f 100%)',
+    desc:'Playlist · Jeux · Recettes · Culture',
+    views:[
+      { id:'media',    label:'Playlist',    icon:'🎬' },
+      { id:'jeux',     label:'Jeux',        icon:'🎮' },
+      { id:'recettes', label:'Recettes',    icon:'🍳', target:'drevmcook' },
+      { id:'culture',  label:'Culture GWA', icon:'🎭' },
+    ],
+  },
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Direction « Matière » — coque (sidebar îlot, tabbar mobile, accueil sobre).
+// Composants de rendu uniquement ; aucune donnée touchée. Adaptés depuis le
+// handoff pour préserver : mode solo/couple (visibleCategories), bouton profil,
+// présence multi-appareils et bouton Réinitialiser.
+// ─────────────────────────────────────────────────────────────────────────────
+var MT_CAT_ICON = {
+  lifestyle: 'ph-light ph-flower-lotus',
+  sante:     'ph-light ph-heartbeat',
+  prolia:    'ph-light ph-steering-wheel',
+  prodja:    'ph-light ph-paint-brush',
+  media:     'ph-light ph-film-slate'
+};
+var MT_VIEW_ICON = {
+  dashboard:'ph-light ph-house', sortie:'ph-light ph-confetti', album:'ph-light ph-images',
+  idees:'ph-light ph-lightbulb', maison:'ph-light ph-house-line', couple:'ph-light ph-heart',
+  culture:'ph-light ph-mask-happy', vision:'ph-light ph-sparkle', sport:'ph-light ph-barbell',
+  budget:'ph-light ph-wallet', repas:'ph-light ph-fork-knife', courses:'ph-light ph-shopping-cart',
+  medical:'ph-light ph-first-aid-kit', drevmcook:'ph-light ph-plant', potager:'ph-light ph-leaf',
+  konsevasyon:'ph-light ph-basket', programdja:'ph-light ph-person-simple-run',
+  paris:'ph-light ph-eiffel-tower', meteo:'ph-light ph-cloud-sun',
+  voyages:'ph-light ph-airplane-tilt', charts:'ph-light ph-chart-line-up', planning:'ph-light ph-calendar-blank',
+  objmensuel:'ph-light ph-target', coderousseau:'ph-light ph-graduation-cap', route:'ph-light ph-truck',
+  survie:'ph-light ph-compass', calendar:'ph-light ph-calendar-dots', liika:'ph-light ph-diamond',
+  artiste:'ph-light ph-palette', dja:'ph-light ph-diamonds-four', youngboudha:'ph-light ph-flower-lotus',
+  media:'ph-light ph-play-circle', jeux:'ph-light ph-game-controller', recettes:'ph-light ph-cooking-pot'
+};
+function mtIcon(name, style) {
+  return React.createElement('i', { className: name, style: style || null });
+}
+
+// ── Sidebar (desktop) — profil + présence + reset conservés ──────────────────
+function MatiereSidebar(props) {
+  var activeCat = props.activeCat, view = props.view;
+  var items = [
+    React.createElement('button', {
+      key: 'home',
+      className: 'mt-nav-btn' + (view === 'dashboard' ? ' active' : ''),
+      onClick: function() { props.setView('dashboard'); }
+    }, mtIcon('ph-light ph-house'), React.createElement('span', null, "Aujourd'hui"))
+  ];
+  visibleCategories().forEach(function(cat) {
+    var isCatActive = activeCat === cat.id;
+    items.push(React.createElement('button', {
+      key: 'cat-' + cat.id,
+      className: 'mt-nav-btn' + (isCatActive ? ' active' : ''),
+      onClick: function() { props.goToCategory(cat.id); }
+    }, mtIcon(MT_CAT_ICON[cat.id] || 'ph-light ph-circle'), React.createElement('span', null, cat.label)));
+    if (isCatActive) {
+      cat.views.forEach(function(v) {
+        var target = v.target || v.id;
+        items.push(React.createElement('button', {
+          key: 'sv-' + v.id,
+          className: 'mt-sub-btn' + (view === target ? ' active' : ''),
+          onClick: function() { props.setView(target); }
+        }, mtIcon(MT_VIEW_ICON[target] || 'ph-light ph-circle'), React.createElement('span', null, v.label)));
+      });
+    }
+  });
+  return React.createElement('nav', { className: 'mt-sidebar' },
+    React.createElement('div', { className: 'mt-brand' }, 'Yi', React.createElement('em', null, 'fe')),
+    React.createElement('button', {
+      className: 'mt-nav-btn', onClick: props.onProfil, 'aria-label': 'Mon profil',
+      title: 'Mon profil — mode & noms', style: { margin: '0 10px 6px' }
+    }, mtIcon('ph-light ph-user-circle'), React.createElement('span', null, props.lifeMode === 'solo' ? 'Solo' : 'Couple')),
+    React.createElement('div', { className: 'mt-nav' }, items),
+    React.createElement('div', { style: { padding: '0 18px', display: 'flex', flexDirection: 'column', gap: 8 } },
+      React.createElement('div', {
+        style: { display: 'flex', alignItems: 'center', gap: 7, font: "400 10.5px 'Space Mono',monospace", color: 'var(--text2)' }
+      },
+        React.createElement('span', {
+          style: { width: 5, height: 5, borderRadius: '50%', background: props.syncStatus === 'error' ? 'var(--danger)' : 'var(--success)' }
+        }),
+        props.syncStatus === 'ok' ? 'Synchronisé' : props.syncStatus === 'error' ? 'Hors ligne' : props.syncStatus === 'idle' ? 'Sur cet appareil' : 'Synchro…',
+        props.onlineCount > 0 && React.createElement('span', {
+          title: props.onlineCount + ' appareil(s) connecté(s)',
+          style: { marginLeft: 'auto', color: 'var(--success)' }
+        }, '● ' + props.onlineCount)
+      ),
+      React.createElement('button', {
+        className: 'mt-btn mt-btn-ghost', onClick: props.onReset,
+        style: { fontSize: 11, padding: '6px 10px', justifyContent: 'center' }
+      }, 'Réinitialiser')
+    )
+  );
+}
+
+// ── Barre d'onglets (mobile & tablette) — bouton profil conservé ─────────────
+function MatiereTabBar(props) {
+  var tabs = [
+    React.createElement('button', {
+      key: 'profil', className: 'mt-tab', onClick: props.onProfil, 'aria-label': 'Mon profil'
+    }, mtIcon('ph-light ph-user-circle'), React.createElement('span', null, props.lifeMode === 'solo' ? 'Solo' : 'Couple'))
+  ];
+  visibleCategories().forEach(function(cat) {
+    tabs.push(React.createElement('button', {
+      key: cat.id,
+      className: 'mt-tab' + (props.activeCat === cat.id ? ' active' : ''),
+      onClick: function() { props.goToCategory(cat.id); }
+    }, mtIcon(MT_CAT_ICON[cat.id] || 'ph-light ph-circle'), React.createElement('span', null, cat.label)));
+  });
+  return React.createElement('nav', { className: 'mt-tabbar' }, tabs);
+}
+
+// ── Accueil d'une catégorie (statique, sobre) ────────────────────────────────
+function MatiereCategoryHome(props) {
+  var cats = visibleCategories();
+  var cat = cats[props.catIdx] || cats[0];
+  return React.createElement(React.Fragment, null,
+    React.createElement('div', {
+      style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 8px' }
+    },
+      React.createElement('div', { style: { display: 'flex', alignItems: 'baseline', gap: 14 } },
+        React.createElement('h1', { className: 'mt-h1' }, cat.label),
+        React.createElement('span', { className: 'mt-meta' }, cat.desc)
+      ),
+      React.createElement(GuadeloupeMeteo, null)
+    ),
+    React.createElement('div', {
+      className: 'mt-panel',
+      style: { display: 'flex', alignItems: 'center', gap: 30 }
+    },
+      React.createElement('div', { className: 'hero-emoji', style: { fontSize: 74, lineHeight: 1 } }, cat.emoji),
+      React.createElement('div', { style: { flex: 1, minWidth: 0 } },
+        React.createElement('div', { className: 'mt-kicker', style: { marginBottom: 12 } },
+          'Catégorie ' + (props.catIdx + 1) + ' / ' + cats.length),
+        React.createElement('p', { className: 'mt-quote', style: { marginBottom: 18, maxWidth: 520 } }, cat.desc),
+        React.createElement('div', { style: { display: 'flex', gap: 9, flexWrap: 'wrap' } },
+          cat.views.slice(0, 4).map(function(v) {
+            var target = v.target || v.id;
+            return React.createElement('button', {
+              key: v.id, className: 'mt-btn',
+              onClick: function() { props.setView(target); }
+            }, mtIcon(MT_VIEW_ICON[target] || 'ph-light ph-circle'), v.label);
+          })
+        )
+      ),
+      React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 7 } },
+        cats.map(function(c, i) {
+          return React.createElement('button', {
+            key: c.id,
+            'aria-label': c.label,
+            onClick: function() { props.goToCategory(c.id); },
+            style: {
+              width: 6, height: i === props.catIdx ? 22 : 6, padding: 0, border: 'none',
+              borderRadius: 3, cursor: 'pointer',
+              background: i === props.catIdx ? 'var(--text)' : 'rgba(255,255,255,.38)',
+              transition: 'height .3s cubic-bezier(.34,1.56,.64,1)'
+            }
+          });
+        })
+      )
+    ),
+    React.createElement('div', {
+      style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(150px,1fr))', gap: 14 }
+    },
+      cat.views.map(function(v) {
+        var target = v.target || v.id;
+        return React.createElement('button', {
+          key: v.id, className: 'mt-tile',
+          onClick: function() { props.setView(target); }
+        },
+          React.createElement('span', { className: 'mt-tile-emoji' }, v.icon),
+          React.createElement('span', { className: 'mt-tile-label' }, v.label)
+        );
+      })
+    )
+  );
+}
+
+// ── Stub views ────────────────────────────────────────────────────────────────
+function SortieView() {
+  const [list, setList] = React.useState(() => { try { return JSON.parse(LS.getItem('ld-sorties')||'[]'); } catch { return []; } });
+  const [form, setForm] = React.useState({ titre:'', date:'', lieu:'', notes:'' });
+  const [show, setShow] = React.useState(false);
+  const save = l => { setList(l); LS.setItem('ld-sorties', JSON.stringify(l)); };
+  const add = () => { if (!form.titre.trim()) return; save([{ id:Date.now().toString(), ...form }, ...list]); setForm({ titre:'', date:'', lieu:'', notes:'' }); setShow(false); };
+  const del = id => save(list.filter(x => x.id !== id));
+  const inp = { background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'8px 12px', fontSize:13, width:'100%', boxSizing:'border-box' };
+  const btnPrimary = { padding:'8px 20px', borderRadius:12, border:'none', background:'#e91e8c', color:'#fff', cursor:'pointer', fontWeight:700 };
+  return React.createElement('div', null,
+    React.createElement('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 } },
+      React.createElement('h2', { style:{ margin:0, fontSize:20 } }, '🎉 Sorties & Événements'),
+      React.createElement('button', { onClick:()=>setShow(!show), style:{ ...btnPrimary, borderRadius:20, fontSize:13 } }, show ? '✕ Fermer' : '+ Ajouter')
+    ),
+    show && React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid rgba(233,30,140,.35)', borderRadius:'var(--radius)', padding:16, marginBottom:16 } },
+      React.createElement('input', { placeholder:'Titre *', value:form.titre, onChange:e=>setForm(p=>({...p,titre:e.target.value})), style:{ ...inp, marginBottom:8 } }),
+      React.createElement('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 } },
+        React.createElement('input', { type:'date', value:form.date, onChange:e=>setForm(p=>({...p,date:e.target.value})), style:inp }),
+        React.createElement('input', { placeholder:'Lieu', value:form.lieu, onChange:e=>setForm(p=>({...p,lieu:e.target.value})), style:inp })
+      ),
+      React.createElement('textarea', { placeholder:'Notes...', value:form.notes, onChange:e=>setForm(p=>({...p,notes:e.target.value})), style:{ ...inp, minHeight:60, marginBottom:10, resize:'vertical' } }),
+      React.createElement('button', { onClick:add, style:btnPrimary }, 'Enregistrer')
+    ),
+    list.length === 0 && !show && React.createElement('div', { style:{ textAlign:'center', padding:'50px 0', color:'var(--text3)', fontSize:14 } }, '🌴 Ajoutez vos sorties et événements'),
+    list.map(s => React.createElement('div', { key:s.id, style:{ background:'var(--glass)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'12px 16px', marginBottom:10, display:'flex', gap:12, alignItems:'flex-start' } },
+      React.createElement('div', { style:{ flex:1 } },
+        React.createElement('div', { style:{ fontWeight:700, color:'var(--text)', marginBottom:3, fontSize:14 } }, s.titre),
+        (s.date||s.lieu) && React.createElement('div', { style:{ fontSize:12, color:'var(--text3)' } }, [s.date,s.lieu].filter(Boolean).join(' · ')),
+        s.notes && React.createElement('div', { style:{ fontSize:12, color:'var(--text3)', fontStyle:'italic', marginTop:4 } }, s.notes)
+      ),
+      React.createElement('button', { onClick:()=>del(s.id), style:{ background:'none', border:'none', color:'var(--danger)', cursor:'pointer', fontSize:18 } }, '×')
+    ))
+  );
+}
+
+function compressImage(file, maxW, quality) {
+  maxW = maxW || 1080;
+  quality = quality || 0.78;
+  return new Promise(function(resolve, reject) {
+    var reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = function(e) {
+      var img = new Image();
+      img.onerror = reject;
+      img.onload = function() {
+        var ratio = Math.min(maxW / img.width, maxW / img.height, 1);
+        var canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * ratio);
+        canvas.height = Math.round(img.height * ratio);
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+// Upload d'un document véhicule : compresse, puis envoie au bucket Supabase (comme l'album)
+// et renvoie l'URL publique. En démo, renvoie la data-URL base64 (aucun envoi cloud).
+async function uploadVehiclePhoto(file) {
+  const dataUrl = await compressImage(file, 1400, 0.72);
+  if (DEMO) return dataUrl;
+  const parts = dataUrl.split(',');
+  const mime = (parts[0].match(/:(.*?);/) || [])[1] || 'image/jpeg';
+  const binary = atob(parts[1]);
+  const arr = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i);
+  const blob = new Blob([arr], { type: mime });
+  const path = 'vehicules/' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.jpg';
+  const { error } = await sb.storage.from('album-photos').upload(path, blob, { contentType: 'image/jpeg', upsert: false });
+  if (error) throw error;
+  const { data: urlData } = sb.storage.from('album-photos').getPublicUrl(path);
+  return urlData.publicUrl;
+}
+function AlbumView({ album, addAlbumPhoto, deleteAlbumPhoto }) {
+  const photos = album || [];
+  const [url, setUrl] = React.useState('');
+  const [caption, setCaption] = React.useState('');
+  const [show, setShow] = React.useState(false);
+  const [slideIdx, setSlideIdx] = React.useState(null);
+  const [autoPlay, setAutoPlay] = React.useState(false);
+  const [uploading, setUploading] = React.useState(false);
+
+  // Migration unique : photos URL existantes depuis ld-album localStorage → app_state synced
+  React.useEffect(function() {
+    try {
+      var local = JSON.parse(LS.getItem('ld-album') || '[]');
+      var syncedIds = new Set((album || []).map(function(p) { return p.id; }));
+      var toMigrate = local.filter(function(p) {
+        if (syncedIds.has(p.id)) return false;
+        var src = p.src || p.url || '';
+        return src.startsWith('http'); // URLs seulement (pas base64)
+      });
+      toMigrate.forEach(function(p) { addAlbumPhoto(p); });
+      if (local.length > 0) LS.removeItem('ld-album');
+    } catch(_) {}
+  }, []); // eslint-disable-line
+
+  function dataURLtoBlob(dataURL) {
+    var parts = dataURL.split(',');
+    var mime = parts[0].match(/:(.*?);/)[1];
+    var binary = atob(parts[1]);
+    var arr = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i);
+    return new Blob([arr], { type: mime });
+  }
+
+  const addPhoto = function(srcOrMeta) {
+    var photo = typeof srcOrMeta === 'string'
+      ? { id: Date.now().toString(), src: srcOrMeta, caption: caption.trim(), date: new Date().toISOString().slice(0,10) }
+      : srcOrMeta;
+    addAlbumPhoto(photo);
+    setCaption(''); setUrl(''); setShow(false);
+  };
+  const addUrl = () => { if (!url.trim()) return; addPhoto(url.trim()); };
+  const handleFile = async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const dataUrl = await compressImage(file);
+      if (DEMO) { // démo : photo gardée en local (data-URL), aucun envoi cloud
+        addPhoto({ id: Date.now().toString(), src: dataUrl, caption: caption.trim(), date: new Date().toISOString().slice(0,10) });
+        return;
+      }
+      const blob = dataURLtoBlob(dataUrl);
+      const path = 'photos/' + Date.now() + '-' + Math.random().toString(36).slice(2,8) + '.jpg';
+      const { error } = await sb.storage.from('album-photos').upload(path, blob, { contentType:'image/jpeg', upsert:false });
+      if (error) throw error;
+      const { data: urlData } = sb.storage.from('album-photos').getPublicUrl(path);
+      addPhoto({ id: Date.now().toString(), src: urlData.publicUrl, caption: caption.trim(), date: new Date().toISOString().slice(0,10) });
+    } catch(err) {
+      alert('Impossible d\'envoyer cette photo : ' + ((err && err.message) || 'erreur réseau'));
+    } finally { setUploading(false); if(e.target) e.target.value = ''; }
+  };
+  const del = id => {
+    const photo = photos.find(p => p.id === id);
+    const next = photos.filter(p => p.id !== id);
+    if (slideIdx !== null && slideIdx >= next.length) setSlideIdx(Math.max(0, next.length - 1));
+    var storagePath = null;
+    if (photo) {
+      const src = photo.src || photo.url || '';
+      const marker = '/album-photos/';
+      const idx = src.indexOf(marker);
+      if (idx >= 0) storagePath = src.slice(idx + marker.length);
+    }
+    deleteAlbumPhoto(id, storagePath);
+  };
+
+  // Slideshow auto-play
+  React.useEffect(() => {
+    if (!autoPlay || slideIdx === null || photos.length <= 1) return;
+    const id = setInterval(() => setSlideIdx(i => i === null ? null : (i + 1) % photos.length), 3500);
+    return () => clearInterval(id);
+  }, [autoPlay, photos.length]);
+
+  // Keyboard navigation
+  React.useEffect(() => {
+    if (slideIdx === null) return;
+    const n = photos.length;
+    const h = e => {
+      if (e.key === 'ArrowLeft')  setSlideIdx(i => (i - 1 + n) % n);
+      else if (e.key === 'ArrowRight') setSlideIdx(i => (i + 1) % n);
+      else if (e.key === 'Escape') { setSlideIdx(null); setAutoPlay(false); }
+    };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [slideIdx, photos.length]);
+
+  const inp = { background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'8px 12px', fontSize:13, width:'100%', boxSizing:'border-box' };
+  const cur = slideIdx !== null ? photos[slideIdx] : null;
+  const btnSlide = { padding:'8px 18px', borderRadius:20, border:'1px solid rgba(255,255,255,.25)', background:'rgba(255,255,255,.12)', color:'#fff', cursor:'pointer', fontSize:20, lineHeight:1 };
+
+  return React.createElement('div', null,
+    // Header
+    React.createElement('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20, gap:8, flexWrap:'wrap' } },
+      React.createElement('h2', { style:{ margin:0, fontSize:20 } }, '📸 Album photo'),
+      React.createElement('div', { style:{ display:'flex', gap:8 } },
+        photos.length > 0 && React.createElement('button', {
+          onClick: () => { setSlideIdx(0); setAutoPlay(false); },
+          style:{ padding:'8px 14px', borderRadius:20, border:'1px solid rgba(233,30,140,.45)', background:'transparent', color:'#e91e8c', cursor:'pointer', fontSize:12, fontWeight:700 }
+        }, '▶ Slideshow'),
+        React.createElement('button', { onClick:()=>setShow(s=>!s), style:{ padding:'8px 18px', borderRadius:20, border:'none', background:'#e91e8c', color:'#fff', cursor:'pointer', fontWeight:700 } }, show ? '✕ Fermer' : '+ Photo')
+      )
+    ),
+    // Add form
+    show && React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid rgba(233,30,140,.35)', borderRadius:'var(--radius)', padding:16, marginBottom:16 } },
+      // Upload buttons — <label htmlFor> universellement supporté iOS/Android/desktop
+      React.createElement('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:12 } },
+        React.createElement('label', {
+          htmlFor: 'album-gallery-input',
+          style:{ display:'block', padding:'14px 10px', borderRadius:12, border:'2px dashed rgba(233,30,140,.4)', background:'rgba(233,30,140,.06)', color:uploading?'var(--text3)':'#e91e8c', cursor:uploading?'not-allowed':'pointer', fontSize:13, fontWeight:700, textAlign:'center', userSelect:'none' }
+        }, uploading ? '⏳ Compression...' : React.createElement(React.Fragment, null, React.createElement('div', { style:{ fontSize:26, marginBottom:4 } }, '🖼'), 'Galerie')),
+        React.createElement('label', {
+          htmlFor: 'album-camera-input',
+          style:{ display:'block', padding:'14px 10px', borderRadius:12, border:'2px dashed rgba(233,30,140,.4)', background:'rgba(233,30,140,.06)', color:uploading?'var(--text3)':'#e91e8c', cursor:uploading?'not-allowed':'pointer', fontSize:13, fontWeight:700, textAlign:'center', userSelect:'none' }
+        }, React.createElement(React.Fragment, null, React.createElement('div', { style:{ fontSize:26, marginBottom:4 } }, '📷'), 'Caméra'))
+      ),
+      React.createElement('input', { id:'album-gallery-input', type:'file', accept:'image/*', onChange:uploading?null:handleFile, style:{ display:'none' } }),
+      React.createElement('input', { id:'album-camera-input', type:'file', accept:'image/*', capture:'environment', onChange:uploading?null:handleFile, style:{ display:'none' } }),
+      // OR separator
+      React.createElement('div', { style:{ display:'flex', alignItems:'center', gap:8, margin:'10px 0' } },
+        React.createElement('div', { style:{ flex:1, height:1, background:'var(--border)' } }),
+        React.createElement('span', { style:{ fontSize:11, color:'var(--text3)' } }, 'ou ajouter par URL'),
+        React.createElement('div', { style:{ flex:1, height:1, background:'var(--border)' } })
+      ),
+      React.createElement('input', { placeholder:'https://...', value:url, onChange:e=>setUrl(e.target.value), style:{ ...inp, marginBottom:8 } }),
+      React.createElement('input', { placeholder:'Légende (optionnel)...', value:caption, onChange:e=>setCaption(e.target.value), onKeyDown:e=>e.key==='Enter'&&addUrl(), style:{ ...inp, marginBottom:10 } }),
+      url.trim() && React.createElement('button', { onClick:addUrl, style:{ padding:'8px 20px', borderRadius:12, border:'none', background:'#e91e8c', color:'#fff', cursor:'pointer', fontWeight:700 } }, 'Ajouter l\'URL')
+    ),
+    // Empty state
+    photos.length === 0 && !show && React.createElement('div', { style:{ textAlign:'center', padding:'60px 0', color:'var(--text3)' } },
+      React.createElement('div', { style:{ fontSize:48, marginBottom:12 } }, '📷'),
+      React.createElement('div', null, 'Album vide — immortalisez vos souvenirs !')
+    ),
+    // Photo grid
+    React.createElement('div', { style:{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(148px,1fr))', gap:10 } },
+      photos.map((p, i) => React.createElement('div', {
+        key: p.id,
+        style:{ borderRadius:'var(--radius)', overflow:'hidden', background:'var(--bg2)', position:'relative', cursor:'pointer' },
+        onClick: () => setSlideIdx(i)
+      },
+        React.createElement('img', { src: p.src || p.url, alt: p.caption||'', style:{ width:'100%', aspectRatio:'1', objectFit:'cover', display:'block' }, onError: e => { e.target.style.background='var(--bg3)'; } }),
+        React.createElement('div', { style:{ padding:'6px 10px' } },
+          p.caption && React.createElement('div', { style:{ fontSize:11, color:'var(--text)', marginBottom:2, lineHeight:1.3 } }, p.caption),
+          React.createElement('div', { style:{ fontSize:10, color:'var(--text3)' } }, p.date)
+        ),
+        React.createElement('button', { onClick:e=>{ e.stopPropagation(); del(p.id); }, style:{ position:'absolute', top:6, right:6, background:'rgba(0,0,0,.70)', border:'none', color:'#fff', borderRadius:'50%', width:24, height:24, cursor:'pointer', fontSize:13, lineHeight:'24px', textAlign:'center' } }, '×')
+      ))
+    ),
+    // Slideshow overlay
+    cur && React.createElement('div', {
+      style:{ position:'fixed', inset:0, background:'rgba(0,0,0,.96)', zIndex:1000, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'16px 0' },
+      onClick: () => { setSlideIdx(null); setAutoPlay(false); }
+    },
+      // Close
+      React.createElement('button', {
+        onClick: e => { e.stopPropagation(); setSlideIdx(null); setAutoPlay(false); },
+        style:{ position:'absolute', top:14, right:14, background:'rgba(255,255,255,.15)', border:'none', color:'#fff', borderRadius:'50%', width:38, height:38, cursor:'pointer', fontSize:20, lineHeight:'38px', textAlign:'center' }
+      }, '×'),
+      // Photo counter
+      React.createElement('div', { style:{ position:'absolute', top:18, left:18, color:'rgba(255,255,255,.55)', fontSize:12, fontFamily:"'Space Mono',monospace" } }, `${slideIdx+1} / ${photos.length}`),
+      // Image
+      React.createElement('img', {
+        src: cur.src || cur.url,
+        alt: cur.caption || '',
+        onClick: e => e.stopPropagation(),
+        style:{ maxWidth:'94vw', maxHeight:'68vh', objectFit:'contain', borderRadius:8, boxShadow:'0 8px 40px rgba(0,0,0,.8)' }
+      }),
+      // Caption
+      cur.caption && React.createElement('div', {
+        onClick: e => e.stopPropagation(),
+        style:{ color:'rgba(255,255,255,.85)', fontSize:14, fontWeight:500, textAlign:'center', marginTop:12, padding:'0 24px', lineHeight:1.4 }
+      }, cur.caption),
+      React.createElement('div', { style:{ color:'rgba(255,255,255,.35)', fontSize:11, marginTop:4 } }, cur.date),
+      // Nav controls
+      React.createElement('div', { onClick:e=>e.stopPropagation(), style:{ display:'flex', gap:10, marginTop:16, alignItems:'center' } },
+        React.createElement('button', { onClick:()=>setSlideIdx(i=>(i-1+photos.length)%photos.length), style:btnSlide }, '‹'),
+        React.createElement('button', {
+          onClick: () => setAutoPlay(a=>!a),
+          style:{ ...btnSlide, fontSize:12, padding:'8px 16px', background: autoPlay?'#e91e8c':'rgba(255,255,255,.12)', border:'none' }
+        }, autoPlay ? '⏸ Pause' : '▶ Auto'),
+        React.createElement('button', { onClick:()=>setSlideIdx(i=>(i+1)%photos.length), style:btnSlide }, '›')
+      )
+    )
+  );
+}
+
+function IdeesView() {
+  const [idees, setIdees] = React.useState(() => { try { return JSON.parse(LS.getItem('ld-idees')||'[]'); } catch { return []; } });
+  const [text, setText] = React.useState('');
+  const [cat, setCat] = React.useState('Idée');
+  const CATS = ['Idée','Projet','Rêve','Question','À explorer'];
+  const CAT_C = { 'Idée':'var(--gold)', 'Projet':'var(--accent-liika)', 'Rêve':'var(--accent-dja)', 'Question':'var(--warn)', 'À explorer':'var(--success)' };
+  const save = l => { setIdees(l); LS.setItem('ld-idees', JSON.stringify(l)); };
+  const add = () => { if (!text.trim()) return; save([{ id:Date.now().toString(), text:text.trim(), cat, date:new Date().toISOString().slice(0,10) }, ...idees]); setText(''); };
+  const del = id => save(idees.filter(i => i.id !== id));
+  return React.createElement('div', null,
+    React.createElement('h2', { style:{ margin:'0 0 16px', fontSize:20 } }, '💡 Idées & Inspirations'),
+    React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:16, marginBottom:20 } },
+      React.createElement('div', { style:{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:12 } },
+        CATS.map(c => React.createElement('button', { key:c, onClick:()=>setCat(c), style:{ padding:'4px 12px', borderRadius:16, border:`1px solid ${cat===c?CAT_C[c]:'var(--border)'}`, background:'transparent', color:cat===c?CAT_C[c]:'var(--text3)', fontSize:12, cursor:'pointer', fontWeight:cat===c?700:400 } }, c))
+      ),
+      React.createElement('div', { style:{ display:'flex', gap:8 } },
+        React.createElement('input', { placeholder:'Votre idée... (Entrée pour valider)', value:text, onChange:e=>setText(e.target.value), onKeyDown:e=>e.key==='Enter'&&add(), style:{ flex:1, background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'9px 12px', fontSize:13 } }),
+        React.createElement('button', { onClick:add, style:{ padding:'9px 16px', borderRadius:8, border:'none', background:'var(--gold)', color:'#000', cursor:'pointer', fontWeight:800 } }, '+')
+      )
+    ),
+    idees.length === 0 && React.createElement('div', { style:{ textAlign:'center', padding:'40px 0', color:'var(--text3)' } }, '🌱 Vos idées s\'afficheront ici'),
+    idees.map(id => React.createElement('div', { key:id.id, style:{ background:'var(--glass)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'10px 14px', marginBottom:8, display:'flex', gap:10, alignItems:'center' } },
+      React.createElement('span', { style:{ fontSize:10, fontWeight:700, color:CAT_C[id.cat]||'var(--gold)', background:'var(--bg2)', borderRadius:10, padding:'2px 8px', whiteSpace:'nowrap' } }, id.cat),
+      React.createElement('span', { style:{ flex:1, fontSize:13, color:'var(--text)', lineHeight:1.5 } }, id.text),
+      React.createElement('span', { style:{ fontSize:10, color:'var(--text3)', whiteSpace:'nowrap' } }, id.date),
+      React.createElement('button', { onClick:()=>del(id.id), style:{ background:'none', border:'none', color:'var(--danger)', cursor:'pointer', fontSize:16 } }, '×')
+    ))
+  );
+}
+
+// ─── Fiche nutriments ───
+// Ce que chaque nutriment fait VRAIMENT, ce qu'un manque installé peut donner,
+// où le trouver, et surtout ce qu'il ne faut pas faire. Deux principes tenus
+// partout : un symptôme n'est pas un diagnostic (la même fatigue a cent causes),
+// et une carence se confirme par une prise de sang, jamais par une liste.
+// Repères d'apport : références ANSES/EFSA pour un adulte.
+const NUTRI_CADRE = [
+  { t: 'Un symptôme n\'est pas un diagnostic', d: 'La fatigue, les crampes ou la chute de cheveux ont des dizaines de causes possibles. Cette fiche dit ce qu\'un manque PEUT donner, pas ce que tu as.' },
+  { t: 'Une carence se confirme par une prise de sang', d: 'Pour le fer, la B12, la vitamine D ou la thyroïde, le dosage est simple et remboursé. C\'est ça qui tranche, pas un tableau.' },
+  { t: 'Une maladie peut créer une carence — l\'inverse est rare', d: 'Une maladie cœliaque, une maladie rénale ou un cancer épuisent des nutriments. Corriger la carence ne soigne pas la maladie qui l\'a créée.' },
+  { t: 'Se supplémenter à l\'aveugle peut nuire', d: 'Fer, iode, sélénium, vitamine D, potassium : pour chacun, le trop fait des dégâts réels. Les ⚠ ci-dessous disent lesquels.' }
+];
+const NUTRIMENTS = [
+  {
+    id: 'b12', nom: 'Vitamine B12', emoji: '🩸', repere: '4 µg/jour',
+    role: 'Renouvelle les globules rouges, entretient la gaine des nerfs, sert à fabriquer l\'ADN.',
+    manque: 'Fatigue, essoufflement, fourmillements dans les mains et les pieds, troubles de l\'équilibre et de la mémoire.',
+    sources: ['Produits animaux uniquement', 'Aliments enrichis (boissons végétales, levure)', 'Complément — indispensable en alimentation 100 % végétale'],
+    astuce: 'Une dose hebdomadaire unique fonctionne aussi bien qu\'une dose quotidienne : l\'absorption sature.',
+    garde: 'Spiruline, nori et autres algues contiennent des analogues INACTIFS : ils faussent le dosage sanguin sans corriger la carence. Les atteintes nerveuses non traitées peuvent devenir définitives.'
+  },
+  {
+    id: 'fer', nom: 'Fer', emoji: '🔩', repere: '11 mg/j homme · 16 mg/j femme réglée',
+    role: 'Transporte l\'oxygène dans le sang et participe à la production d\'énergie.',
+    manque: 'Fatigue qui ne passe pas, essoufflement à l\'effort, pâleur, ongles cassants, mains et pieds froids.',
+    sources: ['Lentilles, pois chiches, haricots rouges', 'Tofu, graines de courge', 'Cacao non sucré, épinards'],
+    astuce: 'De la vitamine C au même repas (citron, poivron) multiplie l\'absorption ; thé et café pendant le repas la divisent — les décaler d\'une heure.',
+    garde: 'Ne jamais se supplémenter sans bilan sanguin : le fer en excès s\'accumule et abîme le foie. C\'est aussi une cause fréquente d\'intoxication grave chez l\'enfant.'
+  },
+  {
+    id: 'd', nom: 'Vitamine D', emoji: '☀️', repere: '15 µg/j (600 UI)',
+    role: 'Permet de fixer le calcium sur l\'os, soutient les muscles et l\'immunité.',
+    manque: 'Douleurs osseuses et musculaires diffuses, fatigue, fractures qui surviennent pour rien.',
+    sources: ['Le soleil — de loin l\'essentiel', 'Poissons gras, jaune d\'œuf', 'Champignons exposés aux UV, produits enrichis'],
+    astuce: 'En Guadeloupe, 15 à 20 min de soleil sur les bras et les jambes suffisent largement. Une peau très pigmentée ou couverte demande plus de temps.',
+    garde: 'Limite haute : 100 µg/j (4 000 UI). Les mégadoses répétées font monter le calcium sanguin et abîment les reins.'
+  },
+  {
+    id: 'iode', nom: 'Iode', emoji: '🦋', repere: '150 µg/j · 200 µg grossesse',
+    role: 'Matière première des hormones thyroïdiennes, qui règlent le métabolisme entier.',
+    manque: 'Fatigue, frilosité, prise de poids, goitre. Pendant la grossesse, atteinte du développement cérébral du fœtus.',
+    sources: ['Sel iodé', 'Poissons et fruits de mer', 'Produits laitiers, œufs'],
+    astuce: 'Le sel iodé couvre le besoin sans y penser — encore faut-il acheter la version iodée.',
+    garde: 'Limite : 600 µg/j. Une seule portion de kombu ou de varech peut dépasser 1 000 µg. L\'excès dérègle la thyroïde autant que le manque.'
+  },
+  {
+    id: 'calcium', nom: 'Calcium', emoji: '🦴', repere: '950 mg/jour',
+    role: 'Construit et entretient l\'os, permet la contraction musculaire et la coagulation.',
+    manque: 'Perte osseuse silencieuse pendant des années, crampes. La fracture arrive avant le symptôme.',
+    sources: ['Chou kale, brocoli, chou chinois', 'Tofu pris au sulfate de calcium', 'Amandes, sésame complet, eaux calciques', 'Boissons végétales enrichies (bien secouer)'],
+    astuce: 'Épinards et oseille sont riches en calcium mais leurs oxalates le bloquent : les choux sont bien meilleurs pour ça.',
+    garde: 'Sans vitamine D, le calcium avalé n\'est pas fixé — les deux vont ensemble.'
+  },
+  {
+    id: 'zinc', nom: 'Zinc', emoji: '🛡️', repere: '11–14 mg/j homme · 8–11 mg/j femme',
+    role: 'Immunité, cicatrisation, peau, goût et odorat, fertilité.',
+    manque: 'Infections à répétition, plaies qui traînent, chute de cheveux, perte du goût, acné.',
+    sources: ['Légumineuses, flocons d\'avoine', 'Graines de courge, noix de cajou', 'Tofu, tempeh'],
+    astuce: 'Le trempage et la fermentation cassent les phytates qui retiennent le zinc — c\'est ce que fait le levain dans le pain.',
+    garde: 'Limite : 25 mg/j. Au-delà et sur la durée, la supplémentation en zinc provoque une carence en cuivre.'
+  },
+  {
+    id: 'mg', nom: 'Magnésium', emoji: '⚡', repere: '380 mg/j homme · 300 mg/j femme',
+    role: 'Intervient dans plus de 300 réactions : muscles, nerfs, sommeil, rythme cardiaque.',
+    manque: 'Crampes, paupière qui saute, fatigue, irritabilité, sommeil haché.',
+    sources: ['Cacao non sucré, amandes, noix de cajou', 'Légumineuses, céréales complètes', 'Banane, eaux magnésiennes'],
+    astuce: 'Le raffinage enlève l\'essentiel du magnésium : le complet en garde jusqu\'à cinq fois plus que le blanc.',
+    garde: 'En complément et à forte dose, effet laxatif. À éviter en cas d\'insuffisance rénale — le rein ne peut plus en évacuer l\'excès.'
+  },
+  {
+    id: 'b9', nom: 'Folates (B9)', emoji: '🌿', repere: '330 µg/j · 400 µg avant conception',
+    role: 'Fabrication de l\'ADN et des cellules neuves ; fermeture du tube neural chez le fœtus.',
+    manque: 'Anémie, fatigue, essoufflement. Chez le fœtus, malformations du système nerveux.',
+    sources: ['Légumes à feuilles vert foncé', 'Légumineuses, pois chiches', 'Avocat, agrumes, betterave'],
+    astuce: 'Fragile à la chaleur et à l\'eau de cuisson : cru, vapeur ou cuisson courte.',
+    garde: 'La supplémentation avant conception est l\'une des rares recommandations universelles — à commencer AVANT la grossesse : le tube neural se ferme dès la 4ᵉ semaine, souvent avant qu\'on sache.'
+  },
+  {
+    id: 'omega3', nom: 'Oméga-3', emoji: '🐟', repere: 'ALA ~2 g/j · EPA + DHA 500 mg/j',
+    role: 'Composent les membranes des neurones et de la rétine, régulent l\'inflammation.',
+    manque: 'Peau sèche, concentration en baisse. Une carence franche est rare sous nos climats.',
+    sources: ['Lin moulu, chia, noix, huile de colza (ALA)', 'Poissons gras (EPA/DHA)', 'Huile de microalgues (EPA/DHA végétal)'],
+    astuce: 'Le corps ne convertit qu\'une petite part de l\'ALA végétal en DHA : sans poisson, l\'huile de microalgues est la voie directe.',
+    garde: 'Les graines de lin entières traversent sans rien livrer : il faut les moudre. Les huiles riches en oméga-3 rancissent vite — au frais, à l\'abri de la lumière.'
+  },
+  {
+    id: 'c', nom: 'Vitamine C', emoji: '🍋', repere: '110 mg/jour',
+    role: 'Fabrique le collagène (peau, vaisseaux, gencives), aide à absorber le fer végétal.',
+    manque: 'Gencives qui saignent, bleus faciles, fatigue, cicatrisation lente.',
+    sources: ['Goyave, acérola, cerise pays', 'Poivron, persil, brocoli', 'Agrumes, kiwi, mangue'],
+    astuce: 'La goyave en contient plus de quatre fois plus que l\'orange, à poids égal.',
+    garde: 'Détruite par la cuisson longue. Au-delà de 1 g/j en complément : diarrhées, et risque de calculs rénaux chez les prédisposés.'
+  },
+  {
+    id: 'k', nom: 'Potassium', emoji: '🍌', repere: '3 500 mg/jour',
+    role: 'Équilibre les liquides du corps, fait baisser la tension, rythme le cœur et les muscles.',
+    manque: 'Crampes, fatigue, troubles du rythme cardiaque. Le plus souvent lié à des pertes : diarrhées, vomissements, diurétiques.',
+    sources: ['Banane, patate douce, igname', 'Haricots, lentilles, avocat', 'Épinards, eau de coco'],
+    astuce: 'Augmenter le potassium fait autant pour la tension que baisser le sel — les deux ensemble valent mieux qu\'un seul.',
+    garde: 'Les compléments de potassium sont dangereux en cas d\'insuffisance rénale ou sous IEC/sartans : l\'excès peut arrêter le cœur. Par l\'alimentation et avec des reins sains, aucun risque.'
+  },
+  {
+    id: 'se', nom: 'Sélénium', emoji: '🥜', repere: '70 µg/jour',
+    role: 'Enzymes antioxydantes, activation des hormones thyroïdiennes, immunité.',
+    manque: 'Rare. Fatigue, faiblesse musculaire, thyroïde qui fonctionne mal.',
+    sources: ['Noix du Brésil', 'Céréales complètes', 'Œufs, poissons'],
+    astuce: 'Une à deux noix du Brésil couvrent la journée entière.',
+    garde: 'Fenêtre étroite — limite : 300 µg/j. Une poignée de noix du Brésil par jour mène à la sélénose : ongles cassants, chute de cheveux, haleine d\'ail.'
+  },
+  {
+    id: 'a', nom: 'Vitamine A', emoji: '🥕', repere: '750 µg/j homme · 650 µg/j femme',
+    role: 'Vision nocturne, renouvellement de la peau et des muqueuses, immunité.',
+    manque: 'Vision qui baisse à la tombée du jour, peau rêche, infections répétées.',
+    sources: ['Carotte, patate douce, giraumon, mangue (bêta-carotène)', 'Épinards, brèdes', 'Œufs, beurre, foie (rétinol)'],
+    astuce: 'Le bêta-carotène a besoin d\'un corps gras dans le même repas pour être absorbé — un filet d\'huile sur les carottes.',
+    garde: 'Le rétinol animal en excès est toxique et provoque des malformations : foie et compléments à forte dose sont à proscrire pendant la grossesse. Le bêta-carotène des légumes, lui, ne présente pas ce risque.'
+  }
+];
+const NUTRI_BILAN = [
+  'Fatigue qui dure plus de quelques semaines sans raison évidente.',
+  'Alimentation 100 % végétale depuis plus de six mois (B12, fer, vitamine D, iode, zinc).',
+  'Règles abondantes, grossesse en cours ou envisagée, allaitement.',
+  'Chirurgie de l\'estomac, maladie cœliaque, maladie de Crohn, traitement au long cours (IPP, metformine, diurétiques).',
+  'Fourmillements persistants dans les mains ou les pieds — à ne pas laisser traîner.'
+];
+
+function MedicalView({ rdvs, addMedical, deleteMedical }) {
+  const [form, setForm] = React.useState({ titre:'', date:'', medecin:'', notes:'', qui:'Couple' });
+  const [show, setShow] = React.useState(false);
+  const [tab, setTab] = React.useState('rdv');
+  const [ouvert, setOuvert] = React.useState(null);
+  const QUIS = ['Dja','Liika','Couple'];
+  const QUI_C = { 'Dja':'var(--accent-dja)', 'Liika':'var(--accent-liika)', 'Couple':'var(--gold)' };
+  // Migration unique depuis localStorage
+  React.useEffect(function() {
+    try {
+      var local = JSON.parse(LS.getItem('ld-medical') || '[]');
+      if (!local.length) return;
+      var syncedIds = new Set((rdvs || []).map(function(r) { return r.id; }));
+      local.filter(function(r) { return !syncedIds.has(r.id); }).forEach(function(r) { addMedical(r); });
+      LS.removeItem('ld-medical');
+    } catch(_) {}
+  }, []);
+  const add = () => { if (!form.titre.trim()) return; addMedical({ id:Date.now().toString(), ...form }); setForm({ titre:'', date:'', medecin:'', notes:'', qui:'Couple' }); setShow(false); };
+  const del = id => deleteMedical(id);
+  const inp = { background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'8px 12px', fontSize:13, width:'100%', boxSizing:'border-box' };
+
+  // Compte à rebours en jours (0 = aujourd'hui, >0 à venir, <0 passé). null si pas de date.
+  const daysUntil = iso => {
+    if (!iso) return null;
+    const d = new Date(String(iso).slice(0,10) + 'T00:00:00');
+    if (isNaN(d.getTime())) return null;
+    const t = new Date(); t.setHours(0,0,0,0);
+    return Math.round((d.getTime() - t.getTime()) / 86400000);
+  };
+  const fmtFr = iso => {
+    const d = new Date(String(iso).slice(0,10) + 'T00:00:00');
+    return isNaN(d.getTime()) ? iso : d.toLocaleDateString('fr-FR', { weekday:'short', day:'2-digit', month:'short', year:'numeric' });
+  };
+  const countdownLabel = n => n === null ? '' : n === 0 ? "Aujourd'hui" : n === 1 ? 'Demain' : n > 1 ? 'Dans ' + n + ' j' : n === -1 ? 'Hier' : 'Il y a ' + (-n) + ' j';
+
+  // Tri : à venir (dates avec compte à rebours >= 0, plus proche en premier) + non datés,
+  // puis passés (plus récent en premier).
+  const withMeta = (rdvs || []).map(r => ({ r, d: daysUntil(r.date) }));
+  const aVenir = withMeta.filter(x => x.d === null || x.d >= 0)
+    .sort((a,b) => (a.d === null ? Infinity : a.d) - (b.d === null ? Infinity : b.d));
+  const passes = withMeta.filter(x => x.d !== null && x.d < 0).sort((a,b) => b.d - a.d);
+  const prochain = aVenir.find(x => x.d !== null) || null;
+  const exportOne = r => { const ev = medicalToIcsEvent(r); if (!ev) { alert("Ajoute une date à ce RDV pour l'exporter au calendrier."); return; } downloadIcs([ev], 'rdv-' + (r.titre||'medical').toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,30) + '.ics'); };
+  const exportAll = () => { const evs = (rdvs || []).map(medicalToIcsEvent).filter(Boolean); if (!evs.length) { alert('Aucun RDV daté à exporter.'); return; } downloadIcs(evs, 'suivi-medical.ics'); };
+
+  const renderCard = (r, d) => {
+    const past = d !== null && d < 0;
+    return React.createElement('div', { key:r.id, style:{ background:'var(--glass)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'12px 16px', marginBottom:10, display:'flex', gap:12, alignItems:'flex-start', opacity: past ? .6 : 1 } },
+      React.createElement('div', { style:{ flex:1, minWidth:0 } },
+        React.createElement('div', { style:{ display:'flex', alignItems:'center', gap:8, marginBottom:4, flexWrap:'wrap' } },
+          React.createElement('span', { style:{ fontSize:10, fontWeight:700, color:QUI_C[r.qui]||'var(--gold)', background:'var(--bg2)', borderRadius:10, padding:'2px 7px' } }, quiLabel(r.qui)),
+          React.createElement('span', { style:{ fontWeight:700, color:'var(--text)', fontSize:14 } }, r.titre),
+          d !== null && React.createElement('span', { style:{ fontSize:10, fontWeight:700, color: past ? 'var(--text3)' : (d<=2 ? '#f59e0b' : '#10b981'), background:'var(--bg2)', borderRadius:10, padding:'2px 7px' } }, countdownLabel(d))
+        ),
+        (r.date||r.medecin) && React.createElement('div', { style:{ fontSize:12, color:'var(--text3)', marginBottom:3 } }, [r.date&&fmtFr(r.date), r.medecin].filter(Boolean).join(' · ')),
+        r.notes && React.createElement('div', { style:{ fontSize:12, color:'var(--text3)', fontStyle:'italic' } }, r.notes)
+      ),
+      React.createElement('div', { style:{ display:'flex', flexDirection:'column', gap:6, alignItems:'center' } },
+        React.createElement('button', { onClick:()=>exportOne(r), title:'Ajouter au calendrier (.ics)', style:{ background:'none', border:'1px solid var(--border)', borderRadius:8, color:'var(--text2)', cursor:'pointer', fontSize:14, padding:'2px 8px' } }, '📅'),
+        React.createElement('button', { onClick:()=>del(r.id), style:{ background:'none', border:'none', color:'var(--danger)', cursor:'pointer', fontSize:18 } }, '×')
+      )
+    );
+  };
+
+  return React.createElement('div', null,
+    React.createElement('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20, gap:8, flexWrap:'wrap' } },
+      React.createElement('h2', { style:{ margin:0, fontSize:20 } }, '🩺 Suivi médical'),
+      tab === 'rdv' && React.createElement('div', { style:{ display:'flex', gap:8 } },
+        (rdvs||[]).some(r => r.date) && React.createElement('button', { onClick:exportAll, title:'Exporter tous les RDV au format .ics', style:{ padding:'8px 14px', borderRadius:20, border:'1px solid var(--border)', background:'transparent', color:'var(--text2)', cursor:'pointer', fontWeight:700, fontSize:13 } }, '📅 Exporter'),
+        React.createElement('button', { onClick:()=>setShow(!show), style:{ padding:'8px 18px', borderRadius:20, border:'none', background:'#10b981', color:'#fff', cursor:'pointer', fontWeight:700 } }, show ? '✕' : '+ RDV')
+      )
+    ),
+
+    // ── Sous-onglets ──
+    React.createElement('div', { className:'scroll-x', style:{ display:'flex', gap:8, marginBottom:16 } },
+      [{ id:'rdv', l:'🩺 Rendez-vous' }, { id:'nutriments', l:'🥗 Nutriments' }].map(t =>
+        React.createElement('button', { key:t.id, onClick:()=>setTab(t.id), style:{
+          padding:'6px 14px', borderRadius:20, cursor:'pointer', fontSize:12, whiteSpace:'nowrap',
+          border:`1px solid ${tab===t.id?'#10b981':'var(--border)'}`,
+          background: tab===t.id?'rgba(16,185,129,.15)':'transparent',
+          color: tab===t.id?'#10b981':'var(--text3)',
+          fontWeight: tab===t.id?700:400 } }, t.l))
+    ),
+
+    // ── Fiche nutriments (lecture seule) ──
+    tab === 'nutriments' && React.createElement('div', null,
+      React.createElement('div', { style:{ display:'grid', gap:8, marginBottom:18 } },
+        NUTRI_CADRE.map((c, i) => React.createElement('div', { key:i, style:{ background:'var(--glass)', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:'10px 13px', borderLeft:'3px solid #10b981' } },
+          React.createElement('div', { style:{ fontSize:12.5, fontWeight:700, color:'var(--text)', marginBottom:3 } }, c.t),
+          React.createElement('div', { style:{ fontSize:12, color:'var(--text3)', lineHeight:1.5 } }, c.d)
+        ))
+      ),
+      React.createElement('div', { style:{ display:'grid', gap:8 } },
+        NUTRIMENTS.map(n => {
+          const open = ouvert === n.id;
+          return React.createElement('div', { key:n.id, style:{ background:'var(--glass)', border:`1px solid ${open?'#10b981':'var(--border)'}`, borderRadius:'var(--radius)', overflow:'hidden' } },
+            React.createElement('button', {
+              onClick: () => setOuvert(open ? null : n.id),
+              style:{ width:'100%', display:'flex', alignItems:'center', gap:10, padding:'11px 14px', background:'none', border:'none', cursor:'pointer', textAlign:'left', color:'var(--text)' }
+            },
+              React.createElement('span', { style:{ fontSize:17, flexShrink:0 } }, n.emoji),
+              React.createElement('span', { style:{ flex:1, minWidth:0 } },
+                React.createElement('span', { style:{ display:'block', fontSize:13.5, fontWeight:700 } }, n.nom),
+                React.createElement('span', { style:{ display:'block', fontFamily:"'Space Mono',monospace", fontSize:10.5, color:'var(--text3)', marginTop:2 } }, n.repere)
+              ),
+              React.createElement('span', { style:{ color:'var(--text3)', fontSize:11, flexShrink:0 } }, open ? '▲' : '▼')
+            ),
+            open && React.createElement('div', { style:{ padding:'0 14px 13px', display:'grid', gap:9 } },
+              [['À quoi ça sert', n.role, 'var(--text2)'], ['Ce qu\'un manque peut donner', n.manque, 'var(--text2)']].map(([t, v, c], i) =>
+                React.createElement('div', { key:i },
+                  React.createElement('div', { style:{ fontSize:10, textTransform:'uppercase', letterSpacing:'.05em', color:'var(--text3)', marginBottom:2 } }, t),
+                  React.createElement('div', { style:{ fontSize:12.5, color:c, lineHeight:1.5 } }, v)
+                )),
+              React.createElement('div', null,
+                React.createElement('div', { style:{ fontSize:10, textTransform:'uppercase', letterSpacing:'.05em', color:'var(--text3)', marginBottom:4 } }, 'Où le trouver'),
+                React.createElement('div', { style:{ display:'flex', flexWrap:'wrap', gap:5 } },
+                  n.sources.map((s, i) => React.createElement('span', { key:i, style:{ fontSize:11.5, color:'var(--text2)', background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:12, padding:'3px 9px' } }, s))
+                )
+              ),
+              React.createElement('div', { style:{ display:'flex', gap:6, alignItems:'flex-start', fontSize:12, color:'var(--gold)', lineHeight:1.5 } },
+                React.createElement('span', { style:{ flexShrink:0 } }, '💡'),
+                React.createElement('span', null, n.astuce)
+              ),
+              React.createElement('div', { style:{ display:'flex', gap:6, alignItems:'flex-start', fontSize:12, color:'var(--warn)', lineHeight:1.5, background:'rgba(245,158,11,.08)', borderRadius:8, padding:'8px 10px' } },
+                React.createElement('span', { style:{ flexShrink:0 } }, '⚠'),
+                React.createElement('span', null, n.garde)
+              )
+            )
+          );
+        })
+      ),
+      React.createElement('div', { style:{ marginTop:20, background:'var(--glass)', border:'1px solid rgba(16,185,129,.35)', borderRadius:'var(--radius)', padding:'13px 16px' } },
+        React.createElement('div', { style:{ fontSize:13, fontWeight:700, color:'#10b981', marginBottom:8 } }, '🧪 Quand demander un bilan sanguin'),
+        React.createElement('div', { style:{ display:'grid', gap:5 } },
+          NUTRI_BILAN.map((b, i) => React.createElement('div', { key:i, style:{ display:'flex', gap:8, alignItems:'flex-start', fontSize:12.5, color:'var(--text2)', lineHeight:1.5 } },
+            React.createElement('span', { style:{ color:'#10b981', flexShrink:0 } }, '•'),
+            React.createElement('span', null, b)
+          ))
+        ),
+        React.createElement('div', { style:{ marginTop:10, fontSize:11.5, color:'var(--text3)', fontStyle:'italic', lineHeight:1.5 } },
+          'Ces dosages sont simples et pris en charge. Un résultat chiffré vaut mieux que n\'importe quelle liste de symptômes — celle-ci comprise.')
+      )
+    ),
+
+    tab === 'rdv' && React.createElement(React.Fragment, null,
+    prochain && !show && React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid rgba(16,185,129,.35)', borderRadius:'var(--radius)', padding:'12px 16px', marginBottom:16, display:'flex', alignItems:'center', gap:12 } },
+      React.createElement('span', { style:{ fontSize:24 } }, '⏰'),
+      React.createElement('div', null,
+        React.createElement('div', { style:{ fontSize:11, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em' } }, 'Prochain rendez-vous'),
+        React.createElement('div', { style:{ fontWeight:700, color:'var(--text)', fontSize:15 } }, countdownLabel(prochain.d) + ' · ' + prochain.r.titre),
+        React.createElement('div', { style:{ fontSize:12, color:'var(--text3)' } }, [fmtFr(prochain.r.date), prochain.r.medecin].filter(Boolean).join(' · '))
+      )
+    ),
+    show && React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid rgba(16,185,129,.35)', borderRadius:'var(--radius)', padding:16, marginBottom:16 } },
+      React.createElement('input', { placeholder:'Motif / titre *', value:form.titre, onChange:e=>setForm(p=>({...p,titre:e.target.value})), style:{ ...inp, marginBottom:8 } }),
+      React.createElement('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 } },
+        React.createElement('input', { type:'date', value:form.date, onChange:e=>setForm(p=>({...p,date:e.target.value})), style:inp }),
+        React.createElement('input', { placeholder:'Médecin / spécialiste', value:form.medecin, onChange:e=>setForm(p=>({...p,medecin:e.target.value})), style:inp })
+      ),
+      React.createElement('div', { style:{ display:'flex', gap:6, marginBottom:8 } },
+        QUIS.map(q => React.createElement('button', { key:q, onClick:()=>setForm(p=>({...p,qui:q})), style:{ padding:'5px 14px', borderRadius:16, border:`1px solid ${form.qui===q?QUI_C[q]:'var(--border)'}`, background:'transparent', color:form.qui===q?QUI_C[q]:'var(--text3)', cursor:'pointer', fontWeight:form.qui===q?700:400, fontSize:12 } }, quiLabel(q)))
+      ),
+      React.createElement('textarea', { placeholder:'Notes / ordonnance...', value:form.notes, onChange:e=>setForm(p=>({...p,notes:e.target.value})), style:{ ...inp, minHeight:60, marginBottom:10, resize:'vertical' } }),
+      React.createElement('button', { onClick:add, style:{ padding:'8px 20px', borderRadius:12, border:'none', background:'#10b981', color:'#fff', cursor:'pointer', fontWeight:700 } }, 'Enregistrer')
+    ),
+    rdvs.length === 0 && !show && React.createElement('div', { style:{ textAlign:'center', padding:'50px 0', color:'var(--text3)' } }, '💊 Aucun suivi — ajoutez vos rendez-vous médicaux'),
+    aVenir.length > 0 && React.createElement('div', { style:{ fontSize:11, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em', margin:'4px 0 8px' } }, 'À venir'),
+    aVenir.map(x => renderCard(x.r, x.d)),
+    passes.length > 0 && React.createElement('div', { style:{ fontSize:11, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em', margin:'16px 0 8px' } }, 'Passés'),
+    passes.map(x => renderCard(x.r, x.d))
+    )
+  );
+}
+
+// ─── Entretien mécanique (véhicules de Dja) ───
+// Carnet d'entretien : chaque intervention (vidange, pneus, freins, révision…)
+// avec date + kilométrage réalisés, coût, et surtout la PROCHAINE échéance
+// (date et/ou km) → compte à rebours en jours, comme le suivi médical.
+function entretienToIcsEvent(e) {
+  if (!e || !e.prochainDate) return null;
+  const veh = e.vehicule ? e.vehicule + ' · ' : '';
+  return {
+    uid: 'entretien-' + e.id + '@yife',
+    startIso: e.prochainDate,
+    summary: '🔧 ' + veh + (e.titre || 'Entretien'),
+    description: [e.prochainKm ? 'À ' + e.prochainKm + ' km' : '', e.notes].filter(Boolean).join(' — ')
+  };
+}
+function ctToIcsEvent(v) {
+  if (!v || !v.controleTechnique) return null;
+  return {
+    uid: 'ct-' + v.id + '@yife',
+    startIso: v.controleTechnique,
+    summary: '🛡 Contrôle technique · ' + (v.nom || 'Véhicule'),
+    description: [v.immatriculation, v.marque, v.modele].filter(Boolean).join(' ')
+  };
+}
+function assToIcsEvent(v) {
+  if (!v || !v.assuranceEcheance) return null;
+  return {
+    uid: 'assurance-' + v.id + '@yife',
+    startIso: v.assuranceEcheance,
+    summary: '📄 Assurance · ' + (v.nom || 'Véhicule'),
+    description: [v.assureur, v.assuranceContrat].filter(Boolean).join(' · ')
+  };
+}
+// Échéances mécaniques urgentes (pour le rappel sur l'accueil) : CT & assurance à ≤ 30 j,
+// entretiens en retard ou à ≤ 14 j / ≤ 500 km. Triées par urgence (retard d'abord).
+function mecaAlerts(dja) {
+  if (!dja || typeof dja !== 'object') return [];
+  const vehs = Array.isArray(dja.vehicules) ? dja.vehicules : [];
+  const ent = Array.isArray(dja.entretien) ? dja.entretien : [];
+  const byName = {};
+  vehs.forEach(v => { if (v && v.nom) byName[v.nom] = v; });
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const days = iso => { if (!iso) return null; const d = new Date(String(iso).slice(0, 10) + 'T00:00:00'); return isNaN(d.getTime()) ? null : Math.round((d.getTime() - today.getTime()) / 864e5); };
+  const num = x => (x === '' || x == null || isNaN(Number(x))) ? null : Number(x);
+  const dLabel = n => n < 0 ? 'en retard' : n === 0 ? "aujourd'hui" : n <= 60 ? 'dans ' + n + ' j' : 'dans ' + Math.round(n / 30.44) + ' mois';
+  const out = [];
+  vehs.forEach(v => {
+    const ct = days(v.controleTechnique); if (ct !== null && ct <= 30) out.push({ emoji: '🛡', veh: v.nom, label: 'Contrôle technique', text: dLabel(ct), sev: ct });
+    const as = days(v.assuranceEcheance); if (as !== null && as <= 30) out.push({ emoji: '📄', veh: v.nom, label: 'Assurance', text: dLabel(as), sev: as });
+  });
+  ent.forEach(e => {
+    const veh = byName[e.vehicule];
+    const d = days(e.prochainDate);
+    const vkm = veh ? num(veh.km) : null, pkm = num(e.prochainKm);
+    const kmLeft = (pkm !== null && vkm !== null) ? pkm - vkm : null;
+    const dOver = d !== null && d < 0, kmOver = kmLeft !== null && kmLeft < 0;
+    const dSoon = d !== null && d >= 0 && d <= 14, kmSoon = kmLeft !== null && kmLeft >= 0 && kmLeft <= 500;
+    if (dOver || kmOver || dSoon || kmSoon) {
+      const parts = [];
+      if (d !== null) parts.push(dLabel(d));
+      if (kmLeft !== null) parts.push(kmLeft < 0 ? 'dépassé de ' + (-kmLeft).toLocaleString('fr-FR') + ' km' : 'dans ' + kmLeft.toLocaleString('fr-FR') + ' km');
+      out.push({ emoji: '🔧', veh: e.vehicule, label: e.titre, text: parts.join(' · '), sev: (dOver || kmOver) ? -1 : (d !== null ? d : 30) });
+    }
+  });
+  return out.sort((a, b) => a.sev - b.sev);
+}
+function EntretienView({ entretien, vehicules, addEntretien, updateEntretien, deleteEntretien, addVehicule, updateVehicule, deleteVehicule }) {
+  const EMPTY = { titre:'', vehicule:'', date:'', km:'', cout:'', intervalMois:'', intervalKm:'', prochainDate:'', prochainKm:'', notes:'' };
+  const [form, setForm] = React.useState(EMPTY);
+  const [editId, setEditId] = React.useState(null);
+  const [show, setShow] = React.useState(false);
+  const [filt, setFilt] = React.useState(null);        // véhicule filtré (nom) ou null = tous
+  const [showVeh, setShowVeh] = React.useState(false);  // panneau gestion véhicules
+  const V_EMPTY_VEH = { type:'🚗', nom:'', km:'', immatriculation:'', marque:'', modele:'', annee:'', huile:'', vin:'', miseEnCirculation:'', controleTechnique:'', assureur:'', assuranceContrat:'', assuranceCout:'', assuranceEcheance:'', notes:'', infos:[], photos:[] };
+  const [vForm, setVForm] = React.useState(V_EMPTY_VEH);
+  const [vFormOpen, setVFormOpen] = React.useState(false); // formulaire complet « nouveau véhicule »
+  const [photoUploading, setPhotoUploading] = React.useState(false);
+  const [vExpand, setVExpand] = React.useState(null);   // id du véhicule dont la fiche est dépliée
+  const [showCosts, setShowCosts] = React.useState(false); // panneau synthèse des coûts
+  const inp = { background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'8px 12px', fontSize:13, width:'100%', boxSizing:'border-box' };
+  const ACCENT = 'var(--accent-dja)';
+  const TYPES = ['🚗','🏍','🚐','🚙','🚲','🔧'];
+
+  // ── Helpers date / km ──
+  const todayIso = () => { const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
+  const addMonthsIso = (iso, months) => {
+    const base = iso ? new Date(String(iso).slice(0,10)+'T00:00:00') : new Date();
+    if (isNaN(base.getTime())) return '';
+    base.setMonth(base.getMonth() + months);
+    return base.getFullYear()+'-'+String(base.getMonth()+1).padStart(2,'0')+'-'+String(base.getDate()).padStart(2,'0');
+  };
+  const daysUntil = iso => {
+    if (!iso) return null;
+    const d = new Date(String(iso).slice(0,10) + 'T00:00:00');
+    if (isNaN(d.getTime())) return null;
+    const t = new Date(); t.setHours(0,0,0,0);
+    return Math.round((d.getTime() - t.getTime()) / 86400000);
+  };
+  const fmtFr = iso => { const d = new Date(String(iso).slice(0,10) + 'T00:00:00'); return isNaN(d.getTime()) ? iso : d.toLocaleDateString('fr-FR', { weekday:'short', day:'2-digit', month:'short', year:'numeric' }); };
+  const countdownLabel = n => n === null ? '' : n === 0 ? "Aujourd'hui" : n === 1 ? 'Demain' : n > 1 ? 'Dans ' + n + ' j' : n === -1 ? 'Hier' : 'Il y a ' + (-n) + ' j';
+  const numOr = v => (v === '' || v === null || v === undefined || isNaN(Number(v))) ? null : Number(v);
+  const fmtKm = km => { const n = numOr(km); return n === null ? null : n.toLocaleString('fr-FR') + ' km'; };
+  const fmtCout = c => { const n = numOr(c); return n === null ? null : n.toLocaleString('fr-FR') + ' €'; };
+  const kmLabel = k => k === null ? '' : k < 0 ? 'Dépassé de ' + (-k).toLocaleString('fr-FR') + ' km' : 'Dans ' + k.toLocaleString('fr-FR') + ' km';
+  // Contrôle technique : compte à rebours long (jours < 60, sinon mois) + couleur de statut
+  const ctLabel = d => d === null ? '' : d < 0 ? '⚠ Expiré' : d === 0 ? "Aujourd'hui" : d <= 60 ? 'Dans ' + d + ' j' : 'Dans ' + Math.round(d / 30.44) + ' mois';
+  const ctColor = d => d === null ? 'var(--text3)' : d < 0 ? '#ef4444' : d <= 60 ? '#f59e0b' : '#10b981';
+  const vehByName = nom => (vehicules || []).find(v => v.nom === nom) || null;
+
+  // Liste des noms de véhicules (déclarés + mentionnés dans les entretiens)
+  const vehNames = [];
+  (vehicules || []).forEach(v => { if (v.nom && vehNames.indexOf(v.nom) < 0) vehNames.push(v.nom); });
+  (entretien || []).forEach(e => { if (e.vehicule && vehNames.indexOf(e.vehicule) < 0) vehNames.push(e.vehicule); });
+
+  // Filtrage par véhicule
+  const list = filt ? (entretien || []).filter(e => e.vehicule === filt) : (entretien || []);
+
+  // Méta par entretien : compte à rebours en jours ET en km, urgence
+  const meta = list.map(e => {
+    const veh = vehByName(e.vehicule);
+    const d = daysUntil(e.prochainDate);
+    const vkm = veh ? numOr(veh.km) : null;
+    const pkm = numOr(e.prochainKm);
+    const kmLeft = (pkm !== null && vkm !== null) ? pkm - vkm : null;
+    const overdue = (d !== null && d < 0) || (kmLeft !== null && kmLeft < 0);
+    const planned = !!(e.prochainDate || e.prochainKm);
+    return { e, veh, d, kmLeft, overdue, planned };
+  });
+  const enRetard = meta.filter(m => m.overdue).sort((a,b) => (a.d === null ? 0 : a.d) - (b.d === null ? 0 : b.d));
+  const aVenir = meta.filter(m => !m.overdue).sort((a,b) => {
+    const ad = a.d === null ? Infinity : a.d, bd = b.d === null ? Infinity : b.d;
+    if (ad !== bd) return ad - bd;
+    return (a.kmLeft === null ? Infinity : a.kmLeft) - (b.kmLeft === null ? Infinity : b.kmLeft);
+  });
+  const hero = enRetard[0] || aVenir.find(m => m.planned) || null;
+  const totalCout = list.reduce((s,e) => s + (numOr(e.cout) || 0), 0);
+  // Synthèse des coûts par véhicule : entretien cumulé (coûts saisis) + assurance annuelle
+  const costMap = {};
+  const ensureCost = nom => { const k = nom || 'Sans véhicule'; if (!costMap[k]) costMap[k] = { nom: k, entretien: 0, assurance: 0 }; return costMap[k]; };
+  (entretien || []).forEach(e => { const c = numOr(e.cout); if (c !== null) ensureCost(e.vehicule).entretien += c; });
+  (vehicules || []).forEach(v => { const a = numOr(v.assuranceCout); if (a !== null) ensureCost(v.nom).assurance += a; });
+  const costRows = Object.values(costMap).sort((a,b) => (b.entretien - a.entretien) || (b.assurance - a.assurance));
+  const costTotalEntretien = costRows.reduce((s,r) => s + r.entretien, 0);
+  const costTotalAssurance = costRows.reduce((s,r) => s + r.assurance, 0);
+  const costMax = Math.max(1, ...costRows.map(r => r.entretien));
+  // Alertes échéances administratives (CT + assurance) : expirées ou à ≤ 60 jours
+  const deadlineAlerts = [];
+  (vehicules || []).forEach(v => {
+    const ct = daysUntil(v.controleTechnique);
+    if (ct !== null && ct <= 60) deadlineAlerts.push({ key: v.id + '-ct', v, label: 'Contrôle technique', d: ct, ev: ctToIcsEvent(v), file: 'controle-technique' });
+    const as = daysUntil(v.assuranceEcheance);
+    if (as !== null && as <= 60) deadlineAlerts.push({ key: v.id + '-ass', v, label: 'Assurance', d: as, ev: assToIcsEvent(v), file: 'assurance' });
+  });
+  deadlineAlerts.sort((a,b) => a.d - b.d);
+
+  // ── Actions entretien ──
+  const openAdd = () => { setForm({ ...EMPTY, vehicule: filt || '' }); setEditId(null); setShow(true); setShowVeh(false); setShowCosts(false); };
+  const openEdit = e => { setForm({ ...EMPTY, ...e }); setEditId(e.id); setShow(true); setShowVeh(false); setShowCosts(false); };
+  const save = () => {
+    if (!form.titre.trim()) return;
+    const f = { ...form };
+    const baseDate = f.date || todayIso();
+    if (!f.prochainDate && numOr(f.intervalMois) !== null) f.prochainDate = addMonthsIso(baseDate, numOr(f.intervalMois));
+    if (!f.prochainKm && numOr(f.intervalKm) !== null && numOr(f.km) !== null) f.prochainKm = String(numOr(f.km) + numOr(f.intervalKm));
+    if (editId) updateEntretien(editId, f);
+    else addEntretien({ id: Date.now().toString(), ...f });
+    setForm(EMPTY); setEditId(null); setShow(false);
+  };
+  // Rappel intelligent : marque « fait aujourd'hui » et régénère la prochaine échéance.
+  // Le km n'est mis à jour que si le véhicule a un compteur courant renseigné : sinon
+  // on ne recopie pas l'ancien km (donnée trompeuse) ni ne régénère le rappel en km.
+  const markFait = m => {
+    const e = m.e, today = todayIso();
+    const freshKm = m.veh ? numOr(m.veh.km) : null;   // km à jour (compteur du véhicule)
+    const patch = { date: today };
+    if (freshKm !== null) patch.km = String(freshKm);
+    if (numOr(e.intervalMois) !== null) patch.prochainDate = addMonthsIso(today, numOr(e.intervalMois));
+    if (numOr(e.intervalKm) !== null && freshKm !== null) patch.prochainKm = String(freshKm + numOr(e.intervalKm));
+    const nextTxt = [patch.prochainDate && fmtFr(patch.prochainDate), patch.prochainKm && fmtKm(patch.prochainKm)].filter(Boolean).join(' · ');
+    const kmMissing = numOr(e.intervalKm) !== null && freshKm === null;
+    const msg = 'Marquer « ' + (e.titre || 'cet entretien') + ' » fait aujourd\'hui'
+      + (freshKm !== null ? ' à ' + fmtKm(freshKm) : '') + ' ?'
+      + (nextTxt ? '\n\nProchaine échéance régénérée : ' + nextTxt : '')
+      + (kmMissing ? '\n\n⚠ Rappel km non régénéré : renseigne d\'abord le compteur du véhicule (bouton « Véhicules »).' : '');
+    if (!confirm(msg)) return;
+    updateEntretien(e.id, patch);
+  };
+  const exportOne = e => { const ev = entretienToIcsEvent(e); if (!ev) { alert("Ajoute une date de prochain entretien pour l'exporter au calendrier."); return; } downloadIcs([ev], 'entretien-' + (e.titre||'meca').toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,30) + '.ics'); };
+  const exportAll = () => {
+    const evs = (entretien || []).map(entretienToIcsEvent).filter(Boolean);
+    (vehicules || []).forEach(v => { const ct = ctToIcsEvent(v); if (ct) evs.push(ct); const as = assToIcsEvent(v); if (as) evs.push(as); });
+    if (!evs.length) { alert('Aucune échéance planifiée à exporter.'); return; }
+    downloadIcs(evs, 'entretien-mecanique.ics');
+  };
+
+  // ── Actions véhicules ──
+  const saveVeh = () => { if (!vForm.nom.trim()) return; addVehicule({ ...vForm, id: Date.now().toString(), nom: vForm.nom.trim() }); setVForm(V_EMPTY_VEH); setVFormOpen(false); };
+  // API infos pour le brouillon (nouveau véhicule, pas encore d'id) — miroir de addInfo/updInfo/delInfo
+  const draftInfosApi = {
+    list: vForm.infos,
+    add: () => setVForm(p => ({ ...p, infos: [...(p.infos || []), { id: Date.now().toString(), label:'', valeur:'' }] })),
+    upd: (iid, patch) => setVForm(p => ({ ...p, infos: (p.infos || []).map(x => x.id === iid ? { ...x, ...patch } : x) })),
+    del: iid => setVForm(p => ({ ...p, infos: (p.infos || []).filter(x => x.id !== iid) }))
+  };
+  // Documents (photos) — upload compressé vers Supabase (bucket album-photos) ou base64 en démo.
+  const doUpload = async (file, append) => {
+    setPhotoUploading(true);
+    try { const src = await uploadVehiclePhoto(file); append({ id: Date.now().toString(), src, name: file.name || 'document' }); }
+    catch (e) { alert('Impossible d\'ajouter ce document : ' + ((e && e.message) || 'erreur réseau')); }
+    finally { setPhotoUploading(false); }
+  };
+  const draftPhotosApi = {
+    list: vForm.photos,
+    uploading: photoUploading,
+    add: file => doUpload(file, ph => setVForm(p => ({ ...p, photos: [...(p.photos || []), ph] }))),
+    del: id => setVForm(p => ({ ...p, photos: (p.photos || []).filter(x => x.id !== id) }))
+  };
+  const editPhotosApi = v => ({
+    list: v.photos,
+    uploading: photoUploading,
+    add: file => doUpload(file, ph => updateVehicule(v.id, { photos: [...(v.photos || []), ph] })),
+    del: id => { if (confirm('Supprimer ce document ?')) updateVehicule(v.id, { photos: (v.photos || []).filter(x => x.id !== id) }); }
+  });
+  const delVeh = v => { if (confirm('Supprimer le véhicule « ' + v.nom + ' » ? (les entretiens liés sont conservés)')) deleteVehicule(v.id); };
+  // Infos libres par véhicule (« etc. » : pression pneus, réf filtre, ampoule…)
+  const addInfo = v => updateVehicule(v.id, { infos: [...(v.infos || []), { id: Date.now().toString(), label:'', valeur:'' }] });
+  const updInfo = (v, iid, patch) => updateVehicule(v.id, { infos: (v.infos || []).map(x => x.id === iid ? { ...x, ...patch } : x) });
+  const delInfo = (v, iid) => updateVehicule(v.id, { infos: (v.infos || []).filter(x => x.id !== iid) });
+
+  // ── Rendus ──
+  const chip = (txt, color, bg) => React.createElement('span', { style:{ fontSize:10, fontWeight:700, color:color, background: bg || 'var(--bg2)', borderRadius:10, padding:'2px 7px', whiteSpace:'nowrap' } }, txt);
+  const preset = (label, onClick, active) => React.createElement('button', { onClick, style:{ padding:'3px 9px', borderRadius:12, border:'1px solid ' + (active ? ACCENT : 'var(--border)'), background: active ? ACCENT+'22' : 'transparent', color: active ? ACCENT : 'var(--text3)', cursor:'pointer', fontSize:11, fontWeight:600 } }, label);
+
+  const renderCard = m => {
+    const e = m.e, past = m.overdue;
+    const vehEmoji = m.veh ? (m.veh.type || '🚗') + ' ' : '';
+    const huileHint = (m.veh && m.veh.huile && /vidange|huile/i.test(e.titre || '')) ? m.veh.huile : null;
+    const details = [fmtFr(e.date) && ('Fait : ' + fmtFr(e.date)), fmtKm(e.km), fmtCout(e.cout)].filter(Boolean).join(' · ');
+    const interval = [numOr(e.intervalMois) !== null && ('tous les ' + numOr(e.intervalMois) + ' mois'), numOr(e.intervalKm) !== null && ('tous les ' + fmtKm(e.intervalKm))].filter(Boolean).join(' · ');
+    const prochainTxt = [e.prochainDate && ('Prochain : ' + fmtFr(e.prochainDate)), e.prochainKm && ('à ' + fmtKm(e.prochainKm))].filter(Boolean).join(' · ');
+    return React.createElement('div', { key:e.id, style:{ background:'var(--glass)', border:'1px solid ' + (past ? 'rgba(239,68,68,.4)' : 'var(--border)'), borderRadius:'var(--radius)', padding:'11px 14px', marginBottom:9, display:'flex', gap:10, alignItems:'flex-start' } },
+      React.createElement('div', { style:{ flex:1, minWidth:0 } },
+        React.createElement('div', { style:{ display:'flex', alignItems:'center', gap:6, marginBottom:3, flexWrap:'wrap' } },
+          e.vehicule && chip(vehEmoji + e.vehicule, ACCENT),
+          React.createElement('span', { style:{ fontWeight:700, color:'var(--text)', fontSize:14 } }, e.titre),
+          m.d !== null && chip((m.d < 0 ? '⚠ ' : '') + countdownLabel(m.d), m.d < 0 ? '#ef4444' : (m.d <= 14 ? '#f59e0b' : '#10b981')),
+          m.kmLeft !== null && chip((m.kmLeft < 0 ? '⚠ ' : '') + kmLabel(m.kmLeft), m.kmLeft < 0 ? '#ef4444' : (m.kmLeft <= 1000 ? '#f59e0b' : '#10b981')),
+          huileHint && chip('🛢 ' + huileHint, 'var(--text2)')
+        ),
+        details && React.createElement('div', { style:{ fontSize:12, color:'var(--text3)', marginBottom:2 } }, details),
+        prochainTxt && React.createElement('div', { style:{ fontSize:12, color: past ? '#ef4444' : 'var(--text2)', marginBottom:2 } }, prochainTxt),
+        interval && React.createElement('div', { style:{ fontSize:11, color:'var(--text3)' } }, '🔁 ' + interval),
+        e.notes && React.createElement('div', { style:{ fontSize:12, color:'var(--text3)', fontStyle:'italic', marginTop:2 } }, e.notes)
+      ),
+      React.createElement('div', { style:{ display:'flex', flexDirection:'column', gap:6, alignItems:'center' } },
+        React.createElement('button', { onClick:()=>markFait(m), title:'Marquer fait aujourd\'hui (régénère l\'échéance)', style:{ background:'rgba(16,185,129,.15)', border:'1px solid rgba(16,185,129,.4)', borderRadius:8, color:'#10b981', cursor:'pointer', fontSize:13, padding:'2px 8px', fontWeight:700 } }, '✓'),
+        React.createElement('button', { onClick:()=>openEdit(e), title:'Modifier', style:{ background:'none', border:'1px solid var(--border)', borderRadius:8, color:'var(--text2)', cursor:'pointer', fontSize:13, padding:'2px 8px' } }, '✎'),
+        e.prochainDate && React.createElement('button', { onClick:()=>exportOne(e), title:'Ajouter au calendrier (.ics)', style:{ background:'none', border:'1px solid var(--border)', borderRadius:8, color:'var(--text2)', cursor:'pointer', fontSize:13, padding:'2px 8px' } }, '📅'),
+        React.createElement('button', { onClick:()=>{ if (confirm('Supprimer « '+(e.titre||'cet entretien')+' » ?')) deleteEntretien(e.id); }, style:{ background:'none', border:'none', color:'var(--danger)', cursor:'pointer', fontSize:18 } }, '×')
+      )
+    );
+  };
+
+  // Champ étiqueté (fiche véhicule)
+  const field = (label, val, onCh, opts) => React.createElement('label', { style:{ display:'flex', flexDirection:'column', gap:3, fontSize:10, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.03em' } },
+    label,
+    React.createElement('input', { value: val == null ? '' : val, onChange:e=>onCh(e.target.value), placeholder:(opts && opts.ph) || '', type:(opts && opts.type) || 'text', inputMode:(opts && opts.inputMode) || undefined, style:{ ...inp, fontWeight:400, textTransform:'none', letterSpacing:'normal', color:'var(--text)' } })
+  );
+  const sectionH = txt => React.createElement('div', { style:{ fontSize:10, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:6 } }, txt);
+
+  // Corps de formulaire véhicule partagé (ajout brouillon + édition fiche) — sections guidées.
+  // val = objet véhicule ; patch = applique un changement partiel ; infosApi = { list, add, upd, del }.
+  const vehForm = (val, patch, infosApi, photosApi, opts) => {
+    const ctd = daysUntil(val.controleTechnique);
+    const asd = daysUntil(val.assuranceEcheance);
+    const dateLabel = (txt, cur, key, presetMonths, presetTxt, d) => React.createElement('div', { style:{ display:'flex', gap:8, alignItems:'flex-end', marginBottom:10, flexWrap:'wrap' } },
+      React.createElement('label', { style:{ display:'flex', flexDirection:'column', gap:3, fontSize:10, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.03em' } },
+        txt,
+        React.createElement('input', { type:'date', value: cur || '', onChange:e=>patch({ [key]: e.target.value }), style:{ ...inp, textTransform:'none', letterSpacing:'normal', color:'var(--text)' } })
+      ),
+      React.createElement('button', { onClick:()=>patch({ [key]: addMonthsIso(cur || todayIso(), presetMonths) }), title:'Reporter', style:{ padding:'8px 12px', borderRadius:10, border:'1px solid var(--border)', background:'transparent', color:'var(--text2)', cursor:'pointer', fontSize:12, fontWeight:700 } }, presetTxt),
+      d !== null && React.createElement('span', { style:{ fontSize:12, fontWeight:700, color:ctColor(d), paddingBottom:8 } }, ctLabel(d))
+    );
+    return [
+      sectionH('Identité & technique'),
+      React.createElement('div', { key:'types', style:{ display:'flex', gap:4, marginBottom:10, flexWrap:'wrap' } }, TYPES.map(t => React.createElement('button', { key:t, onClick:()=>patch({ type:t }), style:{ fontSize:16, padding:'4px 6px', borderRadius:8, border:'1px solid ' + ((val.type||'🚗')===t?ACCENT:'var(--border)'), background:(val.type||'🚗')===t?ACCENT+'22':'transparent', cursor:'pointer' } }, t))),
+      React.createElement('div', { key:'g1', style:{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))', gap:8, marginBottom:10 } },
+        field('Nom', val.nom, x=>patch({ nom:x }), { ph:'Voiture' }),
+        field('Immatriculation', val.immatriculation, x=>patch({ immatriculation:x }), { ph:'AB-123-CD' }),
+        field('Marque', val.marque, x=>patch({ marque:x }), { ph:'Peugeot' }),
+        field('Modèle', val.modele, x=>patch({ modele:x }), { ph:'208' }),
+        field('Année', val.annee, x=>patch({ annee:x }), { ph:'2019', inputMode:'numeric' }),
+        field('Huile', val.huile, x=>patch({ huile:x }), { ph:'5W30' }),
+        field('N° de série (VIN)', val.vin, x=>patch({ vin:x }), { ph:'VF3...' }),
+        field('Mise en circulation', val.miseEnCirculation, x=>patch({ miseEnCirculation:x }), { type:'date' }),
+        // Km seulement à l'ajout : en édition, l'input km est déjà sur la ligne principale.
+        (opts && opts.showKm) && field('Km actuel', val.km, x=>patch({ km:x }), { ph:'86000', inputMode:'numeric' })
+      ),
+      sectionH('🛡 Contrôle technique'),
+      dateLabel('Prochaine échéance', val.controleTechnique, 'controleTechnique', 24, '+2 ans', ctd),
+      sectionH('📄 Assurance'),
+      React.createElement('div', { key:'g2', style:{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))', gap:8, marginBottom:8 } },
+        field('Assureur', val.assureur, x=>patch({ assureur:x }), { ph:'Ex : MAIF' }),
+        field('N° contrat', val.assuranceContrat, x=>patch({ assuranceContrat:x }), { ph:'123456789' }),
+        field('Cotisation (€/an)', val.assuranceCout, x=>patch({ assuranceCout:x }), { ph:'450', inputMode:'numeric' })
+      ),
+      dateLabel('Échéance / renouvellement', val.assuranceEcheance, 'assuranceEcheance', 12, '+1 an', asd),
+      React.createElement('textarea', { key:'notes', placeholder:'Notes (garage habituel, carte grise…)', value: val.notes || '', onChange:e=>patch({ notes:e.target.value }), style:{ ...inp, minHeight:48, marginBottom:10, resize:'vertical' } }),
+      sectionH('Autres infos'),
+      ...(infosApi.list || []).map(info => React.createElement('div', { key:info.id, style:{ display:'flex', gap:6, alignItems:'center', marginBottom:6 } },
+        React.createElement('input', { placeholder:'Libellé (ex : Pression pneus)', value:info.label || '', onChange:e=>infosApi.upd(info.id, { label:e.target.value }), style:{ ...inp, flex:1 } }),
+        React.createElement('input', { placeholder:'Valeur (ex : 2.4 bar)', value:info.valeur || '', onChange:e=>infosApi.upd(info.id, { valeur:e.target.value }), style:{ ...inp, flex:1 } }),
+        React.createElement('button', { onClick:()=>infosApi.del(info.id), style:{ background:'none', border:'none', color:'var(--danger)', cursor:'pointer', fontSize:18 } }, '×')
+      )),
+      React.createElement('button', { key:'addinfo', onClick:infosApi.add, style:{ padding:'5px 12px', borderRadius:10, border:'1px dashed var(--border)', background:'transparent', color:'var(--text2)', cursor:'pointer', fontSize:12, fontWeight:600 } }, '+ Info'),
+      sectionH('📎 Documents (carte grise, assurance, factures…)'),
+      React.createElement('div', { key:'docs', style:{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center', marginBottom:4 } },
+        ...(photosApi.list || []).map(ph => React.createElement('div', { key:ph.id, style:{ position:'relative', width:72 } },
+          React.createElement('img', { src:ph.src, alt:ph.name || 'document', title:ph.name || 'document', onClick:()=>window.open(ph.src, '_blank'), style:{ width:72, height:72, objectFit:'cover', borderRadius:8, border:'1px solid var(--border)', cursor:'pointer', display:'block' } }),
+          React.createElement('button', { onClick:()=>photosApi.del(ph.id), title:'Supprimer', style:{ position:'absolute', top:-6, right:-6, width:20, height:20, borderRadius:'50%', border:'none', background:'var(--danger)', color:'#fff', cursor:'pointer', fontSize:12, lineHeight:'18px', padding:0 } }, '×')
+        )),
+        React.createElement('label', { key:'upl', style:{ display:'inline-flex', alignItems:'center', justifyContent:'center', width:72, height:72, borderRadius:8, border:'1px dashed var(--border)', color:'var(--text3)', cursor: photosApi.uploading ? 'wait' : 'pointer', fontSize:11, textAlign:'center', padding:4, boxSizing:'border-box' } },
+          photosApi.uploading ? 'Envoi…' : '📎 Ajouter',
+          React.createElement('input', { type:'file', accept:'image/*', disabled:photosApi.uploading, style:{ display:'none' }, onChange:e=>{ const f = e.target.files && e.target.files[0]; if (f) photosApi.add(f); e.target.value=''; } })
+        )
+      )
+    ];
+  };
+
+  const renderVehCard = v => {
+    const open = vExpand === v.id;
+    const sub = [v.marque, v.modele, v.annee].filter(Boolean).join(' ');
+    const ctD = daysUntil(v.controleTechnique);
+    const asD = daysUntil(v.assuranceEcheance);
+    return React.createElement('div', { key:v.id, style:{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:12, padding:'10px 12px', marginBottom:10 } },
+      // Ligne principale
+      React.createElement('div', { style:{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' } },
+        React.createElement('span', { style:{ fontSize:20 } }, v.type || '🚗'),
+        React.createElement('div', { style:{ minWidth:80 } },
+          React.createElement('div', { style:{ fontWeight:700, color:'var(--text)', fontSize:13 } }, v.nom),
+          sub && React.createElement('div', { style:{ fontSize:11, color:'var(--text3)' } }, sub)
+        ),
+        v.immatriculation && chip('🔖 ' + v.immatriculation, 'var(--text2)'),
+        v.huile && chip('🛢 ' + v.huile, 'var(--text2)'),
+        ctD !== null && chip('🛡 CT ' + ctLabel(ctD), ctColor(ctD)),
+        asD !== null && chip('📄 Assur. ' + ctLabel(asD), ctColor(asD)),
+        (v.photos && v.photos.length > 0) && chip('📎 ' + v.photos.length, 'var(--text2)'),
+        React.createElement('div', { style:{ display:'flex', gap:6, alignItems:'center', marginLeft:'auto' } },
+          React.createElement('input', { type:'number', inputMode:'numeric', value: v.km == null ? '' : v.km, placeholder:'Km', title:'Kilométrage actuel', onChange:e=>updateVehicule(v.id, { km:e.target.value }), style:{ ...inp, maxWidth:110 } }),
+          React.createElement('span', { style:{ fontSize:12, color:'var(--text3)' } }, 'km'),
+          React.createElement('button', { onClick:()=>setVExpand(open ? null : v.id), title:'Fiche détaillée', style:{ background:'none', border:'1px solid var(--border)', borderRadius:8, color:'var(--text2)', cursor:'pointer', fontSize:13, padding:'3px 9px' } }, open ? '▴' : '▾'),
+          React.createElement('button', { onClick:()=>delVeh(v), style:{ background:'none', border:'none', color:'var(--danger)', cursor:'pointer', fontSize:18 } }, '×')
+        )
+      ),
+      // Fiche détaillée (édition) — même formulaire guidé que l'ajout
+      open && React.createElement('div', { style:{ marginTop:12, paddingTop:12, borderTop:'1px solid var(--border)' } },
+        ...vehForm(v, p => updateVehicule(v.id, p), { list: v.infos, add: () => addInfo(v), upd: (iid, patch) => updInfo(v, iid, patch), del: iid => delInfo(v, iid) }, editPhotosApi(v))
+      )
+    );
+  };
+
+  return React.createElement('div', null,
+    // En-tête
+    React.createElement('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14, gap:8, flexWrap:'wrap' } },
+      React.createElement('h2', { style:{ margin:0, fontSize:20 } }, '🔧 Entretien mécanique'),
+      React.createElement('div', { style:{ display:'flex', gap:8, flexWrap:'wrap' } },
+        React.createElement('button', { onClick:()=>{ setShowVeh(!showVeh); setShow(false); setShowCosts(false); }, title:'Gérer les véhicules', style:{ padding:'8px 14px', borderRadius:20, border:'1px solid var(--border)', background: showVeh ? ACCENT+'22' : 'transparent', color: showVeh ? ACCENT : 'var(--text2)', cursor:'pointer', fontWeight:700, fontSize:13 } }, '🚗 Véhicules'),
+        React.createElement('button', { onClick:()=>{ setShowCosts(!showCosts); setShow(false); setShowVeh(false); }, title:'Synthèse des coûts', style:{ padding:'8px 14px', borderRadius:20, border:'1px solid var(--border)', background: showCosts ? ACCENT+'22' : 'transparent', color: showCosts ? ACCENT : 'var(--text2)', cursor:'pointer', fontWeight:700, fontSize:13 } }, '📊 Coûts'),
+        ((entretien||[]).some(e => e.prochainDate) || (vehicules||[]).some(v => v.controleTechnique || v.assuranceEcheance)) && React.createElement('button', { onClick:exportAll, title:'Exporter les échéances (.ics)', style:{ padding:'8px 14px', borderRadius:20, border:'1px solid var(--border)', background:'transparent', color:'var(--text2)', cursor:'pointer', fontWeight:700, fontSize:13 } }, '📅'),
+        React.createElement('button', { onClick:()=> show ? (setShow(false), setEditId(null)) : openAdd(), style:{ padding:'8px 18px', borderRadius:20, border:'none', background:ACCENT, color:'#fff', cursor:'pointer', fontWeight:700 } }, show ? '✕' : '+ Entretien')
+      )
+    ),
+
+    // Gestion des véhicules
+    showVeh && React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid rgba(167,139,250,.35)', borderRadius:'var(--radius)', padding:16, marginBottom:16 } },
+      React.createElement('div', { style:{ fontSize:11, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:10 } }, 'Mes véhicules'),
+      (vehicules || []).length === 0 && !vFormOpen && React.createElement('div', { style:{ fontSize:12, color:'var(--text3)', marginBottom:10 } }, 'Aucun véhicule — clique « + Nouveau véhicule » pour renseigner toute sa fiche d\'un coup.'),
+      (vehicules || []).map(renderVehCard),
+      !vFormOpen && React.createElement('button', { onClick:()=>{ setVForm(V_EMPTY_VEH); setVFormOpen(true); }, style:{ marginTop:8, padding:'9px 16px', borderRadius:12, border:'1px dashed '+ACCENT, background:'transparent', color:ACCENT, cursor:'pointer', fontWeight:700, fontSize:13 } }, '+ Nouveau véhicule'),
+      vFormOpen && React.createElement('div', { style:{ marginTop:12, paddingTop:12, borderTop:'1px solid var(--border)' } },
+        React.createElement('div', { style:{ fontWeight:700, color:'var(--text)', fontSize:14, marginBottom:12 } }, '🚗 Nouveau véhicule'),
+        ...vehForm(vForm, p => setVForm(prev => ({ ...prev, ...p })), draftInfosApi, draftPhotosApi, { showKm: true }),
+        React.createElement('div', { style:{ display:'flex', gap:8, marginTop:12, flexWrap:'wrap' } },
+          React.createElement('button', { onClick:saveVeh, disabled: !vForm.nom.trim(), style:{ padding:'9px 20px', borderRadius:12, border:'none', background: vForm.nom.trim() ? ACCENT : 'var(--border)', color:'#fff', cursor: vForm.nom.trim() ? 'pointer' : 'not-allowed', fontWeight:700 } }, 'Enregistrer le véhicule'),
+          React.createElement('button', { onClick:()=>{ setVFormOpen(false); setVForm(V_EMPTY_VEH); }, style:{ padding:'9px 16px', borderRadius:12, border:'1px solid var(--border)', background:'transparent', color:'var(--text2)', cursor:'pointer', fontWeight:700 } }, 'Annuler')
+        ),
+        !vForm.nom.trim() && React.createElement('div', { style:{ fontSize:11, color:'var(--text3)', marginTop:6 } }, 'Le nom est requis pour enregistrer.')
+      )
+    ),
+
+    // Synthèse des coûts par véhicule
+    showCosts && React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid rgba(167,139,250,.35)', borderRadius:'var(--radius)', padding:16, marginBottom:16 } },
+      React.createElement('div', { style:{ fontSize:11, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:12 } }, '📊 Synthèse des coûts'),
+      costRows.length === 0 && React.createElement('div', { style:{ fontSize:12, color:'var(--text3)' } }, 'Aucun coût saisi — renseigne les coûts d\'entretien et la cotisation d\'assurance.'),
+      costRows.map(r => { const v = vehByName(r.nom); const pct = Math.round(r.entretien / costMax * 100); return React.createElement('div', { key:r.nom, style:{ marginBottom:12 } },
+        React.createElement('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:8, marginBottom:4, flexWrap:'wrap' } },
+          React.createElement('span', { style:{ fontWeight:700, color:'var(--text)', fontSize:13 } }, (v ? (v.type||'🚗')+' ' : '') + r.nom),
+          React.createElement('span', { style:{ fontSize:12, color:'var(--text3)' } }, [r.entretien > 0 && ('Entretien ' + r.entretien.toLocaleString('fr-FR') + ' €'), r.assurance > 0 && ('Assurance ' + r.assurance.toLocaleString('fr-FR') + ' €/an')].filter(Boolean).join(' · ') || '—')
+        ),
+        React.createElement('div', { style:{ height:8, background:'var(--bg2)', borderRadius:6, overflow:'hidden' } },
+          React.createElement('div', { style:{ height:'100%', width: pct + '%', background:ACCENT, borderRadius:6 } })
+        )
+      ); }),
+      costRows.length > 0 && React.createElement('div', { style:{ display:'flex', justifyContent:'space-between', gap:8, marginTop:8, paddingTop:10, borderTop:'1px solid var(--border)', fontSize:13, flexWrap:'wrap' } },
+        React.createElement('span', { style:{ fontWeight:700, color:'var(--text)' } }, 'Total'),
+        React.createElement('span', { style:{ color:'var(--text2)' } }, 'Entretien cumulé ', React.createElement('b', null, costTotalEntretien.toLocaleString('fr-FR') + ' €'), ' · Assurance ', React.createElement('b', null, costTotalAssurance.toLocaleString('fr-FR') + ' €/an'))
+      ),
+      React.createElement('div', { style:{ fontSize:11, color:'var(--text3)', marginTop:8 } }, 'Entretien = somme des coûts saisis (historique cumulé) · Assurance = cotisation annuelle de la fiche.')
+    ),
+
+    // Filtres par véhicule
+    vehNames.length > 1 && !show && !showCosts && React.createElement('div', { style:{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:14 } },
+      preset('Tous', ()=>setFilt(null), filt === null),
+      vehNames.map(nom => { const v = vehByName(nom); const kmTxt = v && numOr(v.km) !== null ? ' · ' + fmtKm(v.km) : ''; return React.createElement(React.Fragment, { key:nom }, preset((v ? (v.type||'🚗')+' ' : '') + nom + kmTxt, ()=>setFilt(nom), filt === nom)); })
+    ),
+
+    // Alertes échéances administratives (CT + assurance)
+    deadlineAlerts.length > 0 && !show && !showVeh && !showCosts && React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid ' + (deadlineAlerts[0].d < 0 ? 'rgba(239,68,68,.45)' : 'rgba(245,158,11,.45)'), borderRadius:'var(--radius)', padding:'10px 14px', marginBottom:12 } },
+      React.createElement('div', { style:{ fontSize:11, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:6 } }, '🛡 Échéances (contrôle technique · assurance)'),
+      deadlineAlerts.map(x => React.createElement('div', { key:x.key, style:{ display:'flex', alignItems:'center', gap:8, fontSize:13, color:'var(--text2)', marginBottom:2 } },
+        React.createElement('span', null, (x.v.type || '🚗') + ' ' + x.v.nom),
+        React.createElement('span', { style:{ fontSize:11, color:'var(--text3)' } }, x.label),
+        React.createElement('span', { style:{ fontWeight:700, color:ctColor(x.d) } }, ctLabel(x.d)),
+        x.ev && React.createElement('button', { onClick:()=>downloadIcs([x.ev], x.file + '-' + (x.v.nom||'vehicule').toLowerCase().replace(/[^a-z0-9]+/g,'-') + '.ics'), title:'Ajouter au calendrier (.ics)', style:{ background:'none', border:'1px solid var(--border)', borderRadius:8, color:'var(--text2)', cursor:'pointer', fontSize:12, padding:'1px 7px' } }, '📅')
+      ))
+    ),
+
+    // Hero : prochain / à faire
+    hero && !show && !showVeh && !showCosts && React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid ' + (hero.overdue ? 'rgba(239,68,68,.4)' : 'rgba(167,139,250,.35)'), borderRadius:'var(--radius)', padding:'12px 16px', marginBottom:16, display:'flex', alignItems:'center', gap:12 } },
+      React.createElement('span', { style:{ fontSize:24 } }, hero.overdue ? '⚠️' : '🛠'),
+      React.createElement('div', null,
+        React.createElement('div', { style:{ fontSize:11, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em' } }, hero.overdue ? 'Entretien à faire' : 'Prochain entretien'),
+        React.createElement('div', { style:{ fontWeight:700, color:'var(--text)', fontSize:15 } }, [hero.d !== null ? countdownLabel(hero.d) : null, hero.kmLeft !== null ? kmLabel(hero.kmLeft) : null, hero.e.titre].filter(Boolean).join(' · ')),
+        React.createElement('div', { style:{ fontSize:12, color:'var(--text3)' } }, [hero.e.vehicule, fmtFr(hero.e.prochainDate), hero.e.prochainKm && ('à ' + fmtKm(hero.e.prochainKm))].filter(Boolean).join(' · '))
+      )
+    ),
+
+    // Formulaire
+    show && React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid rgba(167,139,250,.35)', borderRadius:'var(--radius)', padding:16, marginBottom:16 } },
+      React.createElement('input', { placeholder:'Intervention (ex : Vidange, Pneus, Freins…) *', value:form.titre, onChange:e=>setForm(p=>({...p,titre:e.target.value})), style:{ ...inp, marginBottom:8 } }),
+      React.createElement('input', { list:'entretien-veh-list', placeholder:'Véhicule (ex : Voiture, Moto…)', value:form.vehicule, onChange:e=>setForm(p=>({...p,vehicule:e.target.value})), style:{ ...inp, marginBottom:8 } }),
+      React.createElement('datalist', { id:'entretien-veh-list' }, vehNames.map(n => React.createElement('option', { key:n, value:n }))),
+      React.createElement('div', { style:{ fontSize:11, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em', margin:'4px 0 6px' } }, 'Réalisé'),
+      React.createElement('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8, marginBottom:8 } },
+        React.createElement('input', { type:'date', value:form.date, onChange:e=>setForm(p=>({...p,date:e.target.value})), style:inp }),
+        React.createElement('input', { type:'number', inputMode:'numeric', placeholder:'Km', value:form.km, onChange:e=>setForm(p=>({...p,km:e.target.value})), style:inp }),
+        React.createElement('input', { type:'number', inputMode:'numeric', placeholder:'Coût €', value:form.cout, onChange:e=>setForm(p=>({...p,cout:e.target.value})), style:inp })
+      ),
+      React.createElement('div', { style:{ fontSize:11, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em', margin:'4px 0 6px' } }, 'Récurrence (rappel auto)'),
+      React.createElement('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:6 } },
+        React.createElement('input', { type:'number', inputMode:'numeric', placeholder:'Tous les … mois', value:form.intervalMois, onChange:e=>setForm(p=>({...p,intervalMois:e.target.value})), style:inp }),
+        React.createElement('input', { type:'number', inputMode:'numeric', placeholder:'Tous les … km', value:form.intervalKm, onChange:e=>setForm(p=>({...p,intervalKm:e.target.value})), style:inp })
+      ),
+      React.createElement('div', { style:{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:10 } },
+        preset('6 mois', ()=>setForm(p=>({...p,intervalMois:'6'})), form.intervalMois==='6'),
+        preset('12 mois', ()=>setForm(p=>({...p,intervalMois:'12'})), form.intervalMois==='12'),
+        preset('24 mois', ()=>setForm(p=>({...p,intervalMois:'24'})), form.intervalMois==='24'),
+        preset('5 000 km', ()=>setForm(p=>({...p,intervalKm:'5000'})), form.intervalKm==='5000'),
+        preset('10 000 km', ()=>setForm(p=>({...p,intervalKm:'10000'})), form.intervalKm==='10000'),
+        preset('15 000 km', ()=>setForm(p=>({...p,intervalKm:'15000'})), form.intervalKm==='15000')
+      ),
+      React.createElement('div', { style:{ fontSize:11, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em', margin:'4px 0 6px' } }, 'Prochaine échéance (auto si récurrence)'),
+      React.createElement('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 } },
+        React.createElement('input', { type:'date', value:form.prochainDate, onChange:e=>setForm(p=>({...p,prochainDate:e.target.value})), style:inp }),
+        React.createElement('input', { type:'number', inputMode:'numeric', placeholder:'À … km', value:form.prochainKm, onChange:e=>setForm(p=>({...p,prochainKm:e.target.value})), style:inp })
+      ),
+      React.createElement('textarea', { placeholder:'Notes (garage, référence pièce, huile utilisée…)', value:form.notes, onChange:e=>setForm(p=>({...p,notes:e.target.value})), style:{ ...inp, minHeight:60, marginBottom:10, resize:'vertical' } }),
+      React.createElement('button', { onClick:save, style:{ padding:'8px 20px', borderRadius:12, border:'none', background:ACCENT, color:'#fff', cursor:'pointer', fontWeight:700 } }, editId ? 'Mettre à jour' : 'Enregistrer')
+    ),
+
+    // Listes
+    (entretien||[]).length === 0 && !show && !showVeh && React.createElement('div', { style:{ textAlign:'center', padding:'50px 0', color:'var(--text3)' } }, '🔧 Aucun entretien — ajoutez vos interventions et échéances'),
+    list.length === 0 && (entretien||[]).length > 0 && !show && React.createElement('div', { style:{ textAlign:'center', padding:'30px 0', color:'var(--text3)' } }, 'Aucun entretien pour ce véhicule.'),
+    totalCout > 0 && !show && React.createElement('div', { style:{ fontSize:12, color:'var(--text3)', marginBottom:12 } }, 'Total dépensé : ', React.createElement('span', { style:{ fontWeight:700, color:'var(--text2)' } }, totalCout.toLocaleString('fr-FR') + ' €')),
+    enRetard.length > 0 && React.createElement('div', { style:{ fontSize:11, fontWeight:700, color:'#ef4444', textTransform:'uppercase', letterSpacing:'.05em', margin:'4px 0 8px' } }, 'À faire / en retard'),
+    enRetard.map(renderCard),
+    aVenir.length > 0 && React.createElement('div', { style:{ fontSize:11, fontWeight:700, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em', margin: enRetard.length ? '16px 0 8px' : '4px 0 8px' } }, 'À venir / historique'),
+    aVenir.map(renderCard)
+  );
+}
+
+// ─── Horloge + météo Guadeloupe (Open-Meteo, sans clé API) ───
+// Code météo WMO → icône + libellé FR.
+function wmoInfo(code) {
+  const c = Number(code);
+  if (c === 0) return { icon: '☀️', label: 'Ensoleillé' };
+  if (c === 1) return { icon: '🌤', label: 'Peu nuageux' };
+  if (c === 2) return { icon: '⛅', label: 'Partiellement nuageux' };
+  if (c === 3) return { icon: '☁️', label: 'Couvert' };
+  if (c === 45 || c === 48) return { icon: '🌫', label: 'Brouillard' };
+  if (c >= 51 && c <= 57) return { icon: '🌦', label: 'Bruine' };
+  if (c >= 61 && c <= 67) return { icon: '🌧', label: 'Pluie' };
+  if (c >= 71 && c <= 77) return { icon: '❄️', label: 'Neige' };
+  if (c >= 80 && c <= 82) return { icon: '🌦', label: 'Averses' };
+  if (c === 85 || c === 86) return { icon: '🌨', label: 'Averses de neige' };
+  if (c === 95) return { icon: '⛈', label: 'Orage' };
+  if (c === 96 || c === 99) return { icon: '⛈', label: 'Orage + grêle' };
+  return { icon: '🌡', label: 'Météo' };
+}
+// ─── Météo temps réel · Guadeloupe & France ───
+// Quatre sources publiques, SANS clé d'API — rappel d'invariant : tout fichier à
+// la racine est publié, donc aucun secret ne peut vivre ici.
+//   • Open-Meteo (déjà utilisé par le Potager) : conditions + prévisions
+//   • Open-Meteo Marine : houle, période, température de la mer
+//   • NOAA / NHC : cyclones actifs du bassin Atlantique
+//   • USGS : séismes récents
+// Les données ne sont JAMAIS stockées dans `data` : elles sont éphémères et
+// n'ont rien à faire dans la synchro Supabase ni dans normalize().
+const METEO_LIEUX = [
+  { id: 'gosier',   nom: 'Le Gosier',       zone: 'gwa', lat: 16.2049, lon: -61.4919, tz: 'America/Guadeloupe', plage: true },
+  { id: 'pap',      nom: 'Pointe-à-Pitre',  zone: 'gwa', lat: 16.2411, lon: -61.5330, tz: 'America/Guadeloupe', plage: false },
+  { id: 'steanne',  nom: 'Sainte-Anne',     zone: 'gwa', lat: 16.2265, lon: -61.3826, tz: 'America/Guadeloupe', plage: true },
+  { id: 'stfrancois', nom: 'Saint-François', zone: 'gwa', lat: 16.2515, lon: -61.2703, tz: 'America/Guadeloupe', plage: true },
+  { id: 'deshaies', nom: 'Deshaies',        zone: 'gwa', lat: 16.3036, lon: -61.7946, tz: 'America/Guadeloupe', plage: true },
+  { id: 'basseterre', nom: 'Basse-Terre',   zone: 'gwa', lat: 15.9985, lon: -61.7320, tz: 'America/Guadeloupe', plage: false },
+  { id: 'paris',    nom: 'Paris',           zone: 'fr',  lat: 48.8566, lon: 2.3522,   tz: 'Europe/Paris', plage: false },
+  { id: 'creteil',  nom: 'Créteil',         zone: 'fr',  lat: 48.7904, lon: 2.4556,   tz: 'Europe/Paris', plage: false }
+];
+// Images satellite & cartes. Point clé : une <img> n'est PAS soumise au CORS,
+// contrairement à un fetch() — c'est pour ça qu'on peut afficher ces visuels
+// alors que le flux JSON du NHC est refusé par le navigateur. Chaque image
+// bascule sur son lien si elle ne charge pas (URL changée, source en panne).
+const METEO_VISUELS = [
+  {
+    id: 'two',
+    titre: 'Prévision tropicale à 7 jours',
+    desc: 'Zones de formation surveillées par le National Hurricane Center.',
+    img: 'https://www.nhc.noaa.gov/xgtwo/two_atl_7d0.png',
+    lien: 'https://www.nhc.noaa.gov/gtwo.php?basin=atlc&fdays=7'
+  },
+  {
+    id: 'satellite',
+    titre: 'Satellite — Atlantique tropical',
+    desc: 'Image GOES-Est la plus récente, bassin de formation des cyclones.',
+    img: 'https://cdn.star.nesdis.noaa.gov/GOES19/ABI/SECTOR/taw/GEOCOLOR/latest.jpg',
+    lien: 'https://www.star.nesdis.noaa.gov/goes/sector.php?sat=G19&sector=taw'
+  },
+  {
+    id: 'radar',
+    titre: 'Radar NOAA — Atlantique',
+    desc: 'Carte interactive, centrée sur le bassin. S\'ouvre dans un onglet.',
+    img: null,
+    lien: 'https://radar.weather.gov/?settings=v1_eyJhZ2VuZGEiOnsiaWQiOm51bGwsImNlbnRlciI6Wy01NS4zMTMsMjYuMjM1XSwibG9jYXRpb24iOm51bGwsInpvb20iOjMuMjQ3NDAwNDMwNzU2MzI1fSwiYW5pbWF0aW5nIjpmYWxzZSwiYmFzZSI6InN0YW5kYXJkIiwiYXJ0Y2MiOmZhbHNlLCJjb3VudHkiOmZhbHNlLCJjd2EiOmZhbHNlLCJyZmMiOmZhbHNlLCJzdGF0ZSI6ZmFsc2UsIm1lbnUiOnRydWUsInNob3J0RnVzZWRPbmx5IjpmYWxzZSwib3BhY2l0eSI6eyJhbGVydHMiOjAuOCwibG9jYWwiOjAuNiwibG9jYWxTdGF0aW9ucyI6MC44LCJuYXRpb25hbCI6MC42fX0%3D'
+  }
+];
+const METEO_SOURCES = [
+  { t: 'Vigilance Météo-France (alerte officielle)', u: 'https://vigilance.meteofrance.fr/fr' },
+  { t: 'Vigilance Guadeloupe', u: 'https://vigilance.meteofrance.fr/fr/guadeloupe' },
+  { t: 'National Hurricane Center (cyclones)', u: 'https://www.nhc.noaa.gov/' },
+  { t: 'Séismes Antilles — IPGP / OVSG', u: 'http://www.ipgp.fr/fr/ovsg/observatoire-volcanologique-sismologique-guadeloupe' }
+];
+// Échelle de Beaufort simplifiée, en km/h.
+function meteoVent(kmh) {
+  const v = Number(kmh) || 0;
+  if (v < 12) return { l: 'Calme', c: 'var(--success)' };
+  if (v < 29) return { l: 'Brise légère', c: 'var(--success)' };
+  if (v < 39) return { l: 'Vent modéré', c: 'var(--gold)' };
+  if (v < 50) return { l: 'Vent frais', c: 'var(--gold)' };
+  if (v < 62) return { l: 'Grand frais', c: 'var(--warn)' };
+  if (v < 89) return { l: 'Coup de vent', c: 'var(--warn)' };
+  if (v < 118) return { l: 'Tempête', c: 'var(--danger)' };
+  return { l: 'Force cyclonique', c: 'var(--danger)' };
+}
+function meteoUV(uv) {
+  const u = Number(uv) || 0;
+  if (u < 3) return { l: 'Faible', c: 'var(--success)', conseil: 'Pas de protection nécessaire.' };
+  if (u < 6) return { l: 'Modéré', c: 'var(--gold)', conseil: 'Crème solaire et chapeau.' };
+  if (u < 8) return { l: 'Élevé', c: 'var(--warn)', conseil: 'Ombre entre 11 h et 15 h, crème indice 50.' };
+  if (u < 11) return { l: 'Très élevé', c: 'var(--danger)', conseil: 'Éviter l\'exposition en milieu de journée.' };
+  return { l: 'Extrême', c: 'var(--danger)', conseil: 'Exposition à éviter — brûlure en quelques minutes.' };
+}
+// Verdict plage : on ne fabrique pas un chiffre, on dit ce qui gêne.
+function meteoPlageVerdict({ vagues, vent, pluie, uv, code }) {
+  const contre = [];
+  if (Number(vagues) >= 2) contre.push('houle de ' + Number(vagues).toFixed(1) + ' m');
+  else if (Number(vagues) >= 1.25) contre.push('mer agitée');
+  if (Number(vent) >= 39) contre.push('vent soutenu');
+  if (Number(pluie) >= 60) contre.push('pluie probable');
+  if (Number(code) >= 95) contre.push('risque d\'orage');
+  if (Number(uv) >= 11) contre.push('UV extrême');
+  if (!contre.length) return { ok: true, l: 'Bonnes conditions', c: 'var(--success)', d: 'Rien de bloquant côté mer, vent et ciel.' };
+  if (contre.length === 1 && Number(vagues) < 2 && Number(code) < 95) return { ok: true, l: 'Correct', c: 'var(--gold)', d: 'À surveiller : ' + contre[0] + '.' };
+  return { ok: false, l: 'Mauvaises conditions', c: 'var(--danger)', d: contre.join(', ') + '.' };
+}
+// Saison cyclonique atlantique : 1er juin → 30 novembre.
+function meteoSaisonCyclonique(d) {
+  const m = (d || new Date()).getMonth();
+  const dedans = m >= 5 && m <= 10;
+  return {
+    dedans,
+    l: dedans ? 'Saison cyclonique en cours' : 'Hors saison cyclonique',
+    d: dedans
+      ? 'Du 1er juin au 30 novembre. Kit d\'urgence, papiers et eau à garder prêts.'
+      : 'La saison va du 1er juin au 30 novembre. Un cyclone hors saison reste possible mais rare.'
+  };
+}
+// Jours de vent fort dans la prévision, seuils de l'échelle tropicale (km/h,
+// vent moyen sur 10 min). On ne garde que ce qui mérite d'être signalé : en
+// dessous de 50 km/h, un alizé soutenu n'est pas une information.
+const METEO_SEUILS_VENT = [
+  { min: 118, l: 'Force cyclonique', icone: '🌀', c: 'var(--danger)' },
+  { min: 89,  l: 'Tempête',          icone: '🌪', c: 'var(--danger)' },
+  { min: 63,  l: 'Force tempête tropicale', icone: '💨', c: 'var(--warn)' },
+  { min: 50,  l: 'Vent fort',        icone: '💨', c: 'var(--gold)' }
+];
+function meteoVentsViolents(jours) {
+  if (!jours || !Array.isArray(jours.time)) return [];
+  const vents = Array.isArray(jours.wind_speed_10m_max) ? jours.wind_speed_10m_max : [];
+  const rafales = Array.isArray(jours.wind_gusts_10m_max) ? jours.wind_gusts_10m_max : [];
+  const out = [];
+  jours.time.forEach((jour, i) => {
+    const v = Number(vents[i]);
+    if (!isFinite(v)) return;
+    const s = METEO_SEUILS_VENT.find(x => v >= x.min);
+    if (!s) return;
+    const r = Number(rafales[i]);
+    out.push({ jour, vent: v, rafale: isFinite(r) ? r : null, l: s.l, icone: s.icone, c: s.c });
+  });
+  return out;
+}
+function seismeCouleur(mag) {
+  const m = Number(mag) || 0;
+  if (m >= 5.5) return 'var(--danger)';
+  if (m >= 4.5) return 'var(--warn)';
+  if (m >= 3.5) return 'var(--gold)';
+  return 'var(--text3)';
+}
+function meteoIlYA(ms) {
+  const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+  if (s < 60) return 'à l\'instant';
+  const mn = Math.round(s / 60);
+  if (mn < 60) return 'il y a ' + mn + ' min';
+  const hh = Math.round(mn / 60);
+  if (hh < 24) return 'il y a ' + hh + ' h';
+  return 'il y a ' + Math.round(hh / 24) + ' j';
+}
+// Fenêtre de recherche des séismes autour du lieu (degrés).
+function meteoBoite(lieu) {
+  const r = lieu.zone === 'gwa' ? 3.5 : 4;
+  return { minlat: lieu.lat - r, maxlat: lieu.lat + r, minlon: lieu.lon - r, maxlon: lieu.lon + r };
+}
+
+function GuadeloupeMeteo() {
+  const h = React.createElement;
+  const TZ = 'America/Guadeloupe';
+  const [now, setNow] = React.useState(() => new Date());
+  const [meteo, setMeteo] = React.useState(null); // {temp, code} | 'error' | null (chargement)
+  React.useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 30000);
+    return () => clearInterval(t);
+  }, []);
+  React.useEffect(() => {
+    let alive = true;
+    const load = () => {
+      fetch('https://api.open-meteo.com/v1/forecast?latitude=16.24&longitude=-61.53&current=temperature_2m,weather_code&timezone=America%2FGuadeloupe')
+        .then(r => r.ok ? r.json() : Promise.reject(r.status))
+        .then(d => { if (alive && d && d.current) setMeteo({ temp: Math.round(d.current.temperature_2m), code: d.current.weather_code }); })
+        .catch(() => { if (alive) setMeteo('error'); });
+    };
+    load();
+    const iv = setInterval(load, 1800000); // rafraîchit toutes les 30 min
+    return () => { alive = false; clearInterval(iv); };
+  }, []);
+  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+  const dateStr = cap(now.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: TZ }));
+  const timeStr = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: TZ });
+  const pill = { display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text2)' };
+  const w = meteo && meteo !== 'error' ? wmoInfo(meteo.code) : null;
+  return h('div', { style: { display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', marginTop: 12 } },
+    h('span', { style: pill }, h('span', null, '🗓'), h('span', { style: { fontWeight: 600, color: 'var(--text)' } }, dateStr)),
+    h('span', { style: pill }, h('span', null, '🕐'), h('span', { style: { fontFamily: "'Space Mono', monospace", fontWeight: 700, color: 'var(--gold2)' } }, timeStr)),
+    w && h('span', { style: pill, title: w.label }, h('span', { style: { fontSize: 15 } }, w.icon), h('span', { style: { fontWeight: 600, color: 'var(--text)' } }, meteo.temp + '°C'), h('span', { style: { color: 'var(--text3)' } }, w.label)),
+    meteo === 'error' && h('span', { style: { ...pill, color: 'var(--text3)' } }, '🌡 Météo indisponible')
+  );
+}
+
+// Vue Météo temps réel. Quatre blocs indépendants : si une source tombe, les
+// autres restent affichées — d'où un état {d, err} séparé par bloc plutôt qu'un
+// chargement global qui masquerait tout.
+function MeteoView() {
+  const h = React.createElement;
+  const [lieuId, setLieuId] = React.useState(() => {
+    try { return LS.getItem('ld-meteo-lieu') || 'gosier'; } catch (e) { return 'gosier'; }
+  });
+  const lieu = METEO_LIEUX.find(l => l.id === lieuId) || METEO_LIEUX[0];
+  const [actuel, setActuel] = React.useState({ d: null, err: null });
+  const [mer, setMer] = React.useState({ d: null, err: null });
+  const [seismes, setSeismes] = React.useState({ d: null, err: null });
+  const [maj, setMaj] = React.useState(null);
+  const [tic, setTic] = React.useState(0);
+
+  const choisirLieu = id => {
+    setLieuId(id);
+    try { LS.setItem('ld-meteo-lieu', id); } catch (e) {}
+  };
+
+  React.useEffect(() => {
+    let alive = true;
+    const json = url => fetch(url).then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)));
+    const pose = (set, p, lire) => p
+      .then(d => { if (alive) set({ d: lire(d), err: null }); })
+      .catch(e => { if (alive) set({ d: null, err: e && e.message ? e.message : 'indisponible' }); });
+
+    const charger = () => {
+      setActuel({ d: null, err: null }); setMer({ d: null, err: null });
+      setSeismes({ d: null, err: null });
+
+      pose(setActuel, json('https://api.open-meteo.com/v1/forecast?latitude=' + lieu.lat + '&longitude=' + lieu.lon +
+        '&current=temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,is_day' +
+        '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,uv_index_max,sunrise,sunset' +
+        '&forecast_days=7&timezone=' + encodeURIComponent(lieu.tz)), d => d);
+
+      if (lieu.plage) {
+        pose(setMer, json('https://marine-api.open-meteo.com/v1/marine?latitude=' + lieu.lat + '&longitude=' + lieu.lon +
+          '&current=wave_height,wave_period,wave_direction,sea_surface_temperature&timezone=' + encodeURIComponent(lieu.tz)), d => d && d.current);
+      } else {
+        setMer({ d: null, err: null });
+      }
+
+      const b = meteoBoite(lieu);
+      pose(setSeismes, json('https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&limit=15&orderby=time' +
+        '&minmagnitude=2.5&starttime=' + new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10) +
+        '&minlatitude=' + b.minlat.toFixed(2) + '&maxlatitude=' + b.maxlat.toFixed(2) +
+        '&minlongitude=' + b.minlon.toFixed(2) + '&maxlongitude=' + b.maxlon.toFixed(2)),
+        d => (Array.isArray(d && d.features) ? d.features : []).filter(f => f && typeof f === 'object'));
+
+      setMaj(Date.now());
+    };
+
+    charger();
+    const iv = setInterval(charger, 600000); // 10 min
+    return () => { alive = false; clearInterval(iv); };
+  }, [lieu.id, tic]);
+
+  // ── Briques d'affichage ──
+  const carte = (titre, icone, contenu, extra) => h('div', { className: 'lx-card', style: { padding: 16, marginBottom: 14 } },
+    h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 10, flexWrap: 'wrap' } },
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+        h('span', { style: { fontSize: 16 } }, icone),
+        h('span', { style: { fontSize: 14, fontWeight: 700, color: 'var(--text)' } }, titre)),
+      extra || null),
+    contenu);
+  const enAttente = h('div', { style: { fontSize: 12.5, color: 'var(--text3)', fontStyle: 'italic', padding: '6px 0' } }, 'Chargement…');
+  const enErreur = (quoi, lien) => h('div', { style: { fontSize: 12.5, color: 'var(--text3)', lineHeight: 1.55, padding: '6px 0' } },
+    h('div', { style: { color: 'var(--warn)', marginBottom: 4 } }, '⚠ ' + quoi + ' indisponible pour le moment.'),
+    h('div', null, 'Le reste de la page fonctionne. ',
+      h('button', { onClick: () => setTic(t => t + 1), style: { background: 'none', border: 'none', padding: 0, color: 'var(--gold)', cursor: 'pointer', fontSize: 12.5, textDecoration: 'underline' } }, 'Réessayer'),
+      lien ? h(React.Fragment, null, ' · ', h('a', { href: lien, target: '_blank', rel: 'noopener noreferrer', style: { color: 'var(--gold)' } }, 'voir la source')) : null)
+  );
+  const stat = (l, v, c) => h('div', { style: { background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: '8px 10px', minWidth: 96, flex: '1 1 96px' } },
+    h('div', { style: { fontSize: 10, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text3)', marginBottom: 3 } }, l),
+    h('div', { style: { fontSize: 14, fontWeight: 700, color: c || 'var(--text)' } }, v));
+
+  // ── Maintenant + prévisions ──
+  const cur = actuel.d && actuel.d.current;
+  const jours = (actuel.d && actuel.d.daily) || null;
+  const w = cur ? wmoInfo(cur.weather_code) : null;
+  const vent = cur ? meteoVent(cur.wind_speed_10m) : null;
+  const uvJour = jours && jours.uv_index_max ? meteoUV(jours.uv_index_max[0]) : null;
+  const fmtJour = iso => {
+    const d = new Date(String(iso) + 'T12:00:00');
+    return isNaN(d.getTime()) ? String(iso) : d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' });
+  };
+  const fmtHeure = iso => {
+    const d = new Date(String(iso));
+    return isNaN(d.getTime()) ? '—' : d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: lieu.tz });
+  };
+
+  const blocActuel = carte('Maintenant · ' + lieu.nom, w ? w.icon : '🌡',
+    actuel.err ? enErreur('La météo', 'https://vigilance.meteofrance.fr/fr')
+    : !cur ? enAttente
+    : h('div', null,
+        h('div', { style: { display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 10, flexWrap: 'wrap' } },
+          h('span', { style: { fontSize: 34, fontWeight: 700, color: 'var(--text)', lineHeight: 1 } }, Math.round(cur.temperature_2m) + '°'),
+          h('span', { style: { fontSize: 13, color: 'var(--text2)' } }, w.label),
+          cur.apparent_temperature != null && h('span', { style: { fontSize: 12, color: 'var(--text3)' } }, 'ressenti ' + Math.round(cur.apparent_temperature) + '°')),
+        h('div', { style: { display: 'flex', gap: 8, flexWrap: 'wrap' } },
+          stat('Vent', Math.round(cur.wind_speed_10m) + ' km/h', vent.c),
+          cur.wind_gusts_10m != null && stat('Rafales', Math.round(cur.wind_gusts_10m) + ' km/h'),
+          cur.relative_humidity_2m != null && stat('Humidité', Math.round(cur.relative_humidity_2m) + ' %'),
+          cur.precipitation != null && stat('Pluie', Number(cur.precipitation).toFixed(1) + ' mm'),
+          uvJour && stat('UV du jour', jours.uv_index_max[0] + ' · ' + uvJour.l, uvJour.c)),
+        h('div', { style: { fontSize: 11.5, color: vent.c, marginTop: 8 } }, vent.l),
+        uvJour && h('div', { style: { fontSize: 11.5, color: 'var(--text3)', marginTop: 3 } }, '☀️ ' + uvJour.conseil),
+        jours && jours.sunrise && h('div', { style: { fontSize: 11.5, color: 'var(--text3)', marginTop: 3 } },
+          '🌅 ' + fmtHeure(jours.sunrise[0]) + '   🌇 ' + fmtHeure(jours.sunset[0]))
+      ));
+
+  const blocPrev = jours && !actuel.err ? carte('7 jours', '📅',
+    h('div', { style: { display: 'grid', gap: 5 } },
+      jours.time.map((t, i) => {
+        const wi = wmoInfo(jours.weather_code[i]);
+        return h('div', { key: t, style: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, padding: '5px 0', borderBottom: i < jours.time.length - 1 ? '1px solid var(--border)' : 'none' } },
+          h('span', { style: { width: 62, color: 'var(--text2)', flexShrink: 0 } }, i === 0 ? "Aujourd'hui" : fmtJour(t)),
+          h('span', { style: { fontSize: 15, width: 24, flexShrink: 0 } }, wi.icon),
+          h('span', { style: { flex: 1, minWidth: 0, color: 'var(--text3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, wi.label),
+          jours.precipitation_probability_max && h('span', { style: { color: 'var(--text3)', width: 42, textAlign: 'right', flexShrink: 0 } }, (jours.precipitation_probability_max[i] || 0) + ' %'),
+          h('span', { style: { fontFamily: "'Space Mono',monospace", width: 62, textAlign: 'right', flexShrink: 0, color: 'var(--text)' } },
+            Math.round(jours.temperature_2m_min[i]) + '/' + Math.round(jours.temperature_2m_max[i]) + '°')
+        );
+      })
+    )) : null;
+
+  // ── Mer & plage ──
+  const m = mer.d;
+  const verdict = (m && cur && jours) ? meteoPlageVerdict({
+    vagues: m.wave_height, vent: cur.wind_speed_10m,
+    pluie: jours.precipitation_probability_max ? jours.precipitation_probability_max[0] : 0,
+    uv: jours.uv_index_max ? jours.uv_index_max[0] : 0, code: cur.weather_code
+  }) : null;
+  const blocPlage = lieu.plage ? carte('Mer & plage', '🏖',
+    mer.err ? enErreur('La houle')
+    : !m ? enAttente
+    : h('div', null,
+        verdict && h('div', { style: { background: 'var(--bg2)', border: '1px solid ' + verdict.c, borderRadius: 10, padding: '9px 12px', marginBottom: 10 } },
+          h('div', { style: { fontSize: 13, fontWeight: 700, color: verdict.c, marginBottom: 2 } }, (verdict.ok ? '✓ ' : '✕ ') + verdict.l),
+          h('div', { style: { fontSize: 12, color: 'var(--text3)', lineHeight: 1.5 } }, verdict.d)),
+        h('div', { style: { display: 'flex', gap: 8, flexWrap: 'wrap' } },
+          m.wave_height != null && stat('Houle', Number(m.wave_height).toFixed(1) + ' m'),
+          m.wave_period != null && stat('Période', Math.round(m.wave_period) + ' s'),
+          m.sea_surface_temperature != null && stat('Mer', Math.round(m.sea_surface_temperature) + '°C')),
+        h('div', { style: { fontSize: 11.5, color: 'var(--text3)', marginTop: 8, lineHeight: 1.5 } },
+          'Indications de houle au large — elles ne disent rien des courants d\'arrachement ni du drapeau de baignade sur place.')
+      )) : null;
+
+  // ── Vents violents & saison cyclonique ──
+  // Le flux du NHC n'envoie pas d'en-tête CORS : un navigateur refuse de le lire,
+  // et aucune autre URL chez eux n'y changerait rien. L'alerte est donc dérivée de
+  // la prévision Open-Meteo — la même source que le reste de la page, éprouvée en
+  // production — et on renvoie vers les bulletins officiels pour un système nommé.
+  const saison = meteoSaisonCyclonique(new Date());
+  const alertes = jours ? meteoVentsViolents(jours) : null;
+  const blocCyclone = carte('Vents violents & saison cyclonique', '🌀',
+    actuel.err ? enErreur('La prévision de vent', 'https://vigilance.meteofrance.fr/fr/guadeloupe')
+    : !alertes ? enAttente
+    : h('div', null,
+        alertes.length === 0
+          ? h('div', { style: { fontSize: 13, color: 'var(--success)', fontWeight: 700, marginBottom: 8 } }, '✓ Aucun vent violent prévu sur 7 jours.')
+          : h('div', { style: { display: 'grid', gap: 7, marginBottom: 8 } },
+              alertes.map(a => h('div', { key: a.jour, style: { background: 'var(--bg2)', border: '1px solid ' + a.c, borderRadius: 10, padding: '9px 12px' } },
+                h('div', { style: { fontSize: 13, fontWeight: 700, color: a.c, marginBottom: 3 } }, a.icone + ' ' + fmtJour(a.jour) + ' · ' + a.l),
+                h('div', { style: { fontSize: 12, color: 'var(--text3)', lineHeight: 1.5 } },
+                  'Vent moyen ' + Math.round(a.vent) + ' km/h' + (a.rafale ? ', rafales ' + Math.round(a.rafale) + ' km/h' : ''))
+              ))),
+        h('div', { style: { fontSize: 12, color: saison.dedans ? 'var(--warn)' : 'var(--text3)', lineHeight: 1.5 } },
+          (saison.dedans ? '⚠ ' : '') + saison.l + ' — ' + saison.d),
+        h('div', { style: { fontSize: 11.5, color: 'var(--text3)', marginTop: 8, lineHeight: 1.55 } },
+          'Vents tirés de la prévision pour ' + lieu.nom + '. Ce bloc ne suit pas les systèmes nommés : ',
+          h('strong', { style: { color: 'var(--text2)' } }, "l'alerte qui fait foi en Guadeloupe est la vigilance Météo-France"),
+          '. ',
+          h('a', { href: 'https://vigilance.meteofrance.fr/fr/guadeloupe', target: '_blank', rel: 'noopener noreferrer', style: { color: 'var(--gold)' } }, 'Vigilance Guadeloupe'),
+          ' · ',
+          h('a', { href: 'https://www.nhc.noaa.gov/', target: '_blank', rel: 'noopener noreferrer', style: { color: 'var(--gold)' } }, 'Bulletins NHC'), '.')
+      ));
+
+  // ── Radar & satellite ──
+  // Une <img> n'est pas soumise au CORS : ces visuels s'affichent là où un
+  // fetch() serait refusé. Si l'image ne charge pas, on la retire et le lien
+  // reste — le bloc ne peut donc pas se retrouver vide ou cassé.
+  const blocVisuels = carte('Radar & satellite', '🛰',
+    h('div', { style: { display: 'grid', gap: 10 } },
+      METEO_VISUELS.map(v => h('div', { key: v.id, style: { background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px' } },
+        h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginBottom: 4 } },
+          h('span', { style: { fontSize: 12.5, fontWeight: 700, color: 'var(--text)' } }, v.titre),
+          h('a', { href: v.lien, target: '_blank', rel: 'noopener noreferrer', style: { fontSize: 11.5, color: 'var(--gold)', textDecoration: 'none', flexShrink: 0 } }, 'ouvrir ↗')),
+        h('div', { style: { fontSize: 11.5, color: 'var(--text3)', lineHeight: 1.45, marginBottom: v.img ? 8 : 0 } }, v.desc),
+        v.img && h('a', { href: v.lien, target: '_blank', rel: 'noopener noreferrer', style: { display: 'block' } },
+          h('img', {
+            src: v.img, alt: v.titre, loading: 'lazy',
+            onError: e => { if (e && e.target && e.target.style) e.target.style.display = 'none'; },
+            style: { width: '100%', height: 'auto', borderRadius: 8, border: '1px solid var(--border)', display: 'block', background: 'var(--bg4)' }
+          }))
+      ))
+    ));
+
+  // ── Séismes ──
+  const sq = seismes.d ? seismes.d.filter(f => f && typeof f === 'object') : null;
+  const blocSeisme = carte('Séismes · 30 derniers jours', '🌋',
+    seismes.err ? enErreur('Le relevé sismique', 'https://earthquake.usgs.gov/earthquakes/map/')
+    : !sq ? enAttente
+    : h('div', null,
+        sq.length === 0
+          ? h('div', { style: { fontSize: 13, color: 'var(--success)' } }, '✓ Aucun séisme de magnitude 2,5 ou plus dans la zone.')
+          : h('div', { style: { display: 'grid', gap: 5 } },
+              sq.map((f, i) => {
+                const p = (f && f.properties) || {};
+                const c = seismeCouleur(p.mag);
+                return h('div', { key: f.id || i, style: { display: 'flex', alignItems: 'center', gap: 10, fontSize: 12.5, padding: '6px 0', borderBottom: i < sq.length - 1 ? '1px solid var(--border)' : 'none' } },
+                  h('span', { style: { fontFamily: "'Space Mono',monospace", fontWeight: 700, color: c, width: 38, flexShrink: 0 } }, 'M' + (p.mag != null ? Number(p.mag).toFixed(1) : '?')),
+                  h('span', { style: { flex: 1, minWidth: 0, color: 'var(--text2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, p.place || 'Localisation inconnue'),
+                  h('span', { style: { color: 'var(--text3)', flexShrink: 0, fontSize: 11.5 } }, p.time ? meteoIlYA(p.time) : '')
+                );
+              })),
+        h('div', { style: { fontSize: 11.5, color: 'var(--text3)', marginTop: 8, lineHeight: 1.55 } },
+          'Magnitude 2,5 minimum, dans un rayon d\'environ ' + (lieu.zone === 'gwa' ? '350' : '400') + ' km. La Guadeloupe est en zone sismique 5 : une secousse ressentie est normale et ne présage rien.')
+      ));
+
+  return h('div', null,
+    h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, gap: 8, flexWrap: 'wrap' } },
+      h('h2', { style: { margin: 0, fontSize: 20 } }, '🌦 Météo temps réel'),
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: 10 } },
+        maj && h('span', { style: { fontSize: 11, color: 'var(--text3)', fontFamily: "'Space Mono',monospace" } }, 'maj ' + meteoIlYA(maj)),
+        h('button', { onClick: () => setTic(t => t + 1), title: 'Rafraîchir maintenant',
+          style: { padding: '7px 14px', borderRadius: 20, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text2)', cursor: 'pointer', fontWeight: 700, fontSize: 13 } }, '↻'))),
+
+    h('div', { className: 'scroll-x', style: { display: 'flex', gap: 6, marginBottom: 16 } },
+      METEO_LIEUX.map(l => h('button', {
+        key: l.id, onClick: () => choisirLieu(l.id),
+        style: { flexShrink: 0, padding: '6px 13px', borderRadius: 20, cursor: 'pointer', fontSize: 12, whiteSpace: 'nowrap',
+          border: '1px solid ' + (l.id === lieu.id ? 'var(--gold)' : 'var(--border)'),
+          background: l.id === lieu.id ? 'var(--gold-bg)' : 'transparent',
+          color: l.id === lieu.id ? 'var(--gold)' : 'var(--text3)',
+          fontWeight: l.id === lieu.id ? 700 : 400 }
+      }, (l.zone === 'gwa' ? '🌴 ' : '🗼 ') + l.nom))),
+
+    blocActuel,
+    blocPlage,
+    blocPrev,
+    blocCyclone,
+    blocVisuels,
+    blocSeisme,
+
+    h('div', { className: 'lx-card', style: { padding: 14 } },
+      h('div', { style: { fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text3)', marginBottom: 8 } }, 'Sources officielles'),
+      h('div', { style: { display: 'grid', gap: 5 } },
+        METEO_SOURCES.map(s => h('a', { key: s.u, href: s.u, target: '_blank', rel: 'noopener noreferrer',
+          style: { fontSize: 12.5, color: 'var(--gold)', textDecoration: 'none' } }, '↗ ' + s.t))),
+      h('div', { style: { fontSize: 11.5, color: 'var(--text3)', marginTop: 10, lineHeight: 1.55 } },
+        'Données Open-Meteo, NOAA/NHC et USGS, rafraîchies toutes les 10 minutes. Ces chiffres sont indicatifs : en cas d\'alerte, ce sont la vigilance Météo-France et les consignes de la préfecture qui font foi.')
+  ));
+}
+
+// Almanach lunaire potager (concombre/giraumon) — version plein écran statique,
+// conservée comme lien de secours ; l'onglet Almanach rend le composant natif.
+const POTAGER_URL = 'kalandriye-lalin-concombre-giraumon.html';
+// Source de contrôle des éphémérides (heures publiées en heure de Paris ;
+// nos données sont converties en heure locale Guadeloupe, UTC-4).
+const LUNE_SOURCE_URL = 'https://www.calendrier-365.fr/lune/calendrier-lunaire.html';
+
+// ── Kalandriye Lalin ─────────────────────────────────────────────────────────
+// Calendrier lunaire du potager : concombre & giraumon, calés sur le carême,
+// l'hivernage et les cycles de la lune. Éphémérides calculées pour la
+// Guadeloupe (UTC-4) — la donnée couvre la saison juillet 2026 → juin 2027.
+const LUNE = {
+  turns: [{"date":"2026-07-26","type":"montante"},{"date":"2026-08-08","type":"descendante"},{"date":"2026-08-22","type":"montante"},{"date":"2026-09-05","type":"descendante"},{"date":"2026-09-18","type":"montante"},{"date":"2026-10-02","type":"descendante"},{"date":"2026-10-15","type":"montante"},{"date":"2026-10-29","type":"descendante"},{"date":"2026-11-12","type":"montante"},{"date":"2026-11-25","type":"descendante"},{"date":"2026-12-09","type":"montante"},{"date":"2026-12-23","type":"descendante"},{"date":"2027-01-05","type":"montante"},{"date":"2027-01-19","type":"descendante"},{"date":"2027-02-01","type":"montante"},{"date":"2027-02-16","type":"descendante"},{"date":"2027-03-01","type":"montante"},{"date":"2027-03-15","type":"descendante"},{"date":"2027-03-28","type":"montante"},{"date":"2027-04-11","type":"descendante"},{"date":"2027-04-24","type":"montante"},{"date":"2027-05-08","type":"descendante"},{"date":"2027-05-22","type":"montante"},{"date":"2027-06-05","type":"descendante"},{"date":"2027-06-18","type":"montante"},{"date":"2027-07-02","type":"descendante"},{"date":"2027-07-15","type":"montante"},{"date":"2027-07-30","type":"descendante"},{"date":"2027-08-11","type":"montante"},{"date":"2027-08-26","type":"descendante"}],
+  phases: [{"date":"2026-07-29","time":"10h35","name":"Pleine lune","emoji":"🌕"},{"date":"2026-08-05","time":"22h21","name":"Dernier quartier","emoji":"🌗"},{"date":"2026-08-12","time":"13h36","name":"Nouvelle lune","emoji":"🌑"},{"date":"2026-08-19","time":"22h46","name":"Premier quartier","emoji":"🌓"},{"date":"2026-08-28","time":"00h18","name":"Pleine lune","emoji":"🌕"},{"date":"2026-09-04","time":"03h51","name":"Dernier quartier","emoji":"🌗"},{"date":"2026-09-10","time":"23h26","name":"Nouvelle lune","emoji":"🌑"},{"date":"2026-09-18","time":"16h43","name":"Premier quartier","emoji":"🌓"},{"date":"2026-09-26","time":"12h48","name":"Pleine lune","emoji":"🌕"},{"date":"2026-10-03","time":"09h24","name":"Dernier quartier","emoji":"🌗"},{"date":"2026-10-10","time":"11h50","name":"Nouvelle lune","emoji":"🌑"},{"date":"2026-10-18","time":"12h12","name":"Premier quartier","emoji":"🌓"},{"date":"2026-10-26","time":"00h11","name":"Pleine lune","emoji":"🌕"},{"date":"2026-11-01","time":"16h28","name":"Dernier quartier","emoji":"🌗"},{"date":"2026-11-09","time":"03h02","name":"Nouvelle lune","emoji":"🌑"},{"date":"2026-11-17","time":"07h47","name":"Premier quartier","emoji":"🌓"},{"date":"2026-11-24","time":"10h53","name":"Pleine lune","emoji":"🌕"},{"date":"2026-12-01","time":"02h08","name":"Dernier quartier","emoji":"🌗"},{"date":"2026-12-08","time":"20h51","name":"Nouvelle lune","emoji":"🌑"},{"date":"2026-12-17","time":"01h42","name":"Premier quartier","emoji":"🌓"},{"date":"2026-12-23","time":"21h28","name":"Pleine lune","emoji":"🌕"},{"date":"2026-12-30","time":"14h59","name":"Dernier quartier","emoji":"🌗"},{"date":"2027-01-07","time":"16h24","name":"Nouvelle lune","emoji":"🌑"},{"date":"2027-01-15","time":"16h34","name":"Premier quartier","emoji":"🌓"},{"date":"2027-01-22","time":"08h17","name":"Pleine lune","emoji":"🌕"},{"date":"2027-01-29","time":"06h55","name":"Dernier quartier","emoji":"🌗"},{"date":"2027-02-06","time":"11h56","name":"Nouvelle lune","emoji":"🌑"},{"date":"2027-02-14","time":"03h58","name":"Premier quartier","emoji":"🌓"},{"date":"2027-02-20","time":"19h23","name":"Pleine lune","emoji":"🌕"},{"date":"2027-02-28","time":"01h16","name":"Dernier quartier","emoji":"🌗"},{"date":"2027-03-08","time":"05h29","name":"Nouvelle lune","emoji":"🌑"},{"date":"2027-03-15","time":"12h25","name":"Premier quartier","emoji":"🌓"},{"date":"2027-03-22","time":"06h43","name":"Pleine lune","emoji":"🌕"},{"date":"2027-03-29","time":"20h53","name":"Dernier quartier","emoji":"🌗"},{"date":"2027-04-06","time":"19h51","name":"Nouvelle lune","emoji":"🌑"},{"date":"2027-04-13","time":"18h56","name":"Premier quartier","emoji":"🌓"},{"date":"2027-04-20","time":"18h27","name":"Pleine lune","emoji":"🌕"},{"date":"2027-04-28","time":"16h17","name":"Dernier quartier","emoji":"🌗"},{"date":"2027-05-06","time":"06h58","name":"Nouvelle lune","emoji":"🌑"},{"date":"2027-05-13","time":"00h43","name":"Premier quartier","emoji":"🌓"},{"date":"2027-05-20","time":"06h58","name":"Pleine lune","emoji":"🌕"},{"date":"2027-05-28","time":"09h57","name":"Dernier quartier","emoji":"🌗"},{"date":"2027-06-04","time":"15h40","name":"Nouvelle lune","emoji":"🌑"},{"date":"2027-06-11","time":"06h56","name":"Premier quartier","emoji":"🌓"},{"date":"2027-06-18","time":"20h44","name":"Pleine lune","emoji":"🌕"},{"date":"2027-06-27","time":"00h54","name":"Dernier quartier","emoji":"🌗"},{"date":"2027-07-03","time":"23h01","name":"Nouvelle lune","emoji":"🌑"},{"date":"2027-07-10","time":"14h38","name":"Premier quartier","emoji":"🌓"},{"date":"2027-07-18","time":"11h44","name":"Pleine lune","emoji":"🌕"},{"date":"2027-07-26","time":"12h54","name":"Dernier quartier","emoji":"🌗"},{"date":"2027-08-02","time":"06h05","name":"Nouvelle lune","emoji":"🌑"},{"date":"2027-08-09","time":"00h54","name":"Premier quartier","emoji":"🌓"},{"date":"2027-08-17","time":"03h28","name":"Pleine lune","emoji":"🌕"},{"date":"2027-08-24","time":"22h27","name":"Dernier quartier","emoji":"🌗"},{"date":"2027-08-31","time":"13h41","name":"Nouvelle lune","emoji":"🌑"},{"date":"2027-09-07","time":"14h31","name":"Premier quartier","emoji":"🌓"},{"date":"2027-09-15","time":"19h03","name":"Pleine lune","emoji":"🌕"},{"date":"2027-09-23","time":"06h20","name":"Dernier quartier","emoji":"🌗"}],
+  monthly: {"2026-07":{"semis":[26,27],"repiquage":[]},"2026-08":{"semis":[5,6,23,24],"repiquage":[13,14]},"2026-09":{"semis":[1,2,20,28,29],"repiquage":[9]},"2026-10":{"semis":[17,25,27],"repiquage":[7,8]},"2026-11":{"semis":[12,14,22,23],"repiquage":[3,4,30]},"2026-12":{"semis":[10,19,20],"repiquage":[1,27,28,29]},"2027-01":{"semis":[6,16,17],"repiquage":[24,25]},"2027-02":{"semis":[2,4,12,13],"repiquage":[21]},"2027-03":{"semis":[1,2,11,12,29,30],"repiquage":[20,21]},"2027-04":{"semis":[7,8,9,25,26],"repiquage":[16,17]},"2027-05":{"semis":[5,22,23,24],"repiquage":[13,14]},"2027-06":{"semis":[1,2,19,20,29,30],"repiquage":[9,10,11]}}
+};
+const LAL_MOIS = [
+  { n:'Janvier',   s:'careme', cyc:false, cc:"Pleine fenêtre. Semer en godets et repiquer. Sol riche, plein soleil, palissage dès le départ.", gg:"Semer en poquets de 3 graines (2 m d'écart) ou en pépinière. Pincer la tige après 2 feuilles." },
+  { n:'Février',   s:'careme', cyc:false, cc:"Continuer les semis et récolter les plants de décembre. Arroser au pied, sans mouiller le feuillage.", gg:"Arrosage régulier (saison sèche). Nouveaux semis encore possibles." },
+  { n:'Mars',      s:'careme', cyc:false, cc:"Récolte pleine des semis de déc.–janv. Derniers semis avant la montée des pluies.", gg:"Floraison et nouaison. Tailler les tiges qui ne portent pas de fruit." },
+  { n:'Avril',     s:'careme', cyc:false, cc:"Récolte. Fin de la fenêtre idéale : éviter de lancer de nouveaux plants sensibles.", gg:"Récolte + semer une planche rustique pour traverser l'hivernage." },
+  { n:'Mai',       s:'trans',  cyc:false, cc:"Terminer les récoltes. Pause conseillée en pleine terre : l'humidité amène mildiou et oïdium.", gg:"Semis encore possible (plus résistant). Tuteurer, bien aérer les plants." },
+  { n:'Juin',      s:'hiver',  cyc:true,  cc:"Pause pleine terre (trop humide). À réserver à une culture sous abri aéré.", gg:"Entretien, drainage soigné, surveiller l'oïdium. Isoler les fruits du sol." },
+  { n:'Juillet',   s:'hiver',  cyc:true,  cc:"Pause. Amender et préparer le sol pour le prochain carême.", gg:"Récolte des semis d'avril–mai. Isoler les fruits du sol détrempé." },
+  { n:'Août',      s:'hiver',  cyc:true,  cc:"Pause. Composter, entretenir, préparer les purins (ortie, prêle).", gg:"Protéger la planche, éviter les jeunes plants fragiles. Veille cyclonique." },
+  { n:'Septembre', s:'hiver',  cyc:true,  cc:"Pause active : compost, purins préventifs, préparer les godets pour la reprise.", gg:"Récolte et protection des plants. Veille cyclonique maintenue." },
+  { n:'Octobre',   s:'hiver',  cyc:true,  cc:"Reprise : semer en godets à l'abri en fin de mois pour repiquer en novembre.", gg:"Semer pour viser une récolte en plein carême." },
+  { n:'Novembre',  s:'trans',  cyc:false, cc:"Semer en godets pour repiquage en décembre → récolte en carême. Préparer les planches.", gg:"Semer. Former les billons, apporter le compost." },
+  { n:'Décembre',  s:'careme', cyc:false, cc:"Repiquer les plants de novembre + semer. Plein soleil, palissage, paillage au pied.", gg:"Semer, pleine croissance. Récupérer les graines des giraumons bien mûrs." }
+];
+const LAL_ABBR = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Aoû','Sep','Oct','Nov','Déc'];
+const LAL_SEASON = {
+  careme: { label:'Carême',     color:'#e3ba5c', bg:'rgba(227,186,92,.14)' },
+  trans:  { label:'Transition', color:'#a7dd8f', bg:'rgba(143,207,122,.14)' },
+  hiver:  { label:'Hivernage',  color:'#7fd0a0', bg:'rgba(63,125,90,.2)' }
+};
+const LAL_GOLD = '#e3ba5c', LAL_GREEN = '#4ade80', LAL_AMBER = '#f59e0b';
+const LAL_MONTANTE = '#5fe39a', LAL_DESCENDANTE = '#d9a765';
+const LAL_SYN = 29.53059; // durée moyenne d'une lunaison, en jours
+
+// Semansye — suivi des lots de graines récupérées (fermentation → séchage → stock)
+const SEM_CULTURES = {
+  concombre: { label:'Concombre', emoji:'🥒', color:'#4ade80', viab:5 },
+  giraumon:  { label:'Giraumon',  emoji:'🎃', color:'#f59e0b', viab:4 },
+  autre:     { label:'Autre',     emoji:'🌱', color:'#e3ba5c', viab:3 }
+};
+const SEM_ETAPES = {
+  fermentation: { label:'Fermentation', emoji:'🫧',  conseil:"24–48 h à l'ombre — jamais plus de 3 jours",     action:'Rincer → séchage' },
+  sechage:      { label:'Séchage',      emoji:'🌬️', conseil:"5–7 jours, ventilé, à l'ombre, pas de papier",   action:'Mettre en stock' },
+  stockee:      { label:'En stock',     emoji:'🫙',  conseil:'Enveloppe papier ou bocal + riz sec, étiquetée', action:null }
+};
+
+const lalParseD = s => { const p = String(s).split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); };
+const lalIso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const lalFmtLong = d => d.toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' });
+const LAL_NEWMOONS = LUNE.phases.filter(p => p.name === 'Nouvelle lune').map(p => lalParseD(p.date)).sort((a, b) => a - b);
+
+// Âge de la lune en jours depuis la dernière nouvelle lune
+function lalMoonAge(date) {
+  let last = null;
+  for (const nm of LAL_NEWMOONS) if (nm <= date) last = nm;
+  if (!last) { last = new Date(LAL_NEWMOONS[0]); while (last > date) last = new Date(last - LAL_SYN * 864e5); }
+  return (date - last) / 864e5;
+}
+const lalIllum = age => (1 - Math.cos(2 * Math.PI * age / LAL_SYN)) / 2;
+const lalWaxing = age => age % LAL_SYN < LAL_SYN / 2;
+function lalPhaseName(age) {
+  const a = ((age % LAL_SYN) + LAL_SYN) % LAL_SYN;
+  if (a < 1.4 || a > 28.1) return 'Nouvelle lune';
+  if (a < 6.4) return 'Premier croissant';
+  if (a < 8.4) return 'Premier quartier';
+  if (a < 13.8) return 'Gibbeuse croissante';
+  if (a < 15.8) return 'Pleine lune';
+  if (a < 21.1) return 'Gibbeuse décroissante';
+  if (a < 23.1) return 'Dernier quartier';
+  return 'Dernier croissant';
+}
+// Montante / descendante : dépend de la hauteur de la lune, pas de sa phase
+function lalMvt(date) {
+  let state = 'descendante'; // avant la 1re bascule connue (26 juil. 2026)
+  for (const t of LUNE.turns) { if (lalParseD(t.date) <= date) state = t.type; else break; }
+  return state;
+}
+
+// Illumination théorique de chaque phase nommée, pour dessiner son disque
+// plutôt que d'afficher un emoji (rendu maison, aucune image externe).
+const LAL_PHASE_DISQUE = {
+  'Nouvelle lune':    { frac:0,  wax:true  },
+  'Premier quartier': { frac:.5, wax:true  },
+  'Pleine lune':      { frac:1,  wax:true  },
+  'Dernier quartier': { frac:.5, wax:false }
+};
+
+// Les 8 phases du cycle, dans l'ordre, avec leur illumination et ce qu'elles
+// veulent dire au potager. Le cycle complet dure environ 29,5 jours.
+const LAL_CYCLE = [
+  { nom:'Nouvelle lune',        frac:0,   wax:true,  txt:'La Lune passe entre la Terre et le Soleil : sa face éclairée nous tourne le dos. Repos au jardin.' },
+  { nom:'Croissant croissant',  frac:.15, wax:true,  txt:'Un mince arc de la face éclairée réapparaît, visible le soir à l\'ouest.' },
+  { nom:'Premier quartier',     frac:.5,  wax:true,  txt:'La moitié droite est éclairée. La sève monte : bonne période pour semer.' },
+  { nom:'Gibbeuse croissante',  frac:.85, wax:true,  txt:'Plus de la moitié est éclairée, la lumière augmente encore chaque soir.' },
+  { nom:'Pleine lune',          frac:1,   wax:true,  txt:'La Terre est entre le Soleil et la Lune : face entièrement éclairée. Récolte de conservation et prélèvement des graines.' },
+  { nom:'Gibbeuse décroissante',frac:.85, wax:false, txt:'Toujours plus de la moitié éclairée, mais la lumière décline.' },
+  { nom:'Dernier quartier',     frac:.5,  wax:false, txt:'La moitié gauche est éclairée, l\'inverse du premier quartier. La sève descend : on repique.' },
+  { nom:'Croissant décroissant',frac:.15, wax:false, txt:'Un dernier arc visible à l\'aube, avant le retour à la nouvelle lune.' }
+];
+
+const LUNE_CLAIR = '#ecd9a6'; // face éclairée (or pâle, dans le thème)
+const LUNE_NUIT  = '#0b110d'; // face dans l'ombre
+
+// Disque de lune. Le terminateur (la limite ombre/lumière) n'est pas droit sauf
+// aux quartiers : c'est la projection d'un cercle, donc une ellipse. On compose
+// une moitié pleine + une ellipse centrée dont la largeur vaut |1-2f| :
+//   f<½ → ellipse sombre qui ronge la moitié claire  → croissant
+//   f>½ → ellipse claire qui déborde sur l'ombre     → gibbeuse
+//   f=½ → ellipse de largeur nulle                   → quartier net
+// Côté éclairé : à droite quand la lune croît, à gauche quand elle décroît.
+function MoonDisc({ frac, wax, size }) {
+  const h = React.createElement;
+  const s = size || 84;
+  const f = Math.max(0, Math.min(1, frac));
+  const ellipse = Math.abs(1 - 2 * f) * s;
+  return h('div', { 'aria-hidden':'true', style:{ width:s, height:s, borderRadius:'50%', position:'relative', overflow:'hidden', flexShrink:0, background:LUNE_NUIT, boxShadow:'inset 0 0 0 1px rgba(227,186,92,.25)' } },
+    h('div', { style:{ position:'absolute', top:0, bottom:0, width:'50%', left:wax ? '50%' : 0, background:LUNE_CLAIR } }),
+    h('div', { style:{ position:'absolute', top:0, bottom:0, left:'50%', marginLeft:-ellipse / 2, width:ellipse, borderRadius:'50%', background:f < .5 ? LUNE_NUIT : LUNE_CLAIR } }),
+    // Mers lunaires + modelé, posés par-dessus les deux faces
+    h('div', { style:{ position:'absolute', inset:0, borderRadius:'50%', mixBlendMode:'multiply', opacity:.3, background:'radial-gradient(circle at 62% 60%, transparent 40%, #8a6c2c 41%, transparent 46%), radial-gradient(circle at 30% 66%, transparent 30%, #8a6c2c 31%, transparent 35%), radial-gradient(circle at 44% 26%, transparent 22%, #8a6c2c 23%, transparent 27%)' } }),
+    h('div', { style:{ position:'absolute', inset:0, borderRadius:'50%', background:'radial-gradient(circle at 38% 32%, rgba(255,255,255,.30), transparent 58%)' } })
+  );
+}
+
+function KalandriyeLalin({ semansye, addLot, updateLot, deleteLot }) {
+  const h = React.createElement;
+  const today = useMemo(() => new Date(), []);
+  const [month, setMonth] = useState(today.getMonth());
+
+  const age = lalMoonAge(today);
+  const frac = lalIllum(age), wax = lalWaxing(age);
+  const mvt = lalMvt(today);
+
+  // Prochain jour favorable (semis ou repiquage) à partir d'aujourd'hui
+  const nextAction = useMemo(() => {
+    const up = [];
+    Object.keys(LUNE.monthly).forEach(mk => {
+      const y = +mk.slice(0, 4), mo = +mk.slice(5, 7) - 1;
+      LUNE.monthly[mk].semis.forEach(d => up.push({ t:'semis', date:new Date(y, mo, d) }));
+      LUNE.monthly[mk].repiquage.forEach(d => up.push({ t:'repiquage', date:new Date(y, mo, d) }));
+    });
+    up.sort((a, b) => a.date - b.date);
+    const t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    return up.find(u => u.date >= t0);
+  }, [today]);
+
+  const upcomingPhases = useMemo(() => {
+    const t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    return LUNE.phases.map(p => ({ ...p, d:lalParseD(p.date) })).filter(p => p.d >= t0).slice(0, 8);
+  }, [today]);
+
+  // La donnée couvre juil. 2026 → juin 2027 : juil.–déc. = 2026, janv.–juin = 2027
+  const mk = (month >= 6 ? '2026-' : '2027-') + String(month + 1).padStart(2, '0');
+  const md = LUNE.monthly[mk] || { semis:[], repiquage:[] };
+  const m = LAL_MOIS[month];
+  const season = LAL_SEASON[m.s];
+
+  const box = { background:'rgba(255,255,255,0.03)', border:'1px solid #1a3028', borderRadius:16 };
+  const mono = "'Space Mono', monospace";
+
+  const dayRow = (label, days, type) => {
+    const col = type === 'semis' ? LAL_MONTANTE : LAL_DESCENDANTE;
+    return h('div', { style:{ display:'flex', gap:10, alignItems:'center', marginBottom:8 } },
+      h('span', { style:{ fontFamily:mono, fontSize:11, color:'var(--text3)', minWidth:82, flexShrink:0 } }, label),
+      h('div', { style:{ display:'flex', flexWrap:'wrap', gap:5 } },
+        days && days.length
+          ? days.map((d, i) => h('span', { key:i, style:{ fontFamily:mono, fontSize:12, fontWeight:700, padding:'3px 9px', borderRadius:8, background:col + '24', color:col, border:'1px solid ' + col + '4d' } }, d))
+          : h('span', { style:{ fontSize:12, color:'var(--text3)', fontStyle:'italic' } }, 'à ajuster selon la météo')
+      )
+    );
+  };
+
+  return h('div', { style:{ fontFamily:"'Playfair Display', Georgia, serif", color:'#e8f5e0' } },
+    // ── En-tête ──
+    h('div', { style:{ paddingBottom:16, borderBottom:'1px solid #1e3a2a', marginBottom:18 } },
+      h('div', { className:'eyebrow', style:{ marginBottom:6 } }, BRAND + ' · Potager 🌴'),
+      h('h3', { style:{ margin:0, fontSize:28, fontWeight:700, color:'#f0faf0', lineHeight:1.1 } },
+        'Kalandriye ', h('span', { style:{ fontStyle:'italic', fontWeight:400, color:LAL_GOLD } }, 'Lalin')
+      ),
+      h('p', { style:{ margin:'10px 0 0', fontSize:13, color:'var(--text2)', fontStyle:'italic', maxWidth:'42ch', lineHeight:1.5 } },
+        'Concombre & giraumon au bon moment — carême, hivernage et cycles de la lune 🌱')
+    ),
+
+    // ── État lunaire du jour ──
+    h('div', { style:{ ...box, padding:18, display:'flex', gap:16, alignItems:'center', background:'linear-gradient(140deg,rgba(227,186,92,.06),rgba(255,255,255,.015))' } },
+      h(MoonDisc, { frac, wax, size:84 }),
+      h('div', { style:{ flex:1, minWidth:0 } },
+        h('div', { style:{ fontFamily:mono, fontSize:11, color:'var(--text3)', textTransform:'uppercase', letterSpacing:1 } }, lalFmtLong(today)),
+        h('div', { style:{ fontSize:19, fontWeight:700, color:'#f6fbf2', margin:'3px 0 6px' } }, lalPhaseName(age) + ' · ' + Math.round(frac * 100) + '%'),
+        h('span', { style:{ display:'inline-block', fontFamily:mono, fontSize:11, fontWeight:700, padding:'4px 11px', borderRadius:20, background:(mvt === 'montante' ? LAL_MONTANTE : LAL_DESCENDANTE) + '22', color:mvt === 'montante' ? LAL_MONTANTE : LAL_DESCENDANTE } },
+          mvt === 'montante' ? '⬆ Montante — semis & récolte' : '⬇ Descendante — repiquage & sol')
+      )
+    ),
+    nextAction && h('div', { style:{ ...box, padding:'13px 16px', marginTop:10, display:'flex', gap:11, alignItems:'flex-start' } },
+      h('span', { style:{ fontSize:17 }, 'aria-hidden':'true' }, '🌱'),
+      h('div', { style:{ fontSize:13.5, lineHeight:1.5 } },
+        'Prochain jour idéal pour ',
+        h('b', { style:{ color:LAL_GOLD } }, nextAction.t === 'semis' ? 'semer' : 'repiquer'),
+        ' : ', h('b', { style:{ color:LAL_GOLD } }, lalFmtLong(nextAction.date)),
+        h('div', { style:{ fontSize:12, color:'var(--text3)', fontStyle:'italic', marginTop:2 } },
+          nextAction.t === 'semis' ? 'lune montante + jour fruit' : 'lune descendante + jour fruit')
+      )
+    ),
+
+    // ── Sélecteur de mois ──
+    h('div', { className:'scroll-x', style:{ padding:'20px 0 12px', display:'flex', gap:7 } },
+      LAL_MOIS.map((mm, i) => h('button', {
+        key:i, className:'pl-btn', onClick:() => setMonth(i),
+        'aria-pressed': month === i ? 'true' : 'false',
+        'aria-label': mm.n + (mm.cyc ? ' — saison cyclonique' : ''),
+        style:{ minWidth:52, minHeight:44, padding:'9px 6px', borderRadius:12, border:'none', flexShrink:0,
+          background:month === i ? LAL_GOLD : 'rgba(255,255,255,0.04)', color:month === i ? '#0a0f0d' : 'var(--text3)',
+          fontFamily:mono, fontSize:11, fontWeight:700, textAlign:'center', cursor:'pointer' } },
+        h('div', null, LAL_ABBR[i]),
+        h('div', { style:{ fontSize:9, marginTop:2, opacity:.75 } }, mm.cyc ? '⚡' : month === i ? '●' : '○')
+      ))
+    ),
+
+    // ── Fiche du mois ──
+    h('div', { key:month, className:'pl-fade' },
+      h('div', { style:{ ...box, padding:20 } },
+        h('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, paddingBottom:16, borderBottom:'1px solid #1e3a2a', marginBottom:16, flexWrap:'wrap' } },
+          h('div', null,
+            h('div', { style:{ fontSize:26, fontWeight:700, color:'#f4faf1', lineHeight:1 } }, m.n),
+            m.cyc && h('div', { style:{ display:'inline-flex', alignItems:'center', gap:6, fontFamily:mono, fontSize:11, color:'#fb7185', background:'rgba(251,113,133,.1)', padding:'4px 10px', borderRadius:20, marginTop:8 } }, '⚡ Saison cyclonique — veille météo')
+          ),
+          h('div', { style:{ fontFamily:mono, fontSize:11, padding:'5px 12px', borderRadius:20, fontWeight:700, background:season.bg, color:season.color } }, season.label)
+        ),
+        // Concombre
+        h('div', { style:{ display:'flex', gap:12, paddingBottom:14 } },
+          h('div', { 'aria-hidden':'true', style:{ width:38, height:38, borderRadius:11, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, background:'rgba(74,222,128,.12)', border:'1px solid rgba(74,222,128,.3)' } }, '🥒'),
+          h('div', null,
+            h('div', { style:{ fontSize:15, fontWeight:700, color:LAL_GREEN, marginBottom:2 } }, 'Concombre'),
+            h('div', { style:{ fontSize:13, color:'#bcd4c2', lineHeight:1.55 } }, m.cc)
+          )
+        ),
+        // Giraumon
+        h('div', { style:{ display:'flex', gap:12, paddingTop:14, borderTop:'1px dashed #1e3a2a' } },
+          h('div', { 'aria-hidden':'true', style:{ width:38, height:38, borderRadius:11, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, background:'rgba(245,158,11,.12)', border:'1px solid rgba(245,158,11,.3)' } }, '🎃'),
+          h('div', null,
+            h('div', { style:{ fontSize:15, fontWeight:700, color:LAL_AMBER, marginBottom:2 } }, 'Giraumon'),
+            h('div', { style:{ fontSize:13, color:'#bcd4c2', lineHeight:1.55 } }, m.gg)
+          )
+        ),
+        // Jours favorables
+        h('div', { style:{ marginTop:16, padding:15, borderRadius:14, border:'1px solid #1e3a2a', background:'linear-gradient(135deg,rgba(227,186,92,.06),rgba(74,222,128,.03))' } },
+          h('div', { className:'eyebrow', style:{ marginBottom:12 } }, '🌙 Jours favorables — ' + m.n + ' ' + mk.slice(0, 4)),
+          dayRow('⬆ Semer', md.semis, 'semis'),
+          dayRow('⬇ Repiquer', md.repiquage, 'repiquage')
+        )
+      )
+    ),
+
+    // ── Semansye ──
+    h(SemansyeStock, { semansye, addLot, updateLot, deleteLot, today, box, mono }),
+
+    // ── Principes ──
+    h('div', { style:{ marginTop:24 } },
+      h('div', { className:'eyebrow', style:{ marginBottom:12 } }, '🌗 Planter avec la lune'),
+      [
+        { emoji:'⬆',  tag:'SEMER',    col:LAL_MONTANTE,    title:'Lune montante',            txt:"La sève monte : on sème et on récolte les fruits à consommer frais. Idéal un jour fruit." },
+        { emoji:'🌕', tag:'RÉCOLTER', col:LAL_GOLD,        title:'Pleine lune',              txt:'Fruits gorgés de sève : récolte de conservation et prélèvement des graines de giraumon mûr.' },
+        { emoji:'⬇',  tag:'REPIQUER', col:LAL_DESCENDANTE, title:'Lune descendante',         txt:"La sève descend : les plants s'enracinent mieux. On repique, plante, bouture et amende la terre." },
+        { emoji:'🌑', tag:'REPOS',    col:'#fb7185',       title:'Nœuds · périgée · apogée', txt:'Autour des nouvelle/pleine lune et aux périgée/apogée : pas de semis. On composte et on prépare.' }
+      ].map((p, i) => h('div', { key:i, style:{ ...box, padding:15, display:'flex', gap:13, marginBottom:10 } },
+        h('span', { 'aria-hidden':'true', style:{ fontSize:20, minWidth:26, textAlign:'center' } }, p.emoji),
+        h('div', null,
+          h('div', { style:{ fontSize:15, fontWeight:700, color:'#f2faef', marginBottom:3 } },
+            h('span', { style:{ fontFamily:mono, fontSize:10.5, fontWeight:700, padding:'2px 8px', borderRadius:6, marginRight:8, background:p.col + '22', color:p.col } }, p.tag),
+            p.title
+          ),
+          h('div', { style:{ fontSize:12.5, color:'#b4cebc', lineHeight:1.5 } }, p.txt)
+        )
+      ))
+    ),
+
+    // ── Le cycle lunaire, phase par phase ──
+    h('div', { style:{ marginTop:24 } },
+      h('div', { className:'eyebrow', style:{ marginBottom:4 } }, '🌘 Le cycle lunaire'),
+      h('p', { style:{ fontSize:12.5, color:'var(--text3)', fontStyle:'italic', margin:'0 0 12px', lineHeight:1.5 } },
+        'La Lune ne produit pas sa lumière : ses phases viennent de sa position par rapport à la Terre et au Soleil. Un cycle complet dure environ 29,5 jours.'),
+      h('div', { style:{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))', gap:10 } },
+        LAL_CYCLE.map((p, i) => h('div', { key:p.nom, style:{ ...box, padding:14, display:'flex', flexDirection:'column', alignItems:'center', textAlign:'center', gap:8 } },
+          h(MoonDisc, { frac:p.frac, wax:p.wax, size:52 }),
+          h('div', { style:{ fontFamily:mono, fontSize:10, color:'var(--text3)' } }, (i + 1) + '/8'),
+          h('div', { style:{ fontSize:13, fontWeight:700, color:LAL_GOLD, lineHeight:1.25 } }, p.nom),
+          h('div', { style:{ fontSize:11.5, color:'#b4cebc', lineHeight:1.45 } }, p.txt)
+        ))
+      )
+    ),
+
+    // ── Prochaines phases ──
+    h('div', { style:{ marginTop:24 } },
+      h('div', { className:'eyebrow', style:{ marginBottom:12 } }, '📅 Prochaines phases · Guadeloupe'),
+      h('div', { style:{ ...box, overflow:'hidden' } },
+        upcomingPhases.map((p, i) => h('div', { key:i, style:{ display:'flex', alignItems:'center', gap:13, padding:'12px 16px', borderBottom:i < upcomingPhases.length - 1 ? '1px solid #1a3028' : 'none', fontSize:13 } },
+          h(MoonDisc, { frac:(LAL_PHASE_DISQUE[p.name] || { frac:.5 }).frac, wax:(LAL_PHASE_DISQUE[p.name] || { wax:true }).wax, size:26 }),
+          h('span', { style:{ fontFamily:mono, fontSize:12, color:LAL_GOLD, minWidth:92 } }, p.d.toLocaleDateString('fr-FR', { day:'2-digit', month:'short' }) + ' · ' + p.time),
+          h('span', { style:{ color:'#cfe3d4', flex:1 } }, p.name)
+        ))
+      ),
+      h('p', { style:{ fontSize:12, color:'var(--text3)', fontStyle:'italic', lineHeight:1.6, marginTop:16 } },
+        'La lune est un repère, pas une loi : la météo et l\'état du sol priment toujours. Cycle 100 jours pour les deux cultures. Phases calculées astronomiquement pour Pointe-à-Pitre (UTC-4).'),
+      h('div', { style:{ display:'flex', gap:8, flexWrap:'wrap', marginTop:10 } },
+        h('a', { href:POTAGER_URL, target:'_blank', rel:'noopener', style:{ display:'inline-block', padding:'8px 14px', borderRadius:16, border:'1px solid var(--border)', color:'var(--text2)', fontSize:12, fontWeight:700, textDecoration:'none' } }, '↗ Version plein écran'),
+        h('a', { href:LUNE_SOURCE_URL, target:'_blank', rel:'noopener', style:{ display:'inline-block', padding:'8px 14px', borderRadius:16, border:'1px solid var(--border)', color:'var(--text3)', fontSize:12, textDecoration:'none' } }, '🌙 Référence lunaire')
+      )
+    )
+  );
+}
+
+// Suivi des lots de graines — persisté dans data.couple.semansye (synchro Supabase)
+function SemansyeStock({ semansye, addLot, updateLot, deleteLot, today, box, mono }) {
+  const h = React.createElement;
+  const lots = semansye || [];
+  const todayIso = lalIso(today);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ culture:'concombre', recolte:todayIso, qte:'', note:'' });
+
+  const daysSince = iso => Math.floor((today - lalParseD(iso)) / 864e5);
+
+  const statutLot = lot => {
+    const d = daysSince(lot.etapeDate);
+    if (lot.etape === 'fermentation') {
+      if (d >= 2) return { txt:'⚠ Rincer maintenant !', col:'#fb7185', urgent:true };
+      return { txt:'Jour ' + (d + 1) + '/2 — voile blanc normal', col:LAL_MONTANTE };
+    }
+    if (lot.etape === 'sechage') {
+      if (d >= 5) return { txt:'✓ Sèches — prêtes à stocker', col:LAL_GOLD };
+      return { txt:'Séchage jour ' + (d + 1) + '/7', col:LAL_DESCENDANTE };
+    }
+    const viab = (SEM_CULTURES[lot.culture] || SEM_CULTURES.autre).viab;
+    const ans = daysSince(lot.recolte) / 365.25;
+    return { txt:'Viabilité ~' + Math.max(0, viab - ans).toFixed(1) + ' an(s)', col:LAL_GOLD, pct:Math.max(0, Math.min(1, 1 - ans / viab)) };
+  };
+
+  const avancer = lot => updateLot(lot.id, { etape:lot.etape === 'fermentation' ? 'sechage' : 'stockee', etapeDate:todayIso });
+
+  const ajouter = () => {
+    if (!form.recolte) return;
+    addLot({ id:Date.now().toString(), ...form, etape:'fermentation', etapeDate:form.recolte });
+    setForm({ culture:'concombre', recolte:todayIso, qte:'', note:'' });
+    setShowForm(false);
+  };
+
+  const inputStyle = { background:'rgba(255,255,255,0.05)', border:'1px solid #1e3a2a', borderRadius:10, color:'#e8f5e0', fontFamily:mono, fontSize:12, padding:'10px 12px', outline:'none', width:'100%', boxSizing:'border-box', colorScheme:'dark' };
+
+  return h('div', { style:{ marginTop:24 } },
+    h('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:8, marginBottom:12 } },
+      h('div', { className:'eyebrow' }, '🫘 Semansye · graines en stock'),
+      h('button', { className:'pl-btn', onClick:() => setShowForm(s => !s),
+        style:{ minHeight:40, border:'1px solid ' + LAL_GOLD + '55', background:showForm ? LAL_GOLD : 'rgba(227,186,92,.1)', color:showForm ? '#0a0f0d' : LAL_GOLD, fontFamily:mono, fontSize:11, fontWeight:700, padding:'8px 14px', borderRadius:20, cursor:'pointer' } },
+        showForm ? '✕ Fermer' : '+ Lot')
+    ),
+
+    showForm && h('div', { className:'pl-fade', style:{ ...box, padding:16, marginBottom:12 } },
+      h('div', { style:{ display:'flex', gap:7, marginBottom:12 } },
+        Object.keys(SEM_CULTURES).map(k => {
+          const c = SEM_CULTURES[k];
+          return h('button', { key:k, className:'pl-btn', onClick:() => setForm(p => ({ ...p, culture:k })),
+            'aria-pressed': form.culture === k ? 'true' : 'false',
+            style:{ flex:1, minHeight:44, padding:'9px 6px', borderRadius:11, cursor:'pointer',
+              border:'1px solid ' + (form.culture === k ? c.color : '#1e3a2a'),
+              background:form.culture === k ? c.color + '22' : 'rgba(255,255,255,0.03)',
+              color:form.culture === k ? c.color : 'var(--text3)', fontFamily:mono, fontSize:11, fontWeight:700 } },
+            c.emoji + ' ' + c.label);
+        })
+      ),
+      h('div', { style:{ display:'flex', gap:8, marginBottom:8 } },
+        h('input', { type:'date', value:form.recolte, onChange:e => setForm(p => ({ ...p, recolte:e.target.value })), 'aria-label':'Date de récolte', style:{ ...inputStyle, flex:1.2 } }),
+        h('input', { type:'text', placeholder:'Qté (~40 graines)', 'aria-label':'Quantité', value:form.qte, onChange:e => setForm(p => ({ ...p, qte:e.target.value })), style:{ ...inputStyle, flex:1 } })
+      ),
+      h('input', { type:'text', placeholder:'Note (variété, parcelle, lune…)', 'aria-label':'Note', value:form.note, onChange:e => setForm(p => ({ ...p, note:e.target.value })), style:{ ...inputStyle, marginBottom:12 } }),
+      h('button', { className:'pl-btn', onClick:ajouter, style:{ width:'100%', minHeight:44, padding:11, borderRadius:12, border:'none', background:LAL_GOLD, color:'#0a0f0d', fontFamily:mono, fontSize:12, fontWeight:700, cursor:'pointer' } }, 'Lancer la fermentation 🫧')
+    ),
+
+    lots.length === 0 && !showForm && h('div', { style:{ ...box, padding:20, textAlign:'center', fontSize:12.5, color:'var(--text3)', fontStyle:'italic' } },
+      'Aucun lot pour l\'instant — ajoute ta première récolte de graines 🌱'),
+
+    lots.map(lot => {
+      const c = SEM_CULTURES[lot.culture] || SEM_CULTURES.autre;
+      const e = SEM_ETAPES[lot.etape] || SEM_ETAPES.stockee;
+      const st = statutLot(lot);
+      return h('div', { key:lot.id, className:'pl-fade', style:{ ...box, padding:15, marginBottom:10, borderLeft:'3px solid ' + c.color } },
+        h('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:10 } },
+          h('div', { style:{ display:'flex', gap:10, alignItems:'center' } },
+            h('span', { 'aria-hidden':'true', style:{ fontSize:20 } }, c.emoji),
+            h('div', null,
+              h('div', { style:{ fontSize:14.5, fontWeight:700, color:'#f2faef' } },
+                c.label,
+                lot.qte && h('span', { style:{ fontFamily:mono, fontSize:11, color:'var(--text3)', fontWeight:400 } }, ' · ' + lot.qte)
+              ),
+              h('div', { style:{ fontFamily:mono, fontSize:11, color:'var(--text3)', marginTop:2 } },
+                'Récolte ' + lalParseD(lot.recolte).toLocaleDateString('fr-FR', { day:'2-digit', month:'short', year:'2-digit' }))
+            )
+          ),
+          h('span', { style:{ fontFamily:mono, fontSize:10.5, fontWeight:700, padding:'3px 10px', borderRadius:20, background:c.color + '18', color:c.color, whiteSpace:'nowrap' } }, e.emoji + ' ' + e.label)
+        ),
+        h('div', { style:{ marginTop:10, fontFamily:mono, fontSize:11.5, fontWeight:st.urgent ? 700 : 400, color:st.col } }, st.txt),
+        typeof st.pct === 'number' && h('div', { style:{ height:5, background:'#1a3028', borderRadius:3, overflow:'hidden', marginTop:6 } },
+          h('div', { style:{ height:'100%', width:(st.pct * 100) + '%', borderRadius:3, background:LAL_GOLD, transition:'width .4s' } })
+        ),
+        lot.note && h('div', { style:{ fontSize:11.5, color:'var(--text3)', fontStyle:'italic', marginTop:6 } }, lot.note),
+        h('div', { style:{ fontSize:11, color:'var(--text3)', marginTop:4 } }, e.conseil),
+        h('div', { style:{ display:'flex', gap:8, marginTop:12 } },
+          e.action && h('button', { className:'pl-btn', onClick:() => avancer(lot),
+            style:{ flex:1, minHeight:40, padding:8, borderRadius:10, border:'1px solid ' + c.color + '55', background:c.color + '15', color:c.color, fontFamily:mono, fontSize:11, fontWeight:700, cursor:'pointer' } }, e.action + ' →'),
+          h('button', { className:'pl-btn', onClick:() => deleteLot(lot.id), 'aria-label':'Supprimer le lot ' + c.label,
+            style:{ minWidth:44, minHeight:40, padding:'8px 14px', borderRadius:10, border:'1px solid #3a1a2a', background:'rgba(251,113,133,.08)', color:'#fb7185', fontFamily:mono, fontSize:11, cursor:'pointer' } }, '🗑')
+        )
+      );
+    })
+  );
+}
+const POTAGER_CATS = [
+  { key:'Légume',  icon:'🥬' },
+  { key:'Fruit',   icon:'🍅' },
+  { key:'Racine',  icon:'🥕' },
+  { key:'Aromate', icon:'🌿' },
+  { key:'Fleur',   icon:'🌸' },
+  { key:'Autre',   icon:'🌱' }
+];
+const POTAGER_CAT_ICON = POTAGER_CATS.reduce((o, c) => { o[c.key] = c.icon; return o; }, {});
+const POTAGER_STADES = ['Semis', 'Croissance', 'Floraison', 'Récolte', 'Terminé'];
+const POTAGER_STADE_C = { 'Semis':'#93c5fd', 'Croissance':'#4ade80', 'Floraison':'#f0abfc', 'Récolte':'var(--gold)', 'Terminé':'var(--text3)' };
+
+// Fréquences d'arrosage → règle de récurrence ICS (rappels calendrier).
+const POTAGER_ARROSAGE = ['', 'Quotidien', '2×/semaine', 'Hebdomadaire', 'Tous les 15 j'];
+const POTAGER_ARROSAGE_RRULE = { 'Quotidien':'FREQ=DAILY', '2×/semaine':'FREQ=WEEKLY;BYDAY=MO,TH', 'Hebdomadaire':'FREQ=WEEKLY', 'Tous les 15 j':'FREQ=WEEKLY;INTERVAL=2' };
+
+// ─── Bible du maraîchage guadeloupéen (compagnonnage + saisons) ───
+// Données agronomiques adaptées à la Guadeloupe : saison (carême sec ≈ déc→mai /
+// hivernage humide ≈ juin→nov, cyclones août–oct), associations, ravageurs, conseil GWA.
+// Le compagnonnage relève du savoir agronomique commun (non couvert par la licence de MonPotager).
+const POTAGER_BIBLE = [
+  { nom:'Tomate', emoji:'🍅', famille:'Solanacées', saison:'Carême (sec)', cycle:'3–4 mois', bons:['Basilic','Œillet d\'Inde','Persil','Cive','Carotte','Laitue','Ail'], eviter:['Concombre','Chou','Pomme de terre','Fenouil'], ravageurs:'Aleurodes, mildiou (hivernage), nématodes', conseil:'Planter au carême : l\'hivernage humide favorise le mildiou. Tuteurer et pailler le pied.' },
+  { nom:'Concombre', emoji:'🥒', famille:'Cucurbitacées', saison:'Carême (sec)', cycle:'2–3 mois', bons:['Maïs','Haricot','Laitue','Radis','Capucine'], eviter:['Tomate (sous abri)','Pomme de terre','Sauge'], ravageurs:'Oïdium, mildiou, mouche des cucurbitacées', conseil:'Grande fenêtre au carême sec. Palisser pour aérer le feuillage, arroser au pied.' },
+  { nom:'Giraumon', emoji:'🎃', famille:'Cucurbitacées', saison:'Hivernage / toute l\'année', cycle:'3–5 mois', bons:['Maïs','Haricot','Capucine'], eviter:['Pomme de terre','Concombre'], ravageurs:'Oïdium, mouche des cucurbitacées', conseil:'Rustique, idéal en hivernage. Laisser courir au sol : prévoir de la place.' },
+  { nom:'Christophine', emoji:'🥭', famille:'Cucurbitacées', saison:'Toute l\'année', cycle:'Vivace grimpante', bons:['Maïs','Haricot'], eviter:[], ravageurs:'Limaces sur jeunes plants', conseil:'Le fruit entier germé se met en terre. Très vigoureuse → treillage solide, isoler.' },
+  { nom:'Gombo', emoji:'🫛', famille:'Malvacées', saison:'Hivernage (chaud/humide)', cycle:'2–3 mois', bons:['Basilic','Piment','Poivron','Melon','Concombre'], eviter:[], ravageurs:'Pucerons, aleurodes', conseil:'Aime chaleur et humidité de l\'hivernage. Récolter jeune, tous les 2–3 jours.' },
+  { nom:'Piment', emoji:'🌶️', famille:'Solanacées', saison:'Toute l\'année', cycle:'4–6 mois', bons:['Basilic','Carotte','Oignon','Tomate'], eviter:['Haricot','Fenouil'], ravageurs:'Pucerons, aleurodes, thrips', conseil:'Vivace sous les tropiques : peut produire plusieurs années. Plein soleil.' },
+  { nom:'Aubergine', emoji:'🍆', famille:'Solanacées', saison:'Carême → début hivernage', cycle:'3–4 mois', bons:['Haricot','Poivron','Thym','Estragon'], eviter:['Pomme de terre'], ravageurs:'Aleurodes, araignées rouges', conseil:'Aime la chaleur. Tuteurer, pailler pour garder la fraîcheur du sol.' },
+  { nom:'Laitue', emoji:'🥬', famille:'Astéracées', saison:'Carême (périodes fraîches)', cycle:'1,5–2 mois', bons:['Carotte','Radis','Concombre','Fraise','Cive'], eviter:['Persil','Tournesol'], ravageurs:'Limaces, pucerons, montaison à la chaleur', conseil:'Préférer la mi-ombre : monte vite en graine à la chaleur. Semis échelonnés.' },
+  { nom:'Chou', emoji:'🥦', famille:'Brassicacées', saison:'Carême (sec)', cycle:'2–3 mois', bons:['Haricot','Betterave','Thym','Menthe','Céleri'], eviter:['Tomate','Fraise','Oignon','Ail'], ravageurs:'Chenilles (piéride), altises, pucerons cendrés', conseil:'Filet anti-insectes utile. Aromatiques autour pour brouiller les ravageurs.' },
+  { nom:'Carotte', emoji:'🥕', famille:'Apiacées', saison:'Carême (sec)', cycle:'2,5–3 mois', bons:['Oignon','Cive','Poireau','Radis','Laitue','Tomate'], eviter:['Aneth','Persil'], ravageurs:'Mouche de la carotte', conseil:'Sol meuble sans cailloux. L\'oignon/cive à côté éloigne la mouche.' },
+  { nom:'Radis', emoji:'🌱', famille:'Brassicacées', saison:'Carême (sec)', cycle:'~1 mois', bons:['Carotte','Laitue','Concombre','Haricot'], eviter:[], ravageurs:'Altises', conseil:'Culture express (~4 semaines). Sème entre carotte et laitue pour occuper l\'espace.' },
+  { nom:'Haricot', emoji:'🫘', famille:'Fabacées', saison:'Carême → hivernage', cycle:'2–3 mois', bons:['Maïs','Concombre','Carotte','Laitue','Chou','Giraumon'], eviter:['Ail','Oignon','Cive','Poireau'], ravageurs:'Pucerons, mouche des semis', conseil:'Fixe l\'azote → enrichit le sol pour les voisins. Éviter les alliacées (ail, oignon).' },
+  { nom:'Pois d\'Angole', emoji:'🌾', famille:'Fabacées', saison:'Hivernage', cycle:'6–8 mois', bons:['Maïs','Tubercules'], eviter:[], ravageurs:'Pucerons', conseil:'Arbuste fixateur d\'azote : brise-vent et ombrage léger pour le jardin créole.' },
+  { nom:'Maïs', emoji:'🌽', famille:'Poacées', saison:'Hivernage (pluies)', cycle:'3–4 mois', bons:['Haricot','Giraumon','Concombre'], eviter:['Tomate','Céleri'], ravageurs:'Chenille légionnaire, foreurs de tige', conseil:'Trio créole maïs-haricot-giraumon : le maïs tuteure, le haricot nourrit, la courge couvre le sol.' },
+  { nom:'Patate douce', emoji:'🍠', famille:'Convolvulacées', saison:'Plant en hivernage', cycle:'4–5 mois', bons:['Maïs','Tubercules'], eviter:[], ravageurs:'Charançon de la patate douce', conseil:'Se plante en boutures de tige. Couvre-sol qui étouffe les adventices.' },
+  { nom:'Igname', emoji:'🥔', famille:'Dioscoréacées', saison:'Plant au carême', cycle:'8–10 mois', bons:['Dachine','Maïs'], eviter:[], ravageurs:'Cochenilles, nématodes', conseil:'Cycle long (8–10 mois). Tuteurer la liane. Base du jardin créole étagé.' },
+  { nom:'Dachine (Madère)', emoji:'🍃', famille:'Aracées', saison:'Hivernage (aime l\'eau)', cycle:'6–9 mois', bons:['Igname','Banane'], eviter:[], ravageurs:'Pucerons, mildiou du taro', conseil:'Aime les sols humides / bords d\'eau. Les feuilles font le calalou.' },
+  { nom:'Manioc', emoji:'🌳', famille:'Euphorbiacées', saison:'Toute l\'année', cycle:'8–12 mois', bons:['Maïs','Haricot'], eviter:[], ravageurs:'Cochenille farineuse, acariens', conseil:'Boutures de tige. Très rustique, tolère la sécheresse. Privilégier les variétés douces.' },
+  { nom:'Cive (oignon-pays)', emoji:'🧅', famille:'Alliacées', saison:'Toute l\'année', cycle:'Repousse à la coupe', bons:['Carotte','Tomate','Laitue','Betterave','Fraise'], eviter:['Haricot','Pois'], ravageurs:'Thrips, mildiou de l\'oignon', conseil:'Repousse après chaque coupe. Éloigne la mouche de la carotte. Indispensable en cuisine créole.' },
+  { nom:'Ail', emoji:'🧄', famille:'Alliacées', saison:'Carême (sec)', cycle:'4–5 mois', bons:['Tomate','Carotte','Laitue','Fraise'], eviter:['Haricot','Pois','Chou'], ravageurs:'Rouille', conseil:'Répulsif naturel (pucerons, acariens). À éloigner des légumineuses.' },
+  { nom:'Basilic', emoji:'🌿', famille:'Lamiacées', saison:'Toute l\'année', cycle:'Continu', bons:['Tomate','Poivron','Piment','Aubergine','Gombo'], eviter:['Rue'], ravageurs:'Pucerons, limaces', conseil:'Protège la tomate (aleurodes) et en relève le goût. Pincer les fleurs pour prolonger.' },
+  { nom:'Thym-pays', emoji:'🪴', famille:'Lamiacées', saison:'Toute l\'année', cycle:'Vivace', bons:['Chou','Aubergine','Tomate'], eviter:[], ravageurs:'Peu sensible', conseil:'Aromatique répulsive : borde les planches. Résiste très bien à la sécheresse.' },
+  { nom:'Melon', emoji:'🍈', famille:'Cucurbitacées', saison:'Carême (sec, sucré)', cycle:'~3 mois', bons:['Maïs','Haricot','Capucine'], eviter:['Concombre','Giraumon'], ravageurs:'Oïdium, mouche des cucurbitacées', conseil:'La chaleur sèche du carême concentre le sucre. Pailler sous les fruits.' },
+  { nom:'Madère violette', emoji:'🟣', famille:'Aracées', saison:'Hivernage (aime l\'eau)', cycle:'6–9 mois', bons:['Igname','Banane','Maïs'], eviter:[], ravageurs:'Pucerons, mildiou du taro', conseil:'Variété de dachine à chair violette. Sols humides. Feuilles jeunes = calalou.' },
+  { nom:'Ti-nain (banane légume)', emoji:'🍌', famille:'Musacées', saison:'Toute l\'année', cycle:'9–12 mois', bons:['Dachine','Gingembre','Ombre légère'], eviter:[], ravageurs:'Charançon du bananier, cercosporiose', conseil:'Banane verte à cuire. Œilletons repiqués. Ombrage et brise-vent pour le jardin créole.' },
+  { nom:'Brède / Épinard-pays', emoji:'🍃', famille:'Amaranthacées', saison:'Toute l\'année', cycle:'1–2 mois', bons:['Tomate','Piment','Gombo'], eviter:[], ravageurs:'Chenilles, altises', conseil:'Amarante à feuilles, très rapide. Se ressème seule. Couper les jeunes feuilles régulièrement.' },
+  { nom:'Gingembre', emoji:'🫚', famille:'Zingibéracées', saison:'Plant au carême', cycle:'8–10 mois', bons:['Ti-nain','Ombre légère','Curcuma'], eviter:[], ravageurs:'Pourriture du rhizome (excès d\'eau)', conseil:'Rhizome enterré. Aime la mi-ombre et un sol drainé. Récolte quand le feuillage jaunit.' },
+  { nom:'Curcuma', emoji:'🟠', famille:'Zingibéracées', saison:'Plant au carême', cycle:'8–10 mois', bons:['Gingembre','Ti-nain'], eviter:[], ravageurs:'Pourriture du rhizome', conseil:'Même culture que le gingembre. Rhizome jaune-orangé, à récolter en saison sèche.' },
+  { nom:'Persil', emoji:'🌿', famille:'Apiacées', saison:'Périodes fraîches', cycle:'2–3 mois', bons:['Tomate','Carotte','Piment'], eviter:['Laitue'], ravageurs:'Pucerons', conseil:'Germination lente (tremper les graines). Mi-ombre en saison chaude.' },
+  { nom:'Fraise (altitude)', emoji:'🍓', famille:'Rosacées', saison:'Carême, en altitude', cycle:'Vivace', bons:['Laitue','Ail','Oignon','Thym'], eviter:['Chou'], ravageurs:'Limaces, oïdium', conseil:'Réussit surtout en zone fraîche/altitude (Basse-Terre). Pailler pour garder les fruits propres.' },
+  { nom:'Pak-choï (chou de Chine)', emoji:'🥬', famille:'Brassicacées', saison:'Périodes fraîches', cycle:'1,5–2 mois', bons:['Haricot','Cive','Aromates'], eviter:['Tomate','Fraise'], ravageurs:'Altises, chenilles', conseil:'Croissance rapide, tolère mieux la chaleur que le chou pommé. Arrosage régulier.' }
+];
+const normPot = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+// Retrouve la fiche bible correspondant au nom d'une plante (ex. « Tomate cerise » → Tomate).
+// Durée maxi d'un cycle de culture, en mois, lue depuis la bible ('2–3 mois' → 3).
+// On prend la borne haute pour n'alerter qu'une fois le cycle vraiment écoulé.
+// null quand la fiche ne donne pas de durée chiffrée (ex. 'Vivace grimpante').
+// ─── Référentiel plantes médicinales & utiles (lecture seule, 4 sources) ───
+const POTAGER_MEDICINALES = [
+  { famille: '🌿 Médicinales caribéennes (TRAMIL)', plantes: [
+    { nom: 'Aloès', latin: 'Aloe vera' },
+    { nom: 'Atoumo', latin: 'Curcuma longa, gingembre sauvage' },
+    { nom: 'Bois d’Inde', latin: 'Pimenta racemosa' },
+    { nom: 'Citronnelle', latin: 'Cymbopogon citratus' },
+    { nom: 'Corossol', latin: 'Annona muricata' },
+    { nom: 'Goyavier', latin: 'Psidium guajava' },
+    { nom: 'Groseille pays / Bissap', latin: 'Hibiscus sabdariffa' },
+    { nom: 'Liane à mal', latin: 'Aristolochia trilobata' },
+    { nom: 'Moringa', latin: 'Moringa oleifera' },
+    { nom: 'Noni', latin: 'Morinda citrifolia' },
+    { nom: 'Papaye', latin: 'Carica papaya' },
+    { nom: 'Pois doux', latin: 'Cajanus cajan' },
+    { nom: 'Quenettier', latin: 'Melicoccus bijugatus' },
+    { nom: 'Zèb à fè', latin: 'Phyllanthus niruri' },
+    { nom: 'Zèb chapantye', latin: 'Neurolaena lobata' },
+    { nom: 'Zèb à pik', latin: 'Eryngium foetidum' }
+  ]},
+  { famille: '🌍 Colonies françaises (1908)', plantes: [
+    { nom: 'Abrasin', latin: 'Aleurites cordata' },
+    { nom: 'Acajou à fruits', latin: 'Anacardium occidentale = cajou' },
+    { nom: 'Acacia continua', latin: 'savonnier' },
+    { nom: 'Albizzia amara', latin: 'Aroupou' },
+    { nom: 'Allanblackia floribunda', latin: 'fruit oléagineux du Congo' },
+    { nom: 'Amandier', latin: 'Prunus amygdalus' },
+    { nom: 'Anacardier', latin: 'Semecarpus anacardium' },
+    { nom: 'Aouara', latin: 'Astrocaryum vulgare, palmier' },
+    { nom: 'Arachide', latin: 'Arachis hypogaea' },
+    { nom: 'Arbre du voyageur', latin: 'Ravenala madagascariensis' },
+    { nom: 'Argémone', latin: 'Argemone mexicana, pavot du Mexique' },
+    { nom: 'Baobab', latin: 'Adansonia digitata, A. grandidieri' },
+    { nom: 'Ben', latin: 'Moringa pterygosperma' },
+    { nom: 'Calophyllum', latin: 'C. calaba, C. inophyllum – takamaka' },
+    { nom: 'Cacao', latin: 'Theobroma cacao' },
+    { nom: 'Carapa', latin: 'Carapa guianensis, huile de carapa' }
+  ]},
+  { famille: '🌳 Flore du Congo (Wildeman, 1903)', plantes: [
+    { nom: 'Sekegna ou Saccagna', latin: 'Bosqueia angolensis, bois tinctorial + fruit comestible' },
+    { nom: 'Musanga smithii', latin: 'Parasolier, arbre à eau' },
+    { nom: 'Hyptis spicigera', latin: 'Téné-Fi, herbe aromatique, huile siccative' },
+    { nom: 'Pandanus butayei', latin: 'pandanus du Bas-Congo' }
+  ]},
+  { famille: '📖 Médecine herbale & antibiotiques naturels', plantes: [
+    { nom: 'Ail', latin: 'Allium sativum' },
+    { nom: 'Thym', latin: 'Thymus vulgaris' },
+    { nom: 'Origan', latin: 'Origanum vulgare' },
+    { nom: 'Sauge', latin: 'Salvia officinalis' },
+    { nom: 'Échinacée', latin: 'Echinacea purpurea' },
+    { nom: 'Camomille', latin: 'Matricaria recutita' },
+    { nom: 'Menthe poivrée', latin: 'Mentha piperita' },
+    { nom: 'Curcuma', latin: 'Curcuma longa' },
+    { nom: 'Gingembre', latin: 'Zingiber officinale' },
+    { nom: 'Cannelle', latin: 'Cinnamomum verum' }
+  ]},
+  // Planche « Herbs for glands » — herboristerie traditionnelle, classée par glande.
+  // Ce sont des usages TRADITIONNELS, pas des traitements démontrés : le champ
+  // `garde` porte les précautions réellement documentées (toxicité, interactions),
+  // parce qu'une liste de plantes sans ses contre-indications est un piège.
+  { famille: '🫀 Plantes & glandes (herboristerie traditionnelle)', plantes: [
+    { nom: 'Tulsi / Basilic sacré', latin: 'Ocimum tenuiflorum — surrénales' },
+    { nom: 'Maca', latin: 'Lepidium meyenii — surrénales' },
+    { nom: 'Cordyceps', latin: 'Cordyceps sinensis — surrénales' },
+    { nom: 'Jujube', latin: 'Ziziphus jujuba — surrénales' },
+    { nom: 'Graine d’ortie', latin: 'Urtica dioica (graine) — surrénales' },
+
+    { nom: 'Griffe de chat', latin: 'Uncaria tomentosa — thymus', garde: 'Stimulant immunitaire : à éviter sous immunosuppresseurs ou après une greffe.' },
+    { nom: 'Chaparral', latin: 'Larrea tridentata — thymus', garde: 'Hépatotoxicité documentée (hépatites graves, alerte FDA 1992). Usage interne déconseillé.' },
+    { nom: 'Trèfle rouge', latin: 'Trifolium pratense — thymus', garde: 'Phyto-œstrogènes : prudence en cas de cancer hormono-dépendant ou sous anticoagulant.' },
+    { nom: 'Moringa (feuille)', latin: 'Moringa oleifera — thymus' },
+    { nom: 'Pau d’arco', latin: 'Handroanthus impetiginosus — thymus', garde: 'Lapachol toxique à dose élevée ; augmente le risque de saignement sous anticoagulant.' },
+
+    { nom: 'Muira puama', latin: 'Ptychopetalum olacoides — hypophyse' },
+    { nom: 'Bacopa', latin: 'Bacopa monnieri — hypophyse' },
+    { nom: 'Ginkgo', latin: 'Ginkgo biloba — hypophyse', garde: 'Antiagrégant : risque de saignement sous anticoagulant ou avant une opération.' },
+    { nom: 'Shatavari', latin: 'Asparagus racemosus — hypophyse' },
+    { nom: 'Fo-ti / He Shou Wu', latin: 'Reynoutria multiflora — hypophyse', garde: 'Hépatotoxicité documentée — cause connue d’hépatites d’origine médicamenteuse.' },
+
+    { nom: 'Varech vésiculeux', latin: 'Fucus vesiculosus — thyroïde', garde: 'Très riche en iode : peut dérégler la thyroïde dans un sens comme dans l’autre.' },
+    { nom: 'Lycope', latin: 'Lycopus europaeus — thyroïde', garde: 'Abaisse les hormones thyroïdiennes : interfère avec un traitement thyroïdien.' },
+    { nom: 'Mousse d’Irlande', latin: 'Chondrus crispus — thyroïde', garde: 'Apport d’iode notable : même prudence que le varech.' },
+    { nom: 'Mélisse', latin: 'Melissa officinalis — thyroïde' },
+    { nom: 'Paille d’avoine', latin: 'Avena sativa — thyroïde' },
+
+    { nom: 'Armoise', latin: 'Artemisia vulgaris — épiphyse', garde: 'Emménagogue : à proscrire pendant la grossesse. Allergies croisées Astéracées.' },
+    { nom: 'Scutellaire', latin: 'Scutellaria lateriflora — épiphyse' },
+    { nom: 'Coriandre', latin: 'Coriandrum sativum — épiphyse' },
+    { nom: 'Encens / Oliban', latin: 'Boswellia serrata — épiphyse' },
+    { nom: 'Racine d’épine-vinette', latin: 'Berberis vulgaris — épiphyse', garde: 'Berbérine : interdite pendant la grossesse et chez le nourrisson ; nombreuses interactions médicamenteuses.' },
+
+    { nom: 'Gymnema', latin: 'Gymnema sylvestre — pancréas', garde: 'Fait baisser la glycémie : risque d’hypoglycémie en s’ajoutant à un traitement du diabète.' },
+    { nom: 'Melon amer', latin: 'Momordica charantia — pancréas', garde: 'Fait baisser la glycémie : même risque d’addition avec un traitement du diabète.' },
+    { nom: 'Fenugrec', latin: 'Trigonella foenum-graecum — pancréas' },
+    { nom: 'Feuille de myrtille', latin: 'Vaccinium myrtillus (feuille) — pancréas' },
+    { nom: 'Hydraste du Canada', latin: 'Hydrastis canadensis — pancréas', garde: 'Berbérine : interdite pendant la grossesse et chez le nourrisson ; inhibe des enzymes du foie (interactions).' }
+  ]}
+];
+
+function cycleMoisMax(cycle) {
+  const s = String(cycle || '');
+  if (!/mois/i.test(s)) return null;
+  const nums = s.match(/\d+(?:[.,]\d+)?/g);
+  return nums ? parseFloat(nums[nums.length - 1].replace(',', '.')) : null;
+}
+
+// Alertes du Potager — regroupe les 3 sources (plantes, graines, lune) en une
+// liste unique affichée en haut de la vue, quel que soit l'onglet ouvert.
+// Chaque alerte disparaît d'elle-même une fois l'action faite (stade changé,
+// étape avancée, jour passé) : rien à cocher.
+function potagerAlertes(plantes, semansye, today) {
+  const out = [];
+  const jours = iso => {
+    if (!iso) return null;
+    const d = new Date(String(iso).slice(0, 10) + 'T00:00:00');
+    if (isNaN(d.getTime())) return null;
+    const t = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    return Math.floor((t - d) / 864e5);
+  };
+
+  // ── Plantes ──
+  (plantes || []).forEach(p => {
+    if (p.stade === 'Terminé') return;
+    if (p.stade === 'Récolte') {
+      out.push({ id:'rec-' + p.id, icon:'🧺', txt:p.nom + ' est à récolter.', col:'var(--gold)', tab:'plantes' });
+      return;
+    }
+    const b = findBible(p.nom);
+    const mois = b && cycleMoisMax(b.cycle);
+    const j = jours(p.datePlantation);
+    if (mois && j != null && j >= mois * 30) {
+      out.push({ id:'cyc-' + p.id, icon:'⏳', txt:p.nom + ' : ' + Math.floor(j / 30) + ' mois en terre (cycle ' + b.cycle + ') — vérifier la récolte.', col:'var(--warn)', tab:'plantes' });
+    }
+  });
+
+  // ── Semansye (graines) ──
+  (semansye || []).forEach(l => {
+    const c = SEM_CULTURES[l.culture] || SEM_CULTURES.autre;
+    const j = jours(l.etapeDate);
+    if (j == null) return;
+    if (l.etape === 'fermentation' && j >= 2) {
+      out.push({ id:'fer-' + l.id, icon:'⚠', txt:'Graines de ' + c.label.toLowerCase() + ' : ' + j + ' j de fermentation — rincer et mettre à sécher.', col:'var(--danger)', tab:'almanach' });
+    } else if (l.etape === 'sechage' && j >= 5) {
+      out.push({ id:'sec-' + l.id, icon:'✅', txt:'Graines de ' + c.label.toLowerCase() + ' sèches (' + j + ' j) — à mettre en stock.', col:'var(--success)', tab:'almanach' });
+    }
+  });
+
+  // ── Lune : jours favorables et phases majeures (aujourd'hui / demain) ──
+  const iso = lalIso(today);
+  const demain = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+  const isoDemain = lalIso(demain);
+  const mk = iso.slice(0, 7);
+  const md = LUNE.monthly[mk];
+  if (md) {
+    [['semis', 'semer'], ['repiquage', 'repiquer']].forEach(([k, verbe]) => {
+      if (md[k].indexOf(today.getDate()) !== -1) out.push({ id:'lun-' + k, icon:'🌙', txt:"Aujourd'hui est un jour idéal pour " + verbe + '.', col:LAL_MONTANTE, tab:'almanach' });
+      else if (isoDemain.slice(0, 7) === mk && md[k].indexOf(demain.getDate()) !== -1) out.push({ id:'lun-d-' + k, icon:'🌙', txt:'Demain : jour idéal pour ' + verbe + '.', col:'var(--text2)', tab:'almanach' });
+    });
+  }
+  const phase = LUNE.phases.find(p => p.date === iso);
+  if (phase && (phase.name === 'Pleine lune' || phase.name === 'Nouvelle lune')) {
+    out.push({
+      id:'pha-' + phase.date, icon:phase.emoji,
+      txt:phase.name + " aujourd'hui à " + phase.time + (phase.name === 'Pleine lune' ? ' — récolte de conservation et graines.' : ' — repos : pas de semis, on composte.'),
+      col:LAL_GOLD, tab:'almanach'
+    });
+  }
+  return out;
+}
+
+function findBible(nom) {
+  const n = normPot(nom);
+  if (!n) return null;
+  return POTAGER_BIBLE.find(b => { const k = normPot(b.nom.replace(/\s*\(.*\)/, '')); return n.indexOf(k) !== -1 || k.indexOf(n) !== -1; }) || null;
+}
+
+function PlanteForm({ onSave, onCancel }) {
+  const h = React.createElement;
+  const [form, setForm] = React.useState({ nom:'', variete:'', categorie:'Légume', datePlantation:'', dateRecolte:'', stade:'Semis', arrosage:'', notes:'' });
+  const inp = { background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'8px 12px', fontSize:13, width:'100%', boxSizing:'border-box' };
+  const save = () => { if (!form.nom.trim()) return; onSave({ id:Date.now().toString(), ...form }); };
+  return h('div', { style:{ background:'var(--glass)', border:'1px solid rgba(16,185,129,.35)', borderRadius:'var(--radius)', padding:16, marginBottom:16 } },
+    h('input', { placeholder:'Nom de la plante * (ex : Tomate, Concombre)', value:form.nom, onChange:e=>setForm(p=>({...p,nom:e.target.value})), style:{ ...inp, marginBottom:8 } }),
+    h('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 } },
+      h('input', { placeholder:'Variété (ex : cœur de bœuf)', value:form.variete, onChange:e=>setForm(p=>({...p,variete:e.target.value})), style:inp }),
+      h('label', { style:{ fontSize:11, color:'var(--text3)' } }, 'Arrosage 🔔', h('select', { value:form.arrosage, onChange:e=>setForm(p=>({...p,arrosage:e.target.value})), style:{ ...inp, marginTop:3 } }, POTAGER_ARROSAGE.map(a => h('option', { key:a||'none', value:a }, a || '— aucun rappel'))))
+    ),
+    h('div', { style:{ fontSize:11, color:'var(--text3)', margin:'4px 0 6px' } }, 'Catégorie'),
+    h('div', { style:{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:8 } },
+      POTAGER_CATS.map(c => h('button', { key:c.key, onClick:()=>setForm(p=>({...p,categorie:c.key})), style:{ padding:'5px 12px', borderRadius:16, border:`1px solid ${form.categorie===c.key?'var(--gold)':'var(--border)'}`, background:'transparent', color:form.categorie===c.key?'var(--gold)':'var(--text3)', cursor:'pointer', fontWeight:form.categorie===c.key?700:400, fontSize:12 } }, c.icon + ' ' + c.key))
+    ),
+    h('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8, marginBottom:8, alignItems:'start' } },
+      h('label', { style:{ fontSize:11, color:'var(--text3)' } }, 'Planté le', h('input', { type:'date', value:form.datePlantation, onChange:e=>setForm(p=>({...p,datePlantation:e.target.value})), style:{ ...inp, marginTop:3 } })),
+      h('label', { style:{ fontSize:11, color:'var(--text3)' } }, 'Récolte prévue 🔔', h('input', { type:'date', value:form.dateRecolte, onChange:e=>setForm(p=>({...p,dateRecolte:e.target.value})), style:{ ...inp, marginTop:3 } })),
+      h('label', { style:{ fontSize:11, color:'var(--text3)' } }, 'Stade', h('select', { value:form.stade, onChange:e=>setForm(p=>({...p,stade:e.target.value})), style:{ ...inp, marginTop:3 } }, POTAGER_STADES.map(s => h('option', { key:s, value:s }, s))))
+    ),
+    h('textarea', { placeholder:'Notes (emplacement, engrais, observations…)', value:form.notes, onChange:e=>setForm(p=>({...p,notes:e.target.value})), style:{ ...inp, minHeight:56, marginBottom:10, resize:'vertical' } }),
+    h('div', { style:{ display:'flex', gap:8 } },
+      h('button', { onClick:save, style:{ padding:'8px 20px', borderRadius:12, border:'none', background:'#10b981', color:'#fff', cursor:'pointer', fontWeight:700 } }, 'Enregistrer'),
+      h('button', { onClick:onCancel, style:{ padding:'8px 16px', borderRadius:12, border:'1px solid var(--border)', background:'transparent', color:'var(--text3)', cursor:'pointer' } }, 'Annuler')
+    )
+  );
+}
+
+function PotagerView({ plantes, addPlante, updatePlante, deletePlante, semansye, addLot, updateLot, deleteLot }) {
+  const h = React.createElement;
+  const [tab, setTab] = React.useState('plantes');
+  const [show, setShow] = React.useState(false);
+  const [filtre, setFiltre] = React.useState('encours'); // encours | tous
+  const [bibleOpen, setBibleOpen] = React.useState(null); // nom de la fiche ouverte
+  const [q, setQ] = React.useState('');
+  const [journalOpen, setJournalOpen] = React.useState(null); // id plante dont le journal est ouvert
+  const [uploading, setUploading] = React.useState(false);
+
+  const dataURLtoBlob = dataURL => {
+    const parts = dataURL.split(','); const mime = parts[0].match(/:(.*?);/)[1];
+    const bin = atob(parts[1]); const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return new Blob([arr], { type: mime });
+  };
+  const addJournalPhoto = async (p, file) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      // Compression légère (photos de suivi) → dataURL toujours dispo comme repli.
+      const dataUrl = await compressImage(file, 800, 0.6);
+      let src = dataUrl;
+      try {
+        if (DEMO) throw new Error('demo'); // démo : on garde la data-URL, pas d'envoi cloud
+        const blob = dataURLtoBlob(dataUrl);
+        const path = 'potager/' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.jpg';
+        const { error } = await sb.storage.from('album-photos').upload(path, blob, { contentType: 'image/jpeg', upsert: false });
+        if (error) throw error;
+        src = sb.storage.from('album-photos').getPublicUrl(path).data.publicUrl;
+      } catch (up) {
+        // Storage indisponible → on garde l'image intégrée (data-URL) : elle s'affiche et se synchronise via le blob.
+        src = dataUrl;
+      }
+      const entry = { id: Date.now().toString(), date: new Date().toISOString().slice(0, 10), src: src };
+      updatePlante(p.id, { journal: [entry, ...(p.journal || [])] });
+    } catch (err) {
+      alert('Impossible de traiter la photo : ' + (err && err.message ? err.message : err));
+    }
+    setUploading(false);
+  };
+  const delJournalEntry = (p, eid) => updatePlante(p.id, { journal: (p.journal || []).filter(e => e.id !== eid) });
+  const exportRappels = () => {
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const evs = (plantes || []).reduce((a, p) => a.concat(potagerIcsEvents(p, todayIso)), []);
+    if (!evs.length) { alert('Aucun rappel : ajoute une fréquence d\'arrosage ou une date de récolte à tes plantes.'); return; }
+    downloadIcs(evs, 'potager-rappels.ics');
+  };
+  const fmtDate = iso => { const d = new Date(String(iso).slice(0,10) + 'T00:00:00'); return isNaN(d.getTime()) ? iso : d.toLocaleDateString('fr-FR', { day:'2-digit', month:'short' }); };
+
+  const joursDepuis = iso => {
+    if (!iso) return null;
+    const d = new Date(String(iso).slice(0,10) + 'T00:00:00');
+    if (isNaN(d.getTime())) return null;
+    const t = new Date(); t.setHours(0,0,0,0);
+    return Math.max(0, Math.round((t.getTime() - d.getTime()) / 86400000));
+  };
+  const list = plantes || [];
+  const alertes = React.useMemo(() => potagerAlertes(plantes, semansye, new Date()), [plantes, semansye]);
+  const enRecolte = list.filter(p => p.stade === 'Récolte').length;
+  const actives = list.filter(p => p.stade !== 'Terminé').length;
+  const shown = filtre === 'encours' ? list.filter(p => p.stade !== 'Terminé') : list;
+
+  const tabBtn = (id, label) => h('button', { key:id, onClick:()=>setTab(id), style:{ padding:'7px 16px', borderRadius:18, border:`1px solid ${tab===id?'#10b981':'var(--border)'}`, background:tab===id?'rgba(16,185,129,.15)':'transparent', color:tab===id?'#10b981':'var(--text3)', cursor:'pointer', fontWeight:700, fontSize:13 } }, label);
+
+  const carte = p => {
+    const j = joursDepuis(p.datePlantation);
+    const idx = POTAGER_STADES.indexOf(p.stade);
+    return h('div', { key:p.id, style:{ background:'var(--glass)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'12px 16px', marginBottom:10, opacity:p.stade==='Terminé'?.6:1 } },
+      h('div', { style:{ display:'flex', gap:12, alignItems:'flex-start' } },
+        h('div', { style:{ fontSize:26, lineHeight:1 } }, POTAGER_CAT_ICON[p.categorie] || '🌱'),
+        h('div', { style:{ flex:1, minWidth:0 } },
+          h('div', { style:{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginBottom:4 } },
+            h('span', { style:{ fontWeight:700, color:'var(--text)', fontSize:15 } }, p.nom),
+            p.variete && h('span', { style:{ fontSize:12, color:'var(--text3)', fontStyle:'italic' } }, p.variete)
+          ),
+          h('div', { style:{ fontSize:12, color:'var(--text3)', marginBottom:6 } },
+            [ j!=null && ('🌱 planté il y a ' + j + ' j'), p.arrosage && ('💧 ' + p.arrosage), p.dateRecolte && ('🧺 récolte ' + fmtDate(p.dateRecolte)) ].filter(Boolean).join('  ·  ') || 'Pas de date de plantation'
+          ),
+          h('div', { style:{ display:'flex', gap:4, flexWrap:'wrap', marginBottom: (p.notes||findBible(p.nom))?8:0 } },
+            POTAGER_STADES.map((s, i) => h('button', { key:s, onClick:()=>updatePlante(p.id, { stade:s }), title:'Marquer : '+s, style:{ padding:'3px 10px', borderRadius:12, border:`1px solid ${p.stade===s?POTAGER_STADE_C[s]:'var(--border)'}`, background:p.stade===s?POTAGER_STADE_C[s]+'22':'transparent', color:p.stade===s?POTAGER_STADE_C[s]:(i<=idx?'var(--text2)':'var(--text3)'), cursor:'pointer', fontSize:11, fontWeight:p.stade===s?700:400 } }, s))
+          ),
+          (() => { const b = findBible(p.nom); return b && h('div', { style:{ fontSize:11, color:'var(--text3)', marginBottom: p.notes?8:0, cursor:'pointer' }, onClick:()=>{ setTab('bible'); setBibleOpen(b.nom); } },
+            b.bons.length ? h('span', null, '🤝 ', h('span', { style:{ color:'#4ade80' } }, b.bons.slice(0,4).join(', '))) : null,
+            b.eviter.length ? h('span', null, '   ⛔ ', h('span', { style:{ color:'#f87171' } }, b.eviter.slice(0,3).join(', '))) : null
+          ); })(),
+          p.notes && h('div', { style:{ fontSize:12, color:'var(--text3)', fontStyle:'italic', marginBottom:6 } }, p.notes),
+          h('button', { onClick:()=>setJournalOpen(journalOpen===p.id?null:p.id), style:{ background:'none', border:'1px solid var(--border)', borderRadius:12, color:'var(--text2)', cursor:'pointer', fontSize:11, fontWeight:700, padding:'3px 10px' } },
+            '📸 Journal' + ((p.journal||[]).length ? ' (' + p.journal.length + ')' : '')),
+          journalOpen === p.id && h('div', { style:{ marginTop:8, paddingTop:8, borderTop:'1px solid var(--border)' } },
+            h('label', { style:{ display:'inline-flex', alignItems:'center', gap:6, background:'#10b981', color:'#fff', borderRadius:12, padding:'5px 12px', cursor: uploading?'wait':'pointer', fontSize:12, fontWeight:700, marginBottom:8, opacity: uploading?.7:1 } },
+              uploading ? '⏳ Envoi…' : '📷 Ajouter une photo',
+              h('input', { type:'file', accept:'image/*', capture:'environment', disabled:uploading, onChange:e=>{ const f=e.target.files&&e.target.files[0]; addJournalPhoto(p, f); e.target.value=''; }, style:{ display:'none' } })
+            ),
+            (p.journal||[]).length === 0
+              ? h('div', { style:{ fontSize:12, color:'var(--text3)' } }, 'Aucune photo. Ajoute un cliché pour suivre la croissance dans le temps.')
+              : h('div', { style:{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(88px, 1fr))', gap:8 } },
+                  (p.journal||[]).map(e => h('div', { key:e.id, style:{ position:'relative' } },
+                    h('img', { src:e.src, alt:'', loading:'lazy', style:{ width:'100%', height:88, objectFit:'cover', borderRadius:8, border:'1px solid var(--border)', display:'block' } }),
+                    h('div', { style:{ fontSize:10, color:'var(--text3)', marginTop:2, textAlign:'center' } }, fmtDate(e.date)),
+                    h('button', { onClick:()=>{ if (confirm('Supprimer cette photo ?')) delJournalEntry(p, e.id); }, style:{ position:'absolute', top:3, right:3, background:'rgba(0,0,0,.55)', color:'#fff', border:'none', borderRadius:'50%', width:20, height:20, lineHeight:'20px', cursor:'pointer', fontSize:12, padding:0 } }, '×')
+                  ))
+                )
+          )
+        ),
+        h('button', { onClick:()=>{ if (confirm('Supprimer « '+p.nom+' » ?')) deletePlante(p.id); }, style:{ background:'none', border:'none', color:'var(--danger)', cursor:'pointer', fontSize:18 } }, '×')
+      )
+    );
+  };
+
+  return h('div', null,
+    h('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14, gap:8, flexWrap:'wrap' } },
+      h('h2', { style:{ margin:0, fontSize:20 } }, '🌱 Potager GWA'),
+      tab === 'plantes' && h('div', { style:{ display:'flex', gap:8 } },
+        (plantes||[]).some(p => p.arrosage || p.dateRecolte) && h('button', { onClick:exportRappels, title:'Exporter les rappels arrosage & récolte (.ics)', style:{ padding:'8px 14px', borderRadius:20, border:'1px solid var(--border)', background:'transparent', color:'var(--text2)', cursor:'pointer', fontWeight:700, fontSize:13 } }, '🔔 Rappels'),
+        h('button', { onClick:()=>setShow(!show), style:{ padding:'8px 18px', borderRadius:20, border:'none', background:'#10b981', color:'#fff', cursor:'pointer', fontWeight:700 } }, show ? '✕' : '+ Plante')
+      )
+    ),
+    h('div', { style:{ display:'flex', gap:8, marginBottom:16 } },
+      tabBtn('plantes', '🌱 Mes plantes' + (list.length ? ' ('+list.length+')' : '')),
+      tabBtn('bible', '🪴 Bible'),
+      tabBtn('medicinales', '🌿 Médicinales'),
+      tabBtn('almanach', '🌙 Almanach' + (alertes.length ? ' •' : ''))
+    ),
+
+    // Bandeau d'alertes — cliquer mène à l'onglet concerné
+    alertes.length > 0 && h('div', { role:'status', style:{ display:'grid', gap:6, marginBottom:16 } },
+      alertes.map(a => h('button', {
+        key:a.id, onClick:()=>setTab(a.tab),
+        style:{ display:'flex', alignItems:'center', gap:10, width:'100%', textAlign:'left', cursor:'pointer',
+          background:'var(--glass)', border:'1px solid ' + a.col, borderLeft:'3px solid ' + a.col,
+          borderRadius:'var(--radius-sm)', padding:'10px 12px', minHeight:44, color:'var(--text2)', fontSize:12.5, fontFamily:'inherit' } },
+        h('span', { 'aria-hidden':'true', style:{ fontSize:15 } }, a.icon),
+        h('span', { style:{ flex:1 } }, a.txt),
+        h('span', { style:{ color:a.col, fontSize:16 }, 'aria-hidden':'true' }, '›')
+      ))
+    ),
+
+    tab === 'plantes' && h('div', null,
+      show && h(PlanteForm, { onSave:p=>{ addPlante(p); setShow(false); }, onCancel:()=>setShow(false) }),
+      list.length > 0 && h('div', { style:{ display:'flex', gap:14, marginBottom:12, fontSize:12, color:'var(--text3)', flexWrap:'wrap' } },
+        h('span', null, '🌿 ' + actives + ' en culture'),
+        enRecolte > 0 && h('span', { style:{ color:'var(--gold)', fontWeight:700 } }, '🧺 ' + enRecolte + ' à récolter'),
+        h('span', { style:{ marginLeft:'auto', display:'flex', gap:6 } },
+          ['encours','tous'].map(f => h('button', { key:f, onClick:()=>setFiltre(f), style:{ padding:'2px 10px', borderRadius:12, border:`1px solid ${filtre===f?'#10b981':'var(--border)'}`, background:'transparent', color:filtre===f?'#10b981':'var(--text3)', cursor:'pointer', fontSize:11, fontWeight:filtre===f?700:400 } }, f==='encours'?'En cours':'Tous'))
+        )
+      ),
+      shown.length === 0 && !show && h('div', { style:{ textAlign:'center', padding:'50px 0', color:'var(--text3)' } },
+        list.length === 0 ? '🌱 Aucune plante — ajoutez votre première culture !' : 'Aucune plante dans ce filtre.'),
+      shown.map(carte)
+    ),
+
+    tab === 'bible' && (() => {
+      const chip = (txt, col) => h('span', { key:txt, style:{ fontSize:11, padding:'2px 8px', borderRadius:10, background:col+'22', color:col, border:'1px solid '+col+'55' } }, txt);
+      const fiche = b => h('div', { style:{ background:'var(--glass)', border:'1px solid var(--gold-border)', borderRadius:'var(--radius)', padding:16, marginBottom:14 } },
+        h('div', { style:{ display:'flex', alignItems:'center', gap:10, marginBottom:10 } },
+          h('span', { style:{ fontSize:30 } }, b.emoji),
+          h('div', { style:{ flex:1, minWidth:0 } },
+            h('div', { style:{ fontWeight:700, fontSize:17, color:'var(--text)' } }, b.nom),
+            h('div', { style:{ fontSize:12, color:'var(--text3)' } }, b.famille)
+          ),
+          h('button', { onClick:()=>setBibleOpen(null), style:{ background:'none', border:'none', color:'var(--text3)', cursor:'pointer', fontSize:20 } }, '×')
+        ),
+        h('div', { style:{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:12 } }, chip('📅 ' + b.saison, 'var(--gold)'), chip('⏳ ' + b.cycle, 'var(--text2)')),
+        b.bons.length > 0 && h('div', { style:{ marginBottom:8 } },
+          h('div', { style:{ fontSize:11, fontWeight:700, color:'#4ade80', marginBottom:5 } }, '🤝 Bons voisins'),
+          h('div', { style:{ display:'flex', gap:5, flexWrap:'wrap' } }, b.bons.map(v => chip(v, '#4ade80')))
+        ),
+        b.eviter.length > 0 && h('div', { style:{ marginBottom:8 } },
+          h('div', { style:{ fontSize:11, fontWeight:700, color:'#f87171', marginBottom:5 } }, '⛔ À éviter à côté'),
+          h('div', { style:{ display:'flex', gap:5, flexWrap:'wrap' } }, b.eviter.map(v => chip(v, '#f87171')))
+        ),
+        h('div', { style:{ fontSize:12, color:'var(--text2)', marginBottom:6 } }, h('span', { style:{ color:'var(--text3)' } }, '🐛 Ravageurs : '), b.ravageurs),
+        h('div', { style:{ fontSize:12, color:'var(--text2)', background:'var(--bg2)', borderRadius:8, padding:'8px 10px' } }, h('span', { style:{ color:'var(--gold)' } }, '💡 '), b.conseil)
+      );
+      const nq = normPot(q);
+      const liste = POTAGER_BIBLE.filter(b => !nq || normPot(b.nom).indexOf(nq) !== -1 || normPot(b.famille).indexOf(nq) !== -1);
+      const ouverte = POTAGER_BIBLE.find(b => b.nom === bibleOpen);
+      return h('div', null,
+        h('div', { style:{ fontSize:12, color:'var(--text3)', marginBottom:10 } }, 'Touche un pot 🪴 pour la fiche : saison (carême/hivernage), bons & mauvais voisins, ravageurs, conseil — adapté à la Guadeloupe.'),
+        h('input', { placeholder:'🔎 Chercher (nom, famille…)', value:q, onChange:e=>setQ(e.target.value), style:{ background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'8px 12px', fontSize:13, width:'100%', boxSizing:'border-box', marginBottom:14 } }),
+        ouverte && fiche(ouverte),
+        h('div', { style:{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(92px, 1fr))', gap:10 } },
+          liste.map(b => h('button', { key:b.nom, onClick:()=>setBibleOpen(bibleOpen===b.nom?null:b.nom), title:b.nom,
+            style:{ display:'flex', flexDirection:'column', alignItems:'center', gap:4, padding:'12px 6px 8px', borderRadius:14, cursor:'pointer',
+              border:`1px solid ${bibleOpen===b.nom?'var(--gold)':'var(--border)'}`,
+              background:bibleOpen===b.nom?'var(--gold-bg)':'linear-gradient(180deg, transparent 55%, rgba(120,72,40,.22) 55%)' } },
+            h('span', { style:{ fontSize:30, lineHeight:1 } }, b.emoji),
+            h('span', { style:{ fontSize:11, fontWeight:700, color:'var(--text2)', textAlign:'center', lineHeight:1.15 } }, b.nom)
+          ))
+        ),
+        liste.length === 0 && h('div', { style:{ textAlign:'center', padding:'30px 0', color:'var(--text3)' } }, 'Aucune plante trouvée.')
+      );
+    })(),
+
+    tab === 'medicinales' && (() => {
+      const nq = normPot(q);
+      const groupes = POTAGER_MEDICINALES.map(g => ({
+        famille: g.famille,
+        plantes: g.plantes.filter(p => !nq || normPot(p.nom).indexOf(nq) !== -1 || normPot(p.latin).indexOf(nq) !== -1 || normPot(p.garde || '').indexOf(nq) !== -1 || normPot(g.famille).indexOf(nq) !== -1)
+      })).filter(g => g.plantes.length);
+      const total = POTAGER_MEDICINALES.reduce((n, g) => n + g.plantes.length, 0);
+      return h('div', null,
+        h('div', { style:{ fontSize:12, color:'var(--text3)', marginBottom:10, lineHeight:1.5 } },
+          'Référentiel de ' + total + ' plantes médicinales & utiles (lecture seule) — nom commun et nom latin, groupés par source. ' +
+          'Usages traditionnels : ce n\'est ni un diagnostic ni un traitement. Les ⚠ signalent une toxicité ou une interaction documentée.'),
+        h('input', { placeholder:'🔎 Chercher (nom, latin, source…)', value:q, onChange:e=>setQ(e.target.value), style:{ background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'8px 12px', fontSize:13, width:'100%', boxSizing:'border-box', marginBottom:14 } }),
+        groupes.map(g => h('div', { key:g.famille, style:{ marginBottom:18 } },
+          h('div', { style:{ fontSize:13, fontWeight:700, color:'#10b981', marginBottom:8 } }, g.famille + ' · ' + g.plantes.length),
+          h('div', { style:{ display:'grid', gap:6 } },
+            g.plantes.map(p => h('div', { key:p.nom, style:{ background:'var(--glass)', border:`1px solid ${p.garde ? 'var(--warn)' : 'var(--border)'}`, borderRadius:10, padding:'8px 12px' } },
+              h('div', { style:{ display:'flex', alignItems:'baseline', gap:8, flexWrap:'wrap' } },
+                h('span', { style:{ fontWeight:600, fontSize:13.5, color:'var(--text)' } }, p.nom),
+                h('span', { style:{ fontStyle:'italic', fontSize:12, color:'var(--text3)' } }, p.latin)
+              ),
+              // Une plante « traditionnelle » peut être franchement dangereuse : la
+              // précaution s'affiche avec la plante, jamais dans une note de bas de page.
+              p.garde && h('div', { style:{ display:'flex', gap:6, alignItems:'flex-start', marginTop:6, fontSize:11.5, color:'var(--warn)', lineHeight:1.45 } },
+                h('span', { style:{ flexShrink:0 } }, '⚠'),
+                h('span', null, p.garde)
+              )
+            ))
+          )
+        )),
+        groupes.length === 0 && h('div', { style:{ textAlign:'center', padding:'30px 0', color:'var(--text3)' } }, 'Aucune plante trouvée.')
+      );
+    })(),
+    tab === 'almanach' && h(KalandriyeLalin, { semansye, addLot, updateLot, deleteLot })
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// KONSÈVASYON — Où ranger, comment emballer, combien de temps ça tient.
+// Durées de base calibrées pour un climat tempéré (20 °C) ; le « mode péyi »
+// les recalcule pour 28 °C / 80 % d'humidité (Guadeloupe).
+// La rézèv vit dans sa propre table Supabase (voir supabase/konsevasyon.sql),
+// comme recipes/ferments : hors du blob app_state, forme garantie par normalize().
+// ─────────────────────────────────────────────────────────────────────────────
+const KV_GOLD = '#d9a765';
+const KV_GREEN = '#4ade80';
+const KV_MINT = '#5fe39a';
+const KV_AMBER = '#f59e0b';
+const KV_ROSE = '#fb7185';
+const KV_STORE_KEY = 'lanmou-konsevasyon';
+
+const kvMono = "'Space Mono', monospace";
+const kvSerif = "'Playfair Display', Georgia, serif";
+const kvBox = { background: 'rgba(255,255,255,0.03)', border: '1px solid #1a3028', borderRadius: 16 };
+
+// ─── lieux de rangement ───
+const KV_LIEUX = {
+  kontwa: {
+    label: 'Kontwa', sub: "à l'air libre, hors soleil", icon: '🏠', color: KV_GOLD, fac: 0.5,
+    adj: "À 28 °C la maturation double de vitesse — compte moitié moins de temps qu'en zone tempérée."
+  },
+  bac: {
+    label: 'Bak a legim', sub: 'tiroir du frigo', icon: '🥬', color: KV_MINT, fac: 1,
+    adj: "Le tiroir garde l'humidité : c'est le bon endroit par défaut sous nos latitudes."
+  },
+  etaj: {
+    label: 'Etajè frijidè', sub: 'étagère du frigo', icon: '❄️', color: '#7fd0a0', fac: 1,
+    adj: 'Zone la plus froide et la plus sèche — pour ce qui pourrit vite.'
+  },
+  gadman: {
+    label: 'Gadmanjé', sub: 'sombre, sec, ventilé', icon: '🧺', color: '#c9a24a', fac: 0.6,
+    adj: "Sans ventilation à 80 % d'humidité : germination et moisissure en deux semaines. Ouvre, surélève, fais circuler l'air."
+  },
+  kongel: {
+    label: 'Kongélatè', sub: 'congélateur', icon: '🧊', color: '#8ecae6', fac: 1,
+    adj: "La seule vraie sécurité pendant l'hivernage."
+  }
+};
+
+// ─── catégories ───
+const KV_CATS = {
+  fwi: { label: 'Fwi', icon: '🍋' },
+  legim: { label: 'Legim', icon: '🥕' },
+  peyi: { label: 'Péyi', icon: '🌴' },
+  zeb: { label: 'Zèb', icon: '🌿' },
+  baz: { label: 'Baz & rézèv', icon: '🫙' }
+};
+
+// ─── catalogue ───
+// l = lieu · p = emballage · j = jours (base tempérée) · k = nom créole
+// et = 'E' émetteur d'éthylène · 'S' sensible à l'éthylène · rec = pistes DrevmCook
+const KV_ITEMS = [
+  /* --- FWI --- */
+  { n: 'Pomme', e: '🍎', c: 'fwi', l: 'bac', p: 'non emballée', j: 21, et: 'E' },
+  { n: 'Avocat (mûr)', k: 'zaboka', e: '🥑', c: 'fwi', l: 'etaj', p: 'non emballé', j: 4, et: 'E',
+    note: "Encore ferme ? Laisse-le sur le kontwa jusqu'à ce qu'il cède sous le pouce, puis frigo." },
+  { n: 'Avocat entamé', k: 'zaboka koupé', e: '🥑', c: 'fwi', l: 'etaj', p: 'filmé au contact + citron', j: 1, et: 'E' },
+  { n: 'Banane', e: '🍌', c: 'fwi', l: 'kontwa', p: 'non emballée, isolée', j: 3, et: 'E',
+    note: "Grosse émettrice d'éthylène : jamais dans le panier commun." },
+  { n: 'Banane entamée', e: '🍌', c: 'fwi', l: 'etaj', p: 'peau gardée, filmée', j: 1, et: 'E' },
+  { n: 'Fruits rouges', e: '🍓', c: 'fwi', l: 'etaj', p: 'contenant aéré, non lavés', j: 4,
+    note: "Lave au moment de manger — l'eau accélère la moisissure." },
+  { n: 'Agrumes', k: 'sitwon, chadèk', e: '🍊', c: 'fwi', l: 'bac', p: 'non emballés', j: 14 },
+  { n: 'Agrume entamé', e: '🍋', c: 'fwi', l: 'etaj', p: 'filmé face coupée', j: 2 },
+  { n: 'Raisin', e: '🍇', c: 'fwi', l: 'bac', p: 'sac perforé', j: 5 },
+  { n: 'Melon entier', e: '🍈', c: 'fwi', l: 'kontwa', p: 'non emballé', j: 5, et: 'E' },
+  { n: 'Melon entamé', e: '🍈', c: 'fwi', l: 'etaj', p: 'filmé', j: 8 },
+  { n: 'Pêche / prune', e: '🍑', c: 'fwi', l: 'kontwa', p: 'non emballée', j: 4, et: 'E',
+    note: "Mûrit au kontwa, se garde au frigo. Jamais l'inverse." },
+  { n: 'Poire', e: '🍐', c: 'fwi', l: 'kontwa', p: 'non emballée', j: 4, et: 'E' },
+  { n: 'Tomate', e: '🍅', c: 'fwi', l: 'kontwa', p: 'contenant aéré', j: 5, et: 'E',
+    note: 'Le froid tue le goût et rend la chair farineuse. Kontwa, toujours.', rec: ['Sòs kréyòl', 'Chutney tomate'] },
+
+  /* --- LEGIM --- */
+  { n: 'Asperge', e: '🌾', c: 'legim', l: 'etaj', p: "pieds dans l'eau, tête filmée", j: 4 },
+  { n: 'Betterave', e: '🥬', c: 'legim', l: 'bac', p: 'sac plastique, fanes coupées', j: 14 },
+  { n: 'Poivron', e: '🫑', c: 'legim', l: 'bac', p: 'sac plastique', j: 14, et: 'S' },
+  { n: 'Brocoli', e: '🥦', c: 'legim', l: 'etaj', p: 'filmé', j: 5, et: 'S' },
+  { n: 'Chou', e: '🥬', c: 'legim', l: 'bac', p: 'non emballé', j: 14, et: 'S', rec: ['Pikliz', 'Kraut lakay'] },
+  { n: 'Carotte', e: '🥕', c: 'legim', l: 'bac', p: 'sac plastique, fanes coupées', j: 14, et: 'S' },
+  { n: 'Chou-fleur', e: '🥬', c: 'legim', l: 'bac', p: 'filmé', j: 5, et: 'S' },
+  { n: 'Céleri', e: '🥬', c: 'legim', l: 'bac', p: "enroulé dans l'alu", j: 14,
+    note: "L'alu laisse respirer l'éthylène tout en gardant l'eau — le plastique le fait ramollir." },
+  { n: 'Concombre', e: '🥒', c: 'legim', l: 'bac', p: 'filmé', j: 7, et: 'S' },
+  { n: 'Feuilles vert foncé', k: 'épinard, kale', e: '🥬', c: 'legim', l: 'bac', p: 'sac + essuie-tout sec', j: 7, et: 'S' },
+  { n: 'Ail', e: '🧄', c: 'legim', l: 'gadman', p: 'non emballé, tête entière', j: 60 },
+  { n: 'Gingembre', e: '🫚', c: 'legim', l: 'bac', p: 'non emballé', j: 30, rec: ['Ji gingembre'] },
+  { n: 'Gingembre entamé', e: '🫚', c: 'legim', l: 'bac', p: 'sac + essuie-tout', j: 2 },
+  { n: 'Haricot vert', e: '🫛', c: 'legim', l: 'bac', p: 'sac + essuie-tout', j: 7, et: 'S' },
+  { n: 'Laitue', e: '🥗', c: 'legim', l: 'bac', p: 'sac + essuie-tout sec', j: 7, et: 'S' },
+  { n: 'Champignons', e: '🍄', c: 'legim', l: 'etaj', p: 'sac papier uniquement', j: 5,
+    note: 'Le plastique les fait suer et noircir. Papier, toujours.' },
+  { n: 'Oignon', e: '🧅', c: 'legim', l: 'gadman', p: 'non emballé, loin des pommes de terre', j: 45 },
+  { n: 'Oignon entamé', e: '🧅', c: 'legim', l: 'etaj', p: 'boîte hermétique', j: 5 },
+  { n: 'Panais', e: '🥕', c: 'legim', l: 'bac', p: 'sac plastique', j: 14 },
+  { n: 'Pomme de terre', e: '🥔', c: 'legim', l: 'gadman', p: "sac papier, à l'obscurité", j: 45,
+    note: 'Loin des oignons : ensemble, ils se font germer mutuellement.' },
+  { n: 'Radis', e: '🌶️', c: 'legim', l: 'bac', p: 'sac + essuie-tout, fanes coupées', j: 7 },
+  { n: 'Salade en sachet', e: '🥗', c: 'legim', l: 'etaj', p: "sachet d'origine + essuie-tout", j: 10, et: 'S' },
+  { n: 'Courgette', e: '🥒', c: 'legim', l: 'bac', p: 'sac plastique', j: 5 },
+  { n: 'Patate douce', e: '🍠', c: 'legim', l: 'gadman', p: 'sac papier', j: 21, et: 'S', rec: ['Pat dous rôti', 'Purée pat dous'] },
+
+  /* --- PÉYI --- */
+  { n: 'Fruit à pain', k: 'fwitapen', e: '🌳', c: 'peyi', l: 'kontwa', p: 'entier, non emballé', j: 1, et: 'E',
+    note: 'Ne se conserve pas. Cuis-le le jour même, ou tranche et congèle immédiatement.',
+    rec: ['Migan fwitapen', 'Fwitapen grillé'] },
+  { n: 'Igname', e: '🍠', c: 'peyi', l: 'gadman', p: 'non emballée, surélevée', j: 21,
+    note: 'Jamais au frigo : le froid la fait noircir et durcir.' },
+  { n: 'Madè / dachine', e: '🥔', c: 'peyi', l: 'gadman', p: 'non emballée, ventilée', j: 14,
+    note: 'Jamais au frigo.', rec: ['Dombré é madè'] },
+  { n: 'Christophine', k: 'chouchou', e: '🥒', c: 'peyi', l: 'bac', p: 'non emballée', j: 21, et: 'S',
+    rec: ['Gratin christophine', 'Christophine sauté'] },
+  { n: 'Giraumon entier', e: '🎃', c: 'peyi', l: 'gadman', p: 'non emballé, sur cageot', j: 45,
+    rec: ['Migan giraumon', 'Soup jónmou'] },
+  { n: 'Giraumon entamé', e: '🎃', c: 'peyi', l: 'etaj', p: 'face coupée filmée', j: 5,
+    rec: ['Migan giraumon', 'Purée giraumon-coco'] },
+  { n: 'Banane plantain', e: '🍌', c: 'peyi', l: 'kontwa', p: 'non emballée, isolée', j: 7, et: 'E',
+    note: 'Émettrice puissante : isole-la de tout le reste.', rec: ['Plantain frit', 'Aloko'] },
+  { n: 'Ti-nain', k: 'banane verte', e: '🍌', c: 'peyi', l: 'kontwa', p: 'non emballé', j: 5, et: 'E',
+    rec: ['Ti-nain lanmori végétal'] },
+  { n: 'Kalalou', k: 'gombo', e: '🫛', c: 'peyi', l: 'bac', p: 'sac papier, non lavé', j: 4, et: 'S',
+    note: "L'humidité le rend visqueux avant cuisson. Papier, sec.", rec: ['Kalalou é diri'] },
+  { n: 'Manioc frais', e: '🥔', c: 'peyi', l: 'gadman', p: 'non emballé', j: 4,
+    note: 'Une des racines les plus fragiles : 3–4 jours, pas plus. Sinon râpe et congèle.' },
+  { n: 'Mangue', e: '🥭', c: 'peyi', l: 'kontwa', p: 'non emballée', j: 4, et: 'E',
+    note: 'Mûre, elle passe au frigo pour 3 jours de plus.', rec: ['Chutney mangue', 'Ji mango'] },
+  { n: 'Papaye verte', e: '🫒', c: 'peyi', l: 'bac', p: 'non emballée', j: 7, rec: ['Salade papaye verte'] },
+  { n: 'Papaye mûre', e: '🍈', c: 'peyi', l: 'etaj', p: 'entière ou filmée', j: 3, et: 'E' },
+  { n: 'Maracudja', k: 'fruit de la passion', e: '🍇', c: 'peyi', l: 'bac', p: 'non emballé', j: 14,
+    note: 'Peau fripée = pulpe à maturité, pas fruit gâté.' },
+  { n: 'Corossol', e: '🍈', c: 'peyi', l: 'kontwa', p: 'non emballé', j: 2, et: 'E',
+    note: 'Une fois souple : mange, congèle la pulpe, ou perds-le.', rec: ['Ji korosòl'] },
+  { n: 'Karambole', e: '⭐', c: 'peyi', l: 'bac', p: 'non emballée', j: 7 },
+  { n: 'Groseille péyi', e: '🌺', c: 'peyi', l: 'bac', p: 'sac papier', j: 7, rec: ['Ji groseille', 'Confiture groseille'] },
+  { n: 'Piment végétarien', e: '🌶️', c: 'peyi', l: 'bac', p: 'sac papier', j: 14, rec: ['Sòs chien'] },
+  { n: 'Cive', k: 'cébette', e: '🌿', c: 'peyi', l: 'bac', p: "pieds dans un verre d'eau", j: 7 },
+  { n: "Bwa d'Inde séché", e: '🍃', c: 'peyi', l: 'gadman', p: "bocal hermétique, à l'obscurité", j: 180 },
+  { n: 'Atoumo frais', e: '🌿', c: 'peyi', l: 'bac', p: 'torchon humide', j: 5, rec: ['Tizann atoumo'] },
+
+  /* --- ZÈB --- */
+  { n: 'Basilic', e: '🌿', c: 'zeb', l: 'kontwa', p: "tiges dans l'eau, sac lâche", j: 7, et: 'S',
+    note: 'Le seul qui déteste le frigo : le froid le fait noircir en une nuit.' },
+  { n: 'Ciboulette', e: '🌿', c: 'zeb', l: 'etaj', p: 'torchon humide', j: 5 },
+  { n: 'Coriandre', e: '🌿', c: 'zeb', l: 'etaj', p: "tiges dans l'eau, sac lâche", j: 7, et: 'S' },
+  { n: 'Persil', e: '🌿', c: 'zeb', l: 'etaj', p: "tiges dans l'eau, sac lâche", j: 7, et: 'S' },
+  { n: 'Romarin / thym', e: '🌿', c: 'zeb', l: 'etaj', p: 'enroulé dans un torchon humide', j: 14 },
+
+  /* --- BAZ & RÉZÈV --- */
+  { n: 'Pain', e: '🍞', c: 'baz', l: 'kontwa', p: 'sac hermétique, face coupée en bas', j: 3,
+    note: "Au-delà de 3 jours : tranche et congèle. Le frigo le rassit plus vite que l'air libre." },
+  { n: 'Pain congelé', e: '🍞', c: 'baz', l: 'kongel', p: 'tranché, sac hermétique', j: 90 },
+  { n: 'Tofu entamé', e: '🧊', c: 'baz', l: 'etaj', p: 'immergé, eau changée chaque jour', j: 4,
+    rec: ['Tofu fimé', 'Brochettes tofu'] },
+  { n: 'Lait végétal maison', e: '🥛', c: 'baz', l: 'etaj', p: 'bouteille fermée', j: 3,
+    note: 'Sans conservateur : 3 jours réels, agiter avant chaque usage.' },
+  { n: 'Légumineuses cuites', k: 'pwa', e: '🫘', c: 'baz', l: 'etaj', p: 'boîte hermétique, sans jus', j: 4,
+    note: 'Congèle en portions de 200 g dès la cuisson — 3 mois.' },
+  { n: 'Farines sans gluten', k: 'riz, manioc', e: '🌾', c: 'baz', l: 'gadman', p: 'bocal hermétique', j: 180,
+    note: "Farines de riz et d'amande rancissent : sous nos températures, mets-les au frigo." },
+  { n: 'Noix & graines', e: '🥜', c: 'baz', l: 'etaj', p: 'bocal hermétique', j: 180,
+    note: 'À 28 °C elles rancissent en quelques semaines au placard. Frigo obligatoire ici.' },
+  { n: 'Levure maltée', e: '🟡', c: 'baz', l: 'gadman', p: 'bocal opaque hermétique', j: 365 },
+  { n: 'Fermentés maison', k: 'pikliz, kraut', e: '🫙', c: 'baz', l: 'etaj', p: 'bocal, légumes sous saumure', j: 90,
+    note: 'Les légumes doivent rester immergés — ce qui dépasse moisit.', rec: ['Pikliz', 'Kraut lakay'] }
+];
+
+// ─── helpers ───
+const kvIdOf = it => it.n.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+const kvJours = (it, peyi) => peyi ? Math.max(1, Math.round(it.j * KV_LIEUX[it.l].fac)) : it.j;
+function kvFmtJ(j) {
+  if (j >= 300) return '1 an';
+  if (j >= 30) return Math.round(j / 30) + ' mois';
+  if (j >= 14) return Math.round(j / 7) + ' semaines';
+  if (j === 1) return '1 jour';
+  return j + ' jours';
+}
+function kvTodayISO() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function kvParseISO(s) { const p = String(s || '').split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); }
+function kvDaysBetween(a, b) { return Math.round((b - a) / 864e5); }
+// Lecture de l'ancienne rézèv locale (version pré-table Supabase) — sert uniquement
+// à la migration one-shot au premier chargement, puis la clé est supprimée.
+function kvLoadLegacy() {
+  try {
+    const raw = LS.getItem(KV_STORE_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list.filter(r => r && r.id) : [];
+  } catch (e) { return []; }
+}
+
+function KvLigne({ label, val, col }) {
+  const h = React.createElement;
+  return h('div', { style: { display: 'flex', gap: 10, marginBottom: 6, alignItems: 'baseline' } },
+    h('span', { style: { fontFamily: kvMono, fontSize: 10, color: '#4b7a5c', minWidth: 84, flexShrink: 0, letterSpacing: .5 } }, label),
+    h('span', { style: { fontSize: 12.5, color: col || '#cfe3d4', lineHeight: 1.5 } }, val)
+  );
+}
+
+function KvBloc({ titre, col, icon, items, pied }) {
+  const h = React.createElement;
+  return h('div', { style: { ...kvBox, padding: 16, marginBottom: 14, borderLeft: '3px solid ' + col } },
+    h('div', { style: { fontSize: 15, fontWeight: 700, color: '#f2faef', marginBottom: 11 } },
+      h('span', { style: { marginRight: 8 } }, icon), titre),
+    h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 6 } },
+      items.map((it, i) => h('span', {
+        key: i,
+        style: { fontFamily: kvMono, fontSize: 11, padding: '3px 10px', borderRadius: 20,
+          background: col + '16', color: col, border: '1px solid ' + col + '3a' }
+      }, it.e + ' ' + it.n))),
+    h('p', { style: { margin: '12px 0 0', fontSize: 12, color: '#8bb89a', lineHeight: 1.55, fontStyle: 'italic' } }, pied)
+  );
+}
+
+function KonsevasyonView({ rezev, upsertRezev, deleteRezev }) {
+  const h = React.createElement;
+  const [tab, setTab] = useState('katalog');
+  const [q, setQ] = useState('');
+  const [cat, setCat] = useState('all');
+  const [peyi, setPeyi] = useState(true);
+  const [open, setOpen] = useState(null);
+  rezev = Array.isArray(rezev) ? rezev : [];
+
+  const filtered = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    return KV_ITEMS.filter(it => {
+      if (cat !== 'all' && it.c !== cat) return false;
+      if (!s) return true;
+      return (it.n + ' ' + (it.k || '') + ' ' + KV_LIEUX[it.l].label).toLowerCase().includes(s);
+    });
+  }, [q, cat]);
+
+  const addRezev = it => {
+    upsertRezev({ id: kvIdOf(it), n: it.n, e: it.e, d: kvTodayISO() });
+    setTab('rezev');
+  };
+  const delRezev = id => deleteRezev(id);
+  const bumpRezev = id => {
+    const cur = rezev.find(r => r.id === id);
+    if (cur) upsertRezev({ ...cur, d: kvTodayISO() });
+  };
+
+  const rezevCalc = useMemo(() => {
+    const now = kvParseISO(kvTodayISO());
+    return rezev.map(r => {
+      const it = KV_ITEMS.find(x => kvIdOf(x) === r.id);
+      if (!it) return null;
+      const total = kvJours(it, peyi);
+      const passe = kvDaysBetween(kvParseISO(r.d), now);
+      const reste = total - passe;
+      return { ...r, it, total, passe, reste, pct: Math.max(0, Math.min(100, reste / total * 100)) };
+    }).filter(Boolean).sort((a, b) => a.reste - b.reste);
+  }, [rezev, peyi]);
+
+  const urgents = rezevCalc.filter(r => r.reste <= 2);
+
+  const etat = r => {
+    if (r.reste < 0) return { c: KV_ROSE, t: 'Périmé' };
+    if (r.reste === 0) return { c: KV_ROSE, t: "Aujourd'hui" };
+    if (r.reste <= 2) return { c: KV_AMBER, t: r.reste + ' j restants' };
+    return { c: KV_MINT, t: r.reste + ' j restants' };
+  };
+
+  return h('div', {
+    style: { fontFamily: kvSerif, color: '#e8f5e0', minHeight: '100vh',
+      background: 'linear-gradient(135deg,#0a0f0d 0%,#0d1a12 50%,#0a0e10 100%)' }
+  },
+    // Les polices Playfair Display / Space Mono sont déjà chargées par index.html.
+    h('style', null, `
+      .kv-scroll::-webkit-scrollbar{height:0;width:0}
+      .kv-btn{transition:all .2s ease;cursor:pointer}
+      .kv-btn:hover{transform:translateY(-2px)}
+      .kv-card{transition:all .2s ease;cursor:pointer}
+      .kv-card:hover{border-color:#2d5a3d}
+      .kv-in::placeholder{color:#3f6650}
+      .kv-in:focus{outline:none;border-color:${KV_GOLD}}
+      @keyframes kvfade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+      .kv-fade{animation:kvfade .35s ease}
+      @media (prefers-reduced-motion: reduce){.kv-btn,.kv-card,.kv-fade{transition:none;animation:none}}
+    `),
+
+    // ─── HEADER ───
+    h('div', {
+      style: { padding: '26px 20px 16px', borderBottom: '1px solid #1e3a2a',
+        background: 'linear-gradient(180deg,#0a150e 0%,transparent 100%)' }
+    },
+      h('div', { style: { fontFamily: kvMono, fontSize: 10, color: KV_GOLD, letterSpacing: 4, textTransform: 'uppercase', marginBottom: 6 } },
+        'Yife · Péyi 🌴'),
+      h('h1', { style: { margin: 0, fontSize: 30, fontWeight: 700, color: '#f0faf0', lineHeight: 1 } },
+        'Konsè', h('span', { style: { fontStyle: 'italic', fontWeight: 400, color: KV_GOLD } }, 'vasyon')),
+      h('p', { style: { margin: '10px 0 0', fontSize: 12.5, color: '#6b9e7a', fontStyle: 'italic', maxWidth: '44ch', lineHeight: 1.5 } },
+        "Où ranger, comment emballer, combien de temps ça tient — recalculé pour 28 °C et 80 % d'humidité."),
+
+      h('div', { className: 'kv-scroll', style: { display: 'flex', gap: 8, marginTop: 18, overflowX: 'auto' } },
+        [
+          { id: 'katalog', l: '🔍 Katalòg' },
+          { id: 'rezev', l: '🧺 Rézèv-mwen' + (urgents.length ? ' · ' + urgents.length : '') },
+          { id: 'etilen', l: '💨 Etilèn' }
+        ].map(t => h('button', {
+          key: t.id, className: 'kv-btn', onClick: () => setTab(t.id),
+          style: { padding: '8px 16px', borderRadius: 20, fontSize: 12, fontFamily: kvMono, whiteSpace: 'nowrap',
+            border: tab === t.id ? 'none' : '1px solid #1e3a2a',
+            background: tab === t.id ? KV_GOLD : 'rgba(255,255,255,0.05)',
+            color: tab === t.id ? '#0a0f0d' : '#8bb89a',
+            fontWeight: tab === t.id ? 700 : 400 }
+        }, t.l)))
+    ),
+
+    // ─── KATALÒG ───
+    tab === 'katalog' && h('div', { className: 'kv-fade' },
+      h('div', { style: { padding: '18px 20px 0' } },
+        h('input', {
+          className: 'kv-in', value: q, onChange: e => setQ(e.target.value),
+          placeholder: 'Chercher un ingrédient…',
+          style: { width: '100%', boxSizing: 'border-box', padding: '12px 16px', borderRadius: 14,
+            background: 'rgba(255,255,255,0.04)', border: '1px solid #1a3028', color: '#e8f5e0',
+            fontFamily: kvMono, fontSize: 13 }
+        })),
+
+      // mode péyi
+      h('div', { style: { padding: '12px 20px 0' } },
+        h('button', {
+          className: 'kv-btn', onClick: () => setPeyi(p => !p),
+          style: { width: '100%', textAlign: 'left', padding: '12px 15px', borderRadius: 14,
+            border: '1px solid ' + (peyi ? KV_GOLD + '55' : '#1a3028'),
+            background: peyi ? 'linear-gradient(135deg,rgba(217,167,101,.1),rgba(74,222,128,.03))' : 'rgba(255,255,255,0.03)',
+            color: '#e8f5e0', display: 'flex', alignItems: 'center', gap: 12 }
+        },
+          h('span', {
+            style: { width: 34, height: 20, borderRadius: 12, flexShrink: 0, position: 'relative',
+              background: peyi ? KV_GOLD : '#2a3a30', transition: 'background .2s' }
+          }, h('span', {
+            style: { position: 'absolute', top: 3, left: peyi ? 17 : 3, width: 14, height: 14,
+              borderRadius: '50%', background: peyi ? '#0a0f0d' : '#6b9e7a', transition: 'left .2s' }
+          })),
+          h('span', { style: { flex: 1 } },
+            h('span', { style: { fontFamily: kvMono, fontSize: 11, fontWeight: 700, color: peyi ? KV_GOLD : '#6b9e7a' } },
+              'MODE PÉYI ' + (peyi ? 'ACTIF' : 'COUPÉ')),
+            h('span', { style: { display: 'block', fontSize: 11.5, color: '#6b9e7a', fontStyle: 'italic', marginTop: 3, lineHeight: 1.45 } },
+              peyi
+                ? 'Durées ajustées au climat tropical : kontwa ÷ 2, gadmanjé ÷ 1,6.'
+                : "Durées d'origine, calibrées pour un climat tempéré à 20 °C.")))
+      ),
+
+      // catégories
+      h('div', { className: 'kv-scroll', style: { padding: '14px 20px 4px', display: 'flex', gap: 7, overflowX: 'auto' } },
+        [['all', { label: 'Tout', icon: '◆' }], ...Object.entries(KV_CATS)].map(([k, v]) => h('button', {
+          key: k, className: 'kv-btn', onClick: () => setCat(k),
+          style: { padding: '7px 13px', borderRadius: 20, fontFamily: kvMono, fontSize: 11, whiteSpace: 'nowrap',
+            border: cat === k ? 'none' : '1px solid #1e3a2a',
+            background: cat === k ? 'rgba(217,167,101,.9)' : 'rgba(255,255,255,0.04)',
+            color: cat === k ? '#0a0f0d' : '#6b9e7a', fontWeight: cat === k ? 700 : 400 }
+        }, v.icon + ' ' + v.label))),
+
+      // liste
+      h('div', { style: { padding: '12px 20px 40px' } },
+        h('div', { style: { fontFamily: kvMono, fontSize: 10, color: '#4b7a5c', letterSpacing: 1, marginBottom: 12 } },
+          filtered.length + ' ENTRÉE' + (filtered.length > 1 ? 'S' : '')),
+
+        filtered.length === 0 && h('div', { style: { ...kvBox, padding: 22, textAlign: 'center' } },
+          h('div', { style: { fontSize: 24, marginBottom: 8 } }, '🫙'),
+          h('div', { style: { fontSize: 13.5, color: '#8bb89a' } }, 'Aucun ingrédient ne correspond.'),
+          h('div', { style: { fontSize: 12, color: '#4b7a5c', fontStyle: 'italic', marginTop: 5 } },
+            'Essaie le nom créole, ou change de catégorie.')),
+
+        filtered.map(it => {
+          const L = KV_LIEUX[it.l];
+          const id = kvIdOf(it);
+          const j = kvJours(it, peyi);
+          const opened = open === id;
+          const inRezev = rezev.some(r => r.id === id);
+          return h('div', {
+            key: id, className: 'kv-card', onClick: () => setOpen(opened ? null : id),
+            style: { ...kvBox, padding: '13px 15px', marginBottom: 9,
+              borderLeft: '3px solid ' + L.color,
+              background: opened ? 'rgba(217,167,101,.05)' : kvBox.background }
+          },
+            h('div', { style: { display: 'flex', alignItems: 'center', gap: 12 } },
+              h('span', { style: { fontSize: 21, width: 26, textAlign: 'center', flexShrink: 0 } }, it.e),
+              h('div', { style: { flex: 1, minWidth: 0 } },
+                h('div', { style: { fontSize: 14.5, fontWeight: 700, color: '#eef7ec', lineHeight: 1.25 } },
+                  it.n,
+                  it.k && h('span', { style: { fontStyle: 'italic', fontWeight: 400, color: '#6b9e7a', fontSize: 12.5 } }, ' · ' + it.k)),
+                h('div', { style: { fontFamily: kvMono, fontSize: 10.5, color: L.color, marginTop: 3 } },
+                  L.icon + ' ' + L.label)),
+              h('div', { style: { textAlign: 'right', flexShrink: 0 } },
+                h('div', { style: { fontFamily: kvMono, fontSize: 13, fontWeight: 700, color: KV_GOLD } }, kvFmtJ(j)),
+                peyi && j !== it.j && h('div', {
+                  style: { fontFamily: kvMono, fontSize: 9.5, color: '#4b7a5c', textDecoration: 'line-through' }
+                }, kvFmtJ(it.j)))),
+
+            opened && h('div', { className: 'kv-fade', style: { marginTop: 13, paddingTop: 13, borderTop: '1px dashed #1e3a2a' } },
+              h(KvLigne, { label: 'Emballage', val: it.p }),
+              h(KvLigne, { label: 'Emplacement', val: L.label + ' — ' + L.sub }),
+              it.et && h(KvLigne, {
+                label: 'Éthylène',
+                val: it.et === 'E' ? 'Émetteur — à isoler des légumes' : 'Sensible — à éloigner des fruits mûrs',
+                col: it.et === 'E' ? KV_AMBER : KV_MINT
+              }),
+              it.note && h('p', { style: { margin: '10px 0 0', fontSize: 12.5, color: '#b4cebc', lineHeight: 1.55, fontStyle: 'italic' } }, it.note),
+              peyi && h('p', { style: { margin: '8px 0 0', fontSize: 11.5, color: '#6b9e7a', lineHeight: 1.5 } }, '🌴 ' + L.adj),
+              it.rec && it.rec.length > 0 && h('div', { style: { marginTop: 11, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' } },
+                h('span', { style: { fontFamily: kvMono, fontSize: 9.5, color: '#4b7a5c', letterSpacing: 1 } }, 'DREVMCOOK →'),
+                it.rec.map((r, i) => h('span', {
+                  key: i,
+                  style: { fontFamily: kvMono, fontSize: 10.5, padding: '3px 9px', borderRadius: 8,
+                    background: 'rgba(74,222,128,.1)', color: KV_GREEN, border: '1px solid rgba(74,222,128,.25)' }
+                }, r))),
+              h('button', {
+                className: 'kv-btn', onClick: e => { e.stopPropagation(); addRezev(it); },
+                style: { marginTop: 13, width: '100%', padding: '10px 0', borderRadius: 11, border: 'none',
+                  fontFamily: kvMono, fontSize: 11.5, fontWeight: 700,
+                  background: inRezev ? 'rgba(74,222,128,.14)' : KV_GOLD,
+                  color: inRezev ? KV_GREEN : '#0a0f0d' }
+              }, inRezev ? "↻ Remettre à aujourd'hui" : '+ Ajouter à la rézèv'))
+          );
+        }))
+    ),
+
+    // ─── RÉZÈV ───
+    tab === 'rezev' && h('div', { className: 'kv-fade', style: { padding: '20px 20px 40px' } },
+      rezevCalc.length === 0
+        ? h('div', { style: { ...kvBox, padding: 26, textAlign: 'center' } },
+            h('div', { style: { fontSize: 28, marginBottom: 10 } }, '🧺'),
+            h('div', { style: { fontSize: 15, fontWeight: 700, color: '#eef7ec', marginBottom: 6 } }, 'Rézèv vide'),
+            h('div', { style: { fontSize: 12.5, color: '#6b9e7a', lineHeight: 1.6, fontStyle: 'italic' } },
+              'Ouvre un ingrédient dans le katalòg et ajoute-le ici le jour où tu le ramènes du marché. Le compte à rebours démarre tout seul.'),
+            h('button', {
+              className: 'kv-btn', onClick: () => setTab('katalog'),
+              style: { marginTop: 16, padding: '10px 22px', borderRadius: 11, border: 'none',
+                fontFamily: kvMono, fontSize: 11.5, fontWeight: 700, background: KV_GOLD, color: '#0a0f0d' }
+            }, 'Ouvrir le katalòg'))
+        : h(React.Fragment, null,
+            urgents.length > 0 && h('div', {
+              style: { ...kvBox, padding: '13px 15px', marginBottom: 16, borderLeft: '3px solid ' + KV_AMBER,
+                background: 'linear-gradient(135deg,rgba(245,158,11,.08),rgba(255,255,255,.015))' }
+            },
+              h('div', { style: { fontFamily: kvMono, fontSize: 10, color: KV_AMBER, letterSpacing: 2, marginBottom: 6 } },
+                'À CUISINER EN PRIORITÉ'),
+              h('div', { style: { fontSize: 13, color: '#dbe9dd', lineHeight: 1.5 } },
+                urgents.map(r => r.it.n).join(' · ')),
+              urgents.some(r => r.it.rec) && h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 } },
+                [...new Set(urgents.flatMap(r => r.it.rec || []))].map((r, i) => h('span', {
+                  key: i,
+                  style: { fontFamily: kvMono, fontSize: 10.5, padding: '3px 9px', borderRadius: 8,
+                    background: 'rgba(74,222,128,.1)', color: KV_GREEN, border: '1px solid rgba(74,222,128,.25)' }
+                }, r)))),
+
+            rezevCalc.map(r => {
+              const st = etat(r);
+              return h('div', { key: r.id, style: { ...kvBox, padding: '13px 15px', marginBottom: 9, borderLeft: '3px solid ' + st.c } },
+                h('div', { style: { display: 'flex', alignItems: 'center', gap: 12 } },
+                  h('span', { style: { fontSize: 20, width: 24, textAlign: 'center' } }, r.e),
+                  h('div', { style: { flex: 1, minWidth: 0 } },
+                    h('div', { style: { fontSize: 14, fontWeight: 700, color: '#eef7ec' } }, r.n),
+                    h('div', { style: { fontFamily: kvMono, fontSize: 10, color: '#4b7a5c', marginTop: 2 } },
+                      'rentré le ' + kvParseISO(r.d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) + ' · ' + KV_LIEUX[r.it.l].label)),
+                  h('span', {
+                    style: { fontFamily: kvMono, fontSize: 10.5, fontWeight: 700, padding: '3px 10px',
+                      borderRadius: 20, background: st.c + '1f', color: st.c, flexShrink: 0 }
+                  }, st.t)),
+                h('div', { style: { height: 5, background: '#152520', borderRadius: 4, overflow: 'hidden', margin: '11px 0 9px' } },
+                  h('div', { style: { height: '100%', width: r.pct + '%', background: st.c, borderRadius: 4, transition: 'width .4s ease' } })),
+                h('div', { style: { display: 'flex', gap: 8 } },
+                  h('button', {
+                    className: 'kv-btn', onClick: () => bumpRezev(r.id),
+                    style: { flex: 1, padding: '7px 0', borderRadius: 9, border: '1px solid #1e3a2a',
+                      background: 'rgba(255,255,255,0.03)', color: '#8bb89a', fontFamily: kvMono, fontSize: 10.5 }
+                  }, '↻ Racheté aujourd\'hui'),
+                  h('button', {
+                    className: 'kv-btn', onClick: () => delRezev(r.id),
+                    style: { padding: '7px 14px', borderRadius: 9, border: '1px solid #3a1a24',
+                      background: 'rgba(251,113,133,.07)', color: KV_ROSE, fontFamily: kvMono, fontSize: 10.5 }
+                  }, 'Consommé')));
+            }),
+
+            h('p', { style: { fontSize: 11, color: '#4b7a5c', fontStyle: 'italic', lineHeight: 1.6, marginTop: 18 } },
+              "Les durées sont des repères, pas des dates de péremption. L'odeur, le toucher et l'aspect priment toujours. Rézèv synchronisée entre vos appareils."))
+    ),
+
+    // ─── ETILÈN ───
+    tab === 'etilen' && h('div', { className: 'kv-fade', style: { padding: '20px 20px 40px' } },
+      h('div', {
+        style: { ...kvBox, padding: 18, marginBottom: 18,
+          background: 'linear-gradient(140deg,rgba(217,167,101,.07),rgba(255,255,255,.015))' }
+      },
+        h('div', { style: { fontSize: 17, fontWeight: 700, color: '#f4faf1', marginBottom: 8 } }, 'Le gaz qui vide ton panier'),
+        h('p', { style: { margin: 0, fontSize: 13, color: '#b4cebc', lineHeight: 1.6 } },
+          "Certains fruits dégagent de l'éthylène en mûrissant. À 28 °C, ce gaz agit deux fois plus vite qu'en Europe : un plantain posé sur un panier de légumes peut leur coûter la moitié de leur durée de vie. La règle tient en une phrase — ",
+          h('b', { style: { color: KV_GOLD } }, 'les émetteurs vivent seuls'), '.')),
+
+      h(KvBloc, {
+        titre: 'Émetteurs — à isoler', col: KV_AMBER, icon: '💨',
+        items: KV_ITEMS.filter(i => i.et === 'E'),
+        pied: "Un panier à part, à l'air libre, loin de tout le reste. Le plantain, la banane et l'avocat sont les plus puissants."
+      }),
+      h(KvBloc, {
+        titre: 'Sensibles — à protéger', col: KV_MINT, icon: '🥬',
+        items: KV_ITEMS.filter(i => i.et === 'S'),
+        pied: 'Bac à légumes fermé, à l\'écart des fruits mûrs. Ce sont eux qui jaunissent, ramollissent et germent en premier.'
+      }),
+
+      h('div', { style: { ...kvBox, padding: 16, marginTop: 6 } },
+        h('div', { style: { fontFamily: kvMono, fontSize: 10, color: KV_GOLD, letterSpacing: 2, marginBottom: 11 } },
+          '🌴 TROIS RÉFLEXES LAKAY'),
+        [
+          ['Trois zones, pas une', 'Un panier émetteurs sur le kontwa, le bac du frigo pour les sensibles, un gadmanjé ventilé pour les racines. Tant que tout dort au même endroit, tu perds des légumes.'],
+          ['Sec avant froid', "Ne lave jamais avant de ranger. L'eau résiduelle à 80 % d'humidité, c'est de la moisissure garantie en deux jours."],
+          ['Papier pour ce qui respire', 'Champignons, kalalou, piments : sac papier. Le plastique les fait suer et pourrir de l\'intérieur.']
+        ].map((row, i) => h('div', { key: i, style: { display: 'flex', gap: 12, marginBottom: i < 2 ? 14 : 0 } },
+          h('span', { style: { fontFamily: kvMono, fontSize: 11, color: KV_GOLD, opacity: .6, flexShrink: 0, paddingTop: 2 } },
+            String(i + 1).padStart(2, '0')),
+          h('div', null,
+            h('div', { style: { fontSize: 14, fontWeight: 700, color: '#eef7ec', marginBottom: 3 } }, row[0]),
+            h('div', { style: { fontSize: 12.5, color: '#b4cebc', lineHeight: 1.55 } }, row[1])))))
+    )
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROGRAM DJA — Prise de masse sèche 4 jours (Wakanda Fit)
+// Séances, circuits, guide technique et nutrition 100 % végétale sans gluten.
+// Le programme lui-même est statique ; seul l'état des cases cochées est
+// persisté, dans data.dja.programme (section « dja » → déjà synchronisée par
+// mergeStates, forme garantie par normalize()). Pas de table dédiée : c'est une
+// simple carte de booléens, pas une liste d'enregistrements.
+// ─────────────────────────────────────────────────────────────────────────────
+const SD_GOLD = '#d9a765';
+const SD_GREEN = '#4ade80';
+const SD_AMBER = '#f59e0b';
+
+const sdMono = "'Space Mono', monospace";
+const sdSerif = "'Playfair Display', Georgia, serif";
+const sdBox = { background: 'rgba(255,255,255,0.03)', border: '1px solid #1a3028', borderRadius: 16 };
+
+const SD_SEANCES = [
+  {
+    id: 'lun', jour: 'Lundi', titre: 'Pectoraux · épaules · triceps', couleur: '#fb7185', emoji: '🔥',
+    ex: [
+      { n: 'Développé couché barre', s: '4 × 6–10', r: '2–3 min' },
+      { n: 'Développé incliné haltères', s: '3 × 8–12', r: '90–120 s' },
+      { n: 'Élévations latérales', s: '3 × 12–15', r: '60–90 s' },
+      { n: 'Développé militaire', s: '3 × 8–10', r: '2 min' },
+      { n: 'Écartés à la poulie', s: '3 × 12–15', r: '60–90 s' },
+      { n: 'Extension triceps à la poulie', s: '3 × 10–15', r: '60–90 s' }
+    ]
+  },
+  {
+    id: 'mar', jour: 'Mardi', titre: 'Dos · biceps', couleur: '#60a5fa', emoji: '🪢',
+    ex: [
+      { n: 'Tractions pronation', s: '4 × 6–10', r: '2–3 min' },
+      { n: 'Rowing barre', s: '4 × 8–10', r: '2 min' },
+      { n: 'Tirage vertical', s: '3 × 10–12', r: '90 s' },
+      { n: 'Rowing poulie basse', s: '3 × 10–12', r: '90 s' },
+      { n: 'Curl haltères', s: '3 × 10–12', r: '60–90 s' },
+      { n: 'Curl marteau', s: '3 × 10–12', r: '60–90 s' }
+    ]
+  },
+  {
+    id: 'jeu', jour: 'Jeudi', titre: 'Jambes · abdominaux', couleur: SD_GREEN, emoji: '🦵',
+    ex: [
+      { n: 'Squat', s: '4 × 6–10', r: '2–3 min' },
+      { n: 'Presse à cuisses', s: '3 × 10–12', r: '2 min' },
+      { n: 'Soulevé de terre jambes tendues', s: '3 × 8–12', r: '2 min' },
+      { n: 'Leg curl', s: '3 × 10–15', r: '90 s' },
+      { n: 'Leg extension', s: '3 × 10–15', r: '90 s' },
+      { n: 'Mollets debout', s: '4 × 12–20', r: '60–90 s' },
+      { n: 'Crunch à la poulie', s: '3 × 12–15', r: '60 s' },
+      { n: 'Gainage', s: '3 × 30–60 s', r: '60 s' }
+    ]
+  },
+  {
+    id: 'ven', jour: 'Vendredi', titre: 'Full body', couleur: SD_GOLD, emoji: '⚡',
+    ex: [
+      { n: 'Soulevé de terre', s: '3 × 5–8', r: '2–3 min' },
+      { n: 'Développé incliné', s: '3 × 8–10', r: '2 min' },
+      { n: 'Tirage horizontal', s: '3 × 8–12', r: '90–120 s' },
+      { n: 'Fentes marchées', s: '3 × 10 / jambe', r: '90 s' },
+      { n: 'Élévations latérales', s: '3 × 12–15', r: '60 s' },
+      { n: 'Curl biceps', s: '2 × 10–12', r: '60 s' },
+      { n: 'Extension triceps poulie', s: '2 × 10–15', r: '60 s' },
+      { n: 'Relevés de jambes', s: '3 × 10–15', r: '60 s' }
+    ]
+  }
+];
+
+const SD_CIRCUITS = [
+  {
+    nom: 'Circuit jambes', emoji: '🦿', couleur: SD_GREEN, tours: '3 à 4 tours',
+    repos: '30–45 s entre exercices · 2 min entre les tours',
+    conseil: 'Contrôle la descente sur 2–3 secondes et pousse fort à la remontée.',
+    ex: [['Squat', '12'], ['Presse à cuisses', '15'], ['Fentes marchées', '10 / jambe'],
+      ['Leg extension', '15'], ['Leg curl', '15'], ['Mollets debout', '20']]
+  },
+  {
+    nom: 'Circuit pectoraux', emoji: '🏋️', couleur: '#fb7185', tours: '3 à 4 tours',
+    repos: '45 s entre exercices · 2 min entre les tours',
+    conseil: "Sur le dernier tour tu peux aller proche de l'échec, sans sacrifier la technique.",
+    ex: [['Développé couché', '10'], ['Développé incliné haltères', '10–12'], ['Écartés à la poulie', '12–15'],
+      ['Pompes', '15–20'], ['Dips', '8–12'], ['Pompes prise serrée', '10–15']]
+  }
+];
+
+const SD_GUIDE = [
+  {
+    groupe: 'Pectoraux · épaules · triceps', couleur: '#fb7185',
+    items: [
+      ['Développé couché barre', "Allongé, pieds au sol. Descends la barre au milieu de la poitrine en contrôlant, puis pousse jusqu'à presque tendre les bras. Omoplates serrées, pas de rebond."],
+      ['Développé incliné haltères', "Banc incliné, un haltère par main. Descends de chaque côté de la poitrine puis pousse vers le haut. L'inclinaison cible le haut des pectoraux."],
+      ['Élévations latérales', "Debout, monte les bras sur les côtés jusqu'à hauteur d'épaules, redescends lentement. Le contrôle prime sur la charge."],
+      ['Développé militaire', 'Assis ou debout, pousse depuis les épaules jusqu\'au-dessus de la tête. Abdominaux gainés pour ne pas cambrer.'],
+      ['Écartés à la poulie', "Bras légèrement fléchis, ramène les poignées devant la poitrine en arc. Retour lent, sans laisser les poids tirer l'épaule."],
+      ['Extension triceps à la poulie', "Coudes près du corps, pousse vers le bas jusqu'à tendre les bras. Remonte sans décoller les coudes."]
+    ]
+  },
+  {
+    groupe: 'Dos · biceps', couleur: '#60a5fa',
+    items: [
+      ['Tractions pronation', "Mains un peu plus larges que les épaules, paumes vers l'extérieur. Amène la poitrine vers la barre puis redescends avec contrôle."],
+      ['Rowing barre', "Buste incliné, dos neutre, genoux fléchis. Tire vers le bas du ventre en rapprochant les omoplates. N'arrondis pas le dos."],
+      ['Tirage vertical', 'Tire la barre vers le haut de la poitrine, buste stable. Remonte lentement pour étirer le dos.'],
+      ['Rowing poulie basse', 'Tire la poignée vers le ventre, coudes derrière le corps. Dos droit, retour contrôlé.'],
+      ['Curl haltères', 'Bras le long du corps, fléchis les coudes vers les épaules. Ne balance pas le buste.'],
+      ['Curl marteau', 'Même mouvement, paumes face à face. Travaille biceps et avant-bras.']
+    ]
+  },
+  {
+    groupe: 'Jambes', couleur: SD_GREEN,
+    items: [
+      ['Squat', "Barre sur le haut du dos, pieds largeur d'épaules. Descends hanches et genoux, pousse dans le sol. Dos stable, genoux dans l'axe des pieds."],
+      ['Presse à cuisses', 'Dos contre le dossier. Descends en contrôlant, pousse sans verrouiller brutalement. Ne descends pas jusqu\'à décoller le bassin.'],
+      ['Soulevé de terre jambes tendues', "Hanches en arrière, jambes peu fléchies, dos neutre. Descends la charge le long des jambes jusqu'à l'étirement des ischios, puis pousse les hanches vers l'avant."],
+      ['Leg curl', 'Fléchis les genoux pour rapprocher les talons des fessiers. Retour lent.'],
+      ['Leg extension', "Tends les jambes jusqu'à presque l'extension complète, redescends lentement. Cible les quadriceps."],
+      ['Mollets debout', "Monte sur la pointe des pieds, pause courte en haut, descends assez bas pour l'étirement."],
+      ['Fentes marchées', "Grand pas vers l'avant, descends jusqu'aux deux genoux fléchis, pousse sur la jambe avant. Alterne."]
+    ]
+  },
+  {
+    groupe: 'Abdominaux', couleur: SD_AMBER,
+    items: [
+      ['Crunch à la poulie', 'À genoux face à la poulie haute, corde près de la tête, enroule le haut du corps vers le bas. Le mouvement vient du tronc, pas des bras.'],
+      ['Gainage', 'Appui avant-bras et pieds, corps aligné. Abdos et fessiers contractés, hanches qui ne tombent pas.'],
+      ['Relevés de jambes', "Suspendu ou sur support, relève les jambes en contrôlant. Pas d'élan."]
+    ]
+  }
+];
+
+// Nutrition 100 % végétale et sans gluten, base péyi
+const SD_REPAS = [
+  { j: 'Lundi',
+    pd: '80 g flocons de sorgho + 300 ml lait de soja + 1 figue-pomme + 30 g purée de cacahuète + 2 c. à s. graines de chia',
+    dej: "150 g riz + 150 g lentilles + légumes péyi sautés + 1 c. à s. huile d'olive + avocat",
+    col: 'Smoothie : 300 ml lait de soja + banane + 40 g sorgho + 20 g purée de cacahuète',
+    din: ' 120 g pâtes de riz + 150 g tofu + sauce tomate + légumes + levure maltée'.trim() },
+  { j: 'Mardi',
+    pd: 'Tofu brouillé (200 g) + 3 tranches pain de sorgho + avocat + 1 fruit + yaourt coco',
+    dej: "150 g quinoa + 150 g pois chiches + légumes + tofu lacto-fermenté + huile d'olive",
+    col: 'Yaourt coco + 40 g granola sans gluten + fruits + 20 g noix',
+    din: '150 g riz + 150 g tofu fumé + légumes sautés + sauce soja sans gluten (tamari)' },
+  { j: 'Mercredi',
+    pd: 'Pancakes : 80 g farine de riz + chia + banane + yaourt végétal + purée de cacahuète',
+    dej: '150 g pâtes de sarrasin + 150 g PVT + sauce tomate + salade + levure maltée',
+    col: "Smoothie lait de soja + banane + sorgho + purée d'amande",
+    din: '300 g patate douce + 150 g haricots rouges + légumes + avocat' },
+  { j: 'Jeudi',
+    pd: '80 g muesli sans gluten + 300 ml lait végétal + banane + 30 g noix + 2 c. à s. chia',
+    dej: '150 g riz basmati + 150 g haricots rouges + maïs + avocat + légumes',
+    col: '2 tartines de sorgho + purée de cacahuète + 1 banane + yaourt végétal',
+    din: "150 g quinoa + 180 g tofu + légumes + huile d'olive" },
+  { j: 'Vendredi',
+    pd: 'Omelette de pois chiches (100 g farine) + 3 tranches pain de sorgho + fruit + yaourt végétal',
+    dej: "150 g fonio ou millet + 150 g pois chiches + légumes + huile d'olive",
+    col: 'Yaourt de soja + 40 g muesli sans gluten + banane + 25 g amandes',
+    din: '150 g pâtes de riz + 150 g lentilles + sauce tomate + légumes + levure maltée' },
+  { j: 'Samedi',
+    pd: 'Porridge 100 g sorgho + lait végétal + banane + sirop de canne + 30 g purée de cacahuète',
+    dej: 'Bowl : 150 g riz + 180 g tofu + avocat + légumes + graines de sésame',
+    col: 'Smoothie : lait de soja + banane + sorgho + purée de cacahuète + cacao',
+    din: "300 g igname ou madère + 150 g pois d'Angole + haricots verts + avocat" },
+  { j: 'Dimanche',
+    pd: 'Tofu brouillé + 3 tranches pain de sorgho + avocat + fruit péyi',
+    dej: "150 g riz + 180 g seitan de sorgho ou tofu + légumes + huile d'olive",
+    col: 'Yaourt de soja + banane + granola sans gluten + 25 g noix',
+    din: 'Dahl : 180 g lentilles + riz + lait de coco + légumes + colombo' }
+];
+
+const SD_RECETTES = [
+  {
+    nom: 'Bowl riz, tofu & avocat', emoji: '🥑',
+    ing: ['120–150 g riz cru', '180 g tofu', '½ à 1 avocat', '100 g pois chiches', 'poivron + courgette + carotte', "1 c. à s. huile d'olive", 'tamari', 'graines de sésame'],
+    prep: "Cuire le riz. Faire revenir le tofu en cubes avec les légumes et le tamari. Ajouter les pois chiches, servir avec l'avocat et le sésame.",
+    astuce: '1 c. à s. de purée de cacahuète dans le tamari → sauce cacahuète ultra gourmande.'
+  },
+  {
+    nom: 'Pâtes crémeuses aux lentilles', emoji: '🍝',
+    ing: ['120–150 g pâtes de riz ou sarrasin', '150 g lentilles cuites', '150 ml crème végétale', '100 g champignons', '½ oignon', "1 c. à s. huile d'olive", 'levure maltée', 'ail, poivre, paprika'],
+    prep: 'Faire revenir oignon et champignons. Ajouter lentilles et crème végétale, assaisonner, mélanger aux pâtes.',
+    astuce: '20–30 g de noix de cajou ou graines de courge pour booster les calories.'
+  },
+  {
+    nom: 'Wraps protéinés', emoji: '🌯',
+    ing: ['2 galettes de riz ou maïs souples', '150 g haricots rouges', '100 g maïs', '150 g tofu', '½ avocat', 'tomate, salade', 'sauce : yaourt végétal + citron + paprika'],
+    prep: 'Faire revenir le tofu au paprika. Écraser légèrement les haricots. Garnir les galettes puis rouler.',
+    astuce: 'Version prise de masse : houmous + une poignée de noix de cajou.'
+  },
+  {
+    nom: 'Colombo coco pois chiches', emoji: '🍛',
+    ing: ['120–150 g riz cru', '200 g pois chiches cuits', '200 ml lait de coco', '1 carotte', '1 poivron', '½ oignon', '1 c. à s. poudre à colombo', '1 c. à s. huile', 'persil ou coriandre'],
+    prep: 'Faire revenir oignon et légumes. Ajouter le colombo, les pois chiches et le lait de coco. Mijoter 10–15 min. Servir généreusement avec le riz.',
+    astuce: '100–150 g de tofu dans le colombo pour plus de protéines.'
+  },
+  {
+    nom: 'Smoothie prise de masse', emoji: '🥤',
+    ing: ['1 banane', '300 ml lait de soja', '50 g flocons de sorgho', '30 g purée de cacahuète', '1 c. à c. cacao', 'glaçons'],
+    prep: "Mixer 30 secondes. Idéal en collation après l'entraînement.",
+    astuce: 'Ajouter 1 c. à s. de graines de chia trempées pour les oméga-3.'
+  }
+];
+
+function SportDjaView({ programme, updateProgramme }) {
+  const h = React.createElement;
+  const [tab, setTab] = useState('seances');
+  const [jour, setJour] = useState(0);
+  const [openEx, setOpenEx] = useState(null);
+  const done = (programme && typeof programme.done === 'object' && programme.done) ? programme.done : {};
+
+  const toggle = k => updateProgramme(p => { p.done[k] = !p.done[k]; });
+  const resetAll = () => updateProgramme(p => { p.done = {}; });
+
+  const s = SD_SEANCES[jour];
+  const faits = s.ex.filter((_, i) => done[`${s.id}-${i}`]).length;
+  const pct = Math.round(faits / s.ex.length * 100);
+
+  const totalSemaine = useMemo(() => {
+    const t = SD_SEANCES.reduce((a, se) => a + se.ex.length, 0);
+    const f = SD_SEANCES.reduce((a, se) => a + se.ex.filter((_, i) => done[`${se.id}-${i}`]).length, 0);
+    return { t, f, pct: t ? Math.round(f / t * 100) : 0 };
+  }, [done]);
+
+  return h('div', {
+    style: { fontFamily: sdSerif, color: '#e8f5e0', minHeight: '100vh',
+      background: 'linear-gradient(135deg,#0a0f0d 0%,#0d1a12 50%,#0a0e10 100%)' }
+  },
+    // Polices déjà chargées par index.html — pas d'@import ici.
+    h('style', null, `
+      .sd-scroll::-webkit-scrollbar{height:0}
+      .sd-btn{transition:all .2s ease;cursor:pointer}
+      .sd-btn:hover{transform:translateY(-2px)}
+      .sd-row{transition:all .18s ease;cursor:pointer}
+      .sd-row:hover{transform:translateX(3px)}
+      @keyframes sdfade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+      .sd-fade{animation:sdfade .3s ease}
+      @media (prefers-reduced-motion: reduce){.sd-btn,.sd-row,.sd-fade{transition:none;animation:none}}
+    `),
+
+    // ─── HEADER ───
+    h('div', {
+      style: { padding: '26px 20px 16px', borderBottom: '1px solid #1e3a2a',
+        background: 'linear-gradient(180deg,#12100a 0%,transparent 100%)' }
+    },
+      h('div', { style: { fontFamily: sdMono, fontSize: 10, color: SD_GOLD, letterSpacing: 4, textTransform: 'uppercase', marginBottom: 6 } },
+        'Yife · Fit 🐆'),
+      h('h1', { style: { margin: 0, fontSize: 30, fontWeight: 700, color: '#f0faf0', lineHeight: 1 } },
+        'Program ', h('span', { style: { fontStyle: 'italic', fontWeight: 400, color: SD_GOLD } }, NAME_DJA)),
+      h('p', { style: { margin: '10px 0 0', fontSize: 12.5, color: '#6b9e7a', fontStyle: 'italic', maxWidth: '44ch', lineHeight: 1.5 } },
+        'Prise de masse sèche sur 4 jours — nutrition 100 % végétale et sans gluten 💪'),
+
+      h('div', { className: 'sd-scroll', style: { display: 'flex', gap: 8, marginTop: 18, overflowX: 'auto', paddingBottom: 4 } },
+        [
+          { id: 'seances', l: '🏋️ Séances' },
+          { id: 'circuits', l: '🔁 Circuits' },
+          { id: 'guide', l: '📖 Technique' },
+          { id: 'nutri', l: '🌿 Nutrition' }
+        ].map(t => h('button', {
+          key: t.id, className: 'sd-btn', onClick: () => setTab(t.id),
+          style: { padding: '8px 16px', borderRadius: 20, fontSize: 12, fontFamily: sdMono, whiteSpace: 'nowrap',
+            background: tab === t.id ? SD_GOLD : 'rgba(255,255,255,0.05)',
+            color: tab === t.id ? '#0a0f0d' : '#8bb89a',
+            fontWeight: tab === t.id ? 700 : 400,
+            border: tab === t.id ? 'none' : '1px solid #1e3a2a', outline: 'none' }
+        }, t.l)))
+    ),
+
+    // ─── SÉANCES ───
+    tab === 'seances' && h('div', { className: 'sd-fade' },
+      h('div', { className: 'sd-scroll', style: { padding: '16px 20px 12px', display: 'flex', gap: 8, overflowX: 'auto' } },
+        SD_SEANCES.map((se, i) => h('button', {
+          key: se.id, className: 'sd-btn', onClick: () => setJour(i),
+          style: { minWidth: 74, padding: '10px 8px', borderRadius: 12, border: 'none',
+            background: jour === i ? se.couleur : 'rgba(255,255,255,0.04)',
+            color: jour === i ? '#0a0f0d' : '#6b9e7a', fontFamily: sdMono, fontSize: 11, fontWeight: 700,
+            boxShadow: jour === i ? `0 4px 16px ${se.couleur}4d` : 'none', outline: 'none' }
+        },
+          h('div', { style: { fontSize: 14 } }, se.emoji),
+          h('div', { style: { marginTop: 3 } }, se.jour)))),
+
+      h('div', { style: { padding: '0 20px 24px' } },
+        h('div', { style: { ...sdBox, padding: 20 } },
+          h('div', { style: { paddingBottom: 14, borderBottom: '1px solid #1e3a2a', marginBottom: 14 } },
+            h('div', { style: { fontSize: 24, fontWeight: 700, color: '#f4faf1', lineHeight: 1.1 } }, s.jour),
+            h('div', { style: { fontSize: 13, color: s.couleur, marginTop: 5, fontStyle: 'italic' } }, s.titre)),
+
+          s.ex.map((e, i) => {
+            const k = `${s.id}-${i}`;
+            const ok = !!done[k];
+            return h('div', {
+              key: i, className: 'sd-row', onClick: () => toggle(k),
+              style: { display: 'flex', alignItems: 'center', gap: 12, padding: '11px 12px', marginBottom: 8,
+                borderRadius: 12, background: ok ? s.couleur + '12' : 'rgba(255,255,255,0.02)',
+                border: `1px solid ${ok ? s.couleur + '44' : '#182a22'}`,
+                borderLeft: `3px solid ${s.couleur}`, opacity: ok ? 0.65 : 1 }
+            },
+              h('div', {
+                style: { width: 16, height: 16, borderRadius: 5, flexShrink: 0,
+                  border: `2px solid ${s.couleur}`, background: ok ? s.couleur : 'transparent',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 10, color: '#0a0f0d', fontWeight: 700 }
+              }, ok ? '✓' : ''),
+              h('div', { style: { flex: 1, minWidth: 0 } },
+                h('div', {
+                  style: { fontSize: 13.5, fontWeight: 700, color: ok ? '#4b7a5c' : '#dff0e4',
+                    textDecoration: ok ? 'line-through' : 'none' }
+                }, e.n),
+                h('div', { style: { fontFamily: sdMono, fontSize: 10.5, color: '#5c8a6e', marginTop: 2 } },
+                  'repos ' + e.r)),
+              h('span', {
+                style: { fontFamily: sdMono, fontSize: 11.5, fontWeight: 700, color: s.couleur,
+                  background: s.couleur + '1c', padding: '4px 10px', borderRadius: 9, flexShrink: 0 }
+              }, e.s));
+          }),
+
+          h('div', {
+            style: { marginTop: 16, padding: 15, borderRadius: 14, border: '1px solid #1e3a2a',
+              background: 'linear-gradient(135deg,rgba(217,167,101,.06),rgba(74,222,128,.03))' }
+          },
+            h('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 8 } },
+              h('span', { style: { fontSize: 12, color: '#6b9e7a' } }, faits + '/' + s.ex.length + ' exercices'),
+              h('span', { style: { fontFamily: sdMono, fontSize: 14, color: s.couleur, fontWeight: 700 } }, pct + '%')),
+            h('div', { style: { height: 6, background: '#1a3028', borderRadius: 4, overflow: 'hidden' } },
+              h('div', {
+                style: { height: '100%', width: pct + '%', background: s.couleur,
+                  borderRadius: 4, transition: 'width .4s ease', boxShadow: `0 0 12px ${s.couleur}80` }
+              })))),
+
+        h('div', { style: { ...sdBox, padding: 15, marginTop: 12, display: 'flex', gap: 12, alignItems: 'flex-start' } },
+          h('span', { style: { fontSize: 18 } }, '🔥'),
+          h('div', null,
+            h('div', { style: { fontSize: 14, fontWeight: 700, color: '#f2faef', marginBottom: 3 } }, 'Échauffement'),
+            h('div', { style: { fontSize: 12.5, color: '#b4cebc', lineHeight: 1.55 } },
+              '5–10 min de cardio léger + mobilité des articulations concernées, puis 2–3 séries progressives sur le premier exercice lourd.'))),
+
+        h('div', { style: { ...sdBox, padding: 15, marginTop: 10 } },
+          h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 } },
+            h('span', { style: { fontFamily: sdMono, fontSize: 10.5, color: SD_GOLD, letterSpacing: 2 } }, 'SEMAINE'),
+            h('button', {
+              className: 'sd-btn',
+              onClick: () => { if (confirm('Remettre à zéro toutes les cases de la semaine ?')) resetAll(); },
+              style: { fontFamily: sdMono, fontSize: 10, padding: '4px 12px', borderRadius: 20,
+                background: 'transparent', border: '1px solid #2d5a3d', color: '#6b9e7a', outline: 'none' }
+            }, 'Remettre à zéro')),
+          h('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 8 } },
+            h('span', { style: { fontSize: 12, color: '#6b9e7a' } }, totalSemaine.f + '/' + totalSemaine.t + ' exercices'),
+            h('span', { style: { fontFamily: sdMono, fontSize: 14, color: SD_GOLD, fontWeight: 700 } }, totalSemaine.pct + '%')),
+          h('div', { style: { height: 6, background: '#1a3028', borderRadius: 4, overflow: 'hidden' } },
+            h('div', {
+              style: { height: '100%', width: totalSemaine.pct + '%',
+                background: `linear-gradient(90deg,${SD_GOLD},#c9a24a)`, borderRadius: 4, transition: 'width .4s ease' }
+            }))))
+    ),
+
+    // ─── CIRCUITS ───
+    tab === 'circuits' && h('div', { className: 'sd-fade', style: { padding: '18px 20px 30px' } },
+      SD_CIRCUITS.map((c, i) => h('div', { key: i, style: { ...sdBox, padding: 18, marginBottom: 14 } },
+        h('div', { style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 } },
+          h('span', { style: { fontSize: 20 } }, c.emoji),
+          h('span', { style: { fontSize: 18, fontWeight: 700, color: '#f4faf1' } }, c.nom)),
+        h('div', { style: { fontFamily: sdMono, fontSize: 10.5, color: c.couleur, marginBottom: 14 } }, c.tours),
+
+        c.ex.map((row, j) => h('div', {
+          key: j,
+          style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            padding: '9px 0', borderBottom: j < c.ex.length - 1 ? '1px dashed #1a3028' : 'none' }
+        },
+          h('span', { style: { fontSize: 13, color: '#dff0e4' } }, row[0]),
+          h('span', { style: { fontFamily: sdMono, fontSize: 12, fontWeight: 700, color: c.couleur } }, row[1]))),
+
+        h('div', { style: { marginTop: 14, fontSize: 12, color: '#6b9e7a', fontFamily: sdMono } }, 'Repos · ' + c.repos),
+        h('div', {
+          style: { marginTop: 10, padding: 12, borderRadius: 12,
+            background: c.couleur + '0f', border: `1px solid ${c.couleur}33`,
+            fontSize: 12.5, color: '#b4cebc', lineHeight: 1.5, fontStyle: 'italic' }
+        }, c.conseil)))
+    ),
+
+    // ─── GUIDE TECHNIQUE ───
+    tab === 'guide' && h('div', { className: 'sd-fade', style: { padding: '18px 20px 30px' } },
+      SD_GUIDE.map((g, i) => h('div', { key: i, style: { marginBottom: 20 } },
+        h('div', { style: { fontFamily: sdMono, fontSize: 11, color: g.couleur, letterSpacing: 2, marginBottom: 10 } }, g.groupe),
+        g.items.map((row, j) => {
+          const k = `${i}-${j}`;
+          const open = openEx === k;
+          return h('div', {
+            key: j, className: 'sd-row', onClick: () => setOpenEx(open ? null : k),
+            style: { ...sdBox, padding: '12px 14px', marginBottom: 8, borderLeft: `3px solid ${g.couleur}` }
+          },
+            h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 } },
+              h('span', { style: { fontSize: 13.5, fontWeight: 700, color: '#dff0e4' } }, row[0]),
+              h('span', { style: { color: g.couleur, fontSize: 13, flexShrink: 0 } }, open ? '−' : '+')),
+            open && h('p', { style: { margin: '9px 0 0', fontSize: 12.5, color: '#b4cebc', lineHeight: 1.6 } }, row[1]));
+        })))
+    ),
+
+    // ─── NUTRITION ───
+    tab === 'nutri' && h('div', { className: 'sd-fade', style: { padding: '18px 20px 30px' } },
+      h('div', {
+        style: { ...sdBox, padding: 15, marginBottom: 16,
+          background: 'linear-gradient(135deg,rgba(74,222,128,.07),rgba(217,167,101,.04))' }
+      },
+        h('div', { style: { fontSize: 14, fontWeight: 700, color: '#f2faef', marginBottom: 5 } }, '🌱 Version végétale sans gluten'),
+        h('div', { style: { fontSize: 12.5, color: '#b4cebc', lineHeight: 1.6 } },
+          "Œufs → tofu brouillé ou 1 c. à s. de chia moulu + 3 c. à s. d'eau. Laitages → soja, coco, amande. Blé → sorgho, riz, sarrasin, fonio, millet. Parmesan → levure maltée. Sauce soja → tamari.")),
+
+      SD_REPAS.map((r, i) => h('div', { key: i, style: { ...sdBox, padding: 16, marginBottom: 12 } },
+        h('div', { style: { fontSize: 17, fontWeight: 700, color: SD_GOLD, marginBottom: 12 } }, r.j),
+        [['Petit-déjeuner', r.pd], ['Déjeuner', r.dej], ['Collation', r.col], ['Dîner', r.din]].map((row, j) =>
+          h('div', { key: j, style: { marginBottom: j < 3 ? 11 : 0 } },
+            h('div', { style: { fontFamily: sdMono, fontSize: 9.5, color: '#5c8a6e', letterSpacing: 1.5, marginBottom: 3 } }, row[0]),
+            h('div', { style: { fontSize: 12.5, color: '#cfe3d4', lineHeight: 1.55 } }, row[1]))))),
+
+      h('div', { style: { fontFamily: sdMono, fontSize: 11, color: SD_GOLD, letterSpacing: 2, margin: '26px 0 12px' } },
+        '🍽 RECETTES PRISE DE MASSE'),
+
+      SD_RECETTES.map((rc, i) => h('div', { key: i, style: { ...sdBox, padding: 16, marginBottom: 12 } },
+        h('div', { style: { display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10 } },
+          h('span', { style: { fontSize: 19 } }, rc.emoji),
+          h('span', { style: { fontSize: 16, fontWeight: 700, color: '#f4faf1' } }, rc.nom)),
+        h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 11 } },
+          rc.ing.map((x, j) => h('span', {
+            key: j,
+            style: { fontFamily: sdMono, fontSize: 10.5, padding: '3px 10px', borderRadius: 20,
+              background: 'rgba(74,222,128,.09)', color: '#8fd6a5', border: '1px solid #2d5a3d' }
+          }, x))),
+        h('p', { style: { margin: 0, fontSize: 12.5, color: '#cfe3d4', lineHeight: 1.6 } }, rc.prep),
+        h('div', {
+          style: { marginTop: 10, padding: 11, borderRadius: 11,
+            background: 'rgba(217,167,101,.08)', border: '1px solid rgba(217,167,101,.25)',
+            fontSize: 12, color: '#e0c79a', lineHeight: 1.5, fontStyle: 'italic' }
+        }, '💪 ' + rc.astuce))),
+
+      h('p', { style: { fontSize: 11, color: '#4b7a5c', fontStyle: 'italic', lineHeight: 1.6, marginTop: 18 } },
+        'En végétal, pense B12 en complément, et associe céréales et légumineuses dans la journée pour couvrir tous les acides aminés. Les quantités sont un point de départ : ajuste selon ton poids et ta faim.')
+    )
+  );
+}
+
+// ─── Protocole de préparation de voyage ───
+// Checklist statique, cochée par voyage. Les identifiants d'étape sont explicites
+// et stables : réordonner ou insérer une étape plus tard ne doit jamais décocher
+// ce qui l'était déjà (l'état est stocké par id, pas par position).
+const VOYAGE_PROTOCOLE = [
+  { id: 'p1', offset: -60, titre: 'J-60 · Papiers & réservations', icon: '🛂', couleur: 'var(--accent-dja)', items: [
+    { id: 'v-passeport', t: 'Passeports / CNI valides (6 mois après le retour)' },
+    { id: 'v-visa', t: 'Visa ou autorisation d\'entrée vérifiés' },
+    { id: 'v-billets', t: 'Billets réservés' },
+    { id: 'v-logement', t: 'Logement réservé' },
+    { id: 'v-vaccins', t: 'Vaccins obligatoires et recommandés vérifiés' }
+  ]},
+  { id: 'p2', offset: -30, titre: 'J-30 · Argent & couvertures', icon: '💳', couleur: 'var(--gold)', items: [
+    { id: 'v-assurance', t: 'Assurance voyage / annulation souscrite' },
+    { id: 'v-banque', t: 'Banque prévenue des dates et des pays' },
+    { id: 'v-plafonds', t: 'Plafonds de carte relevés si besoin' },
+    { id: 'v-devises', t: 'Espèces ou devises commandées' },
+    { id: 'v-ceam', t: 'Carte européenne d\'assurance maladie (si Europe)' }
+  ]},
+  { id: 'p3', offset: -15, titre: 'J-15 · Santé & logistique', icon: '💊', couleur: 'var(--accent-liika)', items: [
+    { id: 'v-ordonnances', t: 'Ordonnances renouvelées, traitement en quantité suffisante' },
+    { id: 'v-pharmacie', t: 'Trousse à pharmacie préparée' },
+    { id: 'v-transferts', t: 'Transferts réservés (navette, location de voiture)' },
+    { id: 'v-permis', t: 'Permis international si tu conduis sur place' },
+    { id: 'v-garde', t: 'Garde organisée : plantes, animaux, courrier' }
+  ]},
+  { id: 'p4', offset: -7, titre: 'J-7 · Numérique & sécurité', icon: '📱', couleur: '#60a5fa', items: [
+    { id: 'v-scans', t: 'Papiers scannés et sauvegardés en ligne' },
+    { id: 'v-backup', t: 'Téléphone sauvegardé' },
+    { id: 'v-horsligne', t: 'Cartes hors-ligne, musique et livres téléchargés' },
+    { id: 'v-forfait', t: 'Forfait ou eSIM à l\'étranger vérifié' },
+    { id: 'v-itineraire', t: 'Itinéraire transmis à un proche' }
+  ]},
+  { id: 'p5', offset: -2, titre: 'J-2 · Bagages', icon: '🧳', couleur: '#4ade80', items: [
+    { id: 'v-poids', t: 'Bagages pesés, limites de la compagnie vérifiées' },
+    { id: 'v-liquides', t: 'Liquides de moins de 100 ml en cabine' },
+    { id: 'v-adaptateur', t: 'Adaptateur de prise du pays' },
+    { id: 'v-batterie', t: 'Chargeurs et batterie externe — en cabine obligatoirement' },
+    { id: 'v-meteo', t: 'Vêtements adaptés à la météo sur place' },
+    { id: 'v-medoc-cabine', t: 'Médicaments en cabine avec leur ordonnance' },
+    { id: 'v-interdits', t: 'Objets interdits vérifiés (onglet « Interdit en avion »)' }
+  ]},
+  { id: 'p6', offset: -1, titre: 'Veille du départ', icon: '🌙', couleur: '#a78bfa', items: [
+    { id: 'v-checkin', t: 'Enregistrement en ligne, carte d\'embarquement sur le téléphone' },
+    { id: 'v-horaire', t: 'Heure et terminal reconfirmés' },
+    { id: 'v-frigo', t: 'Frigo vidé, poubelles sorties' },
+    { id: 'v-coupures', t: 'Eau, gaz et appareils coupés' },
+    { id: 'v-charge', t: 'Tous les appareils chargés' }
+  ]},
+  { id: 'p7', offset: 0, titre: 'Jour J', icon: '🛫', couleur: 'var(--success)', items: [
+    { id: 'v-surmoi', t: 'Papiers, carte bancaire et espèces sur toi' },
+    { id: 'v-cles', t: 'Clés confiées ou rangées' },
+    { id: 'v-fermeture', t: 'Volets et fenêtres fermés' },
+    { id: 'v-avance', t: 'Départ avec 3 h d\'avance (international) ou 2 h (régional)' }
+  ]},
+  { id: 'p8', apresRetour: true, titre: 'Au retour', icon: '🏠', couleur: 'var(--text3)', items: [
+    { id: 'v-douane', t: 'Achats déclarés si nécessaire' },
+    { id: 'v-sinistre', t: 'Assurance relancée en cas d\'incident' },
+    { id: 'v-photos', t: 'Photos triées et sauvegardées' },
+    { id: 'v-bilan', t: 'Noté ce qui a manqué pour le prochain voyage' }
+  ]}
+];
+const VOYAGE_ETAPES_TOTAL = VOYAGE_PROTOCOLE.reduce((n, p) => n + p.items.length, 0);
+// Ancienne clé localStorage, conservée uniquement pour la reprise one-shot.
+const VOYAGE_LS_KEY = 'ld-voyages';
+
+// ─── Dates de voyage ───
+// Un voyage porte une date de départ et, en option, une date de retour. Chaque
+// phase du protocole en déduit son échéance (J-60 = départ − 60 jours), ce qui
+// permet de signaler ce qui est en retard. Tout reste facultatif : sans date de
+// départ, la checklist fonctionne exactement comme avant, sans échéances.
+function voyIsoValide(iso) {
+  const s = String(iso || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return '';
+  const d = new Date(`${s}T00:00:00`);
+  return isNaN(d.getTime()) ? '' : s;
+}
+function voyIsoPlus(iso, n) {
+  const s = voyIsoValide(iso);
+  if (!s) return '';
+  const d = new Date(`${s}T00:00:00`);
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+function voyAujourdhui() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+// Nombre de jours d'ici à `iso` (négatif = déjà passé).
+function voyJoursAvant(iso) {
+  const s = voyIsoValide(iso);
+  if (!s) return null;
+  return Math.round((new Date(`${s}T00:00:00`).getTime() - new Date(`${voyAujourdhui()}T00:00:00`).getTime()) / 864e5);
+}
+function voyFmtDate(iso) {
+  const s = voyIsoValide(iso);
+  if (!s) return '';
+  return new Date(`${s}T00:00:00`).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+// Échéance d'une phase : départ + offset, ou date de retour pour la phase finale.
+function voyEcheancePhase(v, phase) {
+  const dep = voyIsoValide(v && v.dateDepart);
+  if (phase.apresRetour) return voyIsoValide(v && v.dateRetour) || dep;
+  if (!dep) return '';
+  return voyIsoPlus(dep, phase.offset || 0);
+}
+// État d'un voyage par rapport à aujourd'hui, pour l'entête de la fiche.
+function voyEtat(v) {
+  const dep = voyIsoValide(v && v.dateDepart);
+  if (!dep) return null;
+  const ret = voyIsoValide(v && v.dateRetour);
+  const jDep = voyJoursAvant(dep);
+  if (jDep > 0) return { texte: jDep === 1 ? 'Départ demain' : `Départ dans ${jDep} jours`, couleur: jDep <= 7 ? 'var(--warn)' : 'var(--gold)' };
+  if (jDep === 0) return { texte: "Départ aujourd'hui", couleur: 'var(--warn)' };
+  if (ret && voyJoursAvant(ret) >= 0) return { texte: 'En voyage', couleur: 'var(--success)' };
+  return { texte: ret ? `Revenu le ${voyFmtDate(ret)}` : `Parti le ${voyFmtDate(dep)}`, couleur: 'var(--text3)' };
+}
+// Statut d'une phase : fait / en retard / bientôt / à venir.
+function voyStatutPhase(v, phase, nbFaits) {
+  if (nbFaits >= phase.items.length) return { cle: 'fait', texte: 'Fait', couleur: 'var(--success)' };
+  const ech = voyEcheancePhase(v, phase);
+  if (!ech) return { cle: 'neutre', texte: '', couleur: 'var(--text3)' };
+  const j = voyJoursAvant(ech);
+  if (j < 0) return { cle: 'retard', texte: `En retard de ${-j} j`, couleur: 'var(--danger)' };
+  if (j === 0) return { cle: 'aujourdhui', texte: "Aujourd'hui", couleur: 'var(--warn)' };
+  if (j <= 7) return { cle: 'bientot', texte: `J-${j}`, couleur: 'var(--warn)' };
+  return { cle: 'avenir', texte: `J-${j}`, couleur: 'var(--text3)' };
+}
+// Tri : les départs les plus proches d'abord, puis les voyages sans date.
+function voyTri(list) {
+  return list.slice().sort((a, b) => {
+    const da = voyIsoValide(a && a.dateDepart), db = voyIsoValide(b && b.dateDepart);
+    if (da && db) return da.localeCompare(db);
+    if (da) return -1;
+    if (db) return 1;
+    return 0;
+  });
+}
+
+// ─── Guide « Préparer sa valise » ───
+// Contenu de référence, en lecture seule : rien à cocher ici (la checklist
+// datée vit dans les fiches voyage), donc aucune donnée persistée.
+// ─── Ce qu'on n'a pas le droit d'emporter ───
+// Transcrit du rappel affiché à l'enregistrement en ligne (portail Amadeus de la
+// compagnie). Purement informatif : les règles exactes dépendent de la compagnie,
+// du pays et de la destination — cette liste sert à ne pas se faire surprendre au
+// contrôle, pas à trancher un cas limite.
+const VOYAGE_INTERDITS_LOI = 'Article L1252-5 du Code des transports : le transport non autorisé de marchandises dangereuses par voie aérienne est passible d\'un an d\'emprisonnement et de 30 000 € d\'amende.';
+const VOYAGE_INTERDITS = [
+  {
+    id: 'i1',
+    titre: 'Interdit en soute ET en cabine',
+    sous: 'Considérés comme dangereux : ne peuvent pas être embarqués, nulle part.',
+    icon: '☢️',
+    couleur: 'var(--danger)',
+    items: [
+      'Explosifs, engins pyrotechniques',
+      'Liquides inflammables',
+      'Matières solides inflammables',
+      'Gaz inflammables',
+      'Substances et médicaments radioactifs',
+      'Substances toxiques et infectieuses',
+      'Produits corrosifs',
+      'Oxydants'
+    ]
+  },
+  {
+    id: 'i2',
+    titre: 'Interdit en cabine',
+    sous: 'À ne pas mettre dans le bagage à main — en soute, c\'est possible pour certains.',
+    icon: '🎒',
+    couleur: 'var(--warn)',
+    items: [
+      'Armes à feu, émetteurs de projectiles, répliques',
+      'Objets tranchants ou contondants',
+      'Dispositifs paralysants (taser) ou incapacitants (lacrymogène)',
+      'Outils de travail',
+      'Dispositifs spécifiquement conçus pour assommer ou immobiliser'
+    ]
+  },
+  {
+    id: 'i3',
+    titre: 'Interdit en soute',
+    sous: 'Articles secondaires interdits dans les bagages enregistrés.',
+    icon: '🧳',
+    couleur: 'var(--accent-dja)',
+    items: [
+      'Substances et engins explosifs ou incendiaires'
+    ]
+  }
+];
+// Les pièges du quotidien : ce qui part vraiment à la poubelle au contrôle, ou
+// ce qui est refusé à l'embarquement alors qu'on n'y pense jamais.
+const VOYAGE_INTERDITS_PIEGES = [
+  { t: 'Batterie externe et batteries au lithium', r: 'En cabine uniquement, jamais en soute. Au-delà de 100 Wh, accord de la compagnie nécessaire.' },
+  { t: 'Liquides de plus de 100 ml en cabine', r: 'Confisqués au contrôle. Tout doit tenir dans un sac transparent d\'un litre.' },
+  { t: 'Briquet et allumettes', r: 'Un seul sur soi en général, et interdits en soute. Les briquets tempête sont refusés partout.' },
+  { t: 'Ciseaux et couteaux', r: 'Lames de plus de 6 cm interdites en cabine. Le couteau suisse part en soute.' },
+  { t: 'Bouteille d\'eau remplie', r: 'À vider avant le contrôle, à remplir après — les fontaines sont côté embarquement.' },
+  { t: 'Rhum et alcools', r: 'En soute, dans les limites douanières. Acheté en duty free, garde le sac scellé et le ticket.' },
+  { t: 'Aérosols et parfums', r: 'Tolérés en petite quantité pour usage personnel ; les bombes de peinture ou de gaz sont interdites.' },
+  { t: 'Fruits, plantes et graines', r: 'Réglementation stricte à l\'entrée de beaucoup de pays — vérifie avant d\'en emporter.' },
+  { t: 'Cigarette électronique', r: 'En cabine uniquement, et interdiction de l\'utiliser ou de la recharger à bord.' }
+];
+
+const VOYAGE_VALISE = [
+  { id: 'm1', titre: 'La méthode de rangement', icon: '📦', couleur: 'var(--gold)', items: [
+    'Roule les vêtements au lieu de les plier : moins de plis, et jusqu\'à un tiers de place gagnée.',
+    'Le lourd en bas, côté roulettes : chaussures et trousse de toilette. La valise reste stable debout.',
+    'Chaussures dans des sacs, semelle contre la paroi, chaussettes roulées à l\'intérieur.',
+    'Le fragile au centre, enveloppé de vêtements — jamais contre une paroi.',
+    'Des pochettes de compression séparent par type et évitent de tout défaire pour trouver un t-shirt.'
+  ]},
+  { id: 'm2', titre: 'Combien emporter — la règle 5·4·3·2·1', icon: '👕', couleur: 'var(--accent-liika)', items: [
+    'Pour une semaine : 5 hauts, 4 bas, 3 paires de chaussettes et sous-vêtements en rab, 2 paires de chaussures, 1 tenue habillée.',
+    'Au-delà d\'une semaine, ne double pas : prévois plutôt une lessive sur place.',
+    'Une palette de 2 ou 3 couleurs qui vont ensemble : tout se combine, tu emportes moins.',
+    'Le plus volumineux (veste, gros pull) se porte sur soi le jour du départ.'
+  ]},
+  { id: 'm3', titre: 'En cabine, jamais en soute', icon: '🎒', couleur: 'var(--danger)', items: [
+    'Papiers, argent, cartes, clés.',
+    'Médicaments avec leur ordonnance.',
+    'Batterie externe et batteries au lithium : interdites en soute.',
+    'Un change complet — si la soute se perd, tu tiens 24 h.',
+    'Objets de valeur, appareils photo, ordinateur.'
+  ]},
+  { id: 'm4', titre: 'Les règles à ne pas rater', icon: '⚠️', couleur: 'var(--warn)', items: [
+    'Liquides en cabine : flacons de 100 ml maximum, dans un sac transparent d\'un litre.',
+    'Pas de couteau ni de ciseaux à lames de plus de 6 cm en cabine.',
+    'Poids et dimensions varient selon la compagnie — vérifie avant, pas à l\'aéroport.',
+    'Pèse ta valise à la maison : le surpoids se paie très cher au comptoir.'
+  ]},
+  { id: 'm5', titre: 'Les astuces qui changent tout', icon: '💡', couleur: 'var(--success)', items: [
+    'Un sac à linge sale dès le départ : le propre et le sale ne se mélangent jamais.',
+    'Photographie le contenu de ta valise : précieux pour une déclaration de perte.',
+    'Garde 20 % de place libre pour le retour — souvenirs et achats.',
+    'Une étiquette avec ton contact à l\'extérieur ET une deuxième à l\'intérieur.',
+    'Un double des papiers dans un bagage différent de celui des originaux.'
+  ]},
+  { id: 'm6', titre: 'Spécial départ de Guadeloupe', icon: '🌴', couleur: 'var(--accent-dja)', items: [
+    'Vers la métropole : garde une couche chaude accessible en cabine — l\'écart de température à l\'arrivée est brutal.',
+    'Vers une autre île : anti-moustique, crème solaire, et un K-way en saison cyclonique.',
+    'Au retour, le rhum voyage en soute uniquement, dans les limites douanières autorisées.',
+    'Fruits et plantes : réglementation stricte à l\'entrée, vérifie avant d\'en emporter.'
+  ]}
+];
+
+// ─── Le nécessaire à emporter ───
+// Liste cochable par voyage, indépendante du protocole daté : le protocole dit
+// QUAND s'y prendre, cette liste dit CE QU'ON MET DANS LA VALISE. Les deux
+// partagent la même carte `checked` du voyage, d'où le préfixe `n-` sur les
+// identifiants pour qu'ils ne puissent jamais entrer en collision.
+const VOYAGE_NECESSAIRE = [
+  { id: 'n1', titre: 'Papiers & argent', icon: '📄', couleur: 'var(--danger)', items: [
+    { id: 'n-identite', t: 'Passeport ou carte d\'identité' },
+    { id: 'n-billets', t: 'Billets — sur le téléphone et sur papier' },
+    { id: 'n-permis', t: 'Permis de conduire (+ international si besoin)' },
+    { id: 'n-sante', t: 'Carte vitale, CEAM, attestation d\'assurance' },
+    { id: 'n-cb', t: 'Carte bancaire + une seconde carte rangée ailleurs' },
+    { id: 'n-especes', t: 'Espèces dans la devise locale' },
+    { id: 'n-copies', t: 'Copies des documents, séparées des originaux' }
+  ]},
+  { id: 'n2', titre: 'Vêtements', icon: '👕', couleur: 'var(--accent-liika)', items: [
+    { id: 'n-hauts', t: 'Hauts et bas selon la règle 5·4·3·2·1' },
+    { id: 'n-dessous', t: 'Sous-vêtements et chaussettes' },
+    { id: 'n-pull', t: 'Un pull ou une veste, même pour une destination chaude' },
+    { id: 'n-pluie', t: 'Coupe-vent ou tenue de pluie' },
+    { id: 'n-maillot', t: 'Maillot de bain' },
+    { id: 'n-habille', t: 'Une tenue habillée' },
+    { id: 'n-pyjama', t: 'Pyjama' },
+    { id: 'n-chaussures', t: 'Deux paires de chaussures : marche et légères' }
+  ]},
+  { id: 'n3', titre: 'Trousse de toilette', icon: '🧴', couleur: 'var(--gold)', items: [
+    { id: 'n-dents', t: 'Brosse à dents et dentifrice' },
+    { id: 'n-savon', t: 'Savon et shampoing (moins de 100 ml si cabine)' },
+    { id: 'n-deo', t: 'Déodorant' },
+    { id: 'n-rasoir', t: 'Rasoir' },
+    { id: 'n-peigne', t: 'Brosse ou peigne' },
+    { id: 'n-serviette', t: 'Serviette microfibre' },
+    { id: 'n-hygiene', t: 'Protections périodiques' }
+  ]},
+  { id: 'n4', titre: 'Pharmacie', icon: '💊', couleur: 'var(--success)', items: [
+    { id: 'n-traitement', t: 'Traitement en cours, avec son ordonnance' },
+    { id: 'n-douleur', t: 'Antidouleur et anti-fièvre' },
+    { id: 'n-ventre', t: 'Anti-diarrhéique et anti-nausée' },
+    { id: 'n-pansements', t: 'Pansements et désinfectant' },
+    { id: 'n-moustique', t: 'Anti-moustique' },
+    { id: 'n-solaire', t: 'Crème solaire' }
+  ]},
+  { id: 'n5', titre: 'Électronique', icon: '🔌', couleur: '#60a5fa', items: [
+    { id: 'n-tel', t: 'Téléphone et son chargeur' },
+    { id: 'n-batterie', t: 'Batterie externe — en cabine uniquement' },
+    { id: 'n-adaptateur', t: 'Adaptateur de prise du pays' },
+    { id: 'n-ecouteurs', t: 'Écouteurs' },
+    { id: 'n-photo', t: 'Appareil photo et cartes mémoire' }
+  ]},
+  { id: 'n6', titre: 'Confort du trajet', icon: '🎒', couleur: 'var(--accent-dja)', items: [
+    { id: 'n-gourde', t: 'Gourde vide, à remplir après le contrôle' },
+    { id: 'n-encas', t: 'De quoi grignoter' },
+    { id: 'n-masque', t: 'Masque de nuit et bouchons d\'oreille' },
+    { id: 'n-coussin', t: 'Coussin de nuque' },
+    { id: 'n-lecture', t: 'Lecture ou contenus téléchargés hors-ligne' },
+    { id: 'n-stylo', t: 'Un stylo, pour les formulaires d\'arrivée' }
+  ]}
+];
+const VOYAGE_NECESSAIRE_TOTAL = VOYAGE_NECESSAIRE.reduce((n, s) => n + s.items.length, 0);
+
+function VoyagesView({ voyages, addVoyage, updateVoyage, deleteVoyage, toggleVoyageCheck }) {
+  const h = React.createElement;
+  const list = voyTri(Array.isArray(voyages) ? voyages : []);
+  const [form, setForm] = React.useState({ dest:'', periode:'', budget:'', notes:'', statut:'Rêve', dateDepart:'', dateRetour:'' });
+  const [show, setShow] = React.useState(false);
+  const [openId, setOpenId] = React.useState(null);
+  // Ajouté APRÈS openId volontairement : l'ordre des hooks est stable pour les
+  // tests de rendu, qui ciblent openId en 3e position.
+  const [tab, setTab] = React.useState('voyages');
+  const STATUTS = ['Rêve','Planifié','Réservé','Fait ✓'];
+  const STAT_C = { 'Rêve':'var(--accent-dja)', 'Planifié':'var(--gold)', 'Réservé':'var(--accent-liika)', 'Fait ✓':'var(--success)' };
+  const add = () => {
+    if (!form.dest.trim()) return;
+    if (form.dateDepart && form.dateRetour && form.dateRetour < form.dateDepart) return;
+    addVoyage({ id: Date.now().toString(), ...form, dest: form.dest.trim(),
+      dateDepart: voyIsoValide(form.dateDepart), dateRetour: voyIsoValide(form.dateRetour), checked: {} });
+    setForm({ dest:'', periode:'', budget:'', notes:'', statut:'Rêve', dateDepart:'', dateRetour:'' });
+    setShow(false);
+  };
+  const inp = { background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'8px 12px', fontSize:13, width:'100%', boxSizing:'border-box' };
+  const faits = v => {
+    const c = (v && v.checked) || {};
+    return VOYAGE_PROTOCOLE.reduce((n, p) => n + p.items.filter(it => c[it.id]).length, 0);
+  };
+  return h('div', null,
+    h('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 } },
+      h('h2', { style:{ margin:0, fontSize:20 } }, '✈️ Voyages & Destinations'),
+      tab === 'voyages' && h('button', { onClick:()=>setShow(!show), style:{ padding:'8px 18px', borderRadius:20, border:'none', background:'#10b981', color:'#fff', cursor:'pointer', fontWeight:700 } }, show ? '✕' : '+ Voyage')
+    ),
+
+    // ── Sous-onglets ──
+    h('div', { className:'scroll-x', style:{ display:'flex', gap:8, marginBottom:16 } },
+      [{ id:'voyages', l:'✈️ Mes voyages' }, { id:'valise', l:'🧳 Préparer sa valise' }, { id:'interdits', l:'🚫 Interdit en avion' }].map(t =>
+        h('button', { key:t.id, onClick:()=>setTab(t.id), style:{
+          padding:'6px 14px', borderRadius:20, cursor:'pointer', fontSize:12, whiteSpace:'nowrap',
+          border:`1px solid ${tab===t.id?'var(--gold)':'var(--border)'}`,
+          background: tab===t.id?'var(--gold-bg)':'transparent',
+          color: tab===t.id?'var(--gold)':'var(--text3)',
+          fontWeight: tab===t.id?700:400 } }, t.l))
+    ),
+
+    // ── Articles interdits (lecture seule) ──
+    tab === 'interdits' && h('div', null,
+      h('div', { style:{ background:'rgba(239,68,68,.08)', border:'1px solid var(--danger)', borderRadius:'var(--radius)', padding:'12px 16px', marginBottom:16 } },
+        h('div', { style:{ display:'flex', alignItems:'center', gap:8, marginBottom:6 } },
+          h('span', { style:{ fontSize:15 } }, '⚖️'),
+          h('span', { style:{ fontSize:13, fontWeight:700, color:'var(--danger)' } }, 'Ce n\'est pas qu\'une formalité')),
+        h('p', { style:{ margin:0, fontSize:12.5, color:'var(--text2)', lineHeight:1.55 } }, VOYAGE_INTERDITS_LOI)
+      ),
+      h('div', { style:{ display:'grid', gap:12 } },
+        VOYAGE_INTERDITS.map(sec => h('div', { key:sec.id, style:{ background:'var(--glass)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'12px 16px', borderLeft:`3px solid ${sec.couleur}` } },
+          h('div', { style:{ display:'flex', alignItems:'center', gap:8, marginBottom:4 } },
+            h('span', { style:{ fontSize:15 } }, sec.icon),
+            h('span', { style:{ fontSize:13.5, fontWeight:700, color:sec.couleur } }, sec.titre)
+          ),
+          h('p', { style:{ margin:'0 0 8px', fontSize:11.5, color:'var(--text3)', fontStyle:'italic', lineHeight:1.5 } }, sec.sous),
+          h('div', { style:{ display:'grid', gap:6 } },
+            sec.items.map((it, i) => h('div', { key:i, style:{ display:'flex', gap:8, alignItems:'flex-start', fontSize:12.5, color:'var(--text2)', lineHeight:1.55 } },
+              h('span', { style:{ color:sec.couleur, flexShrink:0, fontWeight:700 } }, '✕'),
+              h('span', null, it)
+            ))
+          )
+        ))
+      ),
+      h('div', { style:{ marginTop:20 } },
+        h('div', { style:{ display:'flex', alignItems:'center', gap:8, marginBottom:4 } },
+          h('span', { style:{ fontSize:15 } }, '💡'),
+          h('span', { style:{ fontSize:13.5, fontWeight:700, color:'var(--gold)' } }, 'Les pièges courants')),
+        h('p', { style:{ margin:'0 0 10px', fontSize:11.5, color:'var(--text3)', fontStyle:'italic', lineHeight:1.5 } },
+          'Hors liste officielle : ce qui finit vraiment à la poubelle au contrôle, ou se voit refuser à l\'embarquement.'),
+        h('div', { style:{ display:'grid', gap:8 } },
+          VOYAGE_INTERDITS_PIEGES.map((p, i) => h('div', { key:i, style:{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:'9px 12px' } },
+            h('div', { style:{ fontSize:12.5, fontWeight:700, color:'var(--text)', marginBottom:3 } }, p.t),
+            h('div', { style:{ fontSize:12, color:'var(--text3)', lineHeight:1.5 } }, p.r)
+          ))
+        )
+      ),
+      h('p', { style:{ marginTop:18, marginBottom:0, fontSize:11.5, color:'var(--text3)', fontStyle:'italic', lineHeight:1.55 } },
+        'Rappel affiché à l\'enregistrement en ligne. Les règles exactes varient selon la compagnie, le pays et la destination — en cas de doute sur un objet précis, demande à la compagnie avant de partir.')
+    ),
+
+    // ── Guide valise (lecture seule) ──
+    tab === 'valise' && h('div', null,
+      h('p', { style:{ fontSize:12.5, color:'var(--text3)', fontStyle:'italic', lineHeight:1.55, marginTop:0, marginBottom:16 } },
+        'Le quand est dans le protocole de chaque voyage, le quoi dans sa liste « Le nécessaire ». Ici, c\'est le comment : ranger, doser, et ne pas se faire piéger au comptoir.'),
+      h('div', { style:{ display:'grid', gap:12 } },
+        VOYAGE_VALISE.map(sec => h('div', { key:sec.id, style:{ background:'var(--glass)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'12px 16px', borderLeft:`3px solid ${sec.couleur}` } },
+          h('div', { style:{ display:'flex', alignItems:'center', gap:8, marginBottom:8 } },
+            h('span', { style:{ fontSize:15 } }, sec.icon),
+            h('span', { style:{ fontSize:13.5, fontWeight:700, color:sec.couleur } }, sec.titre)
+          ),
+          h('div', { style:{ display:'grid', gap:6 } },
+            sec.items.map((txt, i) => h('div', { key:i, style:{ display:'flex', gap:8, alignItems:'flex-start' } },
+              h('span', { style:{ color:sec.couleur, flexShrink:0, fontSize:11, lineHeight:'18px' } }, '•'),
+              h('span', { style:{ fontSize:12.5, color:'var(--text2)', lineHeight:1.5 } }, txt)
+            ))
+          )
+        ))
+      )
+    ),
+
+    tab === 'voyages' && h('div', null,
+    show && h('div', { style:{ background:'var(--glass)', border:'1px solid rgba(16,185,129,.35)', borderRadius:'var(--radius)', padding:16, marginBottom:16 } },
+      h('input', { placeholder:'Destination *', value:form.dest, onChange:e=>setForm(p=>({...p,dest:e.target.value})), style:{ ...inp, marginBottom:8 } }),
+      h('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 } },
+        h('input', { placeholder:'Période (ex: été 2026)', value:form.periode, onChange:e=>setForm(p=>({...p,periode:e.target.value})), style:inp }),
+        h('input', { placeholder:'Budget estimé', value:form.budget, onChange:e=>setForm(p=>({...p,budget:e.target.value})), style:inp })
+      ),
+      // Dates facultatives : dès qu'un départ est saisi, chaque phase du protocole
+      // affiche son échéance et signale les retards.
+      h('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:4 } },
+        h('label', { style:{ fontSize:10, color:'var(--text3)' } }, 'Départ',
+          h('input', { type:'date', value:form.dateDepart, onChange:e=>setForm(p=>({...p,dateDepart:e.target.value})), style:{ ...inp, marginTop:3 } })),
+        h('label', { style:{ fontSize:10, color:'var(--text3)' } }, 'Retour',
+          h('input', { type:'date', value:form.dateRetour, min:form.dateDepart||undefined, onChange:e=>setForm(p=>({...p,dateRetour:e.target.value})), style:{ ...inp, marginTop:3 } }))
+      ),
+      form.dateDepart && form.dateRetour && form.dateRetour < form.dateDepart &&
+        h('div', { style:{ fontSize:11, color:'var(--danger)', marginBottom:8 } }, 'Le retour est avant le départ.'),
+      h('div', { style:{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:8 } },
+        STATUTS.map(s => h('button', { key:s, onClick:()=>setForm(p=>({...p,statut:s})), style:{ padding:'4px 12px', borderRadius:16, border:`1px solid ${form.statut===s?STAT_C[s]:'var(--border)'}`, background:'transparent', color:form.statut===s?STAT_C[s]:'var(--text3)', cursor:'pointer', fontWeight:form.statut===s?700:400, fontSize:12 } }, s))
+      ),
+      h('textarea', { placeholder:"Notes, idées d'activités...", value:form.notes, onChange:e=>setForm(p=>({...p,notes:e.target.value})), style:{ ...inp, minHeight:60, marginBottom:10, resize:'vertical' } }),
+      h('button', { onClick:add, style:{ padding:'8px 20px', borderRadius:12, border:'none', background:'#10b981', color:'#fff', cursor:'pointer', fontWeight:700 } }, 'Enregistrer')
+    ),
+    // Sans aucun voyage, le protocole serait invisible (il vit dans les fiches).
+    // On l'affiche donc ici en lecture seule : il reste consultable tout de suite,
+    // et l'utilisateur comprend qu'ajouter une destination le rend cochable.
+    list.length === 0 && !show && h('div', { style:{ padding:'30px 0 10px' } },
+      h('div', { style:{ textAlign:'center', color:'var(--text3)', marginBottom:24 } },
+        h('div', { style:{ fontSize:15, marginBottom:6 } }, '🌍 Ajoutez vos destinations de rêve !'),
+        h('div', { style:{ fontSize:12, fontStyle:'italic' } },
+          `Chaque voyage ouvre le protocole de départ ci-dessous — ${VOYAGE_ETAPES_TOTAL} étapes à cocher.`)
+      ),
+      h('div', { style:{ background:'var(--glass)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:16 } },
+        h('div', { style:{ fontSize:13, fontWeight:700, color:'var(--text2)', marginBottom:12 } }, '🧳 Protocole de départ'),
+        h('div', { style:{ display:'grid', gap:12 } },
+          VOYAGE_PROTOCOLE.map(phase => h('div', { key:phase.id, style:{ borderLeft:`3px solid ${phase.couleur}`, paddingLeft:10 } },
+            h('div', { style:{ display:'flex', alignItems:'center', gap:8, marginBottom:5 } },
+              h('span', { style:{ fontSize:13 } }, phase.icon),
+              h('span', { style:{ fontSize:12, fontWeight:700, color:phase.couleur } }, phase.titre)
+            ),
+            h('div', { style:{ display:'grid', gap:2 } },
+              phase.items.map(it => h('div', { key:it.id, style:{ fontSize:12, lineHeight:1.45, color:'var(--text3)' } }, '○ ' + it.t))
+            )
+          ))
+        )
+      )
+    ),
+    list.map(v => {
+      const n = faits(v);
+      const pct = Math.round(n / VOYAGE_ETAPES_TOTAL * 100);
+      // Une seule section dépliée à la fois, protocole ou nécessaire.
+      const ouvert = openId === v.id + '|proto';
+      const ouvertNec = openId === v.id + '|nec';
+      const nNec = VOYAGE_NECESSAIRE.reduce((t, s) => t + s.items.filter(it => (v.checked || {})[it.id]).length, 0);
+      const checked = v.checked || {};
+      return h('div', { key:v.id, style:{ background:'var(--glass)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'12px 16px', marginBottom:10 } },
+        h('div', { style:{ display:'flex', gap:12, alignItems:'flex-start' } },
+          h('div', { style:{ flex:1, minWidth:0 } },
+            h('div', { style:{ display:'flex', alignItems:'center', gap:10, marginBottom:6, flexWrap:'wrap' } },
+              h('span', { style:{ fontSize:22 } }, '✈️'),
+              h('span', { style:{ fontWeight:700, color:'var(--text)', fontSize:15 } }, v.dest),
+              // Compte à rebours, seulement si une date de départ est renseignée
+              (() => {
+                const e = voyEtat(v);
+                return e && h('span', { style:{ fontSize:10.5, fontWeight:700, color:e.couleur, background:e.couleur+'1f', borderRadius:999, padding:'2px 9px' } }, e.texte);
+              })()
+            ),
+            voyIsoValide(v.dateDepart) && h('div', { style:{ fontSize:12, color:'var(--text3)', marginBottom:4 } },
+              '📅 ' + voyFmtDate(v.dateDepart) + (voyIsoValide(v.dateRetour) ? ' → ' + voyFmtDate(v.dateRetour) : '')),
+            (v.periode||v.budget) && h('div', { style:{ fontSize:12, color:'var(--text3)', marginBottom:4 } }, [v.periode, v.budget&&'Budget : '+v.budget].filter(Boolean).join(' · ')),
+            v.notes && h('div', { style:{ fontSize:12, color:'var(--text3)', fontStyle:'italic', marginBottom:8 } }, v.notes),
+            h('div', { style:{ display:'flex', gap:4, flexWrap:'wrap' } },
+              STATUTS.map(s => h('button', { key:s, onClick:()=>updateVoyage(v.id, { statut:s }), style:{ padding:'3px 10px', borderRadius:12, border:`1px solid ${v.statut===s?STAT_C[s]:'var(--border)'}`, background:v.statut===s?STAT_C[s]+'22':'transparent', color:v.statut===s?STAT_C[s]:'var(--text3)', cursor:'pointer', fontSize:11, fontWeight:v.statut===s?700:400 } }, s))
+            )
+          ),
+          h('button', { onClick:()=>confirm('Supprimer ce voyage et sa checklist ?') && deleteVoyage(v.id), style:{ background:'none', border:'none', color:'var(--danger)', cursor:'pointer', fontSize:18 } }, '×')
+        ),
+
+        // ── Protocole de préparation ──
+        h('div', { style:{ marginTop:10, paddingTop:10, borderTop:'1px solid var(--border)' } },
+          h('div', { style:{ display:'flex', alignItems:'center', gap:10, marginBottom:8, flexWrap:'wrap' } },
+            h('button', {
+              onClick:()=>setOpenId(ouvert ? null : v.id + '|proto'),
+              style:{ padding:'5px 14px', borderRadius:12, cursor:'pointer', fontSize:11.5, fontWeight:700,
+                border:`1px solid ${n === VOYAGE_ETAPES_TOTAL ? 'var(--success)' : 'var(--gold)'}`,
+                background: n === VOYAGE_ETAPES_TOTAL ? 'rgba(74,222,128,.12)' : 'var(--gold-bg)',
+                color: n === VOYAGE_ETAPES_TOTAL ? 'var(--success)' : 'var(--gold)' }
+            }, (ouvert ? '▾ ' : '▸ ') + '🧳 Protocole de départ'),
+            h('span', { style:{ fontFamily:"'Space Mono',monospace", fontSize:11, color: n === VOYAGE_ETAPES_TOTAL ? 'var(--success)' : 'var(--text3)' } },
+              `${n}/${VOYAGE_ETAPES_TOTAL}`),
+            h('div', { style:{ flex:1, minWidth:80, height:5, borderRadius:5, overflow:'hidden', background:'rgba(255,255,255,.07)' } },
+              h('div', { style:{ width:pct + '%', height:'100%', borderRadius:5, background: n === VOYAGE_ETAPES_TOTAL ? 'var(--success)' : 'linear-gradient(90deg,var(--gold),#10b981)', transition:'width .3s ease' } }))
+          ),
+          ouvert && h('div', { style:{ display:'grid', gap:12 } },
+            VOYAGE_PROTOCOLE.map(phase => {
+              const nf = phase.items.filter(it => checked[it.id]).length;
+              const complete = nf === phase.items.length;
+              const st = voyStatutPhase(v, phase, nf);
+              const ech = voyEcheancePhase(v, phase);
+              return h('div', { key:phase.id, style:{ borderLeft:`3px solid ${st.cle === 'retard' ? 'var(--danger)' : phase.couleur}`, paddingLeft:10 } },
+                h('div', { style:{ display:'flex', alignItems:'center', gap:8, marginBottom:6, flexWrap:'wrap' } },
+                  h('span', { style:{ fontSize:13 } }, phase.icon),
+                  h('span', { style:{ fontSize:12, fontWeight:700, color: complete ? 'var(--success)' : phase.couleur } }, phase.titre),
+                  h('span', { style:{ fontFamily:"'Space Mono',monospace", fontSize:10, color:'var(--text3)' } }, `${nf}/${phase.items.length}`),
+                  // Échéance calculée depuis la date de départ, si elle existe
+                  ech && h('span', { style:{ fontSize:10, color:'var(--text3)' } }, '· ' + voyFmtDate(ech)),
+                  st.texte && h('span', { style:{ fontSize:10, fontWeight:700, color:st.couleur, background:st.couleur+'1f', borderRadius:999, padding:'1px 8px' } }, st.texte)
+                ),
+                h('div', { style:{ display:'grid', gap:3 } },
+                  phase.items.map(it => {
+                    const ok = !!checked[it.id];
+                    return h('button', {
+                      key:it.id,
+                      onClick:()=>toggleVoyageCheck(v.id, it.id),
+                      style:{ display:'flex', alignItems:'flex-start', gap:8, textAlign:'left', width:'100%',
+                        padding:'5px 8px', borderRadius:8, cursor:'pointer',
+                        border:`1px solid ${ok ? 'transparent' : 'var(--border)'}`,
+                        background: ok ? 'rgba(74,222,128,.08)' : 'transparent' }
+                    },
+                      h('span', { style:{ flexShrink:0, width:14, height:14, borderRadius:4, marginTop:1,
+                        border:`2px solid ${ok ? 'var(--success)' : 'var(--border2)'}`,
+                        background: ok ? 'var(--success)' : 'transparent',
+                        color:'#06120d', fontSize:9, fontWeight:700, lineHeight:'11px', textAlign:'center' } }, ok ? '✓' : ''),
+                      h('span', { style:{ fontSize:12, lineHeight:1.45, color: ok ? 'var(--text3)' : 'var(--text2)', textDecoration: ok ? 'line-through' : 'none' } }, it.t)
+                    );
+                  })
+                )
+              );
+            })
+          )
+        ),
+
+        // ── Le nécessaire à emporter ──
+        h('div', { style:{ marginTop:8, paddingTop:8, borderTop:'1px dashed var(--border)' } },
+          h('div', { style:{ display:'flex', alignItems:'center', gap:10, marginBottom:8, flexWrap:'wrap' } },
+            h('button', {
+              onClick:()=>setOpenId(ouvertNec ? null : v.id + '|nec'),
+              style:{ padding:'5px 14px', borderRadius:12, cursor:'pointer', fontSize:11.5, fontWeight:700,
+                border:`1px solid ${nNec === VOYAGE_NECESSAIRE_TOTAL ? 'var(--success)' : 'var(--accent-liika)'}`,
+                background: nNec === VOYAGE_NECESSAIRE_TOTAL ? 'rgba(74,222,128,.12)' : 'var(--accent-liika-bg)',
+                color: nNec === VOYAGE_NECESSAIRE_TOTAL ? 'var(--success)' : 'var(--accent-liika)' }
+            }, (ouvertNec ? '▾ ' : '▸ ') + '🎒 Le nécessaire'),
+            h('span', { style:{ fontFamily:"'Space Mono',monospace", fontSize:11, color: nNec === VOYAGE_NECESSAIRE_TOTAL ? 'var(--success)' : 'var(--text3)' } },
+              `${nNec}/${VOYAGE_NECESSAIRE_TOTAL}`),
+            h('div', { style:{ flex:1, minWidth:80, height:5, borderRadius:5, overflow:'hidden', background:'rgba(255,255,255,.07)' } },
+              h('div', { style:{ width: Math.round(nNec / VOYAGE_NECESSAIRE_TOTAL * 100) + '%', height:'100%', borderRadius:5,
+                background: nNec === VOYAGE_NECESSAIRE_TOTAL ? 'var(--success)' : 'linear-gradient(90deg,var(--accent-liika),var(--gold))', transition:'width .3s ease' } }))
+          ),
+          ouvertNec && h('div', { style:{ display:'grid', gap:12 } },
+            VOYAGE_NECESSAIRE.map(sec => {
+              const nf = sec.items.filter(it => checked[it.id]).length;
+              const complete = nf === sec.items.length;
+              return h('div', { key:sec.id, style:{ borderLeft:`3px solid ${sec.couleur}`, paddingLeft:10 } },
+                h('div', { style:{ display:'flex', alignItems:'center', gap:8, marginBottom:6, flexWrap:'wrap' } },
+                  h('span', { style:{ fontSize:13 } }, sec.icon),
+                  h('span', { style:{ fontSize:12, fontWeight:700, color: complete ? 'var(--success)' : sec.couleur } }, sec.titre),
+                  h('span', { style:{ fontFamily:"'Space Mono',monospace", fontSize:10, color:'var(--text3)' } }, `${nf}/${sec.items.length}`)
+                ),
+                h('div', { style:{ display:'grid', gap:3 } },
+                  sec.items.map(it => {
+                    const ok = !!checked[it.id];
+                    return h('button', {
+                      key:it.id,
+                      onClick:()=>toggleVoyageCheck(v.id, it.id),
+                      style:{ display:'flex', alignItems:'flex-start', gap:8, textAlign:'left', width:'100%',
+                        padding:'5px 8px', borderRadius:8, cursor:'pointer',
+                        border:`1px solid ${ok ? 'transparent' : 'var(--border)'}`,
+                        background: ok ? 'rgba(74,222,128,.08)' : 'transparent' }
+                    },
+                      h('span', { style:{ flexShrink:0, width:14, height:14, borderRadius:4, marginTop:1,
+                        border:`2px solid ${ok ? 'var(--success)' : 'var(--border2)'}`,
+                        background: ok ? 'var(--success)' : 'transparent',
+                        color:'#06120d', fontSize:9, fontWeight:700, lineHeight:'11px', textAlign:'center' } }, ok ? '✓' : ''),
+                      h('span', { style:{ fontSize:12, lineHeight:1.45, color: ok ? 'var(--text3)' : 'var(--text2)', textDecoration: ok ? 'line-through' : 'none' } }, it.t)
+                    );
+                  })
+                )
+              );
+            })
+          )
+        )
+      );
+    })
+    )
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AGENDA PARIS — culture & sorties
+// Entrées datées (expo, concert, resto…) rangées sous couple.paris : la section
+// « couple » est déjà couverte par le merge par section, donc l'agenda se
+// synchronise entre appareils sans table dédiée. Les helpers de date des voyages
+// (voyIsoValide / voyJoursAvant / voyFmtDate) sont réutilisés tels quels.
+// ─────────────────────────────────────────────────────────────────────────────
+// PARIS_TYPES est la source unique : normalize() n'accepte que ces valeurs, le
+// formulaire les propose, et le carnet se regroupe dans cet ordre. Ajouter un
+// type ici le propage partout.
+const PARIS_TYPES = ['Expo', 'Musée', 'Concert', 'Théâtre', 'Ciné', 'Resto', 'Balade', 'Sport', 'Marché', 'Autre'];
+const PARIS_TYPE_ICON = { Expo:'🖼', 'Musée':'🏛', Concert:'🎵', 'Théâtre':'🎭', 'Ciné':'🎬', Resto:'🍽', Balade:'🚶', Sport:'💪', 'Marché':'🧺', Autre:'✨' };
+const PARIS_STATUTS = ['Envie', 'Réservé', 'Fait'];
+const PARIS_STATUT_C = { 'Envie':'var(--accent-dja)', 'Réservé':'var(--gold)', 'Fait':'var(--success)' };
+
+// Repères pratiques, affichés en permanence : sans eux un agenda vide
+// n'apprendrait rien (cf. lessons.md L01). Les règles bougent — d'où les
+// formulations prudentes, à vérifier avant de se déplacer.
+const PARIS_BONS_PLANS = [
+  { id: 'bp1', titre: 'Gratuités régulières', icon: '🎟', couleur: 'var(--success)', items: [
+    'Beaucoup de musées nationaux sont gratuits le 1er dimanche du mois — la règle varie selon le musée et la saison, vérifie sur leur site.',
+    'Moins de 26 ans résidant dans l\'Union européenne : entrée gratuite en permanence dans les musées nationaux.',
+    'Musées de la Ville de Paris (Petit Palais, Carnavalet, Maison de Victor Hugo…) : collections permanentes gratuites toute l\'année.'
+  ]},
+  { id: 'bp2', titre: 'Les grands rendez-vous', icon: '📅', couleur: 'var(--gold)', items: [
+    'Journées du Patrimoine en septembre : des lieux habituellement fermés ouvrent gratuitement.',
+    'Nuit Blanche en octobre : parcours d\'art contemporain nocturne, gratuit.',
+    'Fête de la Musique le 21 juin : concerts partout, dans la rue comme dans les institutions.',
+    'Cinéma en plein air au Parc de la Villette l\'été.'
+  ]},
+  { id: 'bp3', titre: 'Payer moins cher', icon: '💶', couleur: 'var(--accent-liika)', items: [
+    'Kiosques Théâtre (Madeleine, Montparnasse) : places du jour à tarif réduit.',
+    'Beaucoup de cinémas pratiquent un tarif réduit avant midi — selon les salles.',
+    'Les expositions temporaires se réservent en ligne : moins cher et surtout sans la file.',
+    'Nombre de concerts en église sont à prix libre ou très accessibles.'
+  ]},
+  { id: 'bp4', titre: 'Se déplacer', icon: '🚇', couleur: '#60a5fa', items: [
+    'Navigo Jour pour une journée dense, Navigo Liberté+ pour un usage ponctuel au trajet.',
+    'Paris se traverse à pied en deux heures environ : souvent plus rapide et plus agréable que deux correspondances.',
+    'Vérifie les travaux et fermetures de ligne le week-end avant de partir.'
+  ]}
+];
+
+// Carnet de lieux : des envies sans date, qu'on bascule en sortie datée d'un
+// bouton. Sélection de départ volontairement limitée à des institutions et des
+// lieux stables — à remplacer par ta propre liste. Les adresses et les horaires
+// bougent : vérifie avant de te déplacer.
+const PARIS_LIEUX = [
+  // ── Repères parisiens (institutions et lieux stables) ──
+  { id: 'l-orsay', nom: 'Musée d\'Orsay', type: 'Musée', arr: '7e', note: 'Impressionnistes, dans une ancienne gare.' },
+  { id: 'l-orangerie', nom: 'Musée de l\'Orangerie', type: 'Musée', arr: '1er', note: 'Les Nymphéas de Monet, en deux salles ovales.' },
+  { id: 'l-petitpalais', nom: 'Petit Palais', type: 'Musée', arr: '8e', note: 'Collections permanentes gratuites.' },
+  { id: 'l-carnavalet', nom: 'Musée Carnavalet', type: 'Musée', arr: '3e', note: 'Histoire de Paris. Collections permanentes gratuites.' },
+  { id: 'l-ima', nom: 'Institut du Monde Arabe', type: 'Musée', arr: '5e', note: 'Terrasse avec vue sur la Seine.' },
+  { id: 'l-lv', nom: 'Fondation Louis Vuitton', type: 'Musée', arr: '16e', note: 'Art contemporain, au Bois de Boulogne.' },
+  { id: 'l-philharmonie', nom: 'Philharmonie de Paris', type: 'Concert', arr: '19e', note: 'Classique et jazz, à la Villette.' },
+  { id: 'l-cigale', nom: 'La Cigale', type: 'Concert', arr: '18e', note: 'Salle historique de Pigalle.' },
+  { id: 'l-theatreville', nom: 'Théâtre de la Ville', type: 'Théâtre', arr: '4e', note: 'Théâtre et danse contemporaine.' },
+  { id: 'l-rex', nom: 'Le Grand Rex', type: 'Ciné', arr: '2e', note: 'La plus grande salle d\'Europe.' },
+  { id: 'l-aligre', nom: 'Marché d\'Aligre', type: 'Marché', arr: '12e', note: 'Marché couvert et brocante, le matin.' },
+  { id: 'l-enfantsrouges', nom: 'Marché des Enfants Rouges', type: 'Marché', arr: '3e', note: 'Le plus ancien marché couvert de Paris.' },
+  { id: 'l-puces', nom: 'Puces de Saint-Ouen', type: 'Marché', arr: 'Saint-Ouen', note: 'Brocante géante, du samedi au lundi.' },
+  { id: 'l-buttes', nom: 'Parc des Buttes-Chaumont', type: 'Balade', arr: '19e', note: 'Reliefs, belvédère et guinguettes.' },
+  { id: 'l-couleeverte', nom: 'Coulée verte René-Dumont', type: 'Balade', arr: '12e', note: 'Promenade plantée sur un ancien viaduc.' },
+  { id: 'l-canal', nom: 'Canal Saint-Martin', type: 'Balade', arr: '10e', note: 'Écluses et quais, agréable en fin de journée.' },
+  { id: 'l-lachaise', nom: 'Père-Lachaise', type: 'Balade', arr: '20e', note: 'Cimetière-jardin, gratuit.' },
+  { id: 'l-recyclerie', nom: 'La REcyclerie', type: 'Autre', arr: '18e', note: 'Tiers-lieu dans une ancienne gare, Porte de Clignancourt.' },
+
+  // ── Tes lieux ──
+  { id: 'l-888', nom: '888 Night Market', type: 'Resto', arr: '3e', adresse: '37 rue Beaubourg, 75003 Paris' },
+  { id: 'l-bbetter', nom: 'B Better Paris', type: 'Resto', arr: '4e', adresse: '26 rue Beautreillis, 75004 Paris', lien: 'http://www.bbetterparis.fr/' },
+  { id: 'l-landmonkeys', nom: 'Land&Monkeys Turenne', type: 'Resto', arr: '4e', adresse: '2 rue de Turenne, 75004 Paris', note: 'Boulangerie-pâtisserie végétale.' },
+  { id: 'l-sma', nom: 'Service Militaire Adapté', type: 'Autre', arr: '7e', adresse: '27 rue Oudinot, 75007 Paris', note: 'Point de rassemblement.' },
+  { id: 'l-tontonsveg', nom: 'Les Tontons Veg', type: 'Resto', arr: '10e', adresse: '8 rue de Paradis, 75010 Paris', note: 'Cuisine végétalienne.' },
+  { id: 'l-bomaye', nom: 'Bomaye Burger Paradis', type: 'Resto', arr: '10e', adresse: '16 rue de Paradis, 75010 Paris', note: 'Burgers. Même rue que Les Tontons Veg.' },
+  { id: 'l-diambo', nom: 'Diambo Resto', type: 'Resto', arr: '11e', adresse: '28 rue Neuve des Boulets, 75011 Paris' },
+  { id: 'l-chicagofactory', nom: 'Chicago Factory', type: 'Resto', arr: '12e', adresse: '16 rue Henri Desgrange, 75012 Paris' },
+  { id: 'l-afriknfusion', nom: "Afrik'N'Fusion", type: 'Resto', arr: '13e', adresse: "54 rue Jeanne d'Arc, 75013 Paris", note: 'Cuisine afro-fusion.', lien: 'https://www.afriknfusion.fr/la-carte/' },
+  { id: 'l-leriche', nom: 'Leriche', type: 'Resto', arr: '17e', adresse: '16 rue Brey, 75017 Paris', tel: '0147540333', lien: 'https://www.leriche-restaurant.fr/' },
+  { id: 'l-aireremiseforme', nom: 'Aire de Remise en Forme', type: 'Sport', arr: '15e', adresse: 'Allée des Cygnes, 75015 Paris', note: 'Agrès en plein air, sur l\'île aux Cygnes.' },
+  { id: 'l-streetworkout', nom: 'Parc de Street Workout', type: 'Sport', arr: '15e', adresse: '33 avenue Albert Bartholomé, 75015 Paris', note: 'Barres et agrès en accès libre.' },
+  { id: 'l-jardinvoltiges', nom: 'Jardin des Voltiges', type: 'Sport', arr: '19e', adresse: 'Allée du Cercle, 75019 Paris' },
+  // Hors Paris intra-muros : `arr` porte alors le nom de la commune. Le tri par
+  // arrondissement les place en fin de catégorie, ce qui est le bon ordre ici.
+  { id: 'l-factoryscreteil', nom: "Factory's Créteil", type: 'Resto', arr: 'Créteil', adresse: '27 rue de la Basse Quinte, 94000 Créteil' },
+  { id: 'l-delicetropical', nom: 'Délice Tropical Bokit', type: 'Resto', arr: 'Créteil', adresse: 'Impasse des Marais, 94000 Créteil', note: 'Bokit — cuisine guadeloupéenne.' }
+];
+
+
+
+// Lien d'itinéraire Google Maps, construit côté client : pas d'appel réseau ni
+// de clé d'API. On vise l'adresse quand on l'a, sinon le nom du lieu suivi de
+// « Paris » — Maps résout très bien les établissements connus. Aucune adresse
+// n'est inventée : un mauvais numéro de rue enverrait au mauvais endroit.
+function parisItineraire(dest) {
+  const q = String(dest || '').trim();
+  if (!q) return '';
+  return 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(q);
+}
+// Cible d'itinéraire d'un lieu du carnet ou d'une sortie de l'agenda.
+function parisDestination(o) {
+  if (!o) return '';
+  const adr = String(o.adresse || '').trim();
+  if (adr) return adr;
+  const nom = String(o.nom || o.titre || '').trim();
+  if (!nom) return '';
+  // Sans adresse, on complète par la ville. `arr` vaut « 12e » dans Paris, mais
+  // le nom de la commune ailleurs : s'y fier évite d'envoyer chercher un lieu
+  // de Créteil dans Paris.
+  const arr = String(o.arr || '').trim();
+  const commune = (arr && !/^\d/.test(arr)) ? arr : 'Paris';
+  return nom + ', ' + commune;
+}
+
+// Numéro de téléphone en lien cliquable. On retire espaces, points et tirets
+// pour le href ; l'affichage garde la forme saisie.
+function parisTelHref(tel) {
+  const t = String(tel || '').replace(/[^\d+]/g, '');
+  return t ? 'tel:' + t : '';
+}
+
+function ParisView({ paris, addParis, updateParis, deleteParis }) {
+  const h = React.createElement;
+  const list = Array.isArray(paris) ? paris : [];
+  const [form, setForm] = React.useState({ titre:'', type:'Expo', date:'', lieu:'', adresse:'', tel:'', prix:'', lien:'', notes:'', statut:'Envie' });
+  const [show, setShow] = React.useState(false);
+  const [filtre, setFiltre] = React.useState('avenir');
+  const [plansOuverts, setPlansOuverts] = React.useState(false);
+  // Ajoutés après les précédents : l'ordre des hooks est stable pour les tests.
+  const [vue, setVue] = React.useState('agenda'); // 'agenda' | 'lieux'
+  const [progId, setProgId] = React.useState(null); // lieu en cours de programmation
+  const [progDate, setProgDate] = React.useState('');
+
+  // Un lieu est « déjà programmé » s'il existe une sortie du même titre encore à venir.
+  const dejaProgramme = nom => list.some(e => e.titre === nom && !(voyJoursAvant(e.date) < 0));
+  const programmer = (lieu, date) => {
+    addParis({ id: Date.now().toString(), titre: lieu.nom, type: lieu.type,
+      date: voyIsoValide(date), lieu: lieu.arr, adresse: lieu.adresse || '', tel: lieu.tel || '', prix: '', lien: lieu.lien || '',
+      notes: lieu.note || '', statut: 'Envie' });
+    setProgId(null); setProgDate(''); setVue('agenda');
+  };
+
+  const inp = { background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'8px 12px', fontSize:13, width:'100%', boxSizing:'border-box' };
+  const add = () => {
+    if (!form.titre.trim()) return;
+    addParis({ id: Date.now().toString(), ...form, titre: form.titre.trim(), date: voyIsoValide(form.date) });
+    setForm({ titre:'', type:'Expo', date:'', lieu:'', adresse:'', tel:'', prix:'', lien:'', notes:'', statut:'Envie' });
+    setShow(false);
+  };
+
+  // Les entrées datées à venir d'abord (du plus proche au plus lointain),
+  // puis les sans-date, puis les passées de la plus récente à la plus ancienne.
+  const passe = e => { const j = voyJoursAvant(e.date); return j !== null && j < 0; };
+  const filtrees = list.filter(e => filtre === 'toutes' ? true : filtre === 'passees' ? passe(e) : !passe(e));
+  const triees = filtrees.slice().sort((a, b) => {
+    const da = voyIsoValide(a.date), db = voyIsoValide(b.date);
+    if (da && db) return filtre === 'passees' ? db.localeCompare(da) : da.localeCompare(db);
+    if (da) return -1;
+    if (db) return 1;
+    return 0;
+  });
+  const nbAvenir = list.filter(e => !passe(e)).length;
+
+  return h('div', null,
+    h('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6, gap:10, flexWrap:'wrap' } },
+      h('h2', { style:{ margin:0, fontSize:20 } }, '🗼 Agenda Paris'),
+      vue === 'agenda' && h('button', { onClick:()=>setShow(!show), style:{ padding:'8px 18px', borderRadius:20, border:'none', background:'#e91e8c', color:'#fff', cursor:'pointer', fontWeight:700 } }, show ? '✕' : '+ Sortie')
+    ),
+    h('p', { style:{ margin:'0 0 16px', fontSize:12.5, color:'var(--text3)', fontStyle:'italic' } },
+      nbAvenir > 0 ? `${nbAvenir} sortie${nbAvenir > 1 ? 's' : ''} à venir.` : 'Expos, concerts, tables, balades — note ce que tu veux voir avant que ça ferme.'),
+
+    // ── Sous-vues : agenda daté / carnet de lieux ──
+    h('div', { className:'scroll-x', style:{ display:'flex', gap:8, marginBottom:14 } },
+      [['agenda','🗓 Agenda'],['lieux','📍 Carnet de lieux']].map(([k,l]) =>
+        h('button', { key:k, onClick:()=>setVue(k), style:{ padding:'6px 14px', borderRadius:20, cursor:'pointer', fontSize:12, whiteSpace:'nowrap',
+          border:`1px solid ${vue===k?'#e91e8c':'var(--border)'}`, background: vue===k?'rgba(233,30,140,.12)':'transparent',
+          color: vue===k?'#e91e8c':'var(--text3)', fontWeight: vue===k?700:400 } }, l))
+    ),
+
+    // ── Carnet de lieux : des envies sans date, à basculer en sortie ──
+    vue === 'lieux' && h('div', null,
+      h('p', { style:{ margin:'0 0 14px', fontSize:12.5, color:'var(--text3)', fontStyle:'italic', lineHeight:1.5 } },
+        `${PARIS_LIEUX.length} lieux repérés. « Programmer » en fait une sortie datée dans l'agenda.`),
+      // Regroupés par catégorie, dans l'ordre de PARIS_TYPES ; à l'intérieur
+      // d'une catégorie, par arrondissement croissant.
+      h('div', { style:{ display:'grid', gap:18 } },
+        PARIS_TYPES.map(t => {
+          const groupe = PARIS_LIEUX.filter(l => l.type === t)
+            .slice().sort((a, b) => (parseInt(a.arr, 10) || 99) - (parseInt(b.arr, 10) || 99));
+          if (!groupe.length) return null;
+          return h('div', { key:t },
+            h('div', { style:{ display:'flex', alignItems:'center', gap:8, marginBottom:8, paddingBottom:6, borderBottom:'1px solid var(--border)' } },
+              h('span', { style:{ fontSize:15 } }, PARIS_TYPE_ICON[t] || '✨'),
+              h('span', { style:{ fontSize:13, fontWeight:700, color:'var(--text2)' } }, t),
+              h('span', { style:{ fontFamily:"'Space Mono',monospace", fontSize:10.5, color:'var(--text3)' } }, groupe.length)
+            ),
+            h('div', { style:{ display:'grid', gap:8 } }, groupe.map(li => {
+          const deja = dejaProgramme(li.nom);
+          const enCours = progId === li.id;
+          return h('div', { key:li.id, style:{ background:'var(--glass)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'10px 14px' } },
+            h('div', { style:{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginBottom:4 } },
+              h('span', { style:{ fontSize:16 } }, PARIS_TYPE_ICON[li.type] || '✨'),
+              h('span', { style:{ fontWeight:700, fontSize:14, color:'var(--text)' } }, li.nom),
+              h('span', { style:{ fontSize:10, color:'var(--text3)', border:'1px solid var(--border)', borderRadius:999, padding:'1px 8px' } }, li.type),
+              h('span', { style:{ fontSize:11, color:'var(--text3)' } }, '📍 ' + li.arr),
+              deja && h('span', { style:{ fontSize:10, fontWeight:700, color:'var(--success)', background:'rgba(74,222,128,.14)', borderRadius:999, padding:'1px 8px' } }, '✓ Programmé')
+            ),
+            li.note && h('div', { style:{ fontSize:12, color:'var(--text3)', marginBottom:8, lineHeight:1.45 } }, li.note),
+            li.adresse && h('div', { style:{ fontSize:11.5, color:'var(--text3)', marginBottom:8 } }, '🏠 ' + li.adresse),
+            h('div', { style:{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' } },
+              !enCours && h('button', {
+                onClick:()=>{ setProgId(li.id); setProgDate(''); },
+                style:{ padding:'4px 12px', borderRadius:12, cursor:'pointer', fontSize:11.5, fontWeight:700,
+                  border:'1px solid #e91e8c', background:'rgba(233,30,140,.10)', color:'#e91e8c' }
+              }, '📅 Programmer'),
+              !enCours && h('a', { href: parisItineraire(parisDestination(li)), target:'_blank', rel:'noopener noreferrer',
+                style:{ padding:'4px 12px', borderRadius:12, fontSize:11.5, fontWeight:700, textDecoration:'none',
+                  border:'1px solid var(--border2)', color:'var(--text2)' } }, '🧭 Itinéraire'),
+              !enCours && li.lien && h('a', { href: li.lien, target:'_blank', rel:'noopener noreferrer',
+                style:{ fontSize:11.5, color:'#e91e8c', textDecoration:'none' } }, '↗ Site'),
+              !enCours && li.tel && h('a', { href: parisTelHref(li.tel),
+                style:{ fontSize:11.5, color:'var(--text2)', textDecoration:'none' } }, '📞 ' + li.tel)
+            ),
+            enCours && h('div', { style:{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' } },
+              h('input', { type:'date', value:progDate, onChange:ev=>setProgDate(ev.target.value),
+                style:{ ...inp, width:'auto', flex:'1 1 150px', padding:'6px 10px', fontSize:12 } }),
+              h('button', { onClick:()=>programmer(li, progDate),
+                style:{ padding:'6px 14px', borderRadius:12, border:'none', background:'#e91e8c', color:'#fff', cursor:'pointer', fontSize:11.5, fontWeight:700 } },
+                progDate ? 'Ajouter à l\'agenda' : 'Ajouter sans date'),
+              h('button', { onClick:()=>{ setProgId(null); setProgDate(''); },
+                style:{ padding:'6px 10px', borderRadius:12, border:'1px solid var(--border)', background:'transparent', color:'var(--text3)', cursor:'pointer', fontSize:11.5 } }, 'Annuler')
+            )
+          );
+            }))
+          );
+        })
+      )
+    ),
+
+    vue === 'agenda' && h('div', null,
+    show && h('div', { style:{ background:'var(--glass)', border:'1px solid rgba(233,30,140,.35)', borderRadius:'var(--radius)', padding:16, marginBottom:16 } },
+      h('input', { placeholder:'Quoi ? (ex : expo Basquiat à la Philharmonie) *', value:form.titre, onChange:e=>setForm(p=>({...p,titre:e.target.value})), style:{ ...inp, marginBottom:8 } }),
+      h('div', { style:{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:8 } },
+        PARIS_TYPES.map(t => h('button', { key:t, onClick:()=>setForm(p=>({...p,type:t})), style:{ padding:'4px 10px', borderRadius:14, border:`1px solid ${form.type===t?'#e91e8c':'var(--border)'}`, background:'transparent', color:form.type===t?'#e91e8c':'var(--text3)', cursor:'pointer', fontSize:11.5, fontWeight:form.type===t?700:400 } }, (PARIS_TYPE_ICON[t]||'') + ' ' + t))
+      ),
+      h('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 } },
+        h('label', { style:{ fontSize:10, color:'var(--text3)' } }, 'Date',
+          h('input', { type:'date', value:form.date, onChange:e=>setForm(p=>({...p,date:e.target.value})), style:{ ...inp, marginTop:3 } })),
+        h('input', { placeholder:'Lieu / arrondissement', value:form.lieu, onChange:e=>setForm(p=>({...p,lieu:e.target.value})), style:{ ...inp, alignSelf:'flex-end' } })
+      ),
+      h('input', { placeholder:'Adresse exacte (pour l\'itinéraire)', value:form.adresse, onChange:e=>setForm(p=>({...p,adresse:e.target.value})), style:{ ...inp, marginBottom:8 } }),
+      h('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 } },
+        h('input', { placeholder:'Prix', value:form.prix, onChange:e=>setForm(p=>({...p,prix:e.target.value})), style:inp }),
+        h('input', { placeholder:'Lien de réservation', value:form.lien, onChange:e=>setForm(p=>({...p,lien:e.target.value})), style:inp }),
+        h('input', { placeholder:'Téléphone', value:form.tel, onChange:e=>setForm(p=>({...p,tel:e.target.value})), style:inp })
+      ),
+      h('textarea', { placeholder:'Notes…', value:form.notes, onChange:e=>setForm(p=>({...p,notes:e.target.value})), style:{ ...inp, minHeight:55, marginBottom:10, resize:'vertical' } }),
+      h('button', { onClick:add, style:{ padding:'8px 20px', borderRadius:12, border:'none', background:'#e91e8c', color:'#fff', cursor:'pointer', fontWeight:700 } }, 'Enregistrer')
+    ),
+
+    h('div', { className:'scroll-x', style:{ display:'flex', gap:6, marginBottom:14 } },
+      [['avenir','À venir'],['passees','Passées'],['toutes','Toutes']].map(([k,l]) =>
+        h('button', { key:k, onClick:()=>setFiltre(k), style:{ padding:'4px 12px', borderRadius:14, cursor:'pointer', fontSize:11.5, whiteSpace:'nowrap',
+          border:`1px solid ${filtre===k?'#e91e8c':'var(--border)'}`, background: filtre===k?'rgba(233,30,140,.12)':'transparent',
+          color: filtre===k?'#e91e8c':'var(--text3)', fontWeight: filtre===k?700:400 } }, l))
+    ),
+
+    triees.length === 0 && h('div', { style:{ textAlign:'center', padding:'24px 0', color:'var(--text3)', fontSize:13 } },
+      filtre === 'passees' ? 'Aucune sortie passée.' : list.length ? 'Rien dans ce filtre.' : '🥐 Rien de prévu — commence par noter une envie.'),
+
+    h('div', { style:{ display:'grid', gap:10, marginBottom:20 } },
+      triees.map(e => {
+        const j = voyJoursAvant(e.date);
+        const estPasse = j !== null && j < 0;
+        const sc = PARIS_STATUT_C[e.statut] || 'var(--text3)';
+        return h('div', { key:e.id, style:{ background:'var(--glass)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'12px 16px', opacity: estPasse ? .62 : 1 } },
+          h('div', { style:{ display:'flex', gap:12, alignItems:'flex-start' } },
+            h('div', { style:{ flex:1, minWidth:0 } },
+              h('div', { style:{ display:'flex', alignItems:'center', gap:8, marginBottom:5, flexWrap:'wrap' } },
+                h('span', { style:{ fontSize:18 } }, PARIS_TYPE_ICON[e.type] || '✨'),
+                h('span', { style:{ fontWeight:700, color:'var(--text)', fontSize:14.5 } }, e.titre),
+                h('span', { style:{ fontSize:10, color:'var(--text3)', border:'1px solid var(--border)', borderRadius:999, padding:'1px 8px' } }, e.type),
+                j !== null && h('span', { style:{ fontSize:10, fontWeight:700, borderRadius:999, padding:'2px 8px',
+                  color: estPasse ? 'var(--text3)' : (j <= 3 ? 'var(--warn)' : 'var(--gold)'),
+                  background: (estPasse ? 'var(--text3)' : (j <= 3 ? 'var(--warn)' : 'var(--gold)')) + '1f' } },
+                  j === 0 ? "Aujourd'hui" : j === 1 ? 'Demain' : j > 0 ? `Dans ${j} j` : `Il y a ${-j} j`)
+              ),
+              h('div', { style:{ fontSize:12, color:'var(--text3)', marginBottom:4 } },
+                [voyIsoValide(e.date) && '📅 ' + voyFmtDate(e.date), e.lieu && '📍 ' + e.lieu, e.adresse && '🏠 ' + e.adresse, e.prix && '💶 ' + e.prix].filter(Boolean).join(' · ') || 'Sans date'),
+              e.notes && h('div', { style:{ fontSize:12, color:'var(--text3)', fontStyle:'italic', marginBottom:6 } }, e.notes),
+              h('div', { style:{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap', marginBottom:6 } },
+                h('a', { href: parisItineraire(parisDestination(e)), target:'_blank', rel:'noopener noreferrer',
+                  style:{ fontSize:11.5, color:'var(--text2)', textDecoration:'none', border:'1px solid var(--border2)', borderRadius:12, padding:'3px 10px' } }, '🧭 Itinéraire'),
+                e.lien && h('a', { href:e.lien, target:'_blank', rel:'noopener noreferrer', style:{ fontSize:11.5, color:'#e91e8c', textDecoration:'none' } }, '↗ Réserver'),
+                e.tel && h('a', { href: parisTelHref(e.tel), style:{ fontSize:11.5, color:'var(--text2)', textDecoration:'none' } }, '📞 ' + e.tel)
+              ),
+              h('div', { style:{ display:'flex', gap:4, flexWrap:'wrap' } },
+                PARIS_STATUTS.map(s => h('button', { key:s, onClick:()=>updateParis(e.id, { statut:s }), style:{ padding:'3px 10px', borderRadius:12, cursor:'pointer', fontSize:11,
+                  border:`1px solid ${e.statut===s?PARIS_STATUT_C[s]:'var(--border)'}`,
+                  background: e.statut===s?PARIS_STATUT_C[s]+'22':'transparent',
+                  color: e.statut===s?PARIS_STATUT_C[s]:'var(--text3)', fontWeight: e.statut===s?700:400 } }, s))
+              )
+            ),
+            h('button', { onClick:()=>confirm('Supprimer cette sortie ?') && deleteParis(e.id), style:{ background:'none', border:'none', color:'var(--danger)', cursor:'pointer', fontSize:18 } }, '×')
+          )
+        );
+      })
+    ),
+
+    // ── Bons plans : toujours accessibles, agenda vide ou non ──
+    h('div', { style:{ borderTop:'1px solid var(--border)', paddingTop:14 } },
+      h('button', { onClick:()=>setPlansOuverts(!plansOuverts), style:{ padding:'5px 14px', borderRadius:12, cursor:'pointer', fontSize:11.5, fontWeight:700,
+        border:'1px solid var(--gold)', background:'var(--gold-bg)', color:'var(--gold)' } },
+        (plansOuverts ? '▾ ' : '▸ ') + '💡 Bons plans parisiens'),
+      plansOuverts && h('div', { style:{ display:'grid', gap:12, marginTop:12 } },
+        PARIS_BONS_PLANS.map(sec => h('div', { key:sec.id, style:{ borderLeft:`3px solid ${sec.couleur}`, paddingLeft:10 } },
+          h('div', { style:{ display:'flex', alignItems:'center', gap:8, marginBottom:6 } },
+            h('span', { style:{ fontSize:13 } }, sec.icon),
+            h('span', { style:{ fontSize:12.5, fontWeight:700, color:sec.couleur } }, sec.titre)
+          ),
+          h('div', { style:{ display:'grid', gap:5 } },
+            sec.items.map((t, i) => h('div', { key:i, style:{ display:'flex', gap:8, alignItems:'flex-start' } },
+              h('span', { style:{ color:sec.couleur, flexShrink:0, fontSize:11, lineHeight:'18px' } }, '•'),
+              h('span', { style:{ fontSize:12, color:'var(--text2)', lineHeight:1.5 } }, t)
+            ))
+          )
+        ))
+      )
+    )
+    )
+  );
+}
+
+function ArtView() {
+  const [projets, setProjets] = React.useState(() => { try { return JSON.parse(LS.getItem('ld-artiste')||'[]'); } catch { return []; } });
+  const [form, setForm] = React.useState({ titre:'', type:'Musique', statut:'En cours', desc:'' });
+  const [show, setShow] = React.useState(false);
+  const TYPES = ['Musique','Visuel','Vidéo','Texte','Collab','Autre'];
+  const STATUTS = ['Idée','En cours','Terminé','Publié 🎉'];
+  const STAT_C = { 'Idée':'var(--text3)', 'En cours':'var(--gold)', 'Terminé':'var(--accent-liika)', 'Publié 🎉':'var(--success)' };
+  const save = l => { setProjets(l); LS.setItem('ld-artiste', JSON.stringify(l)); };
+  const add = () => { if (!form.titre.trim()) return; save([{ id:Date.now().toString(), date:new Date().toISOString().slice(0,10), ...form }, ...projets]); setForm({ titre:'', type:'Musique', statut:'En cours', desc:'' }); setShow(false); };
+  const del = id => save(projets.filter(p => p.id !== id));
+  const upd = (id, statut) => save(projets.map(p => p.id===id ? { ...p, statut } : p));
+  const inp = { background:'var(--bg2)', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'8px 12px', fontSize:13, width:'100%', boxSizing:'border-box' };
+  return React.createElement('div', null,
+    React.createElement('div', { style:{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 } },
+      React.createElement('h2', { style:{ margin:0, fontSize:20 } }, '🎨 Art & Projets — ' + yName('dja')),
+      React.createElement('button', { onClick:()=>setShow(!show), style:{ padding:'8px 18px', borderRadius:20, border:'none', background:'var(--accent-dja)', color:'#fff', cursor:'pointer', fontWeight:700 } }, show ? '✕' : '+ Projet')
+    ),
+    show && React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid var(--accent-dja-border)', borderRadius:'var(--radius)', padding:16, marginBottom:16 } },
+      React.createElement('input', { placeholder:'Titre du projet *', value:form.titre, onChange:e=>setForm(p=>({...p,titre:e.target.value})), style:{ ...inp, marginBottom:8 } }),
+      React.createElement('div', { style:{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:8 } },
+        TYPES.map(t => React.createElement('button', { key:t, onClick:()=>setForm(p=>({...p,type:t})), style:{ padding:'4px 10px', borderRadius:12, border:`1px solid ${form.type===t?'var(--accent-dja)':'var(--border)'}`, background:'transparent', color:form.type===t?'var(--accent-dja)':'var(--text3)', cursor:'pointer', fontSize:12, fontWeight:form.type===t?700:400 } }, t))
+      ),
+      React.createElement('textarea', { placeholder:'Description, notes, liens...', value:form.desc, onChange:e=>setForm(p=>({...p,desc:e.target.value})), style:{ ...inp, minHeight:70, marginBottom:10, resize:'vertical' } }),
+      React.createElement('button', { onClick:add, style:{ padding:'8px 20px', borderRadius:12, border:'none', background:'var(--accent-dja)', color:'#fff', cursor:'pointer', fontWeight:700 } }, 'Créer')
+    ),
+    projets.length === 0 && !show && React.createElement('div', { style:{ textAlign:'center', padding:'50px 0', color:'var(--text3)' } }, '🎭 Vos projets artistiques s\'afficheront ici'),
+    projets.map(p => React.createElement('div', { key:p.id, style:{ background:'var(--glass)', border:'1px solid var(--accent-dja-border)', borderRadius:'var(--radius)', padding:'14px 16px', marginBottom:10, display:'flex', gap:12, alignItems:'flex-start' } },
+      React.createElement('div', { style:{ flex:1 } },
+        React.createElement('div', { style:{ display:'flex', alignItems:'center', gap:8, marginBottom:6 } },
+          React.createElement('span', { style:{ fontSize:11, fontWeight:700, color:'var(--accent-dja)', background:'var(--accent-dja-bg)', borderRadius:8, padding:'2px 8px' } }, p.type),
+          React.createElement('span', { style:{ fontWeight:700, color:'var(--text)', fontSize:14 } }, p.titre)
+        ),
+        p.desc && React.createElement('div', { style:{ fontSize:12, color:'var(--text3)', lineHeight:1.5, marginBottom:8 } }, p.desc),
+        React.createElement('div', { style:{ display:'flex', gap:4, flexWrap:'wrap' } },
+          STATUTS.map(s => React.createElement('button', { key:s, onClick:()=>upd(p.id,s), style:{ padding:'3px 10px', borderRadius:12, border:`1px solid ${p.statut===s?STAT_C[s]:'var(--border)'}`, background:p.statut===s?STAT_C[s]+'22':'transparent', color:p.statut===s?STAT_C[s]:'var(--text3)', cursor:'pointer', fontSize:11, fontWeight:p.statut===s?700:400 } }, s))
+        )
+      ),
+      React.createElement('button', { onClick:()=>del(p.id), style:{ background:'none', border:'none', color:'var(--danger)', cursor:'pointer', fontSize:18 } }, '×')
+    ))
+  );
+}
+
+// ─── Young Boudha — données de référence statiques (journal du chakra de la gorge) ───
+const YB_ETATS = ['Sèche', 'Contractée', 'Fluide', 'Ouverte', 'Enflammée', 'Silencieuse'];
+const YB_PAROLE = ['Oui', 'Partiellement', 'Pas du tout'];
+const YB_RITUEL_LIBATION = [
+  'Assieds-toi face à l’Est (élément éther). Allume l’encens, respire profondément en chantant doucement le mantra HAM. Sens l’air traverser la gorge et nettoyer toute tension.',
+  'Formule sacrée : « O toi Source invisible qui traverse ma gorge, je t’offre l’eau de ma parole. Que ce qui était tu puisse danser. Que ce qui était faux se dissolve. Et que ma voix serve le vivant. »',
+  'Verse lentement l’eau en 3 temps (au sol, dans une plante, dans un ruisseau). À chaque versement, libère un mot : « J’efface le silence. » « Je libère la peur. » « J’invite la fluidité. »',
+  'Ancrage : bois une gorgée, pose les mains sur ta gorge puis sur ton cœur. Chuchote ton prénom suivi de : « Je m’écoute. Je me crois. Je me dis. »'
+];
+const YB_FICHE = [
+  ['Élément', 'Éther (espace)'],
+  ['Couleur', 'Bleu clair / turquoise'],
+  ['Bija mantra', 'HAM'],
+  ['Note', 'SOL'],
+  ['Localisation', 'Base du cou, au niveau de la glande thyroïde'],
+  ['Pierres', 'Aigue-marine, turquoise, lapis-lazuli, calcédoine bleue, larimar, célestite'],
+  ['Postures', 'Poisson (Matsyasana), chameau (Ustrasana), cobra (Bhujangasana), lion (Simhasana)'],
+  ['Plantes', 'Thym, guimauve, mauve, réglisse · HE : eucalyptus, menthe poivrée, camomille, lavande'],
+  ['Affirmations', '« Je m’exprime avec clarté et bienveillance. » · « Ma voix est un canal sacré. » · « Je mérite d’être entendu·e. »']
+];
+
+function YoungBoudhaView({ yb, updateYoungBoudha }) {
+  const h = React.createElement;
+  const y = (yb && Array.isArray(yb.jours) && yb.jours.length === 7) ? yb : ybEmpty();
+  const [open, setOpen] = React.useState(0);        // index du jour ouvert (-1 = aucun)
+  const [showRituel, setShowRituel] = React.useState(false);
+  const [showFiche, setShowFiche] = React.useState(false);
+
+  const setJour = (i, field, val) => updateYoungBoudha(s => { s.jours[i][field] = val; });
+  const toggleJour = (i, field) => updateYoungBoudha(s => { s.jours[i][field] = !s.jours[i][field]; });
+  const resetCycle = () => {
+    if (window.confirm('Remettre les 7 jours à zéro pour un nouveau cycle ? (tes observations d’intégration sont conservées)'))
+      updateYoungBoudha(s => { s.jours = ybEmpty().jours; });
+  };
+
+  const isFilled = j => !!(j.etat || j.parole || j.mantra || j.ecriture || j.rituel || j.affirmation || j.respiration || j.chant || j.silence);
+  const doneCount = y.jours.filter(isFilled).length;
+
+  // Styles (thème sombre, accent Dja violet)
+  const wrap = { maxWidth: 760, margin: '0 auto' };
+  const card = { background: 'var(--glass)', border: '1px solid var(--accent-dja-border)', borderRadius: 'var(--radius)', padding: 16, marginBottom: 12 };
+  const lbl = { fontSize: 12, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6, display: 'block' };
+  const input = { width: '100%', background: 'rgba(0,0,0,.2)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', padding: '8px 10px', fontSize: 14, fontFamily: 'inherit', boxSizing: 'border-box' };
+  const pill = active => ({ padding: '5px 11px', borderRadius: 999, fontSize: 12.5, cursor: 'pointer', border: '1px solid ' + (active ? 'var(--accent-dja)' : 'var(--border)'), background: active ? 'var(--accent-dja)' : 'transparent', color: active ? '#fff' : 'var(--text2)' });
+  const chk = active => ({ padding: '7px 12px', borderRadius: 8, fontSize: 13, cursor: 'pointer', border: '1px solid ' + (active ? 'var(--accent-dja)' : 'var(--border)'), background: active ? 'var(--accent-dja-bg)' : 'transparent', color: active ? 'var(--text)' : 'var(--text2)' });
+  const accordHead = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' };
+  const accordTitle = { fontFamily: "'Cormorant Garamond',serif", fontSize: 18, color: 'var(--text)' };
+  const caret = { color: 'var(--text3)', fontSize: 13 };
+
+  const renderJour = (j, i) => h('div', { key: 'j' + i, style: card },
+    h('div', { onClick: () => setOpen(open === i ? -1 : i), style: accordHead },
+      h('div', null,
+        h('span', { style: accordTitle }, 'Jour ' + (i + 1)),
+        j.etat && h('span', { style: { marginLeft: 10, fontSize: 12, color: 'var(--accent-dja)' } }, j.etat)
+      ),
+      h('span', { style: caret }, open === i ? '▾' : '▸')
+    ),
+    open === i && h('div', { style: { marginTop: 14, display: 'grid', gap: 14 } },
+      h('div', null,
+        h('label', { style: lbl }, 'État de la gorge'),
+        h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 6 } },
+          YB_ETATS.map(o => h('span', { key: o, onClick: () => setJour(i, 'etat', j.etat === o ? '' : o), style: pill(j.etat === o) }, o)))
+      ),
+      h('div', null,
+        h('label', { style: lbl }, 'Ai-je parlé avec vérité ?'),
+        h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 6 } },
+          YB_PAROLE.map(o => h('span', { key: o, onClick: () => setJour(i, 'parole', j.parole === o ? '' : o), style: pill(j.parole === o) }, o)))
+      ),
+      h('div', null,
+        h('label', { style: lbl }, 'Mantra du jour (à répéter 7×)'),
+        h('input', { value: j.mantra, onChange: e => setJour(i, 'mantra', e.target.value), placeholder: 'HAM · « Ma voix est libre » · « Je m’écoute »', style: input })
+      ),
+      h('div', null,
+        h('label', { style: lbl }, 'Écriture libre (5–10 min)'),
+        h('textarea', { value: j.ecriture, onChange: e => setJour(i, 'ecriture', e.target.value), rows: 4, placeholder: 'Si je pouvais dire ce que je tais depuis longtemps, je dirais…', style: { ...input, resize: 'vertical', lineHeight: 1.5 } })
+      ),
+      h('div', null,
+        h('label', { style: lbl }, 'Respiration · Chant · Silence'),
+        h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 6 } },
+          [['respiration', '🌬️ Respiration'], ['chant', '🎶 Chant'], ['silence', '🤫 Silence']].map(pair =>
+            h('span', { key: pair[0], onClick: () => toggleJour(i, pair[0]), style: chk(j[pair[0]]) }, (j[pair[0]] ? '✓ ' : '') + pair[1])))
+      ),
+      h('div', null,
+        h('label', { style: lbl }, 'Petit rituel du jour'),
+        h('input', { value: j.rituel, onChange: e => setJour(i, 'rituel', e.target.value), placeholder: 'boire une eau bleue · porter du bleu · dire une vérité à voix haute…', style: input })
+      ),
+      h('div', null,
+        h('label', { style: lbl }, 'Affirmation finale'),
+        h('input', { value: j.affirmation, onChange: e => setJour(i, 'affirmation', e.target.value), placeholder: 'Je choisis aujourd’hui de croire que…', style: input })
+      )
+    )
+  );
+
+  return h('div', { style: wrap },
+    h('div', { style: { marginBottom: 18 } },
+      h('p', { className: 'eyebrow', style: { marginBottom: 6 } }, '🧘 Young Boudha'),
+      h('h2', { style: { fontSize: 26, fontWeight: 600, fontFamily: "'Cormorant Garamond',serif", color: 'var(--text)', lineHeight: 1.1, margin: 0 } }, 'Chakra de la gorge · Vishuddha'),
+      h('p', { style: { fontSize: 13, color: 'var(--text3)', marginTop: 6, lineHeight: 1.5 } }, 'Journal de 7 jours pour libérer la parole intérieure, équilibrer l’expression et se réconcilier avec sa voix. Mantra du centre : HAM.')
+    ),
+    h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: 'wrap' } },
+      h('div', { style: { fontSize: 13, color: 'var(--text2)' } }, doneCount + ' / 7 jours entamés'),
+      h('button', { onClick: resetCycle, style: { background: 'none', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text2)', cursor: 'pointer', fontSize: 12.5, padding: '6px 12px' } }, '↺ Nouveau cycle')
+    ),
+    y.jours.map(renderJour),
+    h('div', { style: card },
+      h('div', { onClick: () => setShowRituel(!showRituel), style: accordHead },
+        h('span', { style: accordTitle }, '🌊 Rituel de libation (Vishuddha)'),
+        h('span', { style: caret }, showRituel ? '▾' : '▸')
+      ),
+      showRituel && h('ol', { style: { marginTop: 12, paddingLeft: 18, display: 'grid', gap: 10, color: 'var(--text2)', fontSize: 13.5, lineHeight: 1.55 } },
+        YB_RITUEL_LIBATION.map((t, k) => h('li', { key: k }, t)))
+    ),
+    h('div', { style: card },
+      h('div', { onClick: () => setShowFiche(!showFiche), style: accordHead },
+        h('span', { style: accordTitle }, '🔵 Fiche technique — Vishuddha'),
+        h('span', { style: caret }, showFiche ? '▾' : '▸')
+      ),
+      showFiche && h('div', { style: { marginTop: 12, display: 'grid', gap: 8 } },
+        YB_FICHE.map(row => h('div', { key: row[0], style: { display: 'grid', gridTemplateColumns: '110px 1fr', gap: 10, fontSize: 13, lineHeight: 1.5 } },
+          h('span', { style: { color: 'var(--accent-dja)', fontWeight: 600 } }, row[0]),
+          h('span', { style: { color: 'var(--text2)' } }, row[1]))))
+    ),
+    h('div', { style: card },
+      h('label', { style: lbl }, '🌌 Intégration — observations des 3 jours suivants'),
+      h('textarea', { value: y.integration, onChange: e => updateYoungBoudha(s => { s.integration = e.target.value; }), rows: 4, placeholder: 'Mots, rêves, conversations, révélations…', style: { ...input, resize: 'vertical', lineHeight: 1.5 } })
+    )
+  );
+}
+
+function CodeRousseauView({ codeRousseau, updateCodeRousseau }) {
+  const cr = codeRousseau || { eleves: [], fiches: [], notes: '' };
+  const [tab, setTab] = React.useState('referentiel');
+  const [expandDom, setExpandDom] = React.useState({});
+  const [expandFiche, setExpandFiche] = React.useState({});
+  const [expandSec, setExpandSec] = React.useState({});
+  const [expandLoi, setExpandLoi] = React.useState({});
+  const [expandEdpm, setExpandEdpm] = React.useState({});
+  const [showAddEleve, setShowAddEleve] = React.useState(false);
+  const [eleveName, setEleveName] = React.useState('');
+  const [elevePerm, setElevePerm] = React.useState('B');
+  const [selectedEleveId, setSelectedEleveId] = React.useState(null);
+  const [showAddFiche, setShowAddFiche] = React.useState(false);
+  const [ficheTheme, setFicheTheme] = React.useState('');
+  const [ficheObj, setFicheObj] = React.useState('');
+  const [ficheBilan, setFicheBilan] = React.useState('');
+
+  const addEleve = () => {
+    if (!eleveName.trim()) return;
+    const next = [...(cr.eleves || []), {
+      id: Date.now().toString(), nom: eleveName.trim(), niveau: elevePerm,
+      dateDebut: new Date().toISOString().slice(0, 10), notes: '', progression: {}
+    }];
+    updateCodeRousseau({ eleves: next });
+    setEleveName(''); setElevePerm('B'); setShowAddEleve(false);
+  };
+  const deleteEleve = id => {
+    if (!window.confirm('Supprimer cet élève ?')) return;
+    updateCodeRousseau({ eleves: (cr.eleves || []).filter(e => e.id !== id) });
+    if (selectedEleveId === id) setSelectedEleveId(null);
+  };
+  const setNiveau = (eleveId, compId, niv) => {
+    const next = (cr.eleves || []).map(e => e.id !== eleveId ? e :
+      { ...e, progression: { ...e.progression, [compId]: niv } });
+    updateCodeRousseau({ eleves: next });
+  };
+  const addFiche = () => {
+    if (!ficheTheme.trim()) return;
+    const next = [...(cr.fiches || []), {
+      id: Date.now().toString(), date: new Date().toISOString().slice(0, 10),
+      theme: ficheTheme.trim(), objectif: ficheObj.trim(), bilan: ficheBilan.trim()
+    }];
+    updateCodeRousseau({ fiches: next });
+    setFicheTheme(''); setFicheObj(''); setFicheBilan(''); setShowAddFiche(false);
+  };
+  const deleteFiche = id => updateCodeRousseau({ fiches: (cr.fiches || []).filter(f => f.id !== id) });
+
+  const selectedEleve = selectedEleveId ? (cr.eleves || []).find(e => e.id === selectedEleveId) : null;
+  const TABS = [
+    { id: 'referentiel', label: '📋 Référentiel' },
+    { id: 'revision',    label: '📚 Révision (9)' },
+    { id: 'securite',    label: '🛡 Sécurité (8)' },
+    { id: 'loi',         label: '⚖️ Loi (6)' },
+    { id: 'edpm',        label: '🛴 EDPM (5)' },
+    { id: 'eleves',      label: `👥 Élèves (${(cr.eleves||[]).length})` },
+    { id: 'fiches',      label: `📝 Fiches (${(cr.fiches||[]).length})` },
+    { id: 'notes',       label: '✏️ Notes' },
+  ];
+  const cardStyle = { background:'var(--glass)', border:'1px solid var(--accent-liika-border)', borderRadius:'var(--radius)', padding:'16px', marginBottom:12 };
+  const btnStyle = (active) => ({
+    padding:'6px 14px', borderRadius:20, border:'none', cursor:'pointer', fontSize:13,
+    background: active ? 'var(--accent-liika)' : 'var(--glass)',
+    color: active ? '#fff' : 'var(--text)', transition:'background .2s'
+  });
+
+  return React.createElement('div', null,
+    // En-tête
+    React.createElement('div', { style:{ ...cardStyle, background:'var(--grad-hero)', marginBottom:20 } },
+      React.createElement('div', { style:{ display:'flex', alignItems:'center', gap:12 } },
+        React.createElement('span', { style:{ fontSize:28 } }, '🎓'),
+        React.createElement('div', null,
+          React.createElement('h2', { style:{ margin:0, color:'var(--accent-liika)', fontSize:18 } }, DEMO ? 'Guide Code de la route — exemple' : 'Guide Code de la route'),
+          React.createElement('p', { style:{ margin:0, fontSize:13, color:'var(--text-muted)' } }, DEMO ? 'Guide pédagogique — exemple' : 'Code de la route · Guide du formateur')
+        )
+      )
+    ),
+    // Tabs
+    React.createElement('div', { style:{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:16 } },
+      TABS.map(t => React.createElement('button', { key:t.id, style:btnStyle(tab===t.id), onClick:()=>setTab(t.id) }, t.label))
+    ),
+
+    // ── TAB : Référentiel ──
+    tab === 'referentiel' && React.createElement('div', null,
+      React.createElement('div', { style:cardStyle },
+        React.createElement('h3', { style:{ margin:'0 0 8px', fontSize:14, color:'var(--gold)' } }, '⚙️ Méthode pédagogique — 3 étapes REMC'),
+        REMC_ETAPES.map(e => React.createElement('div', { key:e.id, style:{ marginBottom:8 } },
+          React.createElement('strong', { style:{ color:'var(--accent-liika)', fontSize:13 } }, e.label),
+          React.createElement('p', { style:{ margin:'2px 0 0 12px', fontSize:12, color:'var(--text-muted)' } }, e.desc)
+        ))
+      ),
+      REMC_DOMAINES.map(dom => React.createElement('div', { key:dom.id, style:cardStyle },
+        React.createElement('div', {
+          style:{ display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer' },
+          onClick: () => setExpandDom(prev => ({ ...prev, [dom.id]: !prev[dom.id] }))
+        },
+          React.createElement('h3', { style:{ margin:0, fontSize:15, color:'var(--text)' } },
+            dom.icon + ' ' + dom.titre
+          ),
+          React.createElement('span', { style:{ color:'var(--text-muted)', fontSize:18 } }, expandDom[dom.id] ? '▾' : '▸')
+        ),
+        expandDom[dom.id] && dom.competences.map(c => React.createElement('div', {
+          key:c.id, style:{ marginTop:10, paddingLeft:12, borderLeft:'2px solid var(--accent-liika-border)' }
+        },
+          React.createElement('div', { style:{ fontWeight:600, fontSize:13, color:'var(--accent-liika)' } }, c.code + ' — ' + c.titre),
+          React.createElement('div', { style:{ fontSize:12, color:'var(--text-muted)', marginTop:2 } }, c.detail)
+        ))
+      ))
+    ),
+
+    // ── TAB : Sécurité routière ──
+    tab === 'securite' && React.createElement('div', null,
+      React.createElement('p', { style:{ fontSize:12, color:'var(--text-muted)', marginBottom:14, fontStyle:'italic' } },
+        '8 fiches thématiques sécurité routière — points clés, sanctions et conseils pédagogiques pour le formateur.'
+      ),
+      REMC_FICHES_SECURITE.map(f => {
+        const open = !!expandSec[f.id];
+        return React.createElement('div', { key:f.id, style:{ background:'var(--glass)', border:'1px solid var(--accent-liika-border)', borderRadius:'var(--radius)', marginBottom:10, overflow:'hidden' } },
+          React.createElement('div', {
+            onClick: () => setExpandSec(prev => ({ ...prev, [f.id]: !prev[f.id] })),
+            style:{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'12px 16px', cursor:'pointer' }
+          },
+            React.createElement('span', { style:{ fontSize:14 } }, f.icon + ' '),
+            React.createElement('span', { style:{ color:'var(--text)', fontWeight:600, fontSize:13, flex:1, marginLeft:8 } }, f.titre),
+            React.createElement('span', { style:{ color:'var(--text-muted)', fontSize:16 } }, open ? '▾' : '▸')
+          ),
+          open && React.createElement('div', { style:{ padding:'0 16px 16px', borderTop:'1px solid var(--accent-liika-border)' } },
+            React.createElement('div', { style:{ marginTop:12 } },
+              React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'var(--gold)', marginBottom:6 } }, '✦ Points clés'),
+              React.createElement('ul', { style:{ margin:0, paddingLeft:18 } },
+                f.pointsCles.map((p,i) => React.createElement('li', { key:i, style:{ fontSize:12, color:'var(--text)', lineHeight:1.6, marginBottom:4 } }, p))
+              )
+            ),
+            React.createElement('div', { style:{ marginTop:12 } },
+              React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'#f87171', marginBottom:6 } }, '🚫 Sanctions'),
+              React.createElement('ul', { style:{ margin:0, paddingLeft:18 } },
+                f.sanctions.map((s,i) => React.createElement('li', { key:i, style:{ fontSize:12, color:'var(--text-muted)', lineHeight:1.6, marginBottom:4 } }, s))
+              )
+            ),
+            React.createElement('div', { style:{ marginTop:12, background:'var(--bg2)', borderRadius:8, padding:'10px 12px' } },
+              React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'var(--accent-liika)', marginBottom:6 } }, '🎓 Conseils formateur'),
+              f.conseilsFormateur.map((c,i) => React.createElement('div', { key:i, style:{ fontSize:12, color:'var(--text-muted)', lineHeight:1.6, marginBottom: i < f.conseilsFormateur.length-1 ? 6 : 0, paddingLeft:8, borderLeft:'2px solid var(--accent-liika-border)' } }, c))
+            )
+          )
+        );
+      })
+    ),
+
+    // ── TAB : Loi ──
+    tab === 'loi' && React.createElement('div', null,
+      React.createElement('p', { style:{ fontSize:12, color:'var(--text-muted)', marginBottom:14, fontStyle:'italic' } },
+        '6 fiches légales — textes de référence, infractions, agrément enseignant et responsabilité du moniteur.'
+      ),
+      REMC_LOIS.map(f => {
+        const open = !!expandLoi[f.id];
+        return React.createElement('div', { key:f.id, style:{ background:'var(--glass)', border:'1px solid var(--accent-liika-border)', borderRadius:'var(--radius)', marginBottom:10, overflow:'hidden' } },
+          React.createElement('div', {
+            onClick: () => setExpandLoi(prev => ({ ...prev, [f.id]: !prev[f.id] })),
+            style:{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'12px 16px', cursor:'pointer' }
+          },
+            React.createElement('span', { style:{ fontSize:14 } }, f.icon + ' '),
+            React.createElement('span', { style:{ color:'var(--text)', fontWeight:600, fontSize:13, flex:1, marginLeft:8 } }, f.titre),
+            React.createElement('span', { style:{ color:'var(--text-muted)', fontSize:16 } }, open ? '▾' : '▸')
+          ),
+          open && React.createElement('div', { style:{ padding:'0 16px 16px', borderTop:'1px solid var(--accent-liika-border)' } },
+            React.createElement('div', { style:{ marginTop:12 } },
+              React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'var(--gold)', marginBottom:6 } }, '📑 Contenu'),
+              React.createElement('ul', { style:{ margin:0, paddingLeft:18 } },
+                f.contenu.map((c,i) => React.createElement('li', { key:i, style:{ fontSize:12, color:'var(--text)', lineHeight:1.6, marginBottom:4 } }, c))
+              )
+            ),
+            React.createElement('div', { style:{ marginTop:12, background:'var(--bg2)', borderRadius:8, padding:'10px 12px' } },
+              React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'var(--text-muted)', marginBottom:6 } }, '📎 Références légales'),
+              f.references.map((r,i) => React.createElement('div', { key:i, style:{ fontSize:11, color:'var(--text-muted)', lineHeight:1.5, fontStyle:'italic', marginBottom:2 } }, '• ' + r))
+            ),
+            React.createElement('div', { style:{ marginTop:12 } },
+              React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'var(--accent-liika)', marginBottom:6 } }, '💡 Notes pratiques'),
+              f.notesPratiques.map((n,i) => React.createElement('div', { key:i, style:{ fontSize:12, color:'var(--text-muted)', lineHeight:1.6, marginBottom: i < f.notesPratiques.length-1 ? 6 : 0, paddingLeft:8, borderLeft:'2px solid var(--accent-liika-border)' } }, n))
+            )
+          )
+        );
+      })
+    ),
+
+    // ── TAB : EDPM ──
+    tab === 'edpm' && React.createElement('div', null,
+      React.createElement('p', { style:{ fontSize:12, color:'var(--text-muted)', marginBottom:6, fontStyle:'italic' } },
+        '5 fiches EDPM — Engins de Déplacement Personnel Motorisé : réglementation, risques et prévention routière.'
+      ),
+      React.createElement('div', { style:{ background:'var(--glass)', border:'1px solid var(--gold)', borderRadius:'var(--radius)', padding:'10px 14px', marginBottom:14, fontSize:12 } },
+        React.createElement('span', { style:{ fontWeight:700, color:'var(--gold)', marginRight:8 } }, '⚡ Cadre légal commun'),
+        'Tous les EDPM relèvent du décret n°2019-1082 du 23 octobre 2019. Vitesse max : 25 km/h, piste cyclable ou chaussée uniquement, casque obligatoire, assurance RC obligatoire, âge min 12 ans, interdit sur trottoirs et voies rapides.'
+      ),
+      EDPM_FICHES.map(f => {
+        const open = !!expandEdpm[f.id];
+        return React.createElement('div', { key:f.id, style:{ background:'var(--glass)', border:'1px solid var(--accent-liika-border)', borderRadius:'var(--radius)', marginBottom:10, overflow:'hidden' } },
+          React.createElement('div', {
+            onClick: () => setExpandEdpm(prev => ({ ...prev, [f.id]: !prev[f.id] })),
+            style:{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'12px 16px', cursor:'pointer' }
+          },
+            React.createElement('span', { style:{ fontSize:20 } }, f.icon),
+            React.createElement('span', { style:{ color:'var(--text)', fontWeight:700, fontSize:13, flex:1, marginLeft:10 } }, f.titre),
+            React.createElement('span', { style:{ color:'var(--text-muted)', fontSize:16 } }, open ? '▾' : '▸')
+          ),
+          open && React.createElement('div', { style:{ padding:'0 16px 16px', borderTop:'1px solid var(--accent-liika-border)' } },
+            React.createElement('p', { style:{ fontSize:12, color:'var(--text-muted)', margin:'10px 0 12px', fontStyle:'italic', lineHeight:1.5 } }, f.definition),
+            React.createElement('div', { style:{ marginBottom:12 } },
+              React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'var(--gold)', marginBottom:6 } }, '⚖️ Réglementation spécifique'),
+              React.createElement('ul', { style:{ margin:0, paddingLeft:18 } },
+                f.reglementation.map((r,i) => React.createElement('li', { key:i, style:{ fontSize:12, color:'var(--text)', lineHeight:1.6, marginBottom:3 } }, r))
+              )
+            ),
+            React.createElement('div', { style:{ marginBottom:12 } },
+              React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'#e74c3c', marginBottom:6 } }, '⚠️ Risques principaux'),
+              React.createElement('ul', { style:{ margin:0, paddingLeft:18 } },
+                f.risques.map((r,i) => React.createElement('li', { key:i, style:{ fontSize:12, color:'var(--text)', lineHeight:1.6, marginBottom:3 } }, r))
+              )
+            ),
+            React.createElement('div', { style:{ marginBottom:12 } },
+              React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'#27ae60', marginBottom:6 } }, '✅ Prévention & bons réflexes'),
+              React.createElement('ul', { style:{ margin:0, paddingLeft:18 } },
+                f.prevention.map((p,i) => React.createElement('li', { key:i, style:{ fontSize:12, color:'var(--text)', lineHeight:1.6, marginBottom:3 } }, p))
+              )
+            ),
+            React.createElement('div', { style:{ background:'var(--bg2)', borderRadius:8, padding:'10px 12px' } },
+              React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'var(--accent-liika)', marginBottom:6 } }, '💡 Conseils formateur'),
+              f.conseilsFormateur.map((c,i) => React.createElement('div', { key:i, style:{ fontSize:12, color:'var(--text-muted)', lineHeight:1.6, marginBottom: i < f.conseilsFormateur.length-1 ? 5 : 0, paddingLeft:8, borderLeft:'2px solid var(--accent-liika-border)' } }, c))
+            )
+          )
+        );
+      })
+    ),
+
+    // ── TAB : Élèves ──
+    tab === 'eleves' && React.createElement('div', null,
+      // Liste élèves (gauche) + détail progression (droite si sélectionné)
+      !selectedEleve && React.createElement('div', null,
+        React.createElement('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 } },
+          React.createElement('span', { style:{ fontWeight:600, color:'var(--text)' } }, 'Mes élèves'),
+          React.createElement('button', {
+            onClick: () => setShowAddEleve(s => !s),
+            style:{ ...btnStyle(showAddEleve), background:'var(--accent-liika)', color:'#fff' }
+          }, showAddEleve ? '✕ Annuler' : '+ Élève')
+        ),
+        showAddEleve && React.createElement('div', { style:{ ...cardStyle, display:'flex', gap:8, flexWrap:'wrap', alignItems:'flex-end', marginBottom:12 } },
+          React.createElement('div', null,
+            React.createElement('label', { style:{ display:'block', fontSize:12, color:'var(--text-muted)', marginBottom:4 } }, 'Nom complet'),
+            React.createElement('input', {
+              value: eleveName, onChange: e => setEleveName(e.target.value),
+              placeholder: 'Prénom NOM', onKeyDown: e => e.key==='Enter'&&addEleve(),
+              style:{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:8, padding:'6px 10px', color:'var(--text)', fontSize:13, width:180 }
+            })
+          ),
+          React.createElement('div', null,
+            React.createElement('label', { style:{ display:'block', fontSize:12, color:'var(--text-muted)', marginBottom:4 } }, 'Permis'),
+            React.createElement('select', {
+              value: elevePerm, onChange: e => setElevePerm(e.target.value),
+              style:{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:8, padding:'6px 10px', color:'var(--text)', fontSize:13 }
+            }, ['B','B96','BE','A','AM','C','CE','D'].map(p => React.createElement('option', { key:p, value:p }, p)))
+          ),
+          React.createElement('button', { onClick:addEleve, style:{ ...btnStyle(false), background:'var(--accent-liika)', color:'#fff' } }, 'Ajouter')
+        ),
+        (cr.eleves || []).length === 0
+          ? React.createElement('p', { style:{ color:'var(--text-muted)', fontStyle:'italic', textAlign:'center', padding:24 } }, 'Aucun élève pour l\'instant.')
+          : (cr.eleves || []).map(e => React.createElement('div', {
+              key: e.id,
+              style:{ ...cardStyle, display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer' },
+              onClick: () => setSelectedEleveId(e.id)
+            },
+              React.createElement('div', null,
+                React.createElement('div', { style:{ fontWeight:600, color:'var(--accent-liika)', fontSize:14 } }, '◇ ' + e.nom),
+                React.createElement('div', { style:{ fontSize:12, color:'var(--text-muted)', marginTop:2 } },
+                  'Permis ' + e.niveau + ' · Début : ' + e.dateDebut +
+                  ' · ' + REMC_DOMAINES.flatMap(d=>d.competences).filter(c=>(e.progression||{})[c.id]===3).length + '/9 autonomes'
+                )
+              ),
+              React.createElement('div', { style:{ display:'flex', gap:8, alignItems:'center' } },
+                React.createElement('span', { style:{ color:'var(--text-muted)', fontSize:20 } }, '›'),
+                React.createElement('button', {
+                  onClick: ev => { ev.stopPropagation(); deleteEleve(e.id); },
+                  style:{ background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer', fontSize:16, padding:'2px 6px' }
+                }, '×')
+              )
+            ))
+      ),
+      // Détail élève sélectionné
+      selectedEleve && React.createElement('div', null,
+        React.createElement('button', { onClick:()=>setSelectedEleveId(null), style:{ ...btnStyle(false), marginBottom:12 } }, '← Retour'),
+        React.createElement('h3', { style:{ color:'var(--accent-liika)', marginBottom:16 } }, '◇ ' + selectedEleve.nom + ' — Progression REMC'),
+        REMC_DOMAINES.map(dom => React.createElement('div', { key:dom.id, style:cardStyle },
+          React.createElement('h4', { style:{ margin:'0 0 10px', fontSize:14, color:'var(--text)' } }, dom.icon + ' ' + dom.titre),
+          dom.competences.map(c => React.createElement('div', { key:c.id, style:{ marginBottom:10 } },
+            React.createElement('div', { style:{ fontSize:13, marginBottom:6, color:'var(--text)' } },
+              React.createElement('span', { style:{ color:'var(--accent-liika)', fontWeight:600 } }, c.code),
+              ' ' + c.titre
+            ),
+            React.createElement('div', { style:{ display:'flex', gap:6, flexWrap:'wrap' } },
+              REMC_NIV_LABEL.map((lbl, idx) => {
+                const cur = (selectedEleve.progression || {})[c.id] || 0;
+                return React.createElement('button', {
+                  key: idx,
+                  onClick: () => setNiveau(selectedEleve.id, c.id, idx),
+                  style:{
+                    padding:'4px 10px', borderRadius:12, border:'none', cursor:'pointer', fontSize:11,
+                    background: cur === idx ? REMC_NIV_COLOR[idx] : 'var(--bg3)',
+                    color: cur === idx ? (idx===0?'#aaa':'#111') : 'var(--text-muted)',
+                    fontWeight: cur === idx ? 700 : 400, transition:'background .2s'
+                  }
+                }, lbl);
+              })
+            )
+          ))
+        ))
+      )
+    ),
+
+    // ── TAB : Fiches ──
+    // ── TAB : Révision ──
+    tab === 'revision' && React.createElement('div', null,
+      React.createElement('p', { style:{ fontSize:12, color:'var(--text-muted)', marginBottom:14, fontStyle:'italic' } },
+        '9 fiches de révision — une par compétence REMC. Cliquez pour dérouler points clés, erreurs fréquentes et questions d\'examen.'
+      ),
+      REMC_FICHES_REVISION.map(f => {
+        const open = !!expandFiche[f.id];
+        return React.createElement('div', { key:f.id, style:{ background:'var(--glass)', border:'1px solid var(--accent-liika-border)', borderRadius:'var(--radius)', marginBottom:10, overflow:'hidden' } },
+          // En-tête accordéon
+          React.createElement('div', {
+            onClick: () => setExpandFiche(prev => ({ ...prev, [f.id]: !prev[f.id] })),
+            style:{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'12px 16px', cursor:'pointer' }
+          },
+            React.createElement('div', null,
+              React.createElement('span', { style:{ fontSize:11, color:'var(--text-muted)', marginRight:8 } }, f.domaine),
+              React.createElement('span', { style:{ color:'var(--accent-liika)', fontWeight:700, fontSize:13, marginRight:6 } }, f.code),
+              React.createElement('span', { style:{ color:'var(--text)', fontSize:13 } }, f.titre)
+            ),
+            React.createElement('span', { style:{ color:'var(--text-muted)', fontSize:16, flexShrink:0 } }, open ? '▾' : '▸')
+          ),
+          // Contenu déroulable
+          open && React.createElement('div', { style:{ padding:'0 16px 16px', borderTop:'1px solid var(--accent-liika-border)' } },
+            // Points clés
+            React.createElement('div', { style:{ marginTop:12 } },
+              React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'var(--gold)', marginBottom:6 } }, '✦ Points clés'),
+              React.createElement('ul', { style:{ margin:0, paddingLeft:18 } },
+                f.pointsCles.map((p, i) => React.createElement('li', { key:i, style:{ fontSize:12, color:'var(--text)', lineHeight:1.6, marginBottom:4 } }, p))
+              )
+            ),
+            // Erreurs fréquentes
+            React.createElement('div', { style:{ marginTop:12 } },
+              React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'var(--accent-liika)', marginBottom:6 } }, '⚠ Erreurs fréquentes'),
+              React.createElement('ul', { style:{ margin:0, paddingLeft:18 } },
+                f.erreursFrequentes.map((e, i) => React.createElement('li', { key:i, style:{ fontSize:12, color:'var(--text-muted)', lineHeight:1.6, marginBottom:4 } }, e))
+              )
+            ),
+            // Questions d'examen
+            React.createElement('div', { style:{ marginTop:12, background:'var(--bg2)', borderRadius:8, padding:'10px 12px' } },
+              React.createElement('div', { style:{ fontSize:12, fontWeight:700, color:'var(--text)', marginBottom:6 } }, '❓ Questions d\'examen'),
+              f.questionsExamen.map((q, i) => React.createElement('div', { key:i, style:{ fontSize:12, color:'var(--text-muted)', lineHeight:1.6, marginBottom:i < f.questionsExamen.length-1 ? 4 : 0, paddingLeft:8, borderLeft:'2px solid var(--accent-liika-border)' } }, q))
+            )
+          )
+        );
+      })
+    ),
+
+    tab === 'fiches' && React.createElement('div', null,
+      React.createElement('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 } },
+        React.createElement('span', { style:{ fontWeight:600, color:'var(--text)' } }, 'Fiches de leçon'),
+        React.createElement('button', {
+          onClick: () => setShowAddFiche(s => !s),
+          style:{ ...btnStyle(false), background:'var(--accent-liika)', color:'#fff' }
+        }, showAddFiche ? '✕ Annuler' : '+ Fiche')
+      ),
+      showAddFiche && React.createElement('div', { style:{ ...cardStyle, marginBottom:12 } },
+        ['Thème / Compétence REMC','Objectif de la leçon','Bilan & points à retravailler'].map((lbl, i) => {
+          const vals = [ficheTheme, ficheObj, ficheBilan];
+          const setters = [setFicheTheme, setFicheObj, setFicheBilan];
+          return React.createElement('div', { key:i, style:{ marginBottom:8 } },
+            React.createElement('label', { style:{ display:'block', fontSize:12, color:'var(--text-muted)', marginBottom:4 } }, lbl),
+            React.createElement('input', {
+              value: vals[i], onChange: e => setters[i](e.target.value),
+              style:{ width:'100%', boxSizing:'border-box', background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:8, padding:'7px 10px', color:'var(--text)', fontSize:13 }
+            })
+          );
+        }),
+        React.createElement('button', { onClick:addFiche, style:{ ...btnStyle(false), marginTop:4, background:'var(--accent-liika)', color:'#fff' } }, 'Enregistrer')
+      ),
+      (cr.fiches || []).length === 0
+        ? React.createElement('p', { style:{ color:'var(--text-muted)', fontStyle:'italic', textAlign:'center', padding:24 } }, 'Aucune fiche pour l\'instant.')
+        : [...(cr.fiches || [])].reverse().map(f => React.createElement('div', { key:f.id, style:cardStyle },
+            React.createElement('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' } },
+              React.createElement('div', null,
+                React.createElement('div', { style:{ fontWeight:600, color:'var(--accent-liika)', fontSize:14 } }, f.theme),
+                React.createElement('div', { style:{ fontSize:11, color:'var(--text-muted)', marginBottom:6 } }, f.date),
+                f.objectif && React.createElement('div', { style:{ fontSize:12, color:'var(--text)', marginBottom:4 } },
+                  React.createElement('strong', null, 'Objectif : '), f.objectif
+                ),
+                f.bilan && React.createElement('div', { style:{ fontSize:12, color:'var(--text-muted)' } },
+                  React.createElement('strong', null, 'Bilan : '), f.bilan
+                )
+              ),
+              React.createElement('button', {
+                onClick: () => deleteFiche(f.id),
+                style:{ background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer', fontSize:16, padding:'0 4px', flexShrink:0 }
+              }, '×')
+            )
+          ))
+    ),
+
+    // ── TAB : Notes ──
+    tab === 'notes' && React.createElement('div', { style:cardStyle },
+      React.createElement('h3', { style:{ margin:'0 0 10px', fontSize:14, color:'var(--gold)' } }, '✏️ Notes formateur'),
+      React.createElement('textarea', {
+        value: cr.notes || '',
+        onChange: e => updateCodeRousseau({ notes: e.target.value }),
+        placeholder: 'Observations générales, rappels, ressources pédagogiques…',
+        style:{
+          width:'100%', boxSizing:'border-box', minHeight:200, background:'var(--bg2)',
+          border:'1px solid var(--border)', borderRadius:8, padding:'10px', color:'var(--text)',
+          fontSize:13, lineHeight:1.6, resize:'vertical'
+        }
+      })
+    )
+  );
+}
+
+// ─── Toast motivation quotidienne ───
+function MotivationToast({ message, onClose }) {
+  const [visible, setVisible] = React.useState(false);
+  React.useEffect(() => {
+    // fondu entrant
+    const t1 = setTimeout(() => setVisible(true), 50);
+    // auto-fermeture après 8 s
+    const t2 = setTimeout(() => { setVisible(false); setTimeout(onClose, 400); }, 8000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, []);
+  const handleClose = () => { setVisible(false); setTimeout(onClose, 400); };
+  return React.createElement('div', {
+    onClick: handleClose,
+    style: {
+      position: 'fixed',
+      bottom: 80,
+      left: '50%',
+      transform: `translateX(-50%) translateY(${visible ? 0 : 20}px)`,
+      opacity: visible ? 1 : 0,
+      transition: 'opacity .4s ease, transform .4s ease',
+      zIndex: 9999,
+      maxWidth: 420,
+      width: 'calc(100vw - 40px)',
+      background: 'rgba(18,28,18,.92)',
+      border: '1px solid var(--gold-border)',
+      borderRadius: 14,
+      boxShadow: '0 8px 32px rgba(0,0,0,.6)',
+      padding: '14px 44px 14px 16px',
+      backdropFilter: 'blur(10px)',
+      cursor: 'pointer'
+    }
+  },
+    React.createElement('div', {
+      style: { display: 'flex', alignItems: 'flex-start', gap: 10 }
+    },
+      React.createElement('span', { style: { fontSize: 18, lineHeight: 1.2, flexShrink: 0 } }, '✨'),
+      React.createElement('p', {
+        style: {
+          margin: 0,
+          fontSize: 13,
+          lineHeight: 1.5,
+          color: 'var(--text)',
+          fontStyle: 'italic'
+        }
+      }, message)
+    ),
+    React.createElement('button', {
+      onClick: e => { e.stopPropagation(); handleClose(); },
+      style: {
+        position: 'absolute',
+        top: 8, right: 10,
+        background: 'none',
+        border: 'none',
+        color: 'var(--text-muted)',
+        fontSize: 16,
+        cursor: 'pointer',
+        lineHeight: 1,
+        padding: '2px 4px'
+      }
+    }, '×')
+  );
+}
+
+// ─── Main App ───
+// ─── Yife : comptes, espaces et profil ───────────────────────────────────────
+// Un COMPTE (Supabase Auth, e-mail + mot de passe) appartient à UN ESPACE
+// (table yife_spaces) : solo, ou partagé à deux. Le créateur occupe la place
+// « dja » (profil A), le/la partenaire qui rejoint avec le code d'invitation
+// occupe la place « liika » (profil B). Toutes les données de l'espace vivent
+// dans un seul blob JSON (yife_spaces.data), protégé par RLS : seuls les membres
+// de l'espace peuvent le lire ou l'écrire. Voir highdrevm/supabase/yife.sql.
+let YIFE_USER = null; // utilisateur Supabase connecté (null en mode local)
+const YIFE_LOCAL_KEY = 'yife-local-mode';
+
+// Styles partagés des écrans Yife (connexion, création d'espace, profil).
+const yifeSt = {
+  overlay: { position:'fixed', inset:0, background:'rgba(6,14,10,.94)', backdropFilter:'blur(6px)', zIndex:1100, display:'flex', alignItems:'center', justifyContent:'center', padding:16 },
+  card: { background:'var(--bg2)', border:'1px solid var(--gold-border)', borderRadius:18, padding:'26px 22px', maxWidth:460, width:'100%', maxHeight:'92vh', overflowY:'auto', boxShadow:'0 24px 70px rgba(0,0,0,.6)', boxSizing:'border-box' },
+  title: { margin:'0 0 6px', fontSize:26, color:'var(--gold)', fontFamily:"'Cormorant Garamond',serif", textAlign:'center' },
+  sub: { margin:'0 0 18px', fontSize:13, color:'var(--text3)', textAlign:'center', lineHeight:1.6 },
+  lbl: { fontSize:12, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.05em', display:'block', marginTop:12 },
+  inp: { width:'100%', padding:'11px 12px', borderRadius:10, border:'1px solid var(--border)', background:'var(--bg3)', color:'var(--text)', fontSize:15, marginTop:6, boxSizing:'border-box' },
+  seg: (active) => ({ flex:1, padding:'11px 12px', borderRadius:12, cursor:'pointer', fontSize:14, fontWeight:600, border:'1px solid '+(active?'var(--gold)':'var(--border)'), background: active?'rgba(212,175,55,.15)':'transparent', color: active?'var(--gold)':'var(--text)' }),
+  cta: { width:'100%', padding:'13px', borderRadius:12, border:'none', cursor:'pointer', fontSize:15, fontWeight:700, background:'var(--gold)', color:'#1a1206', marginTop:20 },
+  ghost: { width:'100%', padding:'11px', borderRadius:12, border:'1px solid var(--border)', cursor:'pointer', fontSize:14, fontWeight:600, background:'transparent', color:'var(--text)', marginTop:10 },
+  link: { background:'none', border:'none', color:'var(--text3)', fontSize:12.5, cursor:'pointer', marginTop:14, textDecoration:'underline' },
+  msg: (ok) => ({ marginTop:14, padding:'10px 12px', borderRadius:10, fontSize:13, lineHeight:1.5, border:'1px solid '+(ok?'rgba(74,222,128,.4)':'rgba(248,113,113,.45)'), background: ok?'rgba(74,222,128,.08)':'rgba(248,113,113,.08)', color: ok?'var(--success)':'var(--danger)' })
+};
+
+// Messages d'erreur Supabase → français lisible.
+function yifeErr(e) {
+  const m = String((e && (e.message || e.error_description)) || e || '');
+  if (/Invalid login credentials/i.test(m)) return 'E-mail ou mot de passe incorrect.';
+  if (/Email not confirmed/i.test(m)) return 'Adresse pas encore confirmée : clique sur le lien reçu par e-mail.';
+  if (/already registered|already been registered/i.test(m)) return 'Un compte existe déjà avec cette adresse. Connecte-toi.';
+  if (/Password should be at least/i.test(m)) return 'Mot de passe trop court (8 caractères minimum).';
+  if (/rate limit|too many/i.test(m)) return 'Trop de tentatives. Réessaie dans quelques minutes.';
+  if (/code_invalide/i.test(m)) return "Code d'invitation introuvable. Vérifie-le auprès de ton/ta partenaire.";
+  if (/espace_complet/i.test(m)) return 'Cet espace a déjà ses deux membres.';
+  if (/Failed to fetch|NetworkError/i.test(m)) return 'Pas de connexion internet.';
+  return m || 'Une erreur est survenue.';
+}
+function yifeRedirect() {
+  return (typeof window !== 'undefined') ? window.location.origin + window.location.pathname : undefined;
+}
+// Données initiales d'un espace neuf : tout vide, sauf le profil saisi.
+function yifeInitialData({ espace, mode, nameA, nameB }) {
+  const d = clone(defaultData);
+  d.profil = { espace: (espace || '').trim(), mode: mode === 'solo' ? 'solo' : 'couple', soloWho: 'dja' };
+  d.dja.name = (nameA || '').trim();
+  if (mode !== 'solo') d.liika.name = (nameB || '').trim();
+  return d;
+}
+function yifeDownload(filename, text) {
+  const blob = new Blob([text], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// ─── Écran de connexion / inscription / mot de passe oublié ───
+function YifeAuthScreen({ recovery, onRecovered }) {
+  const h = React.createElement;
+  const [mode, setMode] = React.useState(recovery ? 'recovery' : 'login'); // login | signup | forgot | recovery
+  const [email, setEmail] = React.useState('');
+  const [pwd, setPwd] = React.useState('');
+  const [pwd2, setPwd2] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+  const [msg, setMsg] = React.useState(null); // { ok, text }
+  const go = (m) => { setMode(m); setMsg(null); };
+  const submit = async (e) => {
+    if (e) e.preventDefault();
+    setMsg(null);
+    const mail = email.trim();
+    if (mode !== 'recovery' && !/^\S+@\S+\.\S+$/.test(mail)) { setMsg({ ok:false, text:'Adresse e-mail invalide.' }); return; }
+    if ((mode === 'signup' || mode === 'recovery') && pwd.length < 8) { setMsg({ ok:false, text:'Mot de passe : 8 caractères minimum.' }); return; }
+    if ((mode === 'signup' || mode === 'recovery') && pwd !== pwd2) { setMsg({ ok:false, text:'Les deux mots de passe ne correspondent pas.' }); return; }
+    setBusy(true);
+    try {
+      if (mode === 'login') {
+        const { error } = await sb.auth.signInWithPassword({ email: mail, password: pwd });
+        if (error) throw error; // la suite (espace) est gérée par YifeGate via onAuthStateChange
+      } else if (mode === 'signup') {
+        const { data, error } = await sb.auth.signUp({ email: mail, password: pwd, options: { emailRedirectTo: yifeRedirect() } });
+        if (error) throw error;
+        if (!data.session) { go('login'); setMsg({ ok:true, text:'Compte créé ! Confirme ton adresse avec le lien reçu par e-mail, puis connecte-toi.' }); }
+      } else if (mode === 'forgot') {
+        const { error } = await sb.auth.resetPasswordForEmail(mail, { redirectTo: yifeRedirect() });
+        if (error) throw error;
+        setMsg({ ok:true, text:'Si un compte existe pour cette adresse, un lien de réinitialisation vient de partir.' });
+      } else if (mode === 'recovery') {
+        const { error } = await sb.auth.updateUser({ password: pwd });
+        if (error) throw error;
+        onRecovered && onRecovered();
+      }
+    } catch (err) {
+      setMsg({ ok:false, text: yifeErr(err) });
+    } finally { setBusy(false); }
+  };
+  const titles = { login:'Connexion', signup:'Créer un compte', forgot:'Mot de passe oublié', recovery:'Nouveau mot de passe' };
+  return h('div', { style:yifeSt.overlay },
+    h('form', { style:yifeSt.card, onSubmit:submit },
+      h('div', { style:{ textAlign:'center', fontSize:38, marginBottom:4 } }, '♡'),
+      h('h1', { style:yifeSt.title }, BRAND),
+      h('p', { style:yifeSt.sub }, BRAND_TAG + ' — objectifs, repas, budget, sport, maison, voyages…'),
+      h('h2', { style:{ margin:'0 0 4px', fontSize:17, color:'var(--text)' } }, titles[mode]),
+      mode !== 'recovery' && h('label', { style:yifeSt.lbl }, 'E-mail',
+        h('input', { style:yifeSt.inp, type:'email', autoComplete:'email', autoFocus:true, value:email, onChange:e=>setEmail(e.target.value), placeholder:'toi@exemple.com' })),
+      mode !== 'forgot' && h('label', { style:yifeSt.lbl }, mode === 'recovery' ? 'Nouveau mot de passe' : 'Mot de passe',
+        h('input', { style:yifeSt.inp, type:'password', autoComplete: mode === 'login' ? 'current-password' : 'new-password', value:pwd, onChange:e=>setPwd(e.target.value), placeholder: mode === 'login' ? '••••••••' : '8 caractères minimum' })),
+      (mode === 'signup' || mode === 'recovery') && h('label', { style:yifeSt.lbl }, 'Confirmer le mot de passe',
+        h('input', { style:yifeSt.inp, type:'password', autoComplete:'new-password', value:pwd2, onChange:e=>setPwd2(e.target.value) })),
+      msg && h('div', { style:yifeSt.msg(msg.ok), role:'status' }, msg.text),
+      h('button', { type:'submit', style:{ ...yifeSt.cta, opacity: busy ? .6 : 1 }, disabled:busy },
+        busy ? 'Un instant…' : mode === 'login' ? 'Se connecter' : mode === 'signup' ? 'Créer mon compte' : mode === 'forgot' ? 'Recevoir le lien' : 'Enregistrer'),
+      h('div', { style:{ display:'flex', flexDirection:'column', alignItems:'center' } },
+        mode === 'login' && h('button', { type:'button', style:yifeSt.link, onClick:()=>go('signup') }, 'Pas encore de compte ? Créer un compte'),
+        mode === 'login' && h('button', { type:'button', style:{ ...yifeSt.link, marginTop:8 }, onClick:()=>go('forgot') }, 'Mot de passe oublié ?'),
+        (mode === 'signup' || mode === 'forgot') && h('button', { type:'button', style:yifeSt.link, onClick:()=>go('login') }, '← J’ai déjà un compte')
+      )
+    )
+  );
+}
+
+// ─── Création d'espace (ou connexion à celui du/de la partenaire) ───
+// `local` : pas de compte (Supabase non configuré) → seule la création est possible.
+function YifeSpaceSetup({ local, onCreate, onJoin, onSignOut }) {
+  const h = React.createElement;
+  const [tab, setTab] = React.useState('create'); // create | join
+  const [mode, setMode] = React.useState('solo');
+  const [espace, setEspace] = React.useState('');
+  const [nameA, setNameA] = React.useState('');
+  const [nameB, setNameB] = React.useState('');
+  const [code, setCode] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+  const [msg, setMsg] = React.useState(null);
+  const run = async (fn) => {
+    setBusy(true); setMsg(null);
+    try { await fn(); } catch (err) { setMsg({ ok:false, text: yifeErr(err) }); setBusy(false); }
+  };
+  const create = (e) => {
+    e.preventDefault();
+    if (!nameA.trim()) { setMsg({ ok:false, text:'Indique au moins ton prénom.' }); return; }
+    run(() => onCreate({ espace, mode, nameA, nameB }));
+  };
+  const join = (e) => {
+    e.preventDefault();
+    if (code.trim().length < 6) { setMsg({ ok:false, text:"Le code d'invitation fait 8 caractères." }); return; }
+    run(() => onJoin(code.trim().toUpperCase()));
+  };
+  return h('div', { style:yifeSt.overlay },
+    h('div', { style:yifeSt.card },
+      h('h1', { style:yifeSt.title }, 'Bienvenue sur ' + BRAND),
+      h('p', { style:yifeSt.sub }, 'Ton espace démarre vide : objectifs, repas, budget, planning… tu remplis au fur et à mesure. Tout reste modifiable dans 👤 Mon profil.'),
+      !local && h('div', { style:{ display:'flex', gap:8, marginBottom:6 } },
+        h('button', { type:'button', onClick:()=>{ setTab('create'); setMsg(null); }, style:yifeSt.seg(tab==='create') }, '✨ Créer mon espace'),
+        h('button', { type:'button', onClick:()=>{ setTab('join'); setMsg(null); }, style:yifeSt.seg(tab==='join') }, '🔗 Rejoindre')
+      ),
+      tab === 'create' ? h('form', { onSubmit:create },
+        h('div', { style:yifeSt.lbl }, 'Je gère ma vie…'),
+        h('div', { style:{ display:'flex', gap:8, marginTop:8 } },
+          h('button', { type:'button', onClick:()=>setMode('solo'), style:yifeSt.seg(mode==='solo') }, '🧑 Solo'),
+          h('button', { type:'button', onClick:()=>setMode('couple'), style:yifeSt.seg(mode==='couple') }, '👫 À deux')
+        ),
+        h('label', { style:yifeSt.lbl }, 'Ton prénom',
+          h('input', { style:yifeSt.inp, autoFocus:true, value:nameA, onChange:e=>setNameA(e.target.value), placeholder:'Ex : Alex' })),
+        mode === 'couple' && h('label', { style:yifeSt.lbl }, 'Le prénom de ta moitié',
+          h('input', { style:yifeSt.inp, value:nameB, onChange:e=>setNameB(e.target.value), placeholder:'Ex : Sam' })),
+        h('label', { style:yifeSt.lbl }, 'Nom de l’espace (facultatif)',
+          h('input', { style:yifeSt.inp, value:espace, onChange:e=>setEspace(e.target.value), placeholder: mode === 'couple' ? 'Ex : Chez nous' : 'Ex : Ma vie 2026' })),
+        mode === 'couple' && !local && h('p', { style:{ fontSize:12.5, color:'var(--text3)', marginTop:12, lineHeight:1.5 } },
+          '💌 Une fois l’espace créé, tu trouveras dans 👤 Mon profil un code à donner à ta moitié pour qu’elle rejoigne l’espace avec son propre compte.'),
+        msg && h('div', { style:yifeSt.msg(msg.ok) }, msg.text),
+        h('button', { type:'submit', disabled:busy, style:{ ...yifeSt.cta, opacity: busy ? .6 : 1 } }, busy ? 'Création…' : "C'est parti →")
+      ) : h('form', { onSubmit:join },
+        h('p', { style:{ fontSize:13.5, color:'var(--text)', lineHeight:1.6, marginTop:8 } },
+          'Ta moitié a déjà créé votre espace ? Demande-lui le code affiché dans son 👤 Mon profil.'),
+        h('label', { style:yifeSt.lbl }, "Code d'invitation",
+          h('input', { style:{ ...yifeSt.inp, letterSpacing:'.2em', textTransform:'uppercase', fontFamily:"'Space Mono',monospace" }, autoFocus:true, maxLength:8, value:code, onChange:e=>setCode(e.target.value), placeholder:'AB12CD34' })),
+        msg && h('div', { style:yifeSt.msg(msg.ok) }, msg.text),
+        h('button', { type:'submit', disabled:busy, style:{ ...yifeSt.cta, opacity: busy ? .6 : 1 } }, busy ? 'Connexion…' : 'Rejoindre l’espace')
+      ),
+      !local && h('div', { style:{ textAlign:'center' } },
+        h('button', { type:'button', style:yifeSt.link, onClick:onSignOut }, 'Se déconnecter'))
+    )
+  );
+}
+
+// ─── Aiguillage : pas de compte → connexion ; pas d'espace → création ; sinon l'app ───
+function YifeGate() {
+  const h = React.createElement;
+  const [phase, setPhase] = React.useState('loading'); // loading | noconfig | auth | recovery | setup | app | error
+  const [user, setUser] = React.useState(null);
+  const [err, setErr] = React.useState('');
+  const [appKey, setAppKey] = React.useState('');
+  const phaseRef = React.useRef('loading');
+  const go = (p) => { phaseRef.current = p; setPhase(p); };
+
+  const enterSpace = React.useCallback((u, member) => {
+    YIFE_USER = u;
+    YIFE_SPACE_ID = member.space_id;
+    YIFE_SLOT = member.slot === 'liika' ? 'liika' : 'dja';
+    LS_NS = 'yife:' + u.id + ':';
+    setAppKey(u.id + ':' + member.space_id);
+    go('app');
+  }, []);
+  const enterLocal = React.useCallback(() => {
+    YIFE_USER = null; YIFE_SPACE_ID = null; YIFE_SLOT = 'dja';
+    LS_NS = 'yife:local:';
+    setAppKey('local');
+    go(LS.getItem('dja-liika-goals') ? 'app' : 'setup');
+  }, []);
+  const resolve = React.useCallback(async (session) => {
+    if (!session) { YIFE_USER = null; YIFE_SPACE_ID = null; setUser(null); go('auth'); return; }
+    setUser(session.user);
+    YIFE_USER = session.user;
+    const { data, error } = await sb.from('yife_members').select('space_id,slot').eq('user_id', session.user.id).limit(1);
+    if (error) { setErr(yifeErr(error)); go('error'); return; }
+    if (data && data.length) enterSpace(session.user, data[0]);
+    else go('setup');
+  }, [enterSpace]);
+
+  React.useEffect(() => {
+    if (!sb) {
+      let local = false;
+      try { local = _rawLS.getItem(YIFE_LOCAL_KEY) === '1'; } catch (_) {}
+      if (local) enterLocal(); else go('noconfig');
+      return;
+    }
+    // Ne jamais attendre un appel Supabase DANS le callback d'auth (verrou interne) :
+    // on repousse le travail au tour suivant de la boucle d'événements.
+    const { data: sub } = sb.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') { go('recovery'); return; }
+      if (event === 'SIGNED_OUT') { setTimeout(() => resolve(null), 0); return; }
+      if (event === 'INITIAL_SESSION' || (event === 'SIGNED_IN' && (phaseRef.current === 'auth' || phaseRef.current === 'loading'))) {
+        setTimeout(() => resolve(session).catch(e => { setErr(yifeErr(e)); go('error'); }), 0);
+      }
+    });
+    return () => { sub && sub.subscription && sub.subscription.unsubscribe(); };
+  }, [resolve, enterLocal]);
+
+  const signOut = React.useCallback(() => { if (sb) sb.auth.signOut(); }, []);
+
+  const onCreate = async (form) => {
+    const initial = yifeInitialData(form);
+    if (!sb) { // mode local : l'espace, c'est ce navigateur
+      LS.setItem('dja-liika-goals', JSON.stringify(initial));
+      setAppKey('local:' + Date.now()); go('app');
+      return;
+    }
+    const { data, error } = await sb.rpc('yife_create_space', { p_name: initial.profil.espace, p_data: initial });
+    if (error) throw error;
+    const member = Array.isArray(data) ? data[0] : data;
+    LS_NS = 'yife:' + user.id + ':';
+    LS.setItem('dja-liika-goals', JSON.stringify(initial));
+    enterSpace(user, member);
+  };
+  const onJoin = async (code) => {
+    const { data, error } = await sb.rpc('yife_join_space', { p_code: code });
+    if (error) throw error;
+    enterSpace(user, Array.isArray(data) ? data[0] : data);
+  };
+
+  if (phase === 'loading') return h('div', { style:yifeSt.overlay }, h('div', { style:{ color:'var(--gold)', fontFamily:"'Cormorant Garamond',serif", fontSize:28 } }, BRAND + '…'));
+  if (phase === 'noconfig') return h('div', { style:yifeSt.overlay },
+    h('div', { style:yifeSt.card },
+      h('h1', { style:yifeSt.title }, BRAND),
+      h('p', { style:yifeSt.sub }, 'Les comptes en ligne ne sont pas encore branchés sur ce site (fichier config.js à compléter).'),
+      h('p', { style:{ fontSize:13.5, color:'var(--text)', lineHeight:1.6 } }, 'Tu peux déjà utiliser ' + BRAND + ' sur cet appareil, sans compte : tes données restent dans ce navigateur. Pense à exporter une sauvegarde depuis 👤 Mon profil.'),
+      h('button', { style:yifeSt.cta, onClick:()=>{ try { _rawLS.setItem(YIFE_LOCAL_KEY, '1'); } catch (_) {} enterLocal(); } }, 'Utiliser sur cet appareil →')
+    ));
+  if (phase === 'auth') return h(YifeAuthScreen, null);
+  if (phase === 'recovery') return h(YifeAuthScreen, { recovery:true, onRecovered: () => { go('loading'); sb.auth.getSession().then(({ data }) => resolve(data.session)); } });
+  if (phase === 'error') return h('div', { style:yifeSt.overlay },
+    h('div', { style:yifeSt.card },
+      h('h1', { style:yifeSt.title }, BRAND),
+      h('div', { style:yifeSt.msg(false) }, err || 'Impossible de charger ton espace.'),
+      h('button', { style:yifeSt.cta, onClick:()=>{ go('loading'); sb.auth.getSession().then(({ data }) => resolve(data.session)).catch(e => { setErr(yifeErr(e)); go('error'); }); } }, 'Réessayer'),
+      h('button', { style:yifeSt.ghost, onClick:signOut }, 'Se déconnecter')
+    ));
+  if (phase === 'setup') return h(YifeSpaceSetup, { local: !sb, onCreate, onJoin, onSignOut: signOut });
+  return h(App, { key: appKey });
+}
+
+// ─── Panneau « Mon profil » : compte, espace, mode, prénoms, invitation, sauvegarde ───
+function ProfilModal({ data, setData, onClose }){
+  const h = React.createElement;
+  const profil = data.profil || { espace:'', mode:'couple', soloWho:'dja' };
+  const mode = profil.mode === 'solo' ? 'solo' : 'couple';
+  const soloWho = profil.soloWho === 'liika' ? 'liika' : 'dja';
+  const cloud = !!(sb && YIFE_SPACE_ID);
+  const [invite, setInvite] = React.useState('');
+  const [members, setMembers] = React.useState(0);
+  const [note, setNote] = React.useState(null);
+  const fileRef = React.useRef(null);
+  const setProfil = (patch) => setData(prev => { const n = clone(prev); n.profil = { ...(n.profil || {}), ...patch }; return n; });
+  const setField = (who, field, val) => setData(prev => { const n = clone(prev); n[who] = { ...n[who], [field]: val }; return n; });
+  const editable = mode === 'solo' ? [soloWho] : ['dja', 'liika'];
+  // Code d'invitation + nombre de membres (espace en ligne, mode couple).
+  React.useEffect(() => {
+    if (!cloud) return;
+    let alive = true;
+    sb.from('yife_spaces').select('invite_code').eq('id', YIFE_SPACE_ID).maybeSingle()
+      .then(({ data: r }) => { if (alive && r) setInvite(r.invite_code || ''); }, () => {});
+    sb.from('yife_members').select('user_id').eq('space_id', YIFE_SPACE_ID)
+      .then(({ data: r }) => { if (alive && r) setMembers(r.length); }, () => {});
+    return () => { alive = false; };
+  }, [cloud]);
+  const copyInvite = () => {
+    const txt = 'Rejoins notre espace ' + BRAND + ' : crée ton compte sur ' + yifeRedirect() + " puis choisis « Rejoindre » avec le code " + invite;
+    try { navigator.clipboard.writeText(txt).then(() => setNote({ ok:true, text:'Invitation copiée — envoie-la à ta moitié.' })); }
+    catch (_) { setNote({ ok:true, text: txt }); }
+  };
+  const exportData = () => {
+    const nom = (profil.espace || BRAND).replace(/[^\w-]+/g, '_');
+    yifeDownload('yife-' + nom + '-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify({ app:'yife', version:1, exportedAt:new Date().toISOString(), data }, null, 2));
+  };
+  const importData = (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = () => {
+      try {
+        const parsed = JSON.parse(String(r.result || ''));
+        const src = parsed && parsed.data && typeof parsed.data === 'object' ? parsed.data : parsed;
+        if (!src || typeof src !== 'object' || !src.dja) throw new Error('format');
+        if (!confirm('Remplacer TOUTES les données de cet espace par cette sauvegarde ?')) return;
+        const next = normalize(src);
+        delete next._t; // la sauvegarde importée devient la version la plus récente partout
+        setData(next);
+        setNote({ ok:true, text:'Sauvegarde importée.' });
+      } catch (_) { setNote({ ok:false, text:"Ce fichier n'est pas une sauvegarde " + BRAND + '.' }); }
+    };
+    r.readAsText(f);
+    e.target.value = '';
+  };
+  const deleteAccount = async () => {
+    if (!confirm('Supprimer définitivement ton compte ? Les espaces que tu as créés et toutes leurs données seront effacés.')) return;
+    if (prompt('Pour confirmer, tape SUPPRIMER') !== 'SUPPRIMER') return;
+    const { error } = await sb.rpc('yife_delete_account');
+    if (error) { setNote({ ok:false, text: yifeErr(error) }); return; }
+    try { Object.keys(_rawLS).filter(k => k.indexOf(LS_NS) === 0).forEach(k => _rawLS.removeItem(k)); } catch (_) {}
+    await sb.auth.signOut();
+  };
+  const wipeLocal = () => {
+    if (!confirm('Effacer toutes les données ' + BRAND + ' de cet appareil ? Exporte une sauvegarde avant si besoin.')) return;
+    try { Object.keys(_rawLS).filter(k => k.indexOf('yife:local:') === 0 || k === YIFE_LOCAL_KEY).forEach(k => _rawLS.removeItem(k)); } catch (_) {}
+    window.location.reload();
+  };
+  const lbl = { fontSize:12, color:'var(--text3)', textTransform:'uppercase', letterSpacing:'.04em' };
+  const inp = { ...yifeSt.inp, fontSize:14, padding:'9px 11px', marginTop:4 };
+  const box = { marginTop:12, padding:'12px', border:'1px solid var(--border)', borderRadius:10 };
+  const section = (t) => h('div', { style:{ ...lbl, marginTop:22, paddingTop:14, borderTop:'1px solid var(--border)' } }, t);
+  const profLabel = (w) => mode === 'solo' ? 'Moi' : (w === 'dja' ? 'Profil A' : 'Profil B') + (cloud && w === YIFE_SLOT ? ' · moi' : '');
+  const overlay = { position:'fixed', inset:0, background:'rgba(0,0,0,.6)', backdropFilter:'blur(4px)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:16 };
+  const card = { background:'var(--bg2)', border:'1px solid var(--border2)', borderRadius:16, padding:'22px 20px', maxWidth:460, width:'100%', maxHeight:'88vh', overflowY:'auto', boxShadow:'0 20px 60px rgba(0,0,0,.5)', boxSizing:'border-box' };
+  return h('div', { style:overlay, onClick:onClose },
+    h('div', { style:card, onClick:e=>e.stopPropagation() },
+      h('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 } },
+        h('h2', { style:{ margin:0, fontSize:20, color:'var(--gold)' } }, '👤 Mon profil'),
+        h('button', { onClick:onClose, 'aria-label':'Fermer', style:{ background:'none', border:'none', color:'var(--text3)', fontSize:24, cursor:'pointer', lineHeight:1 } }, '×')
+      ),
+      // Compte
+      h('div', { style:{ ...box, marginTop:0, display:'flex', alignItems:'center', gap:10 } },
+        h('div', { style:{ fontSize:22 } }, cloud ? '☁️' : '📱'),
+        h('div', { style:{ flex:1, minWidth:0 } },
+          h('div', { style:{ fontSize:14, fontWeight:600, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis' } }, cloud ? ((YIFE_USER && YIFE_USER.email) || 'Compte connecté') : 'Sur cet appareil (sans compte)'),
+          h('div', { style:{ fontSize:12, color:'var(--text3)' } }, cloud ? 'Synchronisé sur tous tes appareils' : 'Pense à exporter une sauvegarde')
+        ),
+        cloud && h('button', { onClick:()=>sb.auth.signOut(), style:{ ...yifeSt.seg(false), flex:'0 0 auto', padding:'8px 12px', fontSize:12.5 } }, 'Déconnexion')
+      ),
+      // Espace
+      section('Mon espace'),
+      h('label', { style:{ ...lbl, display:'block', marginTop:10 } }, 'Nom de l’espace',
+        h('input', { style:inp, value:profil.espace || '', onChange:e=>setProfil({ espace:e.target.value }), placeholder:'Ex : Chez nous' })),
+      h('div', { style:{ ...lbl, marginTop:12 } }, 'Mode de gestion'),
+      h('div', { style:{ display:'flex', gap:8, margin:'6px 0 4px' } },
+        h('button', { onClick:()=>setProfil({ mode:'solo' }), style:yifeSt.seg(mode==='solo') }, '🧑 Solo'),
+        h('button', { onClick:()=>setProfil({ mode:'couple' }), style:yifeSt.seg(mode==='couple') }, '👫 À deux')
+      ),
+      mode==='solo' && h('div', { style:{ marginTop:10 } },
+        h('div', { style:lbl }, "C'est moi"),
+        h('div', { style:{ display:'flex', gap:8, marginTop:6 } },
+          ['dja','liika'].map(w => h('button', { key:w, onClick:()=>setProfil({ soloWho:w }), style:yifeSt.seg(soloWho===w) }, (data[w] && data[w].name) || (w==='dja'?'Profil A':'Profil B')))
+        )
+      ),
+      // Invitation du/de la partenaire
+      mode === 'couple' && cloud && h('div', { style:{ ...box, borderColor:'var(--gold-border)' } },
+        h('div', { style:{ fontSize:13, fontWeight:700, color:'var(--gold)', marginBottom:6 } }, members >= 2 ? '💞 Vous êtes deux dans cet espace' : '💌 Inviter ta moitié'),
+        members < 2 && h('div', { style:{ fontSize:12.5, color:'var(--text3)', lineHeight:1.5, marginBottom:8 } }, 'Elle crée son compte, choisit « Rejoindre » et saisit ce code :'),
+        members < 2 && h('div', { style:{ display:'flex', gap:8, alignItems:'center' } },
+          h('div', { style:{ flex:1, fontFamily:"'Space Mono',monospace", fontSize:20, letterSpacing:'.2em', color:'var(--text)', textAlign:'center', padding:'8px', border:'1px dashed var(--border2)', borderRadius:10 } }, invite || '…'),
+          h('button', { onClick:copyInvite, disabled:!invite, style:{ ...yifeSt.seg(true), flex:'0 0 auto', padding:'10px 12px', fontSize:12.5 } }, 'Copier')
+        )
+      ),
+      // Profils
+      section(mode==='solo' ? 'Mon profil' : 'Les deux profils'),
+      editable.map(w => h('div', { key:w, style:box },
+        h('div', { style:{ fontSize:12, color:accent[w]||'var(--text3)', fontWeight:700, marginBottom:6 } }, profLabel(w)),
+        h('label', { style:{ ...lbl, display:'block' } }, 'Prénom',
+          h('input', { style:inp, value:(data[w] && data[w].name)||'', onChange:e=>setField(w,'name',e.target.value), placeholder:'Prénom' })
+        ),
+        h('label', { style:{ ...lbl, display:'block', marginTop:10 } }, 'Rôle / description',
+          h('input', { style:inp, value:(data[w] && data[w].role)||'', onChange:e=>setField(w,'role',e.target.value), placeholder:'Ex : projets & voyages' })
+        ),
+        h('label', { style:{ ...lbl, display:'block', marginTop:10 } }, 'Ville',
+          h('input', { style:inp, value:(data[w] && data[w].location)||'', onChange:e=>setField(w,'location',e.target.value), placeholder:'Ex : Pointe-à-Pitre' })
+        )
+      )),
+      // Sauvegarde
+      section('Sauvegarde'),
+      h('div', { style:{ display:'flex', gap:8, marginTop:10 } },
+        h('button', { onClick:exportData, style:yifeSt.seg(false) }, '⬇️ Exporter (.json)'),
+        h('button', { onClick:()=>fileRef.current && fileRef.current.click(), style:yifeSt.seg(false) }, '⬆️ Importer'),
+        h('input', { ref:fileRef, type:'file', accept:'application/json,.json', style:{ display:'none' }, onChange:importData })
+      ),
+      note && h('div', { style:yifeSt.msg(note.ok) }, note.text),
+      // Zone sensible
+      section('Zone sensible'),
+      cloud
+        ? h('button', { onClick:deleteAccount, style:{ ...yifeSt.ghost, borderColor:'rgba(248,113,113,.45)', color:'var(--danger)' } }, 'Supprimer mon compte et mes données')
+        : h('button', { onClick:wipeLocal, style:{ ...yifeSt.ghost, borderColor:'rgba(248,113,113,.45)', color:'var(--danger)' } }, 'Effacer les données de cet appareil'),
+      h('button', { onClick:onClose, style:{ ...yifeSt.seg(true), width:'100%', marginTop:18 } }, 'Terminé')
+    )
+  );
+}
+
+function App(){
+const vw=useWindowWidth();
+const isMobile=vw<=768;
+const isTablet=vw>768&&vw<=1024;
+const isSmall=vw<=1024;
+const [data,setDataRaw]=useState(loadData);
+// Tout changement d'état passe par ce wrapper : il horodate les sections
+// modifiées (data._t) pour que la fusion multi-appareils sache qui est le plus récent.
+const setData=useCallback((updater)=>{
+  setDataRaw(prev=>stampChanges(prev, typeof updater==='function'?updater(prev):updater));
+},[]);
+// Vrai juste après l'application d'un état reçu en temps réel → évite de le re-pousser (anti-écho).
+const remoteApplyRef=useRef(false);
+const [ui,setUI]=useState(loadUI);
+// Mode de vie (couple/solo) : on rafraîchit les variables module AVANT de créer
+// l'arbre enfant, pour que personKeys()/visibleCategories() lisent la bonne valeur.
+// Dans Yife, le mode appartient à l'espace (data.profil) : les deux partenaires le partagent.
+const lifeMode = data.profil && data.profil.mode === 'solo' ? 'solo' : 'couple';
+const soloWho = data.profil && data.profil.soloWho === 'liika' ? 'liika' : 'dja';
+ACTIVE_MODE = lifeMode;
+ACTIVE_SOLO = soloWho;
+ACTIVE_NAMES = { dja: (data.dja && data.dja.name) || NAME_DJA, liika: (data.liika && data.liika.name) || NAME_LIIKA };
+const [showProfil,setShowProfil]=useState(false);
+// Nom affiché dans l'en-tête : en solo le nom de la personne, sinon « A & B ».
+const displayName = lifeMode === 'solo'
+  ? ((data[soloWho] && data[soloWho].name) || COUPLE_NAME)
+  : (((data.dja && data.dja.name) || NAME_DJA) + ' & ' + ((data.liika && data.liika.name) || NAME_LIIKA));
+// Si la catégorie active devient masquée (passage en solo), on revient à l'accueil.
+useEffect(()=>{
+  if(!visibleCategories().some(c=>c.id===activeCat)){ setActiveCat('lifestyle'); setView(null); }
+},[lifeMode,soloWho]); // eslint-disable-line
+const [view,setView]=useState(null);
+const [activeCat,setActiveCat]=useState('lifestyle');
+const [prevCatIdx,setPrevCatIdx]=useState(0);
+const [modal,setModal]=useState(null);
+const [syncStatus,setSyncStatus]=useState('idle'); // idle | syncing | ok | error
+const [initialSyncDone,setInitialSyncDone]=useState(false);
+const [onlineCount,setOnlineCount]=useState(0); // nb d'appareils connectés (présence)
+// État de la vue "Objectifs du mois" (perdu lors d'une fusion, restauré ici au niveau App)
+const [objMoisFilter,setObjMoisFilter]=useState(()=>new Date().getMonth());
+const [showAddObjM,setShowAddObjM]=useState(false);
+const [newObjM,setNewObjM]=useState({titre:'',detail:'',categorie:'Nature'});
+const [showMotivation,setShowMotivation]=useState(false);
+const [motivationMsg,setMotivationMsg]=useState('');
+const activeProfile=ui?.activeProfile||YIFE_SLOT;
+const profileLabel=activeProfile==='dja'?NAME_DJA:activeProfile==='liika'?NAME_LIIKA:'Couple';
+const setActiveProfile=useCallback((who)=>setUI(prev=>({...prev,activeProfile:who})),[]);
+const goToCategory=useCallback((catId)=>{
+  const newIdx=visibleCategories().findIndex(c=>c.id===catId);
+  const oldIdx=visibleCategories().findIndex(c=>c.id===activeCat);
+  setPrevCatIdx(oldIdx);
+  setActiveCat(catId);
+  setView(null);
+},[activeCat]);
+
+// Parallax cinématique du fond (preset 2)
+useEffect(()=>{
+  if(typeof window==='undefined' || !document?.body) return;
+  const prefersReduced=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(prefersReduced){
+    document.body.style.setProperty('--bg-parallax-y','0px');
+    return;
+  }
+
+  let rafId=0;
+  const getFactor=()=>window.innerWidth<=480?-0.12:window.innerWidth<=1024?-0.18:-0.24;
+  const update=()=>{
+    rafId=0;
+    const y=window.scrollY||window.pageYOffset||0;
+    const offset=Math.max(-260,Math.round(y*getFactor()));
+    document.body.style.setProperty('--bg-parallax-y',`${offset}px`);
+  };
+  const onScroll=()=>{
+    if(!rafId) rafId=window.requestAnimationFrame(update);
+  };
+
+  update();
+  window.addEventListener('scroll',onScroll,{passive:true});
+  window.addEventListener('resize',update,{passive:true});
+  return ()=>{
+    window.removeEventListener('scroll',onScroll);
+    window.removeEventListener('resize',update);
+    if(rafId) window.cancelAnimationFrame(rafId);
+  };
+},[]);
+
+// Popup de motivation — une seule fois par jour, après synchro Supabase
+useEffect(()=>{
+  if(!initialSyncDone) return; // attendre les données Supabase (motivations custom)
+  const today=new Date().toDateString();
+  if(LS.getItem('ld-motivation-date')===today) return;
+  LS.setItem('ld-motivation-date',today); // marquer avant le timer (survit à un démontage rapide)
+  const custom=((data.couple||{}).motivations||[]).filter(Boolean); // filtrer les entrées null
+  const all=[...DEFAULT_MOTIVATIONS,...custom];
+  const now=new Date();
+  const dayOfYear=Math.floor((now-new Date(now.getFullYear(),0,0))/864e5);
+  const item=all[dayOfYear%all.length];
+  setMotivationMsg(typeof item==='string'?item:((item&&item.text)||''));
+  const t=setTimeout(()=>{ setShowMotivation(true); },2000);
+  return ()=>clearTimeout(t);
+},[initialSyncDone]);
+
+// Reprise one-shot des voyages stockés en localStorage avant qu'ils ne passent
+// dans l'état partagé. On attend la fin de la synchro initiale pour connaître
+// l'état distant, sinon on risquerait de réimporter des voyages déjà présents
+// sur un autre appareil. La clé locale est retirée une fois la reprise faite.
+useEffect(()=>{
+  if(!initialSyncDone) return;
+  let anciens=[];
+  try{ const raw=LS.getItem(VOYAGE_LS_KEY); anciens=raw?JSON.parse(raw):[]; }catch(_){ anciens=[]; }
+  if(!Array.isArray(anciens)||anciens.length===0) return;
+  if(((data.couple||{}).voyages||[]).length===0){
+    setData(prev=>{
+      const next=clone(prev);
+      next.couple.voyages=anciens.filter(v=>v&&v.id).map(v=>({...v,id:String(v.id),checked:{}}));
+      return next;
+    });
+  }
+  try{ LS.removeItem(VOYAGE_LS_KEY); }catch(_){}
+},[initialSyncDone]);
+
+// Persiste localStorage à chaque changement
+useEffect(()=>saveData(data),[data]);
+
+// Hydrate depuis l'espace Yife au démarrage (fusion par section avec le local)
+useEffect(()=>{
+if(!sb||!YIFE_SPACE_ID){setSyncStatus('idle');setInitialSyncDone(true);return;} // mode local : pas de synchro
+let alive=true;
+// Des éditions locales pas encore envoyées (hors ligne) ? Alors le résultat de la
+// fusion doit repartir vers le serveur ; sinon le serveur fait foi, rien à renvoyer.
+const hasLocalEdits=!!(data&&data._t&&Object.keys(data._t).length>0);
+(async()=>{
+  setSyncStatus('syncing');
+  const remote=await sbLoad();
+  if(!alive) return;
+  if(remote){
+    if(!hasLocalEdits) remoteApplyRef.current=true;
+    setDataRaw(prev=>hasLocalEdits?mergeStates(prev,remote):remote);
+  }
+  // remote vide (espace tout neuf) → le prochain passage de l'effet de sauvegarde l'amorce.
+  setSyncStatus('ok');
+  setInitialSyncDone(true);
+})().catch(()=>{
+  if(!alive) return;
+  setSyncStatus('error');
+  setInitialSyncDone(true);
+});
+return ()=>{alive=false;};
+},[]);
+
+// Sauvegarde vers l'espace Yife, debounce 1.5s
+useEffect(()=>{
+if(!sb||!YIFE_SPACE_ID)return;
+if(!initialSyncDone)return;
+// Cet état vient d'être reçu/fusionné depuis le serveur → déjà à jour côté distant, pas de re-push.
+if(remoteApplyRef.current){remoteApplyRef.current=false;return;}
+const t=setTimeout(()=>{
+  setSyncStatus('syncing');
+  sbSave(data).then(()=>setSyncStatus('ok')).catch(()=>setSyncStatus('error'));
+},1500);
+return ()=>clearTimeout(t);
+},[data,initialSyncDone]);
+
+// ─── Temps réel : les modifications de l'autre appareil / du partenaire ───
+useEffect(()=>{
+if(!sb||!YIFE_SPACE_ID)return;
+const ch=sb.channel('yife-space-'+YIFE_SPACE_ID)
+  .on('postgres_changes',
+    {event:'UPDATE',schema:'public',table:'yife_spaces',filter:'id=eq.'+YIFE_SPACE_ID},
+    async (payload)=>{
+      if(!payload.new)return;
+      if(payload.new.device_id===DEVICE_ID)return; // notre propre sauvegarde → ignorer
+      // Un blob trop gros peut arriver sans ses données : on va alors le relire.
+      let remote=null;
+      try{ remote=payload.new.data?normalize(payload.new.data):await sbLoad(); }catch(_){ return; }
+      if(!remote)return;
+      remoteApplyRef.current=true; // anti-écho : ne pas re-pousser ce qu'on vient de recevoir
+      setDataRaw(prev=>mergeStates(prev,remote)); // fusion par section, pas d'écrasement global
+      setSyncStatus('ok');
+    })
+  .subscribe();
+return ()=>{ sb.removeChannel(ch); };
+},[]);
+  const updateGames = useCallback(fn => {
+    setData(prev => {
+      const next = clone(prev);
+      next.games = fn(next.games);
+      return next;
+    });
+  }, []);
+  const updateObj = useCallback((who, id, updates) => {
+    setData(prev => {
+      const next = clone(prev);
+      const list = who === 'couple' ? next.couple.objectives : next[who].objectives;
+      const idx = list.findIndex(o => o.id === id);
+      if (idx >= 0) Object.assign(list[idx], updates);
+      return next;
+    });
+  }, []);
+  const toggleAction = useCallback((who, id) => {
+    setData(prev => {
+      const next = clone(prev);
+      const list = who === 'couple' ? next.couple.actions : next[who].actions;
+      const idx = list.findIndex(a => a.id === id);
+      if (idx >= 0) list[idx].done = !list[idx].done;
+      return next;
+    });
+  }, []);
+  const deleteObj = useCallback((who, id) => {
+    setData(prev => {
+      const next = clone(prev);
+      if (who === 'couple') next.couple.objectives = next.couple.objectives.filter(o => o.id !== id);else next[who].objectives = next[who].objectives.filter(o => o.id !== id);
+      return next;
+    });
+  }, []);
+  const addObjective = useCallback((who, title, desc, cat) => {
+    setData(prev => {
+      const next = clone(prev);
+      const obj = {
+        id: Date.now().toString(),
+        cat,
+        title,
+        desc,
+        progress: 0,
+        done: false
+      };
+      if (who === 'couple') next.couple.objectives.push(obj);else next[who].objectives.push(obj);
+      return next;
+    });
+  }, []);
+  const addAction = useCallback((who, text, _, cat) => {
+    setData(prev => {
+      const next = clone(prev);
+      const act = {
+        id: Date.now().toString(),
+        text,
+        cat,
+        done: false
+      };
+      if (who === 'couple') next.couple.actions.push(act);else next[who].actions.push(act);
+      return next;
+    });
+  }, []);
+  const addNote = useCallback((who, text) => {
+    if (!text.trim()) return;
+    setData(prev => {
+      const next = clone(prev);
+      const note = {
+        id: Date.now().toString(),
+        text: text.trim(),
+        date: new Date().toISOString()
+      };
+      if (who === 'couple') next.couple.notes = [note, ...(next.couple.notes || [])];else next[who].notes = [note, ...(next[who].notes || [])];
+      return next;
+    });
+  }, []);
+  const deleteNote = useCallback((who, id) => {
+    setData(prev => {
+      const next = clone(prev);
+      if (who === 'couple') next.couple.notes = (next.couple.notes || []).filter(n => n.id !== id);else next[who].notes = (next[who].notes || []).filter(n => n.id !== id);
+      return next;
+    });
+  }, []);
+  const upsertMeal = useCallback((who, meal) => {
+    setData(prev => {
+      const next = clone(prev);
+      const src = next[who]?.meals || next.couple?.meals || [];
+      const idx = src.findIndex(m => m.id === meal.id);
+      if (idx >= 0) src[idx] = meal;else src.push(meal);
+      return next;
+    });
+  }, []);
+  const deleteMeal = useCallback((who, id) => {
+    setData(prev => {
+      const next = clone(prev);
+      if (who === 'couple') next.couple.meals = (next.couple.meals || []).filter(m => m.id !== id);else next[who].meals = (next[who].meals || []).filter(m => m.id !== id);
+      return next;
+    });
+  }, []);
+  const upsertBudgetLine = useCallback((who, type, line) => {
+    setData(prev => {
+      const next = clone(prev);
+      const src = who === 'couple' ? next.couple.budget : next[who].budget;
+      const arr = src[type];
+      const idx = arr.findIndex(l => l.id === line.id);
+      if (idx >= 0) arr[idx] = line;else arr.push(line);
+      return next;
+    });
+  }, []);
+  const deleteBudgetLine = useCallback((who, type, id) => {
+    setData(prev => {
+      const next = clone(prev);
+      const src = who === 'couple' ? next.couple.budget : next[who].budget;
+      src[type] = src[type].filter(l => l.id !== id);
+      return next;
+    });
+  }, []);
+  const updateVision = useCallback((who, text) => {
+    setData(prev => {
+      const next = clone(prev);
+      if (who === 'couple') next.couple.vision = text;else next[who].vision = text;
+      return next;
+    });
+  }, []);
+  const upsertSport = useCallback((who, item) => {
+    setData(prev => {
+      const next = clone(prev);
+      const src = who === 'couple' ? next.couple.sport : next[who].sport || [];
+      const idx = src.findIndex(s => s.id === item.id);
+      if (idx >= 0) src[idx] = item;else src.push(item);
+      if (who === 'couple') next.couple.sport = src;else next[who].sport = src;
+      return next;
+    });
+  }, []);
+  const deleteSport = useCallback((who, id) => {
+    setData(prev => {
+      const next = clone(prev);
+      if (who === 'couple') next.couple.sport = (next.couple.sport || []).filter(s => s.id !== id);else next[who].sport = (next[who].sport || []).filter(s => s.id !== id);
+      return next;
+    });
+  }, []);
+  // recipes/ferments : état local immédiat (setDataRaw, hors synchro blob) + écriture table dédiée.
+  const upsertRecipe = useCallback(recipe => {
+    setDataRaw(prev => {
+      const next = clone(prev);
+      if (!Array.isArray(next.recipes)) next.recipes = [];
+      const idx = next.recipes.findIndex(r => r.id === recipe.id);
+      if (idx >= 0) next.recipes[idx] = recipe;else next.recipes.push(recipe);
+      return next;
+    });
+    sbUpsertRecipe(recipe).catch(() => {});
+  }, []);
+  const deleteRecipe = useCallback(id => {
+    setDataRaw(prev => {
+      const next = clone(prev);
+      next.recipes = (next.recipes || []).filter(r => r.id !== id);
+      return next;
+    });
+    sbDeleteRecipe(id).catch(() => {});
+  }, []);
+  // Import CSV : fusionne (ajoute / met à jour par id), n'efface jamais
+  const importRecipes = useCallback(list => {
+    setDataRaw(prev => {
+      const next = clone(prev);
+      if (!Array.isArray(next.recipes)) next.recipes = [];
+      for (const r of list) {
+        const idx = next.recipes.findIndex(x => x.id === r.id);
+        if (idx >= 0) next.recipes[idx] = r;else next.recipes.push(r);
+      }
+      return next;
+    });
+    (list || []).forEach(r => sbUpsertRecipe(r).catch(() => {}));
+  }, []);
+  // Konsèvasyon : un ingrédient = une seule entrée de rézèv (le racheter met à
+  // jour sa date d'entrée au lieu d'ajouter une ligne).
+  const upsertRezev = useCallback(entry => {
+    setDataRaw(prev => {
+      const next = clone(prev);
+      if (!Array.isArray(next.rezev)) next.rezev = [];
+      const idx = next.rezev.findIndex(r => r.id === entry.id);
+      if (idx >= 0) next.rezev[idx] = entry;else next.rezev.push(entry);
+      return next;
+    });
+    sbUpsertRezev(entry).catch(() => {});
+  }, []);
+  const deleteRezev = useCallback(id => {
+    setDataRaw(prev => {
+      const next = clone(prev);
+      next.rezev = (next.rezev || []).filter(r => r.id !== id);
+      return next;
+    });
+    sbDeleteRezev(id).catch(() => {});
+  }, []);
+  const upsertFerment = useCallback(ferment => {
+    setDataRaw(prev => {
+      const next = clone(prev);
+      if (!Array.isArray(next.ferments)) next.ferments = [];
+      const idx = next.ferments.findIndex(f => f.id === ferment.id);
+      if (idx >= 0) next.ferments[idx] = ferment;else next.ferments.push(ferment);
+      return next;
+    });
+    sbUpsertFerment(ferment).catch(() => {});
+  }, []);
+  const deleteFerment = useCallback(id => {
+    setDataRaw(prev => {
+      const next = clone(prev);
+      next.ferments = (next.ferments || []).filter(f => f.id !== id);
+      return next;
+    });
+    sbDeleteFerment(id).catch(() => {});
+  }, []);
+  // ── Courses (table dédiée) ──
+  const addCourse = useCallback(raw => {
+    const item = { ...raw, qte: Math.max(0, Number(raw.qte) || 1), prix: numOrEmpty(raw.prix) };
+    setDataRaw(prev => {
+      const next = clone(prev);
+      if (!Array.isArray(next.courses)) next.courses = [];
+      // Regroupement : même nom (normalisé) + même unité + non coché → cumuler la quantité
+      const i = next.courses.findIndex(c => !c.done && normName(c.nom) === normName(item.nom) && (c.unite || '') === (item.unite || ''));
+      let row;
+      if (i >= 0) {
+        row = { ...next.courses[i], qte: (Number(next.courses[i].qte) || 0) + item.qte };
+        if (item.prix !== '') row.prix = item.prix;
+        next.courses[i] = row;
+      } else {
+        row = item;
+        next.courses.push(row);
+      }
+      sbUpsertCourse(row).catch(() => {});
+      return next;
+    });
+  }, []);
+  const upsertCourse = useCallback(raw => {
+    const c = { ...raw, qte: Math.max(0, Number(raw.qte) || 0), prix: numOrEmpty(raw.prix) };
+    setDataRaw(prev => {
+      const next = clone(prev);
+      if (!Array.isArray(next.courses)) next.courses = [];
+      const i = next.courses.findIndex(x => x.id === c.id);
+      if (i >= 0) next.courses[i] = c;else next.courses.push(c);
+      return next;
+    });
+    sbUpsertCourse(c).catch(() => {});
+  }, []);
+  const deleteCourse = useCallback(id => {
+    setDataRaw(prev => {
+      const next = clone(prev);
+      next.courses = (next.courses || []).filter(c => c.id !== id);
+      return next;
+    });
+    sbDeleteCourse(id).catch(() => {});
+  }, []);
+  const toggleCourse = useCallback(id => {
+    setDataRaw(prev => {
+      const next = clone(prev);
+      const i = (next.courses || []).findIndex(c => c.id === id);
+      if (i >= 0) {
+        next.courses[i] = { ...next.courses[i], done: !next.courses[i].done };
+        sbUpsertCourse(next.courses[i]).catch(() => {});
+      }
+      return next;
+    });
+  }, []);
+  const clearCheckedCourses = useCallback(() => {
+    setDataRaw(prev => {
+      const next = clone(prev);
+      const checked = (next.courses || []).filter(c => c.done).map(c => c.id);
+      next.courses = (next.courses || []).filter(c => !c.done);
+      sbDeleteCoursesByIds(checked).catch(() => {});
+      return next;
+    });
+  }, []);
+  const mergeDuplicateCourses = useCallback(() => {
+    setDataRaw(prev => {
+      const next = clone(prev);
+      const map = new Map();
+      const result = [];
+      const toDelete = [];
+      for (const c of next.courses || []) {
+        const key = c.done ? 'done:' + c.id : normName(c.nom) + '|' + (c.unite || '');
+        if (!c.done && map.has(key)) {
+          const ex = map.get(key);
+          ex.qte = (Number(ex.qte) || 0) + (Number(c.qte) || 1);
+          if ((ex.prix === '' || ex.prix == null) && c.prix !== '' && c.prix != null) ex.prix = c.prix;
+          toDelete.push(c.id);
+          sbUpsertCourse(ex).catch(() => {});
+        } else {
+          map.set(key, c);
+          result.push(c);
+        }
+      }
+      next.courses = result;
+      sbDeleteCoursesByIds(toDelete).catch(() => {});
+      return next;
+    });
+  }, []);
+  const generateCoursesFromMeals = useCallback(() => {
+    setDataRaw(prev => {
+      const next = clone(prev);
+      if (!Array.isArray(next.courses)) next.courses = [];
+      const allRecipes = [...DEFAULT_RECIPES, ...(next.recipes || [])];
+      const recByName = new Map(allRecipes.map(r => [normName(r.nom), r]));
+      const meals = [...((next.dja && next.dja.meals) || []), ...((next.liika && next.liika.meals) || []), ...((next.couple && next.couple.meals) || [])];
+      const existing = new Set((next.courses || []).filter(c => !c.done).map(c => normName(c.nom)));
+      const added = [];
+      let seq = 0;
+      const addItem = nom => {
+        const key = normName(nom);
+        if (!nom || existing.has(key)) return;
+        existing.add(key);
+        const item = { id: Date.now().toString(36) + (seq++).toString(36) + Math.random().toString(36).slice(2, 7), nom, qte: 1, unite: '', rayon: rayonForItem(nom), prix: '', done: false };
+        next.courses.push(item);
+        added.push(item);
+      };
+      for (const m of meals) {
+        const plat = (m.plat || '').trim();
+        if (!plat) continue;
+        const rec = recByName.get(normName(plat));
+        if (rec && Array.isArray(rec.ingredients) && rec.ingredients.length) rec.ingredients.forEach(addItem);else addItem(plat);
+      }
+      if (!added.length) { try { alert('Aucun nouvel article à ajouter depuis les repas (déjà dans la liste, ou plans de repas vides).'); } catch (_) {} }
+      added.forEach(it => sbUpsertCourse(it).catch(() => {}));
+      return next;
+    });
+  }, []);
+  const addMedia = useCallback(item => {
+    setDataRaw(prev => {
+      const next = clone(prev);
+      next.media = [...(next.media || []), item];
+      return next;
+    });
+    sbUpsertMedia(item).catch(() => {});
+  }, []);
+  const deleteMedia = useCallback(id => {
+    setDataRaw(prev => {
+      const next = clone(prev);
+      next.media = (next.media || []).filter(m => m.id !== id);
+      return next;
+    });
+    sbDeleteMedia(id).catch(() => {});
+  }, []);
+  const addAlbumPhoto = useCallback(photo => {
+    setData(prev => {
+      const next = clone(prev);
+      next.album = [photo, ...(next.album || [])];
+      return next;
+    });
+  }, []);
+  const deleteAlbumPhoto = useCallback((id, storagePath) => {
+    setData(prev => {
+      const next = clone(prev);
+      next.album = (next.album || []).filter(p => p.id !== id);
+      return next;
+    });
+    // remove() ne rejette pas sur refus de policy : il renvoie {data, error}.
+    // Les deux cas (erreur applicative et erreur réseau) doivent remonter, sinon
+    // le fichier reste orphelin dans le bucket sans que personne le sache.
+    if (storagePath && !DEMO) {
+      sb.storage.from('album-photos').remove([storagePath])
+        .then(function(res) {
+          if (res && res.error) throw res.error;
+          // data vide = aucun objet retiré (chemin déjà absent ou refusé par une policy).
+          // Pas d'alerte : le cas « déjà supprimé » est normal. On trace pour diagnostic.
+          if (res && Array.isArray(res.data) && res.data.length === 0) {
+            console.warn('[album] aucun fichier retiré pour :', storagePath);
+          }
+        })
+        .catch(function(err) {
+          const msg = (err && err.message) || 'erreur réseau';
+          console.warn('[album] fichier non supprimé du storage :', storagePath, err);
+          alert('Photo retirée de l\'album, mais le fichier est resté sur le serveur (' + msg + ').');
+        });
+    }
+  }, []);
+  const addMedical = useCallback(rdv => {
+    setData(prev => {
+      const next = clone(prev);
+      next.couple.medical = [rdv, ...(next.couple.medical || [])];
+      return next;
+    });
+  }, []);
+  // Voyages : liste + checklist de préparation, section couple → synchro auto.
+  const addVoyage = useCallback(v => {
+    setData(prev => {
+      const next = clone(prev);
+      next.couple.voyages = [v, ...(next.couple.voyages || [])];
+      return next;
+    });
+  }, []);
+  const updateVoyage = useCallback((id, patch) => {
+    setData(prev => {
+      const next = clone(prev);
+      next.couple.voyages = (next.couple.voyages || []).map(v => v.id === id ? { ...v, ...patch } : v);
+      return next;
+    });
+  }, []);
+  const deleteVoyage = useCallback(id => {
+    setData(prev => {
+      const next = clone(prev);
+      next.couple.voyages = (next.couple.voyages || []).filter(v => v.id !== id);
+      return next;
+    });
+  }, []);
+  const toggleVoyageCheck = useCallback((id, itemId) => {
+    setData(prev => {
+      const next = clone(prev);
+      next.couple.voyages = (next.couple.voyages || []).map(v => {
+        if (v.id !== id) return v;
+        const checked = { ...(v.checked || {}) };
+        // On retire la clé au lieu d'y mettre false : la carte ne garde que les
+        // étapes réellement cochées et ne gonfle pas de `false` synchronisés.
+        if (checked[itemId]) delete checked[itemId];else checked[itemId] = true;
+        return { ...v, checked };
+      });
+      return next;
+    });
+  }, []);
+  // Agenda Paris : section couple → synchro auto, pas de table dédiée.
+  const addParis = useCallback(e => {
+    setData(prev => {
+      const next = clone(prev);
+      next.couple.paris = [e, ...(next.couple.paris || [])];
+      return next;
+    });
+  }, []);
+  const updateParis = useCallback((id, patch) => {
+    setData(prev => {
+      const next = clone(prev);
+      next.couple.paris = (next.couple.paris || []).map(e => e.id === id ? { ...e, ...patch } : e);
+      return next;
+    });
+  }, []);
+  const deleteParis = useCallback(id => {
+    setData(prev => {
+      const next = clone(prev);
+      next.couple.paris = (next.couple.paris || []).filter(e => e.id !== id);
+      return next;
+    });
+  }, []);
+  const deleteMedical = useCallback(id => {
+    setData(prev => {
+      const next = clone(prev);
+      next.couple.medical = (next.couple.medical || []).filter(r => r.id !== id);
+      return next;
+    });
+  }, []);
+  // Entretien mécanique (véhicules de Dja) → section dja.entretien (synchro auto)
+  const addEntretien = useCallback(e => {
+    setData(prev => {
+      const next = clone(prev);
+      next.dja.entretien = [e, ...(next.dja.entretien || [])];
+      return next;
+    });
+  }, []);
+  const updateEntretien = useCallback((id, patch) => {
+    setData(prev => {
+      const next = clone(prev);
+      next.dja.entretien = (next.dja.entretien || []).map(x => x.id === id ? { ...x, ...patch } : x);
+      return next;
+    });
+  }, []);
+  const deleteEntretien = useCallback(id => {
+    setData(prev => {
+      const next = clone(prev);
+      next.dja.entretien = (next.dja.entretien || []).filter(x => x.id !== id);
+      return next;
+    });
+  }, []);
+  const addVehicule = useCallback(v => {
+    setData(prev => {
+      const next = clone(prev);
+      next.dja.vehicules = [...(next.dja.vehicules || []), v];
+      return next;
+    });
+  }, []);
+  const updateVehicule = useCallback((id, patch) => {
+    setData(prev => {
+      const next = clone(prev);
+      next.dja.vehicules = (next.dja.vehicules || []).map(x => x.id === id ? { ...x, ...patch } : x);
+      return next;
+    });
+  }, []);
+  const deleteVehicule = useCallback(id => {
+    setData(prev => {
+      const next = clone(prev);
+      next.dja.vehicules = (next.dja.vehicules || []).filter(x => x.id !== id);
+      return next;
+    });
+  }, []);
+  const addSoiree = useCallback(s => {
+    setData(prev => {
+      const next = clone(prev);
+      next.couple.soirees = [s, ...(next.couple.soirees || [])];
+      return next;
+    });
+  }, []);
+  const deleteSoiree = useCallback(id => {
+    setData(prev => {
+      const next = clone(prev);
+      next.couple.soirees = (next.couple.soirees || []).filter(s => s.id !== id);
+      return next;
+    });
+  }, []);
+  const addPlante = useCallback(p => {
+    setData(prev => {
+      const next = clone(prev);
+      next.couple.potager = [p, ...(next.couple.potager || [])];
+      return next;
+    });
+  }, []);
+  const updatePlante = useCallback((id, patch) => {
+    setData(prev => {
+      const next = clone(prev);
+      next.couple.potager = (next.couple.potager || []).map(x => x.id === id ? { ...x, ...patch } : x);
+      return next;
+    });
+  }, []);
+  const deletePlante = useCallback(id => {
+    setData(prev => {
+      const next = clone(prev);
+      next.couple.potager = (next.couple.potager || []).filter(x => x.id !== id);
+      return next;
+    });
+  }, []);
+  // Semansye : lots de graines du Kalandriye Lalin (section couple.semansye → synchro)
+  const addLot = useCallback(lot => {
+    setData(prev => {
+      const next = clone(prev);
+      next.couple.semansye = [lot, ...(next.couple.semansye || [])];
+      return next;
+    });
+  }, []);
+  const updateLot = useCallback((id, patch) => {
+    setData(prev => {
+      const next = clone(prev);
+      next.couple.semansye = (next.couple.semansye || []).map(x => x.id === id ? { ...x, ...patch } : x);
+      return next;
+    });
+  }, []);
+  const deleteLot = useCallback(id => {
+    setData(prev => {
+      const next = clone(prev);
+      next.couple.semansye = (next.couple.semansye || []).filter(x => x.id !== id);
+      return next;
+    });
+  }, []);
+  // Survie : mutateur générique sur couple.survie (passe par setData → stamp + synchro section)
+  const updateSurvie = useCallback(fn => {
+    setData(prev => {
+      const next = clone(prev);
+      if (!next.couple.survie || typeof next.couple.survie !== 'object') next.couple.survie = clone(defaultData.couple.survie);
+      if (!next.couple.survie.bob) next.couple.survie.bob = { dja: [], liika: [], commun: [] };
+      if (!next.couple.survie.plan) next.couple.survie.plan = { ralliement: [], contacts: [], protocoles: [] };
+      if (!Array.isArray(next.couple.survie.stocks)) next.couple.survie.stocks = [];
+      fn(next.couple.survie);
+      return next;
+    });
+  }, []);
+  const updateCodeRousseau = useCallback(patch => {
+    setData(prev => {
+      const next = clone(prev);
+      if (!next.liika.codeRousseau || typeof next.liika.codeRousseau !== 'object') next.liika.codeRousseau = clone(defaultData.liika.codeRousseau);
+      next.liika.codeRousseau = { ...next.liika.codeRousseau, ...patch };
+      return next;
+    });
+  }, []);
+  // Young Boudha : édition mutative de dja.youngBoudha (même pattern que updateSurvie).
+  const updateYoungBoudha = useCallback(fn => {
+    setData(prev => {
+      const next = clone(prev);
+      if (!next.dja.youngBoudha || typeof next.dja.youngBoudha !== 'object') next.dja.youngBoudha = ybEmpty();
+      if (!Array.isArray(next.dja.youngBoudha.jours)) next.dja.youngBoudha.jours = ybEmpty().jours;
+      fn(next.dja.youngBoudha);
+      return next;
+    });
+  }, []);
+  // Program Dja : coche/décoche un exercice, ou remet la semaine à zéro.
+  const updateProgramme = useCallback(fn => {
+    setData(prev => {
+      const next = clone(prev);
+      if (!next.dja.programme || typeof next.dja.programme !== 'object') next.dja.programme = { done: {} };
+      if (!next.dja.programme.done || typeof next.dja.programme.done !== 'object') next.dja.programme.done = {};
+      fn(next.dja.programme);
+      return next;
+    });
+  }, []);
+  const togglePlanningCheck = useCallback((day, itemId) => {
+    setData(prev => {
+      const next = clone(prev);
+      if (!next.couple.planning) next.couple.planning = {};
+      const d = next.couple.planning[day] || {
+        checked: {},
+        custom: []
+      };
+      d.checked = {
+        ...d.checked,
+        [itemId]: !d.checked[itemId]
+      };
+      next.couple.planning[day] = d;
+      return next;
+    });
+  }, []);
+  // Toute modification d'une journée passe par ici. Si la journée était encore
+  // celle du modèle, ses créneaux sont d'abord recopiés dans `items` (« adoption »)
+  // — ensuite seulement la transformation est appliquée. `custom` est vidé car son
+  // contenu a été repris dans `items` : sans ça les créneaux apparaîtraient en double.
+  const majJourPlanning = useCallback((day, transformer) => {
+    setData(prev => {
+      const next = clone(prev);
+      if (!planObjet(next.couple.planning)) next.couple.planning = {};
+      const avant = planDayItems(next.couple.planning, day);
+      const apres = transformer(avant);
+      if (!apres) return prev;
+      const d = planObjet(next.couple.planning[day]) || {};
+      next.couple.planning[day] = { ...d, items: apres.filter(planItemValide), custom: [] };
+      return next;
+    });
+  }, []);
+  const addPlanningItem = useCallback((day, item) => {
+    majJourPlanning(day, liste => [...liste, item]);
+  }, [majJourPlanning]);
+  const updatePlanningItem = useCallback((day, id, patch) => {
+    majJourPlanning(day, liste => liste.map(it => it.id === id ? { ...it, ...patch, id: it.id } : it));
+  }, [majJourPlanning]);
+  const deletePlanningItem = useCallback((day, id) => {
+    majJourPlanning(day, liste => liste.filter(it => it.id !== id));
+  }, [majJourPlanning]);
+  // Déplacer un créneau d'un jour à l'autre : les deux journées sont adoptées dans
+  // la même mise à jour, sinon la seconde écraserait la première.
+  const movePlanningItem = useCallback((fromDay, toDay, id) => {
+    if (fromDay === toDay) return;
+    setData(prev => {
+      const next = clone(prev);
+      if (!planObjet(next.couple.planning)) next.couple.planning = {};
+      const P = next.couple.planning;
+      const source = planDayItems(P, fromDay);
+      const item = source.find(it => it.id === id);
+      if (!item) return prev;
+      const cible = planDayItems(P, toDay);
+      P[fromDay] = { ...(planObjet(P[fromDay]) || {}), items: source.filter(it => it.id !== id), custom: [] };
+      P[toDay] = { ...(planObjet(P[toDay]) || {}), items: [...cible, item], custom: [] };
+      return next;
+    });
+  }, []);
+  // Rendre une journée à son modèle d'origine (et oublier les cases cochées).
+  const resetPlanningDay = useCallback((day) => {
+    setData(prev => {
+      const next = clone(prev);
+      if (planObjet(next.couple.planning)) delete next.couple.planning[day];
+      return next;
+    });
+  }, []);
+  const addIdeeCustom = useCallback(text => {
+    if (!text.trim()) return;
+    setData(prev => {
+      const next = clone(prev);
+      if (!next.couple.ideeJour) next.couple.ideeJour = {
+        liste: [],
+        custom: []
+      };
+      next.couple.ideeJour.custom = [...(next.couple.ideeJour.custom || []), {
+        id: Date.now().toString(),
+        text: text.trim()
+      }];
+      return next;
+    });
+  }, []);
+  const deleteIdeeCustom = useCallback(id => {
+    setData(prev => {
+      const next = clone(prev);
+      if (next.couple.ideeJour) {
+        next.couple.ideeJour.custom = (next.couple.ideeJour.custom || []).filter(i => i.id !== id);
+      }
+      return next;
+    });
+  }, []);
+  const toggleMaisonTask = useCallback(id => {
+    setData(prev => {
+      const next = clone(prev);
+      if (!next.couple.maison) next.couple.maison = {
+        checked: {},
+        custom: [],
+        lastReset: ''
+      };
+      const c = next.couple.maison.checked || {};
+      next.couple.maison.checked = {
+        ...c,
+        [id]: !c[id]
+      };
+      return next;
+    });
+  }, []);
+  const addMaisonTask = useCallback(task => {
+    setData(prev => {
+      const next = clone(prev);
+      if (!next.couple.maison) next.couple.maison = {
+        checked: {},
+        custom: [],
+        lastReset: ''
+      };
+      next.couple.maison.custom = [...(next.couple.maison.custom || []), task];
+      return next;
+    });
+  }, []);
+  const deleteMaisonTask = useCallback(id => {
+    setData(prev => {
+      const next = clone(prev);
+      if (next.couple.maison) next.couple.maison.custom = (next.couple.maison.custom || []).filter(t => t.id !== id);
+      return next;
+    });
+  }, []);
+  const resetMaisonChecked = useCallback(dateStr => {
+    setData(prev => {
+      const next = clone(prev);
+      if (!next.couple.maison) next.couple.maison = {
+        checked: {},
+        custom: [],
+        lastReset: ''
+      };
+      next.couple.maison.checked = {};
+      next.couple.maison.lastReset = dateStr;
+      return next;
+    });
+  }, []);
+  const updateObjMensuel = useCallback((id, updates) => {
+    setData(prev => {
+      const next = clone(prev);
+      const list = next.couple.objMensuels || [];
+      const idx = list.findIndex(o => o.id === id);
+      if (idx >= 0) Object.assign(list[idx], updates);
+      return next;
+    });
+  }, []);
+  const addObjMensuel = useCallback((titre, detail, cat, mois) => {
+    setData(prev => {
+      const next = clone(prev);
+      if (!next.couple.objMensuels) next.couple.objMensuels = [];
+      next.couple.objMensuels.push({
+        id: Date.now().toString(),
+        mois,
+        annee: new Date().getFullYear(),
+        titre,
+        detail,
+        categorie: cat,
+        statut: 'en_cours',
+        progress: 0
+      });
+      return next;
+    });
+  }, []);
+  const deleteObjMensuel = useCallback(id => {
+    setData(prev => {
+      const next = clone(prev);
+      next.couple.objMensuels = (next.couple.objMensuels || []).filter(o => o.id !== id);
+      return next;
+    });
+  }, []);
+  const {
+    totalObj,
+    totalDone,
+    avgProgress,
+    totalActions,
+    actionsDone
+  } = useMemo(() => {
+    const totalObj = [...(data.dja?.objectives || []), ...(data.liika?.objectives || []), ...(data.couple?.objectives || [])];
+    const totalDone = totalObj.filter(o => o.done).length;
+    const avgProgress = totalObj.length ? Math.round(totalObj.reduce((s, o) => s + (o.progress || 0), 0) / totalObj.length) : 0;
+    const totalActions = [...(data.dja?.actions || []), ...(data.liika?.actions || []), ...(data.couple?.actions || [])];
+    const actionsDone = totalActions.filter(a => a.done).length;
+    return {
+      totalObj,
+      totalDone,
+      avgProgress,
+      totalActions,
+      actionsDone
+    };
+  }, [data]);
+  const navItems = [{
+    id: 'dashboard',
+    label: 'Dashboard',
+    icon: '◈'
+  }, {
+    id: 'dja',
+    label: yName('dja'),
+    icon: '◆'
+  }, {
+    id: 'liika',
+    label: yName('liika'),
+    icon: '◇'
+  }, {
+    id: 'couple',
+    label: 'Couple',
+    icon: '♡'
+  }, {
+    id: 'jeux',
+    label: 'Jeux',
+    icon: '🎮'
+  }, {
+    id: 'maison',
+    label: 'Maison',
+    icon: '🏠'
+  }, {
+    id: 'repas',
+    label: 'Repas',
+    icon: '🍽'
+  }, {
+    id: 'courses',
+    label: 'Courses',
+    icon: '🛒'
+  }, {
+    id: 'sport',
+    label: 'Sport',
+    icon: '💪'
+  }, {
+    id: 'budget',
+    label: 'Budget',
+    icon: '💰'
+  }, {
+    id: 'vision',
+    label: 'Vision',
+    icon: '✦'
+  }, {
+    id: 'planning',
+    label: 'Planning',
+    icon: '🗓'
+  }, {
+    id: 'drevmcook',
+    label: 'DrevmCook',
+    icon: '🌿'
+  }, {
+    id: 'survie',
+    label: 'Survie',
+    icon: '🪖'
+  }, {
+    id: 'culture',
+    label: 'Culture GWA',
+    icon: '🎭'
+  }, {
+    id: 'coderousseau',
+    label: 'REMC',
+    icon: '🎓'
+  }, {
+    id: 'objmensuel',
+    label: 'Objectifs mois',
+    icon: '🎯'
+  }, {
+    id: 'calendar',
+    label: 'Calendrier',
+    icon: '📅'
+  }, {
+    id: 'media',
+    label: 'Médias',
+    icon: '🎬'
+  }, {
+    id: 'charts',
+    label: 'Stats',
+    icon: '▤'
+  }];
+  const renderPerson = who => {
+    const person = data[who];
+    const color = who;
+    return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 24,
+        flexWrap: 'wrap',
+        gap: 12
+      }
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
+      className: "eyebrow",
+      style: {
+        marginBottom: 6
+      }
+    }, who === 'dja' ? '◆' : '◇', " Profil"), /*#__PURE__*/React.createElement("h2", {
+      style: {
+        fontSize: 26,
+        fontWeight: 600,
+        fontFamily: "'Cormorant Garamond',serif",
+        color: 'var(--text)',
+        lineHeight: 1.1
+      }
+    }, person.name), /*#__PURE__*/React.createElement("p", {
+      style: {
+        fontSize: 13,
+        color: 'var(--text3)',
+        marginTop: 4
+      }
+    }, person.role, person.location ? ` · ${person.location}` : '')), /*#__PURE__*/React.createElement("div", {
+      className: "person-actions",
+      style: {
+        display: 'flex',
+        gap: 8,
+        flexWrap: 'wrap'
+      }
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: () => setModal({
+        type: 'objective',
+        who
+      }),
+      style: {
+        padding: '8px 16px',
+        borderRadius: 'var(--radius-sm)',
+        border: 'none',
+        background: `linear-gradient(135deg,${accent[who]},${accent[who]}cc)`,
+        color: '#06120d',
+        cursor: 'pointer',
+        fontSize: 12,
+        fontWeight: 700,
+        letterSpacing: '.04em'
+      }
+    }, "+ Objectif"), /*#__PURE__*/React.createElement("button", {
+      onClick: () => setModal({
+        type: 'action',
+        who
+      }),
+      style: {
+        padding: '8px 16px',
+        borderRadius: 'var(--radius-sm)',
+        border: '1px solid var(--border)',
+        background: 'transparent',
+        color: 'var(--text3)',
+        cursor: 'pointer',
+        fontSize: 12,
+        transition: 'all .15s'
+      }
+    }, "+ Action"))), /*#__PURE__*/React.createElement("div", {
+      className: "gold-rule",
+      style: {
+        marginBottom: 20
+      }
+    }), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'grid',
+        gap: 12,
+        marginBottom: 28
+      }
+    }, person.objectives.map(o => /*#__PURE__*/React.createElement(ObjectiveCard, {
+      key: o.id,
+      obj: o,
+      color: color,
+      onToggle: id => updateObj(who, id, {
+        done: !o.done,
+        progress: !o.done ? 100 : o.progress
+      }),
+      onProgress: (id, p) => updateObj(who, id, {
+        progress: p,
+        done: p >= 100
+      }),
+      onDelete: id => deleteObj(who, id)
+    }))), /*#__PURE__*/React.createElement("p", {
+      className: "eyebrow",
+      style: {
+        marginBottom: 12
+      }
+    }, "\u25B8 Actions"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'grid',
+        gap: 8
+      }
+    }, person.actions.map(a => /*#__PURE__*/React.createElement(ActionItem, {
+      key: a.id,
+      action: a,
+      color: color,
+      onToggle: id => toggleAction(who, id)
+    }))), /*#__PURE__*/React.createElement(NotesPanel, {
+      who: who,
+      notes: person.notes,
+      onAdd: addNote,
+      onDelete: deleteNote
+    }));
+  };
+  const renderCouple = () => {
+    return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 24,
+        flexWrap: 'wrap',
+        gap: 12
+      }
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
+      className: "eyebrow",
+      style: {
+        marginBottom: 6
+      }
+    }, "\u2661 " + BRAND), /*#__PURE__*/React.createElement("h2", {
+      style: {
+        fontSize: 26,
+        fontWeight: 600,
+        fontFamily: "'Cormorant Garamond',serif",
+        color: 'var(--gold)',
+        lineHeight: 1.1
+      }
+    }, displayName), /*#__PURE__*/React.createElement("p", {
+      style: {
+        fontSize: 13,
+        color: 'var(--text3)',
+        marginTop: 4,
+        fontFamily: "'Cormorant Garamond',serif",
+        fontStyle: 'italic'
+      }
+    }, BRAND + " \u2014 Vision commune")), /*#__PURE__*/React.createElement("div", {
+      className: "person-actions",
+      style: {
+        display: 'flex',
+        gap: 8,
+        flexWrap: 'wrap'
+      }
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: () => setModal({
+        type: 'objective',
+        who: 'couple'
+      }),
+      style: {
+        padding: '8px 16px',
+        borderRadius: 'var(--radius-sm)',
+        border: 'none',
+        background: `linear-gradient(135deg,var(--gold),var(--gold2))`,
+        color: '#06120d',
+        cursor: 'pointer',
+        fontSize: 12,
+        fontWeight: 700,
+        letterSpacing: '.04em'
+      }
+    }, "+ Objectif"), /*#__PURE__*/React.createElement("button", {
+      onClick: () => setModal({
+        type: 'action',
+        who: 'couple'
+      }),
+      style: {
+        padding: '8px 16px',
+        borderRadius: 'var(--radius-sm)',
+        border: '1px solid var(--border)',
+        background: 'transparent',
+        color: 'var(--text3)',
+        cursor: 'pointer',
+        fontSize: 12
+      }
+    }, "+ Action"))), /*#__PURE__*/React.createElement("div", {
+      className: "gold-rule",
+      style: {
+        marginBottom: 20
+      }
+    }), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'grid',
+        gap: 12,
+        marginBottom: 28
+      }
+    }, data.couple.objectives.map(o => /*#__PURE__*/React.createElement(ObjectiveCard, {
+      key: o.id,
+      obj: o,
+      color: "couple",
+      onToggle: id => updateObj('couple', id, {
+        done: !o.done,
+        progress: !o.done ? 100 : o.progress
+      }),
+      onProgress: (id, p) => updateObj('couple', id, {
+        progress: p,
+        done: p >= 100
+      }),
+      onDelete: id => deleteObj('couple', id)
+    }))), /*#__PURE__*/React.createElement("p", {
+      className: "eyebrow",
+      style: {
+        marginBottom: 12
+      }
+    }, "\u25B8 Actions"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'grid',
+        gap: 8
+      }
+    }, data.couple.actions.map(a => /*#__PURE__*/React.createElement(ActionItem, {
+      key: a.id,
+      action: a,
+      color: "couple",
+      onToggle: id => toggleAction('couple', id)
+    }))), /*#__PURE__*/React.createElement(NotesPanel, {
+      who: "couple",
+      notes: data.couple.notes,
+      onAdd: addNote,
+      onDelete: deleteNote
+    }));
+  };
+  const renderDashboard = () => {
+    return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+      className: "dash-hero",
+      style: {
+        background: 'var(--grad-hero)',
+        borderRadius: 'var(--radius)',
+        padding: '28px 28px 24px',
+        marginBottom: 24,
+        border: '1px solid var(--gold-border)',
+        boxShadow: '0 12px 40px rgba(0,0,0,.5)',
+        position: 'relative',
+        overflow: 'hidden'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        position: 'absolute',
+        top: -60,
+        right: -60,
+        width: 240,
+        height: 240,
+        background: 'radial-gradient(circle,rgba(217,183,95,.10) 0%,transparent 70%)',
+        borderRadius: '50%',
+        pointerEvents: 'none'
+      }
+    }), /*#__PURE__*/React.createElement("div", {
+      className: "eyebrow",
+      style: {
+        marginBottom: 10
+      }
+    }, "\uD83C\uDF34 " + BRAND), /*#__PURE__*/React.createElement("h2", {
+      style: {
+        fontSize: 30,
+        fontWeight: 600,
+        fontFamily: "'Cormorant Garamond',serif",
+        marginBottom: 6,
+        color: 'var(--text)',
+        lineHeight: 1.2
+      }
+    }, "Tableau de bord"), /*#__PURE__*/React.createElement("p", {
+      style: {
+        fontSize: 13,
+        color: 'var(--text3)',
+        marginBottom: 0
+      }
+    }, "Vue d'ensemble \u2014 Vision 2026-2036"), /*#__PURE__*/React.createElement(GuadeloupeMeteo, null), /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginTop: 16,
+        height: 1,
+        background: 'linear-gradient(90deg,var(--gold-border),transparent)'
+      }
+    })), (() => {
+      const mAlerts = mecaAlerts(data.dja);
+      if (!mAlerts.length) return null;
+      const top = mAlerts[0];
+      const col = top.sev < 0 ? '#ef4444' : (top.sev <= 14 ? '#f59e0b' : '#10b981');
+      return React.createElement('div', { onClick: () => setView('entretien'), title: 'Ouvrir l\'entretien mécanique', style: { cursor: 'pointer', background: top.sev < 0 ? 'rgba(239,68,68,.10)' : 'linear-gradient(135deg,var(--bg3),var(--bg4))', border: '1px solid ' + (top.sev < 0 ? 'rgba(239,68,68,.4)' : 'var(--gold-border)'), borderRadius: 'var(--radius)', padding: '16px 20px', marginBottom: 24, boxShadow: 'var(--shadow)' } },
+        React.createElement('div', { className: 'eyebrow', style: { marginBottom: 8 } }, '🔧 Entretien véhicule'),
+        React.createElement('div', { style: { display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' } },
+          React.createElement('span', { style: { fontSize: 16 } }, top.emoji),
+          React.createElement('span', { style: { fontWeight: 700, color: 'var(--text)', fontSize: 15 } }, top.veh + ' · ' + top.label),
+          React.createElement('span', { style: { fontWeight: 700, fontSize: 13, color: col } }, top.text)
+        ),
+        mAlerts.length > 1 && React.createElement('div', { style: { fontSize: 12, color: 'var(--text3)', marginTop: 6 } }, '+ ' + (mAlerts.length - 1) + ' autre' + (mAlerts.length - 1 > 1 ? 's' : '') + ' à surveiller'),
+        React.createElement('div', { style: { fontSize: 11, color: 'var(--gold)', marginTop: 8, fontFamily: "'Space Mono',monospace", letterSpacing: '.04em' } }, 'Ouvrir l\'entretien méca →')
+      );
+    })(), (() => {
+      const ideeJour = (data.couple || {}).ideeJour || {
+        liste: [],
+        custom: []
+      };
+      const allIdees = [...DEFAULT_IDEES, ...(ideeJour.custom || [])];
+      const today = new Date();
+      const dayOfYear = Math.floor((today - new Date(today.getFullYear(), 0, 0)) / 864e5);
+      const idee = allIdees.length ? allIdees[dayOfYear % allIdees.length] : {
+        text: 'Prenez soin de vous aujourd\'hui ♡'
+      };
+      return /*#__PURE__*/React.createElement("div", {
+        style: {
+          background: 'linear-gradient(135deg,var(--bg3),var(--bg4))',
+          borderRadius: 'var(--radius)',
+          padding: '20px 24px',
+          marginBottom: 24,
+          border: '1px solid var(--gold-border)',
+          boxShadow: 'var(--shadow)',
+          position: 'relative',
+          overflow: 'hidden'
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          position: 'absolute',
+          top: 0,
+          right: 0,
+          width: 140,
+          height: 140,
+          background: 'radial-gradient(circle,rgba(217,183,95,.08),transparent 70%)',
+          borderRadius: '50%',
+          transform: 'translate(35%,-35%)',
+          pointerEvents: 'none'
+        }
+      }), /*#__PURE__*/React.createElement("div", {
+        className: "eyebrow",
+        style: {
+          marginBottom: 10
+        }
+      }, "\u2728 Id\xE9e du jour"), /*#__PURE__*/React.createElement("p", {
+        style: {
+          fontSize: 18,
+          fontFamily: "'Cormorant Garamond',serif",
+          fontStyle: 'italic',
+          color: 'var(--text)',
+          lineHeight: 1.55,
+          marginBottom: 14
+        }
+      }, idee.text), /*#__PURE__*/React.createElement("div", {
+        style: {
+          display: 'flex',
+          gap: 8,
+          alignItems: 'center',
+          flexWrap: 'wrap'
+        }
+      }, /*#__PURE__*/React.createElement("button", {
+        onClick: () => setView('planning'),
+        style: {
+          padding: '5px 14px',
+          borderRadius: 20,
+          border: '1px solid var(--gold-border)',
+          background: 'transparent',
+          color: 'var(--gold)',
+          fontSize: 11,
+          cursor: 'pointer',
+          fontFamily: "'Space Mono',monospace",
+          letterSpacing: '.04em'
+        }
+      }, "Voir planning \u2192"), /*#__PURE__*/React.createElement("button", {
+        onClick: () => setView('drevmcook'),
+        style: {
+          padding: '5px 14px',
+          borderRadius: 20,
+          border: '1px solid var(--border2)',
+          background: 'transparent',
+          color: 'var(--text3)',
+          fontSize: 11,
+          cursor: 'pointer',
+          fontFamily: "'Space Mono',monospace",
+          letterSpacing: '.04em'
+        }
+      }, "\uD83C\uDF3F DrevmCook"), /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontSize: 10,
+          color: 'var(--text3)',
+          marginLeft: 'auto',
+          fontFamily: "'Space Mono',monospace"
+        }
+      }, today.toLocaleDateString('fr-FR', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long'
+      }))));
+    })(), /*#__PURE__*/React.createElement("div", {
+      className: "stat-grid",
+      style: {
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))',
+        gap: 12,
+        marginBottom: 28
+      }
+    }, /*#__PURE__*/React.createElement(StatCard, {
+      label: "Progression moyenne",
+      value: `${avgProgress}%`,
+      color: "dja",
+      icon: "\u25C8"
+    }), /*#__PURE__*/React.createElement(StatCard, {
+      label: "Objectifs termin\xE9s",
+      value: `${totalDone}/${totalObj.length}`,
+      color: "liika",
+      icon: "\u2713"
+    }), /*#__PURE__*/React.createElement(StatCard, {
+      label: "Actions faites",
+      value: `${actionsDone}/${totalActions.length}`,
+      color: "couple",
+      icon: "\u25B8"
+    }), (() => {
+      const totRev = personKeys().reduce((s, w) => {
+        const b = w === 'couple' ? data.couple.budget : data[w].budget;
+        return s + (b?.revenus || []).reduce((a, r) => a + Number(r.montant), 0);
+      }, 0);
+      const totDep = personKeys().reduce((s, w) => {
+        const b = w === 'couple' ? data.couple.budget : data[w].budget;
+        return s + (b?.depenses || []).reduce((a, d) => a + Number(d.montant), 0);
+      }, 0);
+      return /*#__PURE__*/React.createElement(StatCard, {
+        label: "Balance totale",
+        value: `${totRev - totDep >= 0 ? '+' : ''}${(totRev - totDep).toLocaleString('fr-FR')} €`,
+        color: totRev - totDep >= 0 ? 'dja' : 'couple',
+        icon: "\uD83D\uDCB0"
+      });
+    })()), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit,minmax(min(280px,100%),1fr))',
+        gap: 12,
+        marginBottom: 28
+      }
+    }, personKeys().map(w => {
+      const v = w === 'couple' ? data.couple.vision : data[w].vision;
+      const name = w === 'dja' ? data.dja.name : w === 'liika' ? data.liika.name : 'Couple';
+      return v ? /*#__PURE__*/React.createElement("div", {
+        key: w,
+        onClick: () => setView('vision'),
+        style: {
+          background: 'linear-gradient(160deg,var(--bg3),var(--bg2))',
+          borderRadius: 'var(--radius)',
+          padding: 18,
+          border: `1px solid ${accentBorder[w]}`,
+          cursor: 'pointer',
+          transition: 'all .2s',
+          boxShadow: 'var(--shadow)'
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontSize: 9,
+          color: accent[w],
+          letterSpacing: '.15em',
+          textTransform: 'uppercase',
+          marginBottom: 8,
+          fontFamily: "'Space Mono',monospace"
+        }
+      }, "\u2726 Vision ", name), /*#__PURE__*/React.createElement("p", {
+        style: {
+          color: 'var(--text2)',
+          lineHeight: 1.65,
+          fontFamily: "'Cormorant Garamond',serif",
+          fontStyle: 'italic',
+          fontSize: 15,
+          overflow: 'hidden',
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical'
+        }
+      }, v)) : null;
+    })), /*#__PURE__*/React.createElement("h3", {
+      className: "eyebrow",
+      style: {
+        marginBottom: 16
+      }
+    }, "\u25C8 C\xF4te \xE0 c\xF4te"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit,minmax(min(280px,100%),1fr))',
+        gap: 16,
+        marginBottom: 28
+      }
+    }, ['dja', 'liika'].map(who => {
+      const p = data[who];
+      const avg = p.objectives.length ? Math.round(p.objectives.reduce((s, o) => s + o.progress, 0) / p.objectives.length) : 0;
+      const av = accent[who];
+      return /*#__PURE__*/React.createElement("div", {
+        key: who,
+        style: {
+          background: 'linear-gradient(160deg,var(--bg3),var(--bg2))',
+          borderRadius: 'var(--radius)',
+          padding: 20,
+          border: `1px solid ${accentBorder[who]}`,
+          boxShadow: 'var(--shadow)'
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 16
+        }
+      }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontSize: 16,
+          fontWeight: 600
+        }
+      }, p.name), /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontSize: 12,
+          color: 'var(--text3)'
+        }
+      }, p.role)), /*#__PURE__*/React.createElement("div", {
+        style: {
+          position: 'relative',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }
+      }, /*#__PURE__*/React.createElement(ProgressRing, {
+        pct: avg,
+        size: 56,
+        stroke: 5,
+        color: av
+      }), /*#__PURE__*/React.createElement("span", {
+        style: {
+          position: 'absolute',
+          fontSize: 13,
+          fontWeight: 600
+        }
+      }, avg, "%"))), p.objectives.slice(0, 3).map(o => /*#__PURE__*/React.createElement("div", {
+        key: o.id,
+        style: {
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          marginBottom: 8
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          width: 6,
+          height: 6,
+          borderRadius: 3,
+          background: o.done ? 'var(--success)' : av,
+          minWidth: 6
+        }
+      }), /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontSize: 13,
+          color: o.done ? 'var(--text3)' : 'var(--text)',
+          flex: 1,
+          textDecoration: o.done ? 'line-through' : 'none'
+        }
+      }, o.title), /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontSize: 11,
+          color: 'var(--text3)'
+        }
+      }, o.progress, "%"))), /*#__PURE__*/React.createElement("button", {
+        onClick: () => setView(who),
+        style: {
+          marginTop: 12,
+          width: '100%',
+          padding: '8px',
+          borderRadius: 'var(--radius-sm)',
+          border: '1px solid var(--border2)',
+          background: 'transparent',
+          color: 'var(--text2)',
+          cursor: 'pointer',
+          fontSize: 13
+        }
+      }, "Voir tout \u2192"));
+    })), /*#__PURE__*/React.createElement("div", {
+      style: {
+        background: 'var(--bg2)',
+        borderRadius: 'var(--radius)',
+        padding: 20,
+        border: '1px solid var(--accent-couple-border)',
+        marginBottom: 28
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 16,
+        fontWeight: 600,
+        marginBottom: 4
+      }
+    }, "Objectifs couple"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 12,
+        color: 'var(--text3)',
+        marginBottom: 16
+      }
+    }, BRAND + " \u2014 projets communs"), data.couple.objectives.map(o => /*#__PURE__*/React.createElement("div", {
+      key: o.id,
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        marginBottom: 8
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        background: o.done ? 'var(--success)' : 'var(--accent-couple)',
+        minWidth: 6
+      }
+    }), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 13,
+        color: o.done ? 'var(--text3)' : 'var(--text)',
+        flex: 1
+      }
+    }, o.title), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 11,
+        color: 'var(--text3)'
+      }
+    }, o.progress, "%"))), /*#__PURE__*/React.createElement("button", {
+      onClick: () => setView('couple'),
+      style: {
+        marginTop: 12,
+        width: '100%',
+        padding: '8px',
+        borderRadius: 'var(--radius-sm)',
+        border: '1px solid var(--border2)',
+        background: 'transparent',
+        color: 'var(--text2)',
+        cursor: 'pointer',
+        fontSize: 13
+      }
+    }, "Voir tout \u2192")));
+  };
+  const renderCharts = () => {
+    return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
+      className: "eyebrow",
+      style: {
+        marginBottom: 8
+      }
+    }, "\u25A4 Donn\xE9es"), /*#__PURE__*/React.createElement("h2", {
+      style: {
+        fontSize: 26,
+        fontWeight: 600,
+        fontFamily: "'Cormorant Garamond',serif",
+        marginBottom: 4,
+        color: 'var(--text)'
+      }
+    }, "Statistiques"), /*#__PURE__*/React.createElement("p", {
+      style: {
+        fontSize: 13,
+        color: 'var(--text3)',
+        marginBottom: 24
+      }
+    }, "Progression par cat\xE9gorie et par personne"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        background: 'linear-gradient(160deg,var(--bg3),var(--bg2))',
+        borderRadius: 'var(--radius)',
+        padding: 20,
+        marginBottom: 20,
+        border: '1px solid var(--border)',
+        boxShadow: 'var(--shadow)'
+      }
+    }, /*#__PURE__*/React.createElement("p", {
+      className: "eyebrow",
+      style: {
+        marginBottom: 14
+      }
+    }, "Progression par cat\xE9gorie"), /*#__PURE__*/React.createElement(ChartPanel, {
+      data: data
+    })), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit,minmax(250px,1fr))',
+        gap: 16
+      }
+    }, personKeys().map(who => {
+      const label = who === 'dja' ? yName('dja') : who === 'liika' ? yName('liika') : 'Couple';
+      return /*#__PURE__*/React.createElement("div", {
+        key: who,
+        style: {
+          background: 'linear-gradient(160deg,var(--bg3),var(--bg2))',
+          borderRadius: 'var(--radius)',
+          padding: 20,
+          border: `1px solid ${accentBorder[who]}`,
+          boxShadow: 'var(--shadow)'
+        }
+      }, /*#__PURE__*/React.createElement("p", {
+        className: "eyebrow",
+        style: {
+          marginBottom: 14,
+          color: accent[who]
+        }
+      }, label), /*#__PURE__*/React.createElement(DoughnutPanel, {
+        data: data,
+        who: who
+      }), /*#__PURE__*/React.createElement("div", {
+        style: {
+          display: 'flex',
+          justifyContent: 'center',
+          gap: 16,
+          marginTop: 12,
+          fontSize: 10,
+          color: 'var(--text3)',
+          fontFamily: "'Space Mono',monospace"
+        }
+      }, /*#__PURE__*/React.createElement("span", {
+        style: {
+          display: 'flex',
+          alignItems: 'center',
+          gap: 4
+        }
+      }, /*#__PURE__*/React.createElement("span", {
+        style: {
+          width: 7,
+          height: 7,
+          borderRadius: 2,
+          background: 'var(--success)',
+          display: 'inline-block'
+        }
+      }), " Fait"), /*#__PURE__*/React.createElement("span", {
+        style: {
+          display: 'flex',
+          alignItems: 'center',
+          gap: 4
+        }
+      }, /*#__PURE__*/React.createElement("span", {
+        style: {
+          width: 7,
+          height: 7,
+          borderRadius: 2,
+          background: 'var(--accent-dja)',
+          display: 'inline-block'
+        }
+      }), " En cours"), /*#__PURE__*/React.createElement("span", {
+        style: {
+          display: 'flex',
+          alignItems: 'center',
+          gap: 4
+        }
+      }, /*#__PURE__*/React.createElement("span", {
+        style: {
+          width: 7,
+          height: 7,
+          borderRadius: 2,
+          background: 'var(--bg4)',
+          display: 'inline-block'
+        }
+      }), " \xC0 faire")));
+    })));
+  };
+
+  // ─── Objectifs mensuels ───
+  const renderObjMensuel = () => {
+    const annee = new Date().getFullYear();
+    const currentMonth = new Date().getMonth();
+    const objDuMois = (data.couple.objMensuels || []).filter(o => o.mois === objMoisFilter && o.annee === annee);
+    const STATUTS = {
+      en_cours: {
+        label: 'En cours',
+        color: 'var(--gold)'
+      },
+      termine: {
+        label: 'Terminé ✓',
+        color: 'var(--success)'
+      },
+      reporte: {
+        label: 'Reporté',
+        color: 'var(--text3)'
+      }
+    };
+    return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+      style: {
+        background: 'linear-gradient(135deg,rgba(217,183,95,.09),rgba(74,222,128,.05))',
+        borderRadius: 'var(--radius)',
+        padding: '22px 24px',
+        marginBottom: 20,
+        border: '1px solid var(--gold-border)',
+        position: 'relative',
+        overflow: 'hidden'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        position: 'absolute',
+        top: -40,
+        right: -40,
+        width: 160,
+        height: 160,
+        background: 'radial-gradient(circle,rgba(217,183,95,.08),transparent 70%)',
+        borderRadius: '50%',
+        pointerEvents: 'none'
+      }
+    }), /*#__PURE__*/React.createElement("p", {
+      className: "eyebrow",
+      style: {
+        marginBottom: 8
+      }
+    }, "\uD83C\uDFAF Vision mensuelle"), /*#__PURE__*/React.createElement("h2", {
+      style: {
+        fontSize: 26,
+        fontFamily: "'Cormorant Garamond',serif",
+        fontWeight: 600,
+        color: 'var(--text)',
+        marginBottom: 4,
+        lineHeight: 1.2
+      }
+    }, "Objectifs du mois"), /*#__PURE__*/React.createElement("p", {
+      style: {
+        fontSize: 13,
+        color: 'var(--text3)',
+        fontStyle: 'italic',
+        fontFamily: "'Cormorant Garamond',serif"
+      }
+    }, "Ce qu'on construit ensemble, mois apr\xE8s mois \u2661")), /*#__PURE__*/React.createElement("div", {
+      className: "scroll-x",
+      style: {
+        display: 'flex',
+        gap: 6,
+        marginBottom: 20,
+        paddingBottom: 4
+      }
+    }, MOIS_LABELS.map((m, i) => /*#__PURE__*/React.createElement("button", {
+      key: i,
+      onClick: () => setObjMoisFilter(i),
+      style: {
+        flexShrink: 0,
+        padding: '6px 12px',
+        borderRadius: 20,
+        border: `1px solid ${objMoisFilter === i ? 'var(--gold)' : 'var(--border)'}`,
+        background: objMoisFilter === i ? 'var(--gold-bg)' : 'transparent',
+        color: objMoisFilter === i ? 'var(--gold)' : 'var(--text3)',
+        fontSize: 11,
+        fontWeight: objMoisFilter === i ? 700 : 400,
+        cursor: 'pointer',
+        fontFamily: "'Space Mono',monospace",
+        whiteSpace: 'nowrap',
+        transition: 'all .2s'
+      }
+    }, m, i === currentMonth ? /*#__PURE__*/React.createElement("span", {
+      style: {
+        marginLeft: 3,
+        fontSize: 8,
+        opacity: .7
+      }
+    }, "\u25CF") : null))), objDuMois.length > 0 && /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'grid',
+        gridTemplateColumns: 'repeat(3,1fr)',
+        gap: 10,
+        marginBottom: 20
+      }
+    }, [{
+      l: 'Total',
+      v: objDuMois.length,
+      c: 'var(--text2)'
+    }, {
+      l: 'Terminés',
+      v: objDuMois.filter(o => o.statut === 'termine').length,
+      c: 'var(--success)'
+    }, {
+      l: 'En cours',
+      v: objDuMois.filter(o => o.statut === 'en_cours').length,
+      c: 'var(--gold)'
+    }].map((s, i) => /*#__PURE__*/React.createElement("div", {
+      key: i,
+      style: {
+        background: 'var(--bg3)',
+        borderRadius: 'var(--radius-sm)',
+        padding: '12px 14px',
+        border: '1px solid var(--border)',
+        textAlign: 'center'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 22,
+        fontWeight: 700,
+        color: s.c,
+        fontFamily: "'Space Mono',monospace"
+      }
+    }, s.v), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 10,
+        color: 'var(--text3)',
+        fontFamily: "'Space Mono',monospace",
+        marginTop: 2
+      }
+    }, s.l)))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'grid',
+        gap: 12,
+        marginBottom: 16
+      }
+    }, objDuMois.length === 0 && /*#__PURE__*/React.createElement("div", {
+      style: {
+        textAlign: 'center',
+        padding: '32px 20px',
+        color: 'var(--text3)',
+        fontSize: 15,
+        fontFamily: "'Cormorant Garamond',serif",
+        fontStyle: 'italic'
+      }
+    }, "Aucun objectif pour ", MOIS_LABELS[objMoisFilter], ".", /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 12
+      }
+    }, "Ajoutez le premier objectif de ce mois \u2193")), objDuMois.map((obj, i) => {
+      const st = STATUTS[obj.statut] || STATUTS.en_cours;
+      return /*#__PURE__*/React.createElement("div", {
+        key: obj.id,
+        style: {
+          background: 'linear-gradient(160deg,var(--bg3),var(--bg2))',
+          borderRadius: 'var(--radius)',
+          padding: '16px 18px',
+          border: `1px solid ${obj.statut === 'termine' ? 'rgba(74,222,128,.25)' : 'var(--border)'}`,
+          borderLeft: `3px solid ${st.color}`,
+          boxShadow: 'var(--shadow)',
+          animation: `fadeUp .3s ease ${i * .06}s both`
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          gap: 10,
+          marginBottom: 10
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          flex: 1
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          display: 'flex',
+          gap: 7,
+          marginBottom: 6,
+          flexWrap: 'wrap'
+        }
+      }, /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontSize: 9,
+          fontFamily: "'Space Mono',monospace",
+          color: 'var(--gold)',
+          background: 'var(--gold-bg)',
+          padding: '2px 8px',
+          borderRadius: 8,
+          border: '1px solid var(--gold-border)'
+        }
+      }, obj.categorie), /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontSize: 9,
+          fontFamily: "'Space Mono',monospace",
+          color: st.color,
+          background: st.color + '18',
+          padding: '2px 8px',
+          borderRadius: 8
+        }
+      }, st.label)), /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontSize: 15,
+          fontWeight: 600,
+          color: 'var(--text)',
+          marginBottom: obj.detail ? 3 : 0
+        }
+      }, obj.titre), obj.detail && /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontSize: 12,
+          color: 'var(--text3)',
+          fontStyle: 'italic'
+        }
+      }, obj.detail)), /*#__PURE__*/React.createElement("button", {
+        onClick: () => deleteObjMensuel(obj.id),
+        style: {
+          background: 'none',
+          border: 'none',
+          color: 'var(--text3)',
+          cursor: 'pointer',
+          fontSize: 16,
+          padding: '2px 4px',
+          flexShrink: 0
+        }
+      }, "\xD7")), /*#__PURE__*/React.createElement("div", {
+        style: {
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10
+        }
+      }, /*#__PURE__*/React.createElement("input", {
+        type: "range",
+        min: "0",
+        max: "100",
+        step: "10",
+        value: obj.progress,
+        onChange: e => {
+          const v = parseInt(e.target.value);
+          updateObjMensuel(obj.id, {
+            progress: v,
+            statut: v >= 100 ? 'termine' : 'en_cours'
+          });
+        },
+        style: {
+          flex: 1,
+          height: 4,
+          accentColor: st.color,
+          cursor: 'pointer'
+        }
+      }), /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontSize: 12,
+          fontWeight: 700,
+          color: obj.statut === 'termine' ? 'var(--success)' : 'var(--gold)',
+          fontFamily: "'Space Mono',monospace",
+          minWidth: 34
+        }
+      }, obj.progress, "%"), /*#__PURE__*/React.createElement("button", {
+        onClick: () => updateObjMensuel(obj.id, {
+          statut: obj.statut === 'termine' ? 'en_cours' : 'termine',
+          progress: obj.statut === 'termine' ? obj.progress : 100
+        }),
+        style: {
+          fontSize: 10,
+          fontFamily: "'Space Mono',monospace",
+          background: 'var(--bg4)',
+          border: '1px solid var(--border2)',
+          borderRadius: 'var(--radius-xs)',
+          padding: '4px 10px',
+          cursor: 'pointer',
+          color: 'var(--text2)',
+          whiteSpace: 'nowrap'
+        }
+      }, obj.statut === 'termine' ? 'Réactiver' : 'Marquer fait')));
+    })), showAddObjM ? /*#__PURE__*/React.createElement("div", {
+      style: {
+        background: 'var(--bg3)',
+        borderRadius: 'var(--radius)',
+        padding: 18,
+        border: '1px solid var(--gold-border)'
+      }
+    }, /*#__PURE__*/React.createElement("p", {
+      className: "eyebrow",
+      style: {
+        marginBottom: 12,
+        color: 'var(--gold)'
+      }
+    }, "+ Objectif \u2014 ", MOIS_LABELS[objMoisFilter]), /*#__PURE__*/React.createElement("input", {
+      placeholder: "Titre de l'objectif",
+      value: newObjM.titre,
+      onChange: e => setNewObjM(p => ({
+        ...p,
+        titre: e.target.value
+      })),
+      style: {
+        width: '100%',
+        padding: '9px 12px',
+        borderRadius: 'var(--radius-sm)',
+        border: '1px solid var(--border2)',
+        background: 'var(--bg2)',
+        color: 'var(--text)',
+        fontSize: 13,
+        marginBottom: 8,
+        outline: 'none'
+      }
+    }), /*#__PURE__*/React.createElement("input", {
+      placeholder: "D\xE9tails (optionnel)",
+      value: newObjM.detail,
+      onChange: e => setNewObjM(p => ({
+        ...p,
+        detail: e.target.value
+      })),
+      style: {
+        width: '100%',
+        padding: '9px 12px',
+        borderRadius: 'var(--radius-sm)',
+        border: '1px solid var(--border2)',
+        background: 'var(--bg2)',
+        color: 'var(--text)',
+        fontSize: 13,
+        marginBottom: 12,
+        outline: 'none'
+      }
+    }), /*#__PURE__*/React.createElement("div", {
+      className: "scroll-x",
+      style: {
+        display: 'flex',
+        gap: 6,
+        marginBottom: 14,
+        paddingBottom: 4
+      }
+    }, CATS_OBJ_MENSUEL.map(c => /*#__PURE__*/React.createElement("button", {
+      key: c,
+      onClick: () => setNewObjM(p => ({
+        ...p,
+        categorie: c
+      })),
+      style: {
+        flexShrink: 0,
+        padding: '5px 12px',
+        borderRadius: 20,
+        border: `1px solid ${newObjM.categorie === c ? 'var(--gold)' : 'var(--border)'}`,
+        background: newObjM.categorie === c ? 'var(--gold-bg)' : 'transparent',
+        color: newObjM.categorie === c ? 'var(--gold)' : 'var(--text3)',
+        fontSize: 11,
+        cursor: 'pointer',
+        fontFamily: "'Space Mono',monospace"
+      }
+    }, c))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        gap: 8
+      }
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: () => {
+        setShowAddObjM(false);
+        setNewObjM({
+          titre: '',
+          detail: '',
+          categorie: 'Nature'
+        });
+      },
+      style: {
+        flex: 1,
+        padding: '9px',
+        borderRadius: 'var(--radius-sm)',
+        border: '1px solid var(--border)',
+        background: 'transparent',
+        color: 'var(--text3)',
+        cursor: 'pointer',
+        fontSize: 13
+      }
+    }, "Annuler"), /*#__PURE__*/React.createElement("button", {
+      onClick: () => {
+        if (!newObjM.titre.trim()) return;
+        addObjMensuel(newObjM.titre, newObjM.detail, newObjM.categorie, objMoisFilter);
+        setNewObjM({
+          titre: '',
+          detail: '',
+          categorie: 'Nature'
+        });
+        setShowAddObjM(false);
+      },
+      style: {
+        flex: 2,
+        padding: '9px',
+        borderRadius: 'var(--radius-sm)',
+        border: 'none',
+        background: 'linear-gradient(135deg,var(--gold),var(--gold2))',
+        color: '#06120d',
+        cursor: 'pointer',
+        fontSize: 13,
+        fontWeight: 700
+      }
+    }, "Ajouter"))) : /*#__PURE__*/React.createElement("button", {
+      onClick: () => setShowAddObjM(true),
+      style: {
+        width: '100%',
+        padding: '12px',
+        borderRadius: 'var(--radius-sm)',
+        border: '1px dashed var(--gold-border)',
+        background: 'transparent',
+        color: 'var(--gold)',
+        cursor: 'pointer',
+        fontSize: 13,
+        fontFamily: "'Space Mono',monospace",
+        letterSpacing: '.04em'
+      }
+    }, "+ Ajouter un objectif pour ", MOIS_LABELS[objMoisFilter]));
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    className: "mt-app"
+  }, React.createElement(MatiereSidebar, {
+    activeCat, view, setView, goToCategory, syncStatus, onlineCount, lifeMode,
+    onProfil: () => setShowProfil(true),
+    onReset: () => { if (confirm('Vider toutes les données de cet espace ? Le profil (prénoms, mode) est conservé.')) setData(prev => { const n = clone(defaultData); n.profil = clone(prev.profil || defaultData.profil); for (const w of ['dja', 'liika']) { n[w].name = (prev[w] && prev[w].name) || ''; n[w].role = (prev[w] && prev[w].role) || ''; } return n; }); }
+  }), React.createElement(MatiereTabBar, {
+    activeCat, goToCategory, lifeMode,
+    onProfil: () => setShowProfil(true)
+  }), React.createElement("main", {className:"mt-main"},
+    view !== null && React.createElement('button',{
+      className:'mt-btn mt-btn-ghost',
+      onClick:()=>setView(null)
+    },'← Retour'),
+    !view && React.createElement(MatiereCategoryHome,{
+      catIdx:visibleCategories().findIndex(c=>c.id===activeCat),
+      setView,
+      goToCategory
+    }),
+    view === 'dashboard' && renderDashboard(),
+    view === 'dja' && renderPerson('dja'),
+    view === 'youngboudha' && React.createElement(YoungBoudhaView, { yb: (data.dja || {}).youngBoudha, updateYoungBoudha }),
+    view === 'liika' && renderPerson('liika'),
+    view === 'couple' && renderCouple(),
+    view === 'jeux' && React.createElement(JeuxView,{games:data.games,updateGames}),
+    view === 'maison' && React.createElement(MaisonView,{maison:(data.couple||{}).maison,toggleMaisonTask,addMaisonTask,deleteMaisonTask,resetMaisonChecked}),
+    view === 'repas' && React.createElement(MealsView,{data,upsertMeal,deleteMeal}),
+    view === 'courses' && React.createElement(CoursesView,{courses:data.courses||[],addCourse,upsertCourse,deleteCourse,toggleCourse,clearChecked:clearCheckedCourses,generateFromMeals:generateCoursesFromMeals,mergeDuplicates:mergeDuplicateCourses}),
+    view === 'sport' && React.createElement(SportView,{data,upsertSport,deleteSport}),
+    view === 'budget' && React.createElement(BudgetView,{data,upsertBudgetLine,deleteBudgetLine}),
+    view === 'vision' && React.createElement(VisionView,{data,updateVision}),
+    view === 'planning' && React.createElement(PlanningView,{planning:(data.couple||{}).planning||{},togglePlanningCheck,addPlanningItem,updatePlanningItem,deletePlanningItem,movePlanningItem,resetPlanningDay,soirees:(data.couple||{}).soirees||[],addSoiree,deleteSoiree}),
+    view === 'drevmcook' && React.createElement(DrevmCookView,{ferments:data.ferments||[],upsertFerment,deleteFerment,recipes:data.recipes||[],upsertRecipe,deleteRecipe,importRecipes}),
+    view === 'konsevasyon' && React.createElement(KonsevasyonView,{rezev:data.rezev||[],upsertRezev,deleteRezev}),
+    view === 'programdja' && React.createElement(SportDjaView,{programme:(data.dja||{}).programme,updateProgramme}),
+    view === 'culture' && React.createElement(CultureGwadView,null),
+    view === 'paris' && React.createElement(ParisView,{paris:(data.couple||{}).paris||[],addParis,updateParis,deleteParis}),
+    view === 'meteo' && React.createElement(MeteoView,null),
+    view === 'coderousseau' && React.createElement(CodeRousseauView,{codeRousseau:(data.liika||{}).codeRousseau,updateCodeRousseau}),
+    view === 'objmensuel' && renderObjMensuel(),
+    view === 'calendar' && React.createElement(CalendarView,{data}),
+    view === 'survie' && React.createElement(SurvieView,{survie:(data.couple||{}).survie||{},updateSurvie,ferments:data.ferments||[],addCourse}),
+    view === 'media' && React.createElement(MediaView,{media:data.media||[],addMedia,deleteMedia}),
+    view === 'charts' && renderCharts(),
+    view === 'sortie' && React.createElement(SortieView,null),
+    view === 'album' && React.createElement(AlbumView,{album:data.album||[],addAlbumPhoto,deleteAlbumPhoto}),
+    view === 'idees' && React.createElement(IdeesView,null),
+    view === 'medical' && React.createElement(MedicalView,{rdvs:data.couple.medical||[],addMedical,deleteMedical}),
+    view === 'potager' && React.createElement(PotagerView,{plantes:(data.couple||{}).potager||[],addPlante,updatePlante,deletePlante,semansye:(data.couple||{}).semansye||[],addLot,updateLot,deleteLot}),
+    view === 'voyages' && React.createElement(VoyagesView,{voyages:(data.couple||{}).voyages||[],addVoyage,updateVoyage,deleteVoyage,toggleVoyageCheck}),
+    view === 'artiste' && React.createElement(ArtView,null),
+    view === 'entretien' && React.createElement(EntretienView,{entretien:(data.dja||{}).entretien||[],vehicules:(data.dja||{}).vehicules||[],addEntretien,updateEntretien,deleteEntretien,addVehicule,updateVehicule,deleteVehicule})
+  ), /*#__PURE__*/React.createElement(AddModal, {
+    show: !!modal,
+    onClose: () => setModal(null),
+    type: modal?.type,
+    color: modal?.who,
+    onAdd: (t, d, c) => {
+      if (modal.type === 'objective') addObjective(modal.who, t, d, c);else addAction(modal.who, t, d, c);
+    }
+  }), showMotivation && React.createElement(MotivationToast, {
+    message: motivationMsg,
+    onClose: () => setShowMotivation(false)
+  }),
+  showProfil && React.createElement(ProfilModal, { data, setData, onClose: () => setShowProfil(false) })
+  );
+}
+// ── Écran d'ouverture animé ───────────────────────────────────────────────────
+// Affiché au lancement pendant SPLASH_HOLD, puis fondu de sortie vers l'app.
+// Passable à tout moment : clic, Échap/Entrée/Espace, ou bouton « Passer ».
+// L'app se monte derrière pendant ce temps → aucun temps d'attente ajouté.
+const SPLASH_HOLD = 2200; // ms avant le fondu de sortie
+const SPLASH_FADE = 480;  // ms de fondu (doit rester aligné sur @keyframes splashOut)
+
+function SplashScreen({ onDone }) {
+  const [leaving, setLeaving] = React.useState(false);
+  const doneRef = React.useRef(false);
+  const reduced = React.useRef(
+    typeof window !== 'undefined' && window.matchMedia
+      ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      : false
+  ).current;
+
+  const dismiss = React.useCallback(() => {
+    if (doneRef.current) return;
+    doneRef.current = true;
+    setLeaving(true);
+    setTimeout(onDone, reduced ? 0 : SPLASH_FADE);
+  }, [onDone, reduced]);
+
+  React.useEffect(() => {
+    const t = setTimeout(dismiss, reduced ? 600 : SPLASH_HOLD);
+    const onKey = e => {
+      if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') dismiss();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => { clearTimeout(t); window.removeEventListener('keydown', onKey); };
+  }, [dismiss, reduced]);
+
+  return React.createElement('div', {
+    className: 'splash' + (leaving ? ' splash--out' : ''),
+    role: 'dialog',
+    'aria-modal': 'true',
+    'aria-label': 'Ouverture de ' + BRAND,
+    onClick: dismiss
+  },
+    React.createElement('div', { className: 'splash-crest', 'aria-hidden': 'true' }, '♡'),
+    React.createElement('h1', { className: 'splash-title' }, BRAND),
+    React.createElement('div', { className: 'splash-rule', 'aria-hidden': 'true' }),
+    React.createElement('div', { className: 'splash-names' },
+      React.createElement('span', { className: 'n-dja' }, 'Solo'),
+      React.createElement('span', { className: 'n-amp' }, 'ou'),
+      React.createElement('span', { className: 'n-liika' }, 'à deux')
+    ),
+    React.createElement('div', { className: 'eyebrow splash-tag' }, BRAND_TAG),
+    React.createElement('button', {
+      className: 'splash-skip',
+      autoFocus: true,
+      onClick: dismiss
+    }, 'Passer')
+  );
+}
+
+// Une seule ouverture par session : sessionStorage est vidé à la fermeture de
+// l'onglet → le splash rejoue au prochain lancement, mais pas à chaque F5.
+const SPLASH_SEEN_KEY = 'yife-splash-seen';
+
+function Root() {
+  const [splash, setSplash] = React.useState(() => {
+    try { return sessionStorage.getItem(SPLASH_SEEN_KEY) !== '1'; } catch (e) { return true; }
+  });
+  // Marqué dès le 1er rendu : un rechargement pendant l'animation ne la rejoue pas.
+  React.useEffect(() => {
+    try { sessionStorage.setItem(SPLASH_SEEN_KEY, '1'); } catch (e) {}
+  }, []);
+  return React.createElement(React.Fragment, null,
+    splash && React.createElement(SplashScreen, { onDone: () => setSplash(false) }),
+    React.createElement(YifeGate, null)
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(/*#__PURE__*/React.createElement(Root, null));

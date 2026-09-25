@@ -126,12 +126,13 @@ Les scripts SQL sont dans `supabase/` (à lancer une fois depuis le SQL Editor S
 
 ---
 
-## Démo publique — Highdrevm
+## Yife — la version commerciale (`highdrevm/`)
 
-`/highdrevm/` sert la **même `app.js`** en mode démo : aucune lecture ni écriture Supabase,
-`localStorage` préfixé `hd:`, données d'exemple neutres (Alex & Sam), marque rebrandée.
-Un visiteur peut tout essayer sans jamais toucher aux vraies données.
-Détails : [`highdrevm/README.md`](highdrevm/README.md) et [`highdrevm/DOSSIER.md`](highdrevm/DOSSIER.md).
+`/highdrevm/` n'est plus une démo : c'est **Yife**, une **copie autonome** de l'app (son propre
+`app.js`, `styles.css`, `config.js`) pensée pour être vendue. Vrais comptes (e-mail + mot de
+passe, projet Supabase dédié), un espace solo ou partagé à deux via un code d'invitation, tous
+les tableaux vides au départ. Elle ne partage rien avec l'app du couple.
+Détails et mise en ligne des comptes : [`highdrevm/README.md`](highdrevm/README.md).
 
 ---
 
@@ -199,7 +200,7 @@ app.js          toute l'app (React sans JSX)
 index.html      point d'entrée
 styles.css      thème
 supabase/       scripts SQL (setup unique)
-highdrevm/      démo publique
+highdrevm/      Yife — app commerciale autonome (copie)
 src/            sous-app nutrition (JSX + Vite)
 scripts/        post-build nutrition
 files/          documents de travail (DrevmCook)

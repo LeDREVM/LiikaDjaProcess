@@ -27,7 +27,10 @@ const REQUIS = [
 const OPTIONNELS = [
   'kalandriye-lalin-concombre-giraumon.html', // liée depuis le Potager
   'planrepasdja.html',                        // page autonome
-  'highdrevm/index.html',                     // démo publique (charge /app.js et /styles.css)
+  'highdrevm/index.html',                     // Yife — app commerciale (copie autonome)
+  'highdrevm/app.js',
+  'highdrevm/styles.css',
+  'highdrevm/config.js',                      // URL + clé publishable Supabase Yife (publiques)
   'nutrition'                                 // sortie du build Vite, si elle existe
 ];
 
