@@ -3,6 +3,9 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [master]
+  # Permet de relancer un déploiement à la main depuis l'onglet Actions,
+  # sans avoir à pousser un commit (utile après un incident côté hébergeur).
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -11,7 +14,9 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  # On n'annule PAS un déploiement en cours : c'est de la production, on la
+  # laisse se terminer. Les exécutions en attente entre-temps sont ignorées.
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -26,6 +31,8 @@ jobs:
         run: node scripts/build-site.js
       - uses: actions/upload-pages-artifact@v3
         with:
+          # PAS la racine : elle exposerait .claude/, src/, supabase/,
+          # la configuration et les notes de travail.
           path: '_site'
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
